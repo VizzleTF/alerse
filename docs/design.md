@@ -142,7 +142,7 @@ No new sync data types are needed:
 | Pinned tree of each Space (nested folders) | `BOOKMARKS` (the Space folders with `arcomium.*` meta info) |
 | Open tabs on other devices | `SESSIONS` |
 | Spaces: name, color, open tabs | `SAVED_TAB_GROUP`, one saved group per Space |
-| Link routing rules, Space settings | `PREFERENCES` (syncable prefs) |
+| Space settings | `PREFERENCES` (syncable prefs) |
 | Passwords, history, extensions | their standard types |
 
 ### Order of work
@@ -176,10 +176,18 @@ stay desktop-only unless each Space maps to its own `WKWebsiteDataStore` (iOS 17
 
 ## Link routing
 
-Rules of the form "URL pattern -> Space", stored in a syncable pref. Applied to URLs that
-arrive from outside the browser (Arcomium as the default browser): the startup /
-command-line path opens the URL as a tab of the matching Space, in that Space's partition,
-and switches to it. Links clicked inside pages are not rerouted, same as Arc.
+Routes of the form "site -> Space", set at **Link routing** in the app menu
+(`chrome://arcomium-links`). A site is a host with its subdomains, optionally with a path
+("github.com/acme"); the longest match wins.
+
+Routes apply to links that arrive from outside the browser, with Arcomium as the default
+browser: `Navigate()` sees a new tab with no source tab and an `AUTO_TOPLEVEL` transition,
+opens it in the route's Space, in that Space's partition, and switches to the Space. A
+Space with no tabs left has no tab group, so the route brings it back under the name it
+had. Links clicked inside pages stay in their Space, same as Arc.
+
+Routes are a local pref, not synced: a Space's id is the name of its storage partition,
+which each device makes up on its own.
 
 ## Media and picture-in-picture
 

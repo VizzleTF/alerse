@@ -7,3 +7,4 @@ spaces/space-sidebar.patch
 look/content-card.patch
 sync/arcomium-sync-client.patch
 sync/sync-setup-page.patch
+spaces/link-routing.patch

@@ -20,6 +20,8 @@ and the Arc import tool. Builds come from the platform repositories below.
   [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
   encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
   in the app menu. A free public server is planned.
+- **Link routing**: links from other apps open in the Space you choose for their site,
+  such as github.com in Work.
 - **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
 
 ## Download
@@ -57,7 +59,7 @@ it imported before.
 | Spaces with separate logins | done |
 | Arc sidebar, Arc import | done; drag and drop to do |
 | Sync | done with your own server; public server to do |
-| Link routing to Spaces | links from other apps open in the current Space; rules to do |
+| Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | to do |
 
 ## Learn more

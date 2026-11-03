@@ -1,0 +1,1150 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 6a2532ef56..783d598903 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -293,6 +293,8 @@
+ #define IDC_SHOW_TABS_FROM_OTHER_DEVICES_SIDE_PANEL 40304
+ #define IDC_CHROME_ENTERPRISE_RELEASE_NOTES 40305
+ #define IDC_SHOW_TTC_MENU 40306
++// Arcomium: opens chrome://arcomium-links.
++#define IDC_ARCOMIUM_LINK_ROUTING 40390
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+index 21e5fd0d92..9751f725cb 100644
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -1930,6 +1930,9 @@ are declared in tools/grit/grit_args.gni.
+         <message name="IDS_SETTINGS" desc="The text label of the Settings menu item">
+           Settin&amp;gs
+         </message>
++        <message name="IDS_ARCOMIUM_LINK_ROUTING" desc="The text label of the menu item that opens the settings of which Space links from other apps open in">
++          &amp;Link routing
++        </message>
+         <message name="IDS_OPTIONS" desc="The text label of the Options menu item">
+           &amp;Options
+         </message>
+@@ -1982,6 +1985,9 @@ are declared in tools/grit/grit_args.gni.
+         <message name="IDS_SETTINGS" desc="In Title Case: The text label of the Settings menu item">
+           &amp;Settings
+         </message>
++        <message name="IDS_ARCOMIUM_LINK_ROUTING" desc="In Title Case: The text label of the menu item that opens the settings of which Space links from other apps open in">
++          &amp;Link Routing
++        </message>
+         <message name="IDS_OPTIONS" desc="In Title Case: The text label of the Options menu item">
+           &amp;Options
+         </message>
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 5571500f70..276c599c3a 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -92,6 +92,7 @@
+ #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
+ #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
+ #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
++#include "chrome/browser/ui/tabs/arcomium_link_routes.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
+@@ -1852,6 +1853,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   AccessibilityLabelsService::RegisterProfilePrefs(registry);
+   registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
+   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
++  arcomium::RegisterLinkRoutesPrefs(registry);
+ #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)  // nocheck
+   ttc::AiOverlayDialogController::RegisterProfilePrefs(registry);
+ #endif
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 24b48bb7f1..9da23be399 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -978,6 +978,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_SHOW_SYNC_SETTINGS:
+       chrome::ShowSettingsSubPage(browser_, chrome::kSyncSetupSubPage);
+       break;
++    case IDC_ARCOMIUM_LINK_ROUTING:
++      ShowSingletonTab(browser_, GURL("chrome://arcomium-links/"));
++      break;
+ #if !BUILDFLAG(IS_CHROMEOS)
+     case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
+       ShowSyncPassphraseDialogAndDecryptData(*browser_);
+@@ -1884,6 +1887,7 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_PAYMENT_METHODS,
+                                          !guest_session);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
++  command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_LINK_ROUTING, true);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_PASSPHRASE_DIALOG, true);
+   command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index 1c0988f4db..31656a73ef 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -42,7 +42,9 @@
+ #include "chrome/browser/ui/singleton_tabs.h"
+ #include "chrome/browser/ui/status_bubble.h"
+ #include "chrome/browser/ui/tab_helpers.h"
++#include "chrome/browser/ui/tabs/arcomium_link_routes.h"
+ #include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "components/tab_groups/tab_group_visual_data.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -116,6 +118,9 @@ namespace {
+ 
+ struct AdditionalParams {
+   bool tab_modal_popup = false;
++  // Arcomium: the route of a link another app opened, see
++  // GetLinkRouteForNewTab().
++  std::optional<arcomium::LinkRoute> link_route;
+ };
+ 
+ // Returns true if |params.browser| exists and can open a new tab for
+@@ -498,13 +503,39 @@ Profile* GetSourceProfile(NavigateParams* params) {
+ // Space of the page it was opened from, else the Space of its tab group
+ // (explicit or the focused one). --arcomium-space=<id> forces a Space, for
+ // testing.
+-std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
++// Arcomium: the link route for a link another app opens in a new tab (see
++// arcomium_link_routes.h). Links opened inside the browser have a source tab
++// and stay in its Space. Call it before Navigate() makes the active tab the
++// source of a navigation that has none.
++std::optional<arcomium::LinkRoute> GetLinkRouteForNewTab(
++    const NavigateParams& params) {
++  if (!params.browser || params.source_contents || params.opener ||
++      !ui::PageTransitionCoreTypeIs(params.transition,
++                                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL) ||
++      (params.tabstrip_add_types & AddTabTypes::ADD_PINNED) ||
++      (params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
++       params.disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB) ||
++      params.browser->GetProfile()->IsOffTheRecord()) {
++    return std::nullopt;
++  }
++  return arcomium::FindLinkRoute(
++      arcomium::GetLinkRoutes(*params.browser->GetProfile()->GetPrefs()),
++      params.url);
++}
++
++std::optional<std::string> GetSpaceForNewTab(
++    const NavigateParams& params,
++    const std::optional<arcomium::LinkRoute>& route) {
+   const std::string forced =
+       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+           "arcomium-space");
+   if (!forced.empty()) {
+     return forced;
+   }
++  if (route) {
++    return route->space.empty() ? std::nullopt
++                                : std::optional<std::string>(route->space);
++  }
+   if (params.source_contents) {
+     if (std::optional<std::string> space =
+             arcomium::GetSpaceOfContents(params.source_contents)) {
+@@ -523,7 +554,8 @@ std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
+ 
+ std::unique_ptr<content::WebContents> CreateTargetContents(
+     const NavigateParams& params,
+-    const GURL& url) {
++    const GURL& url,
++    const std::optional<arcomium::LinkRoute>& link_route) {
+   // Always create the new WebContents in a new SiteInstance (and therefore a
+   // new BrowsingInstance), *unless* there's a |params.opener|.
+   //
+@@ -538,7 +570,8 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+   if (params.opener) {
+     initial_site_instance_for_new_contents = params.opener->GetSiteInstance();
+   } else {
+-    if (std::optional<std::string> space = GetSpaceForNewTab(params)) {
++    if (std::optional<std::string> space =
++            GetSpaceForNewTab(params, link_route)) {
+       GURL effective_url = url;
+       content::BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(
+           &effective_url, params.browser->GetProfile());
+@@ -754,6 +787,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+   // target browser. This must happen before GetBrowserAndTabForDisposition()
+   // has a chance to replace |params->browser| with another one, but after the
+   // above check that relies on the original source_contents value.
++  additional_params.link_route = GetLinkRouteForNewTab(*params);
+   if (!params->source_contents && params->browser) {
+     params->source_contents =
+         params->browser->GetTabStripModel()->GetActiveWebContents();
+@@ -950,11 +984,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+       // partition, so a new tab of a Space starts blank.
+       if (params->url.SchemeIs(content::kChromeUIScheme) &&
+           params->url.host() == chrome::kChromeUINewTabHost &&
+-          GetSpaceForNewTab(*params)) {
++          GetSpaceForNewTab(*params, additional_params.link_route)) {
+         params->url = GURL(url::kAboutBlankURL);
+       }
+       tab_to_insert = std::make_unique<tabs::TabModel>(
+-          CreateTargetContents(*params, params->url),
++          CreateTargetContents(*params, params->url,
++                               additional_params.link_route),
+           params->browser->GetTabStripModel());
+       if (params->source_contents &&
+           ((params->tabstrip_add_types & AddTabTypes::ADD_INHERIT_OPENER) ||
+@@ -1042,16 +1077,47 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+     }
+ 
+     DCHECK(tab_to_insert);
++    TabStripModel* const target_model = params->browser->GetTabStripModel();
+     std::optional<tab_groups::TabGroupId> group = params->group;
+-    if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
++    const std::optional<arcomium::LinkRoute>& route =
++        additional_params.link_route;
++    if (route) {
++      // Arcomium: open the routed link in its Space and show that Space. A
++      // Space without tabs has no group; the tab goes in outside of focus
++      // mode and gets a new group below.
++      group = route->space.empty()
++                  ? std::nullopt
++                  : arcomium::FindGroupOfSpace(target_model, route->space);
++      if (group) {
++        target_model->EnterFocusMode(*group);
++      } else if (target_model->GetFocusedGroup()) {
++        target_model->ExitFocusMode(
++            TabGroupFocusExitReason::kActiveTabGroupOperation);
++      }
++    } else if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
+       if (!group.has_value()) {
+-        group = params->browser->GetTabStripModel()->GetFocusedGroup();
++        group = target_model->GetFocusedGroup();
+       }
+     }
+     // The navigation should insert a new tab into the target Browser.
+-    params->browser->GetTabStripModel()->AddTab(
+-        std::move(tab_to_insert), params->tabstrip_index, params->transition,
+-        params->tabstrip_add_types, group);
++    target_model->AddTab(std::move(tab_to_insert), params->tabstrip_index,
++                         params->transition, params->tabstrip_add_types,
++                         group);
++    if (route && !route->space.empty() && !group) {
++      const int index =
++          target_model->GetIndexOfWebContents(contents_to_navigate_or_insert);
++      if (index != TabStripModel::kNoTab) {
++        const tab_groups::TabGroupId new_group =
++            target_model->AddToNewGroup({index});
++        target_model->ChangeTabGroupVisuals(
++            new_group, tab_groups::TabGroupVisualData(
++                           base::UTF8ToUTF16(route->name.empty()
++                                                 ? std::string("Space")
++                                                 : route->name),
++                           tab_groups::TabGroupColorId::kBlue));
++        target_model->EnterFocusMode(new_group);
++      }
++    }
+ 
+     // For NEW_SPLIT_VIEW, pair the new tab with the active tab. The
+     // "already split" case is handled in
+diff --git a/chrome/browser/ui/tabs/arcomium_link_routes.h b/chrome/browser/ui/tabs/arcomium_link_routes.h
+new file mode 100644
+index 0000000000..4d8434baa9
+--- /dev/null
++++ b/chrome/browser/ui/tabs/arcomium_link_routes.h
+@@ -0,0 +1,159 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_TABS_ARCOMIUM_LINK_ROUTES_H_
++#define CHROME_BROWSER_UI_TABS_ARCOMIUM_LINK_ROUTES_H_
++
++// Arcomium link routing. A link route sends links that other apps open to a
++// Space: "github.com -> Work" opens every GitHub link from a chat or mail app
++// in the Work Space, with its logins. A pattern is a site, optionally with a
++// path: "github.com" matches github.com and its subdomains, "github.com/acme"
++// only paths under /acme. The longest matching pattern wins. Links opened
++// inside the browser stay in the Space they were opened from.
++
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/strings/string_util.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "base/values.h"
++#include "components/pref_registry/pref_registry_syncable.h"
++#include "components/prefs/pref_service.h"
++#include "url/gurl.h"
++
++namespace arcomium {
++
++// Profile pref: a list of {"pattern", "space", "name"}.
++inline constexpr char kLinkRoutesPref[] = "arcomium.link_routes";
++
++struct LinkRoute {
++  std::string pattern;
++  // The Space's id; empty for the default Space, the tabs outside Spaces.
++  std::string space;
++  // The Space's name when the route was made, to bring the Space back if it
++  // has no tabs left.
++  std::string name;
++};
++
++inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {
++  registry->RegisterListPref(kLinkRoutesPref);
++}
++
++inline std::vector<LinkRoute> GetLinkRoutes(const PrefService& prefs) {
++  std::vector<LinkRoute> routes;
++  for (const base::Value& value : prefs.GetList(kLinkRoutesPref)) {
++    const base::DictValue* dict = value.GetIfDict();
++    if (!dict) {
++      continue;
++    }
++    const std::string* pattern = dict->FindString("pattern");
++    const std::string* space = dict->FindString("space");
++    const std::string* name = dict->FindString("name");
++    if (pattern && space && !pattern->empty()) {
++      routes.push_back({*pattern, *space, name ? *name : std::string()});
++    }
++  }
++  return routes;
++}
++
++inline void SetLinkRoutes(PrefService* prefs,
++                          const std::vector<LinkRoute>& routes) {
++  base::ListValue list;
++  for (const LinkRoute& route : routes) {
++    list.Append(base::DictValue()
++                    .Set("pattern", route.pattern)
++                    .Set("space", route.space)
++                    .Set("name", route.name));
++  }
++  prefs->SetList(kLinkRoutesPref, std::move(list));
++}
++
++// Reads a pattern as people type it ("https://www.GitHub.com/acme/") into
++// its stored form ("github.com/acme"). Returns "" if it names no site.
++inline std::string NormalizeLinkPattern(std::string_view typed) {
++  std::string text(base::TrimWhitespaceASCII(typed, base::TRIM_ALL));
++  if (text.find("://") == std::string::npos) {
++    text = "https://" + text;
++  }
++  const GURL url(text);
++  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS() || url.host().empty()) {
++    return std::string();
++  }
++  // A site has a dot in its name, unless it is an address or localhost:
++  // "github" alone is a typo.
++  if (!url.HostIsIPAddress() && url.host() != "localhost" &&
++      url.host().find('.') == std::string::npos) {
++    return std::string();
++  }
++  std::string host = base::ToLowerASCII(url.host());
++  if (host.starts_with("www.")) {
++    host = host.substr(4);
++  }
++  std::string path(url.path());
++  while (path.ends_with('/')) {
++    path.pop_back();
++  }
++  return host + path;
++}
++
++inline bool LinkPatternMatches(std::string_view pattern, const GURL& url) {
++  const size_t slash = pattern.find('/');
++  const std::string_view host = pattern.substr(0, slash);
++  const std::string_view path =
++      slash == std::string_view::npos ? std::string_view() : pattern.substr(slash);
++  std::string url_host = base::ToLowerASCII(url.host());
++  if (url_host.starts_with("www.")) {
++    url_host = url_host.substr(4);
++  }
++  if (url_host != host && !url_host.ends_with("." + std::string(host))) {
++    return false;
++  }
++  if (path.empty()) {
++    return true;
++  }
++  // A path matches at segment boundaries: /acme matches /acme/x, not /acmes.
++  const std::string url_path(url.path());
++  return url_path.starts_with(path) &&
++         (url_path.size() == path.size() || url_path[path.size()] == '/');
++}
++
++// The group of `space` in `model`, or nullopt: a Space without tabs has
++// none.
++inline std::optional<tab_groups::TabGroupId> FindGroupOfSpace(
++    const TabStripModel* model,
++    const std::string& space) {
++  if (!model->group_model()) {
++    return std::nullopt;
++  }
++  for (const tab_groups::TabGroupId& group :
++       model->group_model()->ListTabGroups()) {
++    if (GetSpaceOfGroup(model, group) == space) {
++      return group;
++    }
++  }
++  return std::nullopt;
++}
++
++// The route for a link opened from another app, if one matches.
++inline std::optional<LinkRoute> FindLinkRoute(
++    const std::vector<LinkRoute>& routes,
++    const GURL& url) {
++  if (!url.SchemeIsHTTPOrHTTPS()) {
++    return std::nullopt;
++  }
++  const LinkRoute* best = nullptr;
++  for (const LinkRoute& route : routes) {
++    if (LinkPatternMatches(route.pattern, url) &&
++        (!best || route.pattern.size() > best->pattern.size())) {
++      best = &route;
++    }
++  }
++  return best ? std::optional<LinkRoute>(*best) : std::nullopt;
++}
++
++}  // namespace arcomium
++
++#endif  // CHROME_BROWSER_UI_TABS_ARCOMIUM_LINK_ROUTES_H_
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 09f826b368..d505fb6448 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2262,6 +2262,10 @@ void AppMenuModel::Build() {
+       this, IDC_SHOW_SYNC_SETTINGS, IDS_SETTINGS_SYNC,
+       features::IsRoundedIconsEnabled() ? vector_icons::kSyncIcon
+                                         : kSyncRefreshOldIcon);
++  AddItemWithStringIdAndVectorIcon(
++      this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
++      features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
++                                        : vector_icons::kLinkOldIcon);
+ 
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_OPTIONS, IDS_SETTINGS,
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 7f5aa7c3ea..ab43e6a21f 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -48,6 +48,7 @@ source_set("configs") {
+ 
+   deps = [
+     ":gcm_internals_ui",
++    "//chrome/browser/ui/webui/arcomium_links",
+     "//chrome/browser/ui/webui/arcomium_sync",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+diff --git a/chrome/browser/ui/webui/arcomium_common/arcomium_page_style.inc b/chrome/browser/ui/webui/arcomium_common/arcomium_page_style.inc
+new file mode 100644
+index 0000000000..41a47b1889
+--- /dev/null
++++ b/chrome/browser/ui/webui/arcomium_common/arcomium_page_style.inc
+@@ -0,0 +1,102 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The look shared by Arcomium's own pages (chrome://arcomium-sync,
++// chrome://arcomium-links), served to each as base.css.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_ARCOMIUM_COMMON_ARCOMIUM_PAGE_STYLE_INC_
++#define CHROME_BROWSER_UI_WEBUI_ARCOMIUM_COMMON_ARCOMIUM_PAGE_STYLE_INC_
++
++inline constexpr char kArcomiumPageBaseCss[] = R"CSS(
++:root {
++  --bg: #f6f5f8;
++  --panel: #ffffff;
++  --fg: #1d1b22;
++  --muted: #5f5b69;
++  --line: #e2dfe8;
++  --accent: #5b4bdb;
++  --accent-fg: #ffffff;
++  --ok: #1f8a4c;
++  --warn: #b26a00;
++  --bad: #c62f3a;
++  color-scheme: light dark;
++}
++@media (prefers-color-scheme: dark) {
++  :root {
++    --bg: #17161b;
++    --panel: #211f27;
++    --fg: #ecebf0;
++    --muted: #a7a3b2;
++    --line: #34313d;
++    --accent: #8d80f2;
++    --accent-fg: #17161b;
++    --ok: #4cc27f;
++    --warn: #e2a443;
++    --bad: #f0707a;
++  }
++}
++body {
++  margin: 0;
++  background: var(--bg);
++  color: var(--fg);
++  font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
++}
++main {
++  max-width: 36rem;
++  margin: 0 auto;
++  padding: 48px 20px;
++  display: grid;
++  gap: 24px;
++}
++h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; }
++h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
++p { margin: 0; }
++.lede, .card > p, #code > p { color: var(--muted); }
++section, .card { display: grid; gap: 12px; }
++.card, #status, #code, .banner {
++  background: var(--panel);
++  border: 1px solid var(--line);
++  border-radius: 12px;
++  padding: 20px;
++}
++#setup { gap: 16px; }
++label { font-weight: 500; margin-bottom: -6px; }
++input, textarea {
++  font: inherit;
++  color: inherit;
++  background: var(--bg);
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  padding: 8px 10px;
++}
++textarea { resize: vertical; }
++input:focus-visible, textarea:focus-visible, button:focus-visible {
++  outline: 2px solid var(--accent);
++  outline-offset: 1px;
++}
++button {
++  font: inherit;
++  font-weight: 500;
++  color: var(--fg);
++  background: transparent;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  padding: 7px 14px;
++  cursor: pointer;
++  justify-self: start;
++}
++button.primary {
++  background: var(--accent);
++  border-color: var(--accent);
++  color: var(--accent-fg);
++}
++button.danger { color: var(--bad); border-color: var(--bad); }
++button.quiet { color: var(--muted); }
++button:disabled { opacity: .6; cursor: default; }
++.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
++.error { color: var(--bad); }
++.note { color: var(--muted); }
++)CSS";
++
++#endif  // CHROME_BROWSER_UI_WEBUI_ARCOMIUM_COMMON_ARCOMIUM_PAGE_STYLE_INC_
+diff --git a/chrome/browser/ui/webui/arcomium_links/BUILD.gn b/chrome/browser/ui/webui/arcomium_links/BUILD.gn
+new file mode 100644
+index 0000000000..b9c4fd1e08
+--- /dev/null
++++ b/chrome/browser/ui/webui/arcomium_links/BUILD.gn
+@@ -0,0 +1,23 @@
++# Copyright 2026 The Arcomium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++source_set("arcomium_links") {
++  sources = [
++    "../arcomium_common/arcomium_page_style.inc",
++    "arcomium_links_page.inc",
++    "arcomium_links_ui.cc",
++    "arcomium_links_ui.h",
++  ]
++  public_deps = [ "//content/public/browser" ]
++  deps = [
++    "//base",
++    "//chrome/browser/profiles:profile",
++    "//chrome/browser/ui/browser_window",
++    "//chrome/browser/ui/tabs:tab_strip",
++    "//components/prefs",
++    "//components/tab_groups",
++    "//components/tabs:public",
++    "//url",
++  ]
++}
+diff --git a/chrome/browser/ui/webui/arcomium_links/arcomium_links_page.inc b/chrome/browser/ui/webui/arcomium_links/arcomium_links_page.inc
+new file mode 100644
+index 0000000000..f01b666226
+--- /dev/null
++++ b/chrome/browser/ui/webui/arcomium_links/arcomium_links_page.inc
+@@ -0,0 +1,136 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The files of chrome://arcomium-links, served by ArcomiumLinksUI.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_PAGE_INC_
++#define CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_PAGE_INC_
++
++inline constexpr char kArcomiumLinksHtml[] = R"HTML(<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<title>Link routing</title>
++<link rel="stylesheet" href="base.css">
++<link rel="stylesheet" href="arcomium_links.css">
++<script type="module" src="arcomium_links.js"></script>
++</head>
++<body>
++<main>
++  <header>
++    <h1>Link routing</h1>
++    <p class="lede">Choose the Space where links from other apps open, by
++      site: links to github.com from a chat or mail app can open in your Work
++      Space, signed in to work accounts. Links you open inside Arcomium stay in
++      the Space you are in.</p>
++  </header>
++
++  <form id="add" class="card" novalidate>
++    <h2>Add a route</h2>
++    <div class="fields">
++      <div class="field">
++        <label for="pattern">Site</label>
++        <input id="pattern" placeholder="github.com or github.com/your-team"
++            autocomplete="off" spellcheck="false">
++      </div>
++      <div class="field">
++        <label for="space">Opens in</label>
++        <select id="space"></select>
++      </div>
++    </div>
++    <p id="add-error" class="error" role="alert" hidden></p>
++    <button class="primary" type="submit">Add route</button>
++  </form>
++
++  <section class="card">
++    <h2>Routes</h2>
++    <p id="empty" class="note">No routes yet: links from other apps open in
++      the Space you were in last.</p>
++    <ul id="routes" class="routes"></ul>
++  </section>
++</main>
++</body>
++</html>
++)HTML";
++
++inline constexpr char kArcomiumLinksCss[] = R"CSS(
++.fields { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
++@media (max-width: 30rem) { .fields { grid-template-columns: 1fr; } }
++.field { display: grid; gap: 6px; min-width: 0; }
++.field label { margin: 0; }
++select {
++  font: inherit;
++  color: inherit;
++  background: var(--bg);
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  padding: 7px 8px;
++}
++.routes { list-style: none; margin: 0; padding: 0; display: grid; }
++.routes li {
++  display: grid;
++  grid-template-columns: minmax(0, 1fr) auto auto;
++  align-items: center;
++  gap: 12px;
++  padding: 8px 0;
++  border-top: 1px solid var(--line);
++}
++.routes li:first-child { border-top: 0; }
++.site { overflow-wrap: anywhere; font-weight: 500; }
++.target { color: var(--muted); white-space: nowrap; }
++.target::before { content: "\2192\00a0"; }
++)CSS";
++
++inline constexpr char kArcomiumLinksJs[] = R"JS(
++import {sendWithPromise} from 'chrome://resources/js/cr.js';
++
++const $ = (id) => document.getElementById(id);
++
++function render(state) {
++  const select = $('space');
++  const chosen = select.value;
++  select.replaceChildren(...state.spaces.map((space) => new Option(space.name, space.id)));
++  if (state.spaces.some((space) => space.id === chosen)) {
++    select.value = chosen;
++  } else if (state.spaces.length > 1) {
++    select.value = state.spaces[1].id;  // the first Space after Home
++  }
++
++  $('empty').hidden = state.routes.length > 0;
++  $('routes').replaceChildren(...state.routes.map((route) => {
++    const li = document.createElement('li');
++    const site = document.createElement('span');
++    site.className = 'site';
++    site.textContent = route.pattern;
++    const target = document.createElement('span');
++    target.className = 'target';
++    target.textContent = route.name;
++    const remove = document.createElement('button');
++    remove.className = 'quiet';
++    remove.textContent = 'Remove';
++    remove.setAttribute('aria-label', `Remove the route for ${route.pattern}`);
++    remove.addEventListener('click', async () => {
++      render(await sendWithPromise('removeRoute', route.pattern));
++    });
++    li.append(site, target, remove);
++    return li;
++  }));
++}
++
++$('add').addEventListener('submit', async (e) => {
++  e.preventDefault();
++  $('add-error').hidden = true;
++  try {
++    render(await sendWithPromise('addRoute', $('pattern').value, $('space').value));
++    $('pattern').value = '';
++  } catch (message) {
++    $('add-error').textContent = String(message);
++    $('add-error').hidden = false;
++  }
++});
++
++sendWithPromise('getState').then(render);
++)JS";
++
++#endif  // CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_PAGE_INC_
+diff --git a/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.cc b/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.cc
+new file mode 100644
+index 0000000000..aca8f692b6
+--- /dev/null
++++ b/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.cc
+@@ -0,0 +1,202 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h"
++
++#include <algorithm>
++#include <memory>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/functional/bind.h"
++#include "base/memory/ref_counted_memory.h"
++#include "base/strings/utf_string_conversions.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
++#include "chrome/browser/ui/tabs/arcomium_link_routes.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/tab_group_model.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "components/tab_groups/tab_group_visual_data.h"
++#include "components/tabs/public/tab_group.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++
++namespace {
++
++#include "chrome/browser/ui/webui/arcomium_common/arcomium_page_style.inc"
++#include "chrome/browser/ui/webui/arcomium_links/arcomium_links_page.inc"
++
++std::string_view FindFile(const std::string& path) {
++  if (path.empty() || path == "index.html") {
++    return kArcomiumLinksHtml;
++  }
++  if (path == "base.css") {
++    return kArcomiumPageBaseCss;
++  }
++  if (path == "arcomium_links.css") {
++    return kArcomiumLinksCss;
++  }
++  if (path == "arcomium_links.js") {
++    return kArcomiumLinksJs;
++  }
++  return {};
++}
++
++struct Space {
++  std::string id;
++  std::string name;
++};
++
++// The Spaces a link can go to: the default one, those open in the profile's
++// windows, and those that routes name but have no tabs now.
++std::vector<Space> ListSpaces(Profile* profile,
++                              const std::vector<arcomium::LinkRoute>& routes) {
++  std::vector<Space> spaces = {{std::string(), "Home"}};
++  auto known = [&spaces](const std::string& id) {
++    return std::ranges::any_of(spaces,
++                               [&id](const Space& s) { return s.id == id; });
++  };
++  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
++    if (browser->GetProfile() != profile) {
++      continue;
++    }
++    const TabStripModel* model = browser->GetTabStripModel();
++    if (!model || !model->group_model()) {
++      continue;
++    }
++    for (const tab_groups::TabGroupId& group :
++         model->group_model()->ListTabGroups()) {
++      std::optional<std::string> id = arcomium::GetSpaceOfGroup(model, group);
++      if (!id || known(*id)) {
++        continue;
++      }
++      const std::u16string& title =
++          model->group_model()->GetTabGroup(group)->visual_data()->title();
++      spaces.push_back({*id, title.empty() ? "Space" : base::UTF16ToUTF8(title)});
++    }
++  }
++  for (const arcomium::LinkRoute& route : routes) {
++    if (!known(route.space)) {
++      spaces.push_back({route.space, route.name.empty() ? "Space" : route.name});
++    }
++  }
++  return spaces;
++}
++
++}  // namespace
++
++ArcomiumLinksUI::ArcomiumLinksUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
++      profile, kChromeUIArcomiumLinksHost);
++  source->SetRequestFilter(
++      base::BindRepeating(
++          [](const std::string& path) { return !FindFile(path).empty(); }),
++      base::BindRepeating(
++          [](const std::string& path,
++             content::WebUIDataSource::GotDataCallback callback) {
++            std::move(callback).Run(
++                base::MakeRefCounted<base::RefCountedString>(
++                    std::string(FindFile(path))));
++          }));
++  web_ui->AddMessageHandler(std::make_unique<ArcomiumLinksHandler>(profile));
++}
++
++ArcomiumLinksUI::~ArcomiumLinksUI() = default;
++
++ArcomiumLinksHandler::ArcomiumLinksHandler(Profile* profile)
++    : profile_(profile) {}
++
++ArcomiumLinksHandler::~ArcomiumLinksHandler() = default;
++
++void ArcomiumLinksHandler::RegisterMessages() {
++  web_ui()->RegisterMessageCallback(
++      "getState", base::BindRepeating(&ArcomiumLinksHandler::HandleGetState,
++                                      base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "addRoute", base::BindRepeating(&ArcomiumLinksHandler::HandleAddRoute,
++                                      base::Unretained(this)));
++  web_ui()->RegisterMessageCallback(
++      "removeRoute",
++      base::BindRepeating(&ArcomiumLinksHandler::HandleRemoveRoute,
++                          base::Unretained(this)));
++}
++
++base::DictValue ArcomiumLinksHandler::BuildState() const {
++  const std::vector<arcomium::LinkRoute> routes =
++      arcomium::GetLinkRoutes(*profile_->GetPrefs());
++  const std::vector<Space> spaces = ListSpaces(profile_, routes);
++
++  base::ListValue space_list;
++  for (const Space& space : spaces) {
++    space_list.Append(
++        base::DictValue().Set("id", space.id).Set("name", space.name));
++  }
++  base::ListValue route_list;
++  for (const arcomium::LinkRoute& route : routes) {
++    // Show the Space's current name; the route keeps the one it was made with.
++    std::string name = route.name;
++    for (const Space& space : spaces) {
++      if (space.id == route.space) {
++        name = space.name;
++      }
++    }
++    route_list.Append(base::DictValue()
++                          .Set("pattern", route.pattern)
++                          .Set("space", route.space)
++                          .Set("name", name));
++  }
++  return base::DictValue()
++      .Set("spaces", std::move(space_list))
++      .Set("routes", std::move(route_list));
++}
++
++void ArcomiumLinksHandler::HandleGetState(const base::ListValue& args) {
++  AllowJavascript();
++  ResolveJavascriptCallback(args[0], BuildState());
++}
++
++void ArcomiumLinksHandler::HandleAddRoute(const base::ListValue& args) {
++  AllowJavascript();
++  const std::string pattern = arcomium::NormalizeLinkPattern(args[1].GetString());
++  const std::string& space = args[2].GetString();
++  if (pattern.empty()) {
++    RejectJavascriptCallback(
++        args[0], base::Value("Enter a site, such as github.com or "
++                             "github.com/your-team."));
++    return;
++  }
++  std::vector<arcomium::LinkRoute> routes =
++      arcomium::GetLinkRoutes(*profile_->GetPrefs());
++  std::string name = "Space";
++  for (const Space& s : ListSpaces(profile_, routes)) {
++    if (s.id == space) {
++      name = s.name;
++    }
++  }
++  // A site has one route: a new one for it replaces the old.
++  std::erase_if(routes, [&pattern](const arcomium::LinkRoute& route) {
++    return route.pattern == pattern;
++  });
++  routes.push_back({pattern, space, name});
++  std::ranges::sort(routes, {}, &arcomium::LinkRoute::pattern);
++  arcomium::SetLinkRoutes(profile_->GetPrefs(), routes);
++  ResolveJavascriptCallback(args[0], BuildState());
++}
++
++void ArcomiumLinksHandler::HandleRemoveRoute(const base::ListValue& args) {
++  AllowJavascript();
++  const std::string& pattern = args[1].GetString();
++  std::vector<arcomium::LinkRoute> routes =
++      arcomium::GetLinkRoutes(*profile_->GetPrefs());
++  std::erase_if(routes, [&pattern](const arcomium::LinkRoute& route) {
++    return route.pattern == pattern;
++  });
++  arcomium::SetLinkRoutes(profile_->GetPrefs(), routes);
++  ResolveJavascriptCallback(args[0], BuildState());
++}
+diff --git a/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h b/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h
+new file mode 100644
+index 0000000000..8e1edc5cbb
+--- /dev/null
++++ b/chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h
+@@ -0,0 +1,64 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_UI_H_
++
++#include "base/memory/raw_ptr.h"
++#include "base/values.h"
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/web_ui_message_handler.h"
++#include "content/public/browser/webui_config.h"
++#include "content/public/common/url_constants.h"
++
++class ArcomiumLinksUI;
++class Profile;
++
++inline constexpr char kChromeUIArcomiumLinksHost[] = "arcomium-links";
++inline constexpr char kChromeUIArcomiumLinksURL[] = "chrome://arcomium-links/";
++
++class ArcomiumLinksUIConfig
++    : public content::DefaultWebUIConfig<ArcomiumLinksUI> {
++ public:
++  ArcomiumLinksUIConfig()
++      : DefaultWebUIConfig(content::kChromeUIScheme,
++                           kChromeUIArcomiumLinksHost) {}
++};
++
++// chrome://arcomium-links: the link routes that send links from other apps
++// to Spaces (see arcomium_link_routes.h).
++class ArcomiumLinksUI : public content::WebUIController {
++ public:
++  explicit ArcomiumLinksUI(content::WebUI* web_ui);
++  ArcomiumLinksUI(const ArcomiumLinksUI&) = delete;
++  ArcomiumLinksUI& operator=(const ArcomiumLinksUI&) = delete;
++  ~ArcomiumLinksUI() override;
++};
++
++// The page calls:
++//
++//   getState()                    -> {spaces: [{id, name}], routes: [...]}
++//   addRoute(pattern, spaceId)    -> state
++//   removeRoute(pattern)          -> state
++class ArcomiumLinksHandler : public content::WebUIMessageHandler {
++ public:
++  explicit ArcomiumLinksHandler(Profile* profile);
++  ArcomiumLinksHandler(const ArcomiumLinksHandler&) = delete;
++  ArcomiumLinksHandler& operator=(const ArcomiumLinksHandler&) = delete;
++  ~ArcomiumLinksHandler() override;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override;
++
++ private:
++  void HandleGetState(const base::ListValue& args);
++  void HandleAddRoute(const base::ListValue& args);
++  void HandleRemoveRoute(const base::ListValue& args);
++
++  base::DictValue BuildState() const;
++
++  const raw_ptr<Profile> profile_;
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_ARCOMIUM_LINKS_ARCOMIUM_LINKS_UI_H_
+diff --git a/chrome/browser/ui/webui/arcomium_sync/BUILD.gn b/chrome/browser/ui/webui/arcomium_sync/BUILD.gn
+index ef8b530a5c..bca6e7d407 100644
+--- a/chrome/browser/ui/webui/arcomium_sync/BUILD.gn
++++ b/chrome/browser/ui/webui/arcomium_sync/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ source_set("arcomium_sync") {
+   sources = [
++    "../arcomium_common/arcomium_page_style.inc",
+     "arcomium_sync_handler.cc",
+     "arcomium_sync_handler.h",
+     "arcomium_sync_page.inc",
+diff --git a/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_page.inc b/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_page.inc
+index 0c92628870..ead32af816 100644
+--- a/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_page.inc
++++ b/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_page.inc
+@@ -12,6 +12,7 @@ inline constexpr char kArcomiumSyncHtml[] = R"HTML(<!doctype html>
+ <head>
+ <meta charset="utf-8">
+ <title>Sync</title>
++<link rel="stylesheet" href="base.css">
+ <link rel="stylesheet" href="arcomium_sync.css">
+ <script type="module" src="arcomium_sync.js"></script>
+ </head>
+@@ -94,94 +95,6 @@ inline constexpr char kArcomiumSyncHtml[] = R"HTML(<!doctype html>
+ )HTML";
+ 
+ inline constexpr char kArcomiumSyncCss[] = R"CSS(
+-:root {
+-  --bg: #f6f5f8;
+-  --panel: #ffffff;
+-  --fg: #1d1b22;
+-  --muted: #5f5b69;
+-  --line: #e2dfe8;
+-  --accent: #5b4bdb;
+-  --accent-fg: #ffffff;
+-  --ok: #1f8a4c;
+-  --warn: #b26a00;
+-  --bad: #c62f3a;
+-  color-scheme: light dark;
+-}
+-@media (prefers-color-scheme: dark) {
+-  :root {
+-    --bg: #17161b;
+-    --panel: #211f27;
+-    --fg: #ecebf0;
+-    --muted: #a7a3b2;
+-    --line: #34313d;
+-    --accent: #8d80f2;
+-    --accent-fg: #17161b;
+-    --ok: #4cc27f;
+-    --warn: #e2a443;
+-    --bad: #f0707a;
+-  }
+-}
+-body {
+-  margin: 0;
+-  background: var(--bg);
+-  color: var(--fg);
+-  font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
+-}
+-main {
+-  max-width: 36rem;
+-  margin: 0 auto;
+-  padding: 48px 20px;
+-  display: grid;
+-  gap: 24px;
+-}
+-h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; }
+-h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+-p { margin: 0; }
+-.lede, .card > p, #code > p { color: var(--muted); }
+-section, .card { display: grid; gap: 12px; }
+-.card, #status, #code, .banner {
+-  background: var(--panel);
+-  border: 1px solid var(--line);
+-  border-radius: 12px;
+-  padding: 20px;
+-}
+-#setup { gap: 16px; }
+-label { font-weight: 500; margin-bottom: -6px; }
+-input, textarea {
+-  font: inherit;
+-  color: inherit;
+-  background: var(--bg);
+-  border: 1px solid var(--line);
+-  border-radius: 8px;
+-  padding: 8px 10px;
+-}
+-textarea { resize: vertical; }
+-input:focus-visible, textarea:focus-visible, button:focus-visible {
+-  outline: 2px solid var(--accent);
+-  outline-offset: 1px;
+-}
+-button {
+-  font: inherit;
+-  font-weight: 500;
+-  color: var(--fg);
+-  background: transparent;
+-  border: 1px solid var(--line);
+-  border-radius: 8px;
+-  padding: 7px 14px;
+-  cursor: pointer;
+-  justify-self: start;
+-}
+-button.primary {
+-  background: var(--accent);
+-  border-color: var(--accent);
+-  color: var(--accent-fg);
+-}
+-button.danger { color: var(--bad); border-color: var(--bad); }
+-button.quiet { color: var(--muted); }
+-button:disabled { opacity: .6; cursor: default; }
+-.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+-.error { color: var(--bad); }
+-.note { color: var(--muted); }
+ .banner { border-color: var(--accent); }
+ .status-line { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+ .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+diff --git a/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.cc b/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.cc
+index 044d4732f2..5f71946cc5 100644
+--- a/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.cc
++++ b/chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.cc
+@@ -17,6 +17,7 @@
+ 
+ namespace {
+ 
++#include "chrome/browser/ui/webui/arcomium_common/arcomium_page_style.inc"
+ #include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_page.inc"
+ 
+ // The page's files, by path; "" is the page itself.
+@@ -24,6 +25,9 @@ std::string_view FindFile(const std::string& path) {
+   if (path.empty() || path == "index.html") {
+     return kArcomiumSyncHtml;
+   }
++  if (path == "base.css") {
++    return kArcomiumPageBaseCss;
++  }
+   if (path == "arcomium_sync.css") {
+     return kArcomiumSyncCss;
+   }
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index 9e5671606b..95da8e23d1 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -9,6 +9,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
++#include "chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h"
+ #include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.h"
+ #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
+ #include "chrome/browser/glic/host/glic_ui.h"
+@@ -331,6 +332,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ArcomiumSyncUIConfig>());
++  map.AddWebUIConfig(std::make_unique<ArcomiumLinksUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
