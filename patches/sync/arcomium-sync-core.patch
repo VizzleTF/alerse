@@ -542,10 +542,10 @@ index 0000000000..4d9736f861
 +}  // namespace syncer
 diff --git a/components/sync/service/arcomium_sync_events.cc b/components/sync/service/arcomium_sync_events.cc
 new file mode 100644
-index 0000000000..4b1c15d4de
+index 0000000000..a7bcc80f6a
 --- /dev/null
 +++ b/components/sync/service/arcomium_sync_events.cc
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,182 @@
 +// Copyright 2026 The Arcomium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -651,7 +651,8 @@ index 0000000000..4b1c15d4de
 +  size_t start = 0;
 +  for (size_t end; (end = pending_.find('\n', start)) != std::string::npos;
 +       start = end + 1) {
-+    std::string_view line(pending_.data() + start, end - start);
++    std::string_view line =
++        std::string_view(pending_).substr(start, end - start);
 +    if (line.ends_with('\r')) {
 +      line.remove_suffix(1);
 +    }
@@ -1101,17 +1102,17 @@ index 0000000000..38f1772a4d
 +
 +#endif  // COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_WORDS_INC_
 diff --git a/components/sync/service/sync_prefs.cc b/components/sync/service/sync_prefs.cc
-index b51a7b1de0..5400f7efd9 100644
+index b51a7b1de0..86d81dbbb5 100644
 --- a/components/sync/service/sync_prefs.cc
 +++ b/components/sync/service/sync_prefs.cc
-@@ -26,6 +26,7 @@
- #include "components/signin/public/base/signin_buildflags.h"
- #include "components/signin/public/base/signin_switches.h"
- #include "components/sync/base/account_pref_utils.h"
+@@ -32,6 +32,7 @@
+ #include "components/sync/base/pref_names.h"
+ #include "components/sync/base/user_selectable_type.h"
+ #include "components/sync/protocol/nigori_specifics.pb.h"
 +#include "components/sync/service/arcomium_sync_account.h"
- #include "components/sync/base/custom_passphrase_bootstrap_token.h"
- #include "components/sync/base/features.h"
- #include "components/sync/base/passphrase_enums.h"
+ #include "components/sync/service/glue/sync_transport_data_prefs.h"
+ #include "components/sync/service/sync_feature_status_for_migrations_recorder.h"
+ #include "google_apis/gaia/gaia_id.h"
 @@ -93,8 +94,10 @@ SyncPrefObserver::~SyncPrefObserver() = default;
  
  SyncPrefs::SyncPrefs(PrefService* pref_service)

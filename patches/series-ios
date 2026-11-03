@@ -1,0 +1,5 @@
+# Arcomium patches for Chromium iOS, applied to a clean Chromium checkout of
+# the same version (ungoogled-chromium has no iOS build).
+sync/arcomium-sync-core.patch
+ios/arcomium-ios-sync.patch
+ios/arcomium-ios-name.patch

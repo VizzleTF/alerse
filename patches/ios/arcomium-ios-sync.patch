@@ -1,0 +1,809 @@
+diff --git a/ios/chrome/app/resources/BUILD.gn b/ios/chrome/app/resources/BUILD.gn
+index 96fc21d7f9..9481325b4f 100644
+--- a/ios/chrome/app/resources/BUILD.gn
++++ b/ios/chrome/app/resources/BUILD.gn
+@@ -27,6 +27,9 @@ grit("ios_resources") {
+   inputs = [
+     "//ios/chrome/browser/optimization_guide/resources/on_device_llm_internals.html",
+     "//ios/chrome/browser/webui/ui_bundled/tracing/resources/tracing.html",
++    "arcomium_sync/arcomium_sync.css",
++    "arcomium_sync/arcomium_sync.html",
++    "arcomium_sync/arcomium_sync.js",
+     "omaha/omaha.css",
+     "omaha/omaha.html",
+     "omaha/omaha.js",
+diff --git a/ios/chrome/app/resources/arcomium_sync/arcomium_sync.css b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.css
+new file mode 100755
+index 0000000000..b08a8b245c
+--- /dev/null
++++ b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.css
+@@ -0,0 +1,124 @@
++
++:root {
++  --bg: #f6f5f8;
++  --panel: #ffffff;
++  --fg: #1d1b22;
++  --muted: #5f5b69;
++  --line: #e2dfe8;
++  --accent: #5b4bdb;
++  --accent-fg: #ffffff;
++  --ok: #1f8a4c;
++  --warn: #b26a00;
++  --bad: #c62f3a;
++  color-scheme: light dark;
++}
++@media (prefers-color-scheme: dark) {
++  :root {
++    --bg: #17161b;
++    --panel: #211f27;
++    --fg: #ecebf0;
++    --muted: #a7a3b2;
++    --line: #34313d;
++    --accent: #8d80f2;
++    --accent-fg: #17161b;
++    --ok: #4cc27f;
++    --warn: #e2a443;
++    --bad: #f0707a;
++  }
++}
++body {
++  margin: 0;
++  background: var(--bg);
++  color: var(--fg);
++  font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
++}
++main {
++  max-width: 36rem;
++  margin: 0 auto;
++  padding: 48px 20px;
++  display: grid;
++  gap: 24px;
++}
++h1 { margin: 0 0 8px; font-size: 28px; font-weight: 600; }
++h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
++p { margin: 0; }
++.lede, .card > p, #code > p { color: var(--muted); }
++section, .card { display: grid; gap: 12px; }
++.card, #status, #code, .banner {
++  background: var(--panel);
++  border: 1px solid var(--line);
++  border-radius: 12px;
++  padding: 20px;
++}
++#setup { gap: 16px; }
++label { font-weight: 500; margin-bottom: -6px; }
++input, textarea {
++  font: inherit;
++  color: inherit;
++  background: var(--bg);
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  padding: 8px 10px;
++}
++textarea { resize: vertical; }
++input:focus-visible, textarea:focus-visible, button:focus-visible {
++  outline: 2px solid var(--accent);
++  outline-offset: 1px;
++}
++button {
++  font: inherit;
++  font-weight: 500;
++  color: var(--fg);
++  background: transparent;
++  border: 1px solid var(--line);
++  border-radius: 8px;
++  padding: 7px 14px;
++  cursor: pointer;
++  justify-self: start;
++}
++button.primary {
++  background: var(--accent);
++  border-color: var(--accent);
++  color: var(--accent-fg);
++}
++button.danger { color: var(--bad); border-color: var(--bad); }
++button.quiet { color: var(--muted); }
++button:disabled { opacity: .6; cursor: default; }
++.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
++.error { color: var(--bad); }
++.note { color: var(--muted); }
++
++.banner { border-color: var(--accent); }
++.status-line { display: flex; align-items: center; gap: 8px; font-weight: 500; }
++.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
++.dot.ok { background: var(--ok); }
++.dot.warn { background: var(--warn); }
++.dot.bad { background: var(--bad); }
++dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
++dt { color: var(--muted); }
++dd { margin: 0; overflow-wrap: anywhere; }
++.confirm { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
++.words {
++  list-style: none;
++  counter-reset: word;
++  margin: 0;
++  padding: 0;
++  display: grid;
++  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
++  gap: 6px;
++  font: 14px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
++  user-select: all;
++}
++.words li {
++  counter-increment: word;
++  background: var(--bg);
++  border-radius: 6px;
++  padding: 5px 8px;
++}
++.words li::before {
++  content: counter(word) ".";
++  display: inline-block;
++  min-width: 2.2em;
++  color: var(--muted);
++  font-variant-numeric: tabular-nums;
++}
+diff --git a/ios/chrome/app/resources/arcomium_sync/arcomium_sync.html b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.html
+new file mode 100755
+index 0000000000..d546d2a9e5
+--- /dev/null
++++ b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.html
+@@ -0,0 +1,84 @@
++<!doctype html>
++<html lang="en">
++<head>
++<meta charset="utf-8">
++<meta name="viewport" content="width=device-width, initial-scale=1">
++<title>Sync</title>
++<link rel="stylesheet" href="chrome://arcomium-sync/arcomium_sync.css">
++<script type="module" src="chrome://arcomium-sync/arcomium_sync.js"></script>
++</head>
++<body>
++<main>
++  <header>
++    <h1>Sync</h1>
++    <p class="lede">Keep bookmarks, tabs, passwords and settings the same on
++      all your devices. Everything is encrypted with your sync code before it
++      leaves this device: the server stores only data it cannot read.</p>
++  </header>
++
++  <section id="restart" class="banner" hidden>
++    <p id="restart-text"></p>
++  </section>
++
++  <section id="status" hidden>
++    <div class="status-line">
++      <span id="status-dot" class="dot"></span>
++      <span id="status-text"></span>
++    </div>
++    <dl>
++      <dt>Server</dt><dd id="status-server"></dd>
++      <dt>Last synced</dt><dd id="status-synced"></dd>
++    </dl>
++    <div class="actions">
++      <button id="show-code">Show sync code</button>
++      <button id="leave" class="quiet">Leave sync chain</button>
++    </div>
++    <div id="leave-confirm" class="confirm" hidden>
++      <p>This device stops syncing. Its bookmarks, tabs and passwords stay on
++        it, and your other devices keep theirs.</p>
++      <div class="actions">
++        <button id="leave-yes" class="danger">Leave</button>
++        <button id="leave-no">Cancel</button>
++      </div>
++    </div>
++  </section>
++
++  <section id="code" hidden>
++    <h2>Your sync code</h2>
++    <p>Type these 24 words on your other devices to add them. Keep the code
++      somewhere safe: anyone who has it can read your synced data, and
++      without it a new device cannot join.</p>
++    <ol id="code-words" class="words"></ol>
++    <div class="actions">
++      <button id="copy-code">Copy</button>
++      <span id="copy-done" class="note" hidden>Copied</span>
++    </div>
++  </section>
++
++  <section id="setup" hidden>
++    <form id="create" class="card" novalidate>
++      <h2>Start syncing</h2>
++      <p>For your first device. You get a sync code to add the others.</p>
++      <label for="create-server">Sync server</label>
++      <input id="create-server" type="url" inputmode="url" autocomplete="url"
++          placeholder="https://sync.example.com" required>
++      <p id="create-error" class="error" role="alert" hidden></p>
++      <button class="primary" type="submit">Start</button>
++    </form>
++
++    <form id="join" class="card" novalidate>
++      <h2>Join with a sync code</h2>
++      <p>For a device you add to the ones that already sync.</p>
++      <label for="join-server">Sync server</label>
++      <input id="join-server" type="url" inputmode="url" autocomplete="url"
++          placeholder="https://sync.example.com" required>
++      <label for="join-code">Sync code</label>
++      <textarea id="join-code" rows="3" spellcheck="false"
++          autocapitalize="off" placeholder="24 words"></textarea>
++      <p id="join-error" class="error" role="alert" hidden></p>
++      <button class="primary" type="submit">Join</button>
++    </form>
++  </section>
++</main>
++</body>
++</html>
+diff --git a/ios/chrome/app/resources/arcomium_sync/arcomium_sync.js b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.js
+new file mode 100755
+index 0000000000..43709ceb63
+--- /dev/null
++++ b/ios/chrome/app/resources/arcomium_sync/arcomium_sync.js
+@@ -0,0 +1,113 @@
++import 'chrome://resources/js/ios/web_ui.js';
++import {addWebUiListener, sendWithPromise} from 'chrome://resources/js/cr.js';
++
++const $ = (id) => document.getElementById(id);
++
++const STATUS = {
++  active: ['ok', 'Syncing'],
++  starting: ['warn', 'Connecting to the server…'],
++  stopped: ['warn', 'Sync is paused'],
++  off: ['', 'Not syncing'],
++  wrongCode: ['bad', 'This device’s sync code does not open the chain’s ' +
++      'data. Leave the sync chain and join again with the right code.'],
++  refused: ['bad', 'The server refused this device. Check that the device’s ' +
++      'clock is right, then restart Arcomium.'],
++  error: ['bad', 'Sync stopped after an error. Restart Arcomium to try again.'],
++};
++
++function formatTime(ms) {
++  if (!ms) return 'Not yet';
++  const minutes = Math.round((Date.now() - ms) / 60000);
++  if (minutes < 1) return 'Just now';
++  if (minutes < 60) return `${minutes} min ago`;
++  return new Date(ms).toLocaleString();
++}
++
++function showCode(code) {
++  $('code-words').replaceChildren(...code.split(' ').map((word) => {
++    const li = document.createElement('li');
++    li.textContent = word;
++    return li;
++  }));
++  $('code').dataset.code = code;
++  $('code').hidden = false;
++  $('copy-done').hidden = true;
++}
++
++function render(state) {
++  const configured = state.server !== '';
++  $('setup').hidden = configured;
++  $('status').hidden = !configured || state.restartNeeded;
++  if (!configured) {
++    $('code').hidden = true;
++  }
++
++  $('restart').hidden = !state.restartNeeded;
++  $('restart-text').textContent = configured ?
++      'Close Arcomium and open it again to start syncing.' :
++      'This device left its sync chain. Close Arcomium and open it again to finish.';
++
++  const [tone, text] = STATUS[state.status] || STATUS.off;
++  $('status-dot').className = 'dot ' + tone;
++  $('status-text').textContent = text;
++  $('status-server').textContent = state.server;
++  $('status-synced').textContent = formatTime(state.lastSynced);
++}
++
++async function submit(form, errorId, send) {
++  const button = form.querySelector('button[type=submit]');
++  $(errorId).hidden = true;
++  button.disabled = true;
++  try {
++    await send();
++  } catch (message) {
++    $(errorId).textContent = String(message);
++    $(errorId).hidden = false;
++  } finally {
++    button.disabled = false;
++  }
++}
++
++$('create').addEventListener('submit', (e) => {
++  e.preventDefault();
++  submit(e.target, 'create-error', async () => {
++    const {code} = await sendWithPromise('createChain', $('create-server').value);
++    showCode(code);
++  });
++});
++
++$('join').addEventListener('submit', (e) => {
++  e.preventDefault();
++  submit(e.target, 'join-error', () =>
++      sendWithPromise('joinChain', $('join-server').value, $('join-code').value));
++});
++
++$('show-code').addEventListener('click', async () => {
++  try {
++    const {code} = await sendWithPromise('showCode');
++    showCode(code);
++  } catch (message) {
++    $('status-text').textContent = String(message);
++  }
++});
++
++$('copy-code').addEventListener('click', async () => {
++  try {
++    await navigator.clipboard.writeText($('code').dataset.code);
++    $('copy-done').hidden = false;
++  } catch {
++    getSelection().selectAllChildren($('code-words'));
++  }
++});
++
++$('leave').addEventListener('click', () => { $('leave-confirm').hidden = false; });
++$('leave-no').addEventListener('click', () => { $('leave-confirm').hidden = true; });
++$('leave-yes').addEventListener('click', async () => {
++  $('leave-confirm').hidden = true;
++  $('code').hidden = true;
++  await sendWithPromise('leaveChain');
++});
++
++
++addWebUiListener('state-changed', render);
++sendWithPromise('getState').then(render);
+diff --git a/ios/chrome/app/resources/ios_resources.grd b/ios/chrome/app/resources/ios_resources.grd
+index 5351fea014..72ba0cb40e 100644
+--- a/ios/chrome/app/resources/ios_resources.grd
++++ b/ios/chrome/app/resources/ios_resources.grd
+@@ -9,6 +9,9 @@
+   <release seq="1">
+     <includes>
+       <include name="IDR_IOS_ON_DEVICE_LLM_INTERNALS_HTML" file="../../browser/optimization_guide/resources/on_device_llm_internals.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
++      <include name="IDR_IOS_ARCOMIUM_SYNC_HTML" file="arcomium_sync/arcomium_sync.html" type="BINDATA" />
++      <include name="IDR_IOS_ARCOMIUM_SYNC_CSS" file="arcomium_sync/arcomium_sync.css" type="BINDATA" />
++      <include name="IDR_IOS_ARCOMIUM_SYNC_JS" file="arcomium_sync/arcomium_sync.js" type="BINDATA" />
+       <include name="IDR_IOS_OMAHA_HTML" file="omaha/omaha.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
+       <include name="IDR_IOS_OMAHA_JS" file="omaha/omaha.js" type="BINDATA" />
+       <include name="IDR_IOS_TRACING_HTML" file="../../browser/webui/ui_bundled/tracing/resources/tracing.html" flattenhtml="true" allowexternalscript="true" type="BINDATA" />
+diff --git a/ios/chrome/browser/shared/model/url/chrome_url_constants.h b/ios/chrome/browser/shared/model/url/chrome_url_constants.h
+index 5f1d195006..265dadddc4 100644
+--- a/ios/chrome/browser/shared/model/url/chrome_url_constants.h
++++ b/ios/chrome/browser/shared/model/url/chrome_url_constants.h
+@@ -71,6 +71,8 @@ inline constexpr char kChromeUINetExportHost[] = "net-export";
+ inline constexpr char kChromeUINewTabHost[] = "newtab";
+ inline constexpr char kChromeUINTPTilesInternalsHost[] = "ntp-tiles-internals";
+ inline constexpr char kChromeUIOmahaHost[] = "omaha";
++// Arcomium: sets up Arcomium sync.
++inline constexpr char kChromeUIArcomiumSyncHost[] = "arcomium-sync";
+ inline constexpr char kChromeUIOnDeviceLlmInternalsHost[] =
+     "on-device-llm-internals";
+ inline constexpr char kChromeUIPasswordManagerInternalsHost[] =
+diff --git a/ios/chrome/browser/sync/model/sync_service_factory.mm b/ios/chrome/browser/sync/model/sync_service_factory.mm
+index 5186203f62..d9e40f108f 100644
+--- a/ios/chrome/browser/sync/model/sync_service_factory.mm
++++ b/ios/chrome/browser/sync/model/sync_service_factory.mm
+@@ -28,6 +28,7 @@
+ #import "components/sync/base/sync_util.h"
+ #import "components/sync/engine/net/http_bridge.h"
+ #import "components/sync/service/sync_service.h"
++#import "components/sync/service/arcomium_sync_account.h"
+ #import "components/sync/service/sync_service_impl.h"
+ #import "components/sync/service/syncable_service_based_data_type_controller.h"
+ #import "components/sync_preferences/pref_service_syncable.h"
+@@ -223,6 +224,9 @@
+   // startup once bug has been fixed.
+   ios::AboutSigninInternalsFactory::GetForProfile(profile);
+ 
++  // Arcomium: --arcomium-sync-url sets the server, before the service
++  // reads whether it syncs with one.
++  syncer::ArcomiumSyncAccount::ApplyCommandLine(profile->GetPrefs());
+   syncer::SyncServiceImpl::InitParams init_params;
+   init_params.sync_client = BuildSyncClient(profile);
+   init_params.url_loader_factory = profile->GetSharedURLLoaderFactory();
+diff --git a/ios/chrome/browser/webui/ui_bundled/BUILD.gn b/ios/chrome/browser/webui/ui_bundled/BUILD.gn
+index 419454e7a6..c2197d93c9 100644
+--- a/ios/chrome/browser/webui/ui_bundled/BUILD.gn
++++ b/ios/chrome/browser/webui/ui_bundled/BUILD.gn
+@@ -143,6 +143,8 @@ source_set("webui_internal") {
+     "chrome_web_ui_ios_controller_factory.h",
+     "chrome_web_ui_ios_controller_factory.mm",
+     "chrome_web_ui_provider.cc",
++    "arcomium_sync_ui.h",
++    "arcomium_sync_ui.mm",
+     "omaha_ui.h",
+     "omaha_ui.mm",
+     "on_device_llm_internals_ui.h",
+@@ -194,6 +196,9 @@ source_set("webui_internal") {
+     "//ios/components/webui:provider",
+     "//ios/components/webui:url_constants",
+     "//ios/components/webui/sync_internals",
++    "//components/os_crypt/async/browser",
++    "//components/sync",
++    "//services/network/public/cpp",
+     "//url",
+   ]
+ 
+diff --git a/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.h b/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.h
+new file mode 100755
+index 0000000000..dc52635baf
+--- /dev/null
++++ b/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.h
+@@ -0,0 +1,22 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef IOS_CHROME_BROWSER_WEBUI_UI_BUNDLED_ARCOMIUM_SYNC_UI_H_
++#define IOS_CHROME_BROWSER_WEBUI_UI_BUNDLED_ARCOMIUM_SYNC_UI_H_
++
++#include <string>
++
++#include "ios/web/public/webui/web_ui_ios_controller.h"
++
++// chrome://arcomium-sync: sets up Arcomium sync, as on desktop. A device
++// starts a sync chain or joins one with its 24-word code.
++class ArcomiumSyncUI : public web::WebUIIOSController {
++ public:
++  ArcomiumSyncUI(web::WebUIIOS* web_ui, const std::string& host);
++  ArcomiumSyncUI(const ArcomiumSyncUI&) = delete;
++  ArcomiumSyncUI& operator=(const ArcomiumSyncUI&) = delete;
++  ~ArcomiumSyncUI() override;
++};
++
++#endif  // IOS_CHROME_BROWSER_WEBUI_UI_BUNDLED_ARCOMIUM_SYNC_UI_H_
+diff --git a/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.mm b/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.mm
+new file mode 100755
+index 0000000000..ec8e55c650
+--- /dev/null
++++ b/ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.mm
+@@ -0,0 +1,328 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#import "ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.h"
++
++#import <memory>
++#import <optional>
++#import <string>
++#import <utility>
++
++#import "base/functional/bind.h"
++#import "base/memory/raw_ptr.h"
++#import "base/memory/scoped_refptr.h"
++#import "base/memory/weak_ptr.h"
++#import "base/scoped_observation.h"
++#import "base/time/time.h"
++#import "base/values.h"
++#import "components/os_crypt/async/browser/os_crypt_async.h"
++#import "components/os_crypt/async/common/encryptor.h"
++#import "components/prefs/pref_service.h"
++#import "components/sync/service/arcomium_sync_account.h"
++#import "components/sync/service/sync_service.h"
++#import "components/sync/service/sync_service_impl.h"
++#import "components/sync/service/sync_service_observer.h"
++#import "components/sync/service/sync_user_settings.h"
++#import "google_apis/gaia/google_service_auth_error.h"
++#import "ios/chrome/browser/shared/model/application_context/application_context.h"
++#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
++#import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
++#import "ios/chrome/browser/sync/model/sync_service_factory.h"
++#import "ios/chrome/grit/ios_resources.h"
++#import "ios/web/public/webui/web_ui_ios.h"
++#import "ios/web/public/webui/web_ui_ios_data_source.h"
++#import "ios/web/public/webui/web_ui_ios_message_handler.h"
++#import "net/traffic_annotation/network_traffic_annotation.h"
++#import "services/network/public/cpp/resource_request.h"
++#import "services/network/public/cpp/shared_url_loader_factory.h"
++#import "services/network/public/cpp/simple_url_loader.h"
++#import "url/gurl.h"
++
++namespace {
++
++constexpr base::TimeDelta kHealthCheckTimeout = base::Seconds(10);
++
++constexpr net::NetworkTrafficAnnotationTag kHealthCheckAnnotation =
++    net::DefineNetworkTrafficAnnotation("arcomium_sync_server_check_ios", R"(
++      semantics {
++        sender: "Arcomium Sync"
++        description:
++          "Checks that the sync server the user typed answers before the "
++          "browser starts syncing with it."
++        trigger: "The user starts or joins a sync chain."
++        data: "None."
++        destination: OTHER
++        destination_other: "The sync server the user typed."
++      }
++      policy {
++        cookies_allowed: NO
++        setting: "Not started unless the user sets up sync."
++        policy_exception_justification: "Not implemented."
++      })");
++
++// Reads a server address as people type it: "https://sync.example.com" means
++// its protocol endpoint, "https://sync.example.com/v2".
++GURL NormalizeServerURL(const std::string& typed) {
++  GURL url(typed);
++  if (!url.is_valid() || !url.SchemeIsHTTPOrHTTPS() || url.host().empty()) {
++    return GURL();
++  }
++  GURL::Replacements clean;
++  clean.ClearQuery();
++  clean.ClearRef();
++  if (url.path() == "/" || url.path().empty()) {
++    clean.SetPathStr("/v2");
++  }
++  return url.ReplaceComponents(clean);
++}
++
++// The JavaScript time of `time`, or 0 for none.
++double ToJsTime(base::Time time) {
++  return time.is_null() ? 0 : time.InMillisecondsFSinceUnixEpoch();
++}
++
++web::WebUIIOSDataSource* CreateHTMLSource() {
++  web::WebUIIOSDataSource* source =
++      web::WebUIIOSDataSource::Create(kChromeUIArcomiumSyncHost);
++  source->AddResourcePath("arcomium_sync.js", IDR_IOS_ARCOMIUM_SYNC_JS);
++  source->AddResourcePath("arcomium_sync.css", IDR_IOS_ARCOMIUM_SYNC_CSS);
++  source->SetDefaultResource(IDR_IOS_ARCOMIUM_SYNC_HTML);
++  return source;
++}
++
++// The page's messages, as ArcomiumSyncHandler on desktop.
++class ArcomiumSyncHandler : public web::WebUIIOSMessageHandler,
++                            public syncer::SyncServiceObserver {
++ public:
++  explicit ArcomiumSyncHandler(ProfileIOS* profile) : profile_(profile) {}
++  ArcomiumSyncHandler(const ArcomiumSyncHandler&) = delete;
++  ArcomiumSyncHandler& operator=(const ArcomiumSyncHandler&) = delete;
++  ~ArcomiumSyncHandler() override = default;
++
++  // web::WebUIIOSMessageHandler:
++  void RegisterMessages() override {
++    web_ui()->RegisterMessageCallback(
++        "getState", base::BindRepeating(&ArcomiumSyncHandler::HandleGetState,
++                                        base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "createChain",
++        base::BindRepeating(&ArcomiumSyncHandler::HandleCreateChain,
++                            base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "joinChain", base::BindRepeating(&ArcomiumSyncHandler::HandleJoinChain,
++                                         base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "showCode", base::BindRepeating(&ArcomiumSyncHandler::HandleShowCode,
++                                        base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "leaveChain",
++        base::BindRepeating(&ArcomiumSyncHandler::HandleLeaveChain,
++                            base::Unretained(this)));
++    if (syncer::SyncService* sync = GetSyncService()) {
++      sync_observation_.Observe(sync);
++    }
++  }
++
++  // syncer::SyncServiceObserver:
++  void OnStateChanged(syncer::SyncService* sync) override {
++    web_ui()->FireWebUIListener("state-changed", BuildState());
++  }
++  void OnSyncShutdown(syncer::SyncService* sync) override {
++    sync_observation_.Reset();
++  }
++
++ private:
++  syncer::SyncService* GetSyncService() const {
++    return SyncServiceFactory::GetForProfile(profile_);
++  }
++
++  base::DictValue BuildState() const {
++    const GURL server =
++        syncer::ArcomiumSyncAccount::GetServerURL(*profile_->GetPrefs());
++    const syncer::SyncService* sync = GetSyncService();
++    // The sync service runs the way the app started: Arcomium sync needs the
++    // setup to have been there at launch.
++    const bool running = sync && sync->IsLocalSyncEnabled();
++
++    base::DictValue state;
++    state.Set("server", server.is_valid() ? server.spec() : std::string());
++    state.Set("restartNeeded",
++              restart_needed_ || server.is_valid() != running);
++
++    std::string status = "off";
++    if (running && server.is_valid()) {
++      using TransportState = syncer::SyncService::TransportState;
++      switch (sync->GetTransportState()) {
++        case TransportState::DISABLED:
++        case TransportState::PAUSED:
++          status = "stopped";
++          break;
++        case TransportState::START_DEFERRED:
++        case TransportState::INITIALIZING:
++        case TransportState::PENDING_DESIRED_CONFIGURATION:
++        case TransportState::CONFIGURING:
++          status = "starting";
++          break;
++        case TransportState::ACTIVE:
++          status = "active";
++          break;
++      }
++      if (sync->GetUserSettings()->IsPassphraseRequired()) {
++        status = "wrongCode";
++      } else if (sync->GetAuthError().state() !=
++                 GoogleServiceAuthError::NONE) {
++        status = "refused";
++      } else if (sync->HasUnrecoverableError()) {
++        status = "error";
++      }
++      state.Set("lastSynced",
++                ToJsTime(sync->GetLastSyncedTimeForDebugging()));
++    }
++    state.Set("status", status);
++    return state;
++  }
++
++  void HandleGetState(const base::ListValue& args) {
++    web_ui()->ResolveJavascriptCallback(args[0], BuildState());
++  }
++
++  void HandleCreateChain(const base::ListValue& args) {
++    const std::string& callback_id = args[0].GetString();
++    const GURL server = NormalizeServerURL(args[1].GetString());
++    if (!server.is_valid()) {
++      Reject(callback_id,
++             "Enter the server's address, such as https://sync.example.com.");
++      return;
++    }
++    const syncer::SyncChainSecret secret = syncer::GenerateSyncChainSecret();
++    base::DictValue result;
++    result.Set("code", syncer::EncodeSyncCode(secret));
++    CheckServerAndSave(callback_id, server, secret, std::move(result));
++  }
++
++  void HandleJoinChain(const base::ListValue& args) {
++    const std::string& callback_id = args[0].GetString();
++    const GURL server = NormalizeServerURL(args[1].GetString());
++    if (!server.is_valid()) {
++      Reject(callback_id,
++             "Enter the server's address, such as https://sync.example.com.");
++      return;
++    }
++    const std::optional<syncer::SyncChainSecret> secret =
++        syncer::DecodeSyncCode(args[2].GetString());
++    if (!secret) {
++      Reject(callback_id,
++             "That is not a sync code. Check that all 24 words are there, in "
++             "order.");
++      return;
++    }
++    CheckServerAndSave(callback_id, server, *secret, base::DictValue());
++  }
++
++  void CheckServerAndSave(const std::string& callback_id,
++                          const GURL& server,
++                          const syncer::SyncChainSecret& secret,
++                          base::DictValue result) {
++    auto request = std::make_unique<network::ResourceRequest>();
++    request->url = server.GetWithEmptyPath().Resolve("health");
++    request->credentials_mode = network::mojom::CredentialsMode::kOmit;
++    health_check_ = network::SimpleURLLoader::Create(std::move(request),
++                                                     kHealthCheckAnnotation);
++    health_check_->SetTimeoutDuration(kHealthCheckTimeout);
++    health_check_->DownloadToString(
++        profile_->GetSharedURLLoaderFactory().get(),
++        base::BindOnce(&ArcomiumSyncHandler::OnServerChecked,
++                       weak_factory_.GetWeakPtr(), callback_id, server, secret,
++                       std::move(result)),
++        /*max_body_size=*/1024);
++  }
++
++  void OnServerChecked(const std::string& callback_id,
++                       const GURL& server,
++                       const syncer::SyncChainSecret& secret,
++                       base::DictValue result,
++                       std::optional<std::string> body) {
++    health_check_.reset();
++    if (!body) {
++      Reject(callback_id,
++             "The server does not answer. Check the address and that the "
++             "server is running.");
++      return;
++    }
++    GetApplicationContext()->GetOSCryptAsync()->GetInstance(base::BindOnce(
++        &ArcomiumSyncHandler::OnEncryptorForSave, weak_factory_.GetWeakPtr(),
++        callback_id, server, secret, std::move(result)));
++  }
++
++  void OnEncryptorForSave(const std::string& callback_id,
++                          const GURL& server,
++                          const syncer::SyncChainSecret& secret,
++                          base::DictValue result,
++                          scoped_refptr<os_crypt_async::Encryptor> encryptor) {
++    syncer::ArcomiumSyncAccount::Save(profile_->GetPrefs(), *encryptor, server,
++                                      secret);
++    // Written now rather than later, so a crash cannot lose the setup.
++    profile_->GetPrefs()->CommitPendingWrite();
++    restart_needed_ = true;
++    web_ui()->ResolveJavascriptCallback(base::Value(callback_id), result);
++    web_ui()->FireWebUIListener("state-changed", BuildState());
++  }
++
++  void HandleShowCode(const base::ListValue& args) {
++    GetApplicationContext()->GetOSCryptAsync()->GetInstance(
++        base::BindOnce(&ArcomiumSyncHandler::OnEncryptorForCode,
++                       weak_factory_.GetWeakPtr(), args[0].GetString()));
++  }
++
++  void OnEncryptorForCode(const std::string& callback_id,
++                          scoped_refptr<os_crypt_async::Encryptor> encryptor) {
++    const std::optional<syncer::SyncChainSecret> secret =
++        syncer::ArcomiumSyncAccount::LoadSecret(*profile_->GetPrefs(),
++                                                *encryptor);
++    if (!secret) {
++      Reject(callback_id, "This device has no sync code.");
++      return;
++    }
++    base::DictValue result;
++    result.Set("code", syncer::EncodeSyncCode(*secret));
++    web_ui()->ResolveJavascriptCallback(base::Value(callback_id), result);
++  }
++
++  void HandleLeaveChain(const base::ListValue& args) {
++    syncer::SyncService* sync = GetSyncService();
++    if (sync && sync->IsLocalSyncEnabled()) {
++      // In Arcomium the sync service is always a SyncServiceImpl.
++      static_cast<syncer::SyncServiceImpl*>(sync)->LeaveArcomiumSyncChain();
++    } else {
++      syncer::ArcomiumSyncAccount::Clear(profile_->GetPrefs());
++    }
++    profile_->GetPrefs()->CommitPendingWrite();
++    restart_needed_ = true;
++    web_ui()->ResolveJavascriptCallback(args[0], base::DictValue());
++    web_ui()->FireWebUIListener("state-changed", BuildState());
++  }
++
++  void Reject(const std::string& callback_id, const char* message) {
++    web_ui()->RejectJavascriptCallback(base::Value(callback_id),
++                                       base::Value(message));
++  }
++
++  const raw_ptr<ProfileIOS> profile_;
++  bool restart_needed_ = false;
++  std::unique_ptr<network::SimpleURLLoader> health_check_;
++  base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
++      sync_observation_{this};
++  base::WeakPtrFactory<ArcomiumSyncHandler> weak_factory_{this};
++};
++
++}  // namespace
++
++ArcomiumSyncUI::ArcomiumSyncUI(web::WebUIIOS* web_ui, const std::string& host)
++    : web::WebUIIOSController(web_ui, host) {
++  ProfileIOS* profile = ProfileIOS::FromWebUIIOS(web_ui);
++  web_ui->AddMessageHandler(std::make_unique<ArcomiumSyncHandler>(profile));
++  web::WebUIIOSDataSource::Add(profile, CreateHTMLSource());
++}
++
++ArcomiumSyncUI::~ArcomiumSyncUI() = default;
+diff --git a/ios/chrome/browser/webui/ui_bundled/chrome_web_ui_ios_controller_factory.mm b/ios/chrome/browser/webui/ui_bundled/chrome_web_ui_ios_controller_factory.mm
+index bff1535c16..bb3d8f1c53 100644
+--- a/ios/chrome/browser/webui/ui_bundled/chrome_web_ui_ios_controller_factory.mm
++++ b/ios/chrome/browser/webui/ui_bundled/chrome_web_ui_ios_controller_factory.mm
+@@ -28,6 +28,7 @@
+ #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
+ #import "ios/chrome/browser/shared/public/features/system_flags.h"
+ #import "ios/chrome/browser/webui/ui_bundled/about/about_ui.h"
++#import "ios/chrome/browser/webui/ui_bundled/arcomium_sync_ui.h"
+ #import "ios/chrome/browser/webui/ui_bundled/actor_internals/actor_internals_ui.h"
+ #import "ios/chrome/browser/webui/ui_bundled/autofill_and_password_manager_internals/autofill_internals_ui_ios.h"
+ #import "ios/chrome/browser/webui/ui_bundled/autofill_and_password_manager_internals/password_manager_internals_ui_ios.h"
+@@ -120,6 +121,9 @@ WebUIIOSFactoryFunction GetWebUIIOSFactoryFunction(const GURL& url) {
+                ? &NewWebUIIOS<commerce::CommerceInternalsUI>
+                : &NewWebUIIOS<InternalDebugPagesDisabledUI>;
+   }
++  if (url_host == kChromeUIArcomiumSyncHost) {
++    return &NewWebUIIOS<ArcomiumSyncUI>;
++  }
+   if (url_host == kChromeUIAutofillInternalsHost) {
+     return &NewWebUIIOS<AutofillInternalsUIIOS>;
+   }
