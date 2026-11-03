@@ -1,37 +1,36 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
-index 5fd00bda5c..1cb9e54e29 100644
+index 5fd00bda5c..7093ff61be 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
-@@ -48,8 +48,17 @@
+@@ -48,8 +48,16 @@
  
  namespace {
  
 -constexpr int kDotDiameter = 10;
 -constexpr int kButtonSize = 24;
-+// Arc's Space bar: inactive Spaces are small grey dots, the active one a
-+// card in its color, "+" at the right edge.
++// Arc's Space bar: the active Space is a small dot, the others cards in
++// their colors to switch to, "+" at the right edge.
 +constexpr int kButtonSize = 28;
 +constexpr int kDotDiameter = 6;
 +constexpr int kCardWidth = 12;
 +constexpr int kCardHeight = 16;
 +constexpr int kCardRadius = 3;
 +constexpr int kAddIconSize = 20;
-+constexpr SkColor kDotColor = SkColorSetRGB(0x84, 0x84, 0x84);
 +constexpr SkColor kDotHoverColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
 +constexpr SkColor kHomeColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
  
  constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
      tab_groups::TabGroupColorId::kBlue,   tab_groups::TabGroupColorId::kPurple,
-@@ -58,7 +67,7 @@ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
+@@ -58,7 +66,7 @@ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
      tab_groups::TabGroupColorId::kYellow, tab_groups::TabGroupColorId::kRed,
  };
  
 -// A dot in the Space's color; the active Space gets a ring around it.
-+// A Space: a grey dot, or a card in the Space's color while active.
++// A Space: a card in its color, or a small dot while it is the active one.
  class SpaceDot : public views::Button {
    METADATA_HEADER(SpaceDot, views::Button)
  
-@@ -74,19 +83,22 @@ class SpaceDot : public views::Button {
+@@ -74,19 +82,24 @@ class SpaceDot : public views::Button {
    }
  
    void PaintButtonContents(gfx::Canvas* canvas) override {
@@ -47,8 +46,8 @@ index 5fd00bda5c..1cb9e54e29 100644
 -      flags.setStrokeWidth(2);
 -      flags.setAlphaf(active_ ? 1.0f : 0.5f);
 -      canvas->DrawCircle(center, kDotDiameter / 2.0f + 4, flags);
-+    if (!active_) {
-+      flags.setColor(IsMouseHovered() ? kDotHoverColor : kDotColor);
++    if (active_) {
++      flags.setColor(kDotHoverColor);
 +      canvas->DrawCircle(center, kDotDiameter / 2.0f, flags);
 +      return;
      }
@@ -56,6 +55,8 @@ index 5fd00bda5c..1cb9e54e29 100644
 +                       ? kHomeColor
 +                       : GetColorProvider()->GetColor(GetTabGroupTabStripColorId(
 +                             color_, /*active_frame=*/true)));
++    // Dimmed until hovered.
++    flags.setAlphaf(IsMouseHovered() ? 1.0f : 0.75f);
 +    canvas->DrawRoundRect(
 +        gfx::RectF(center.x() - kCardWidth / 2.0f,
 +                   center.y() - kCardHeight / 2.0f, kCardWidth, kCardHeight),
@@ -63,7 +64,7 @@ index 5fd00bda5c..1cb9e54e29 100644
    }
  
    void StateChanged(ButtonState old_state) override { SchedulePaint(); }
-@@ -103,8 +115,8 @@ END_METADATA
+@@ -103,8 +116,8 @@ END_METADATA
  
  ArcomiumSpaceSwitcher::ArcomiumSpaceSwitcher(BrowserWindowInterface* browser)
      : browser_(browser), model_(browser->GetTabStripModel()) {
@@ -74,7 +75,7 @@ index 5fd00bda5c..1cb9e54e29 100644
    model_->AddObserver(this);
    Rebuild();
  }
-@@ -193,8 +205,18 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+@@ -193,8 +206,18 @@ void ArcomiumSpaceSwitcher::Rebuild() {
    });
    const std::optional<tab_groups::TabGroupId> focused =
        model_->GetFocusedGroup();
@@ -94,7 +95,7 @@ index 5fd00bda5c..1cb9e54e29 100644
        base::BindRepeating(
            [](TabStripModel* model) {
              model->ExitFocusMode(
-@@ -205,7 +227,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+@@ -205,7 +228,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
    for (const tab_groups::TabGroupId& id : spaces) {
      const tab_groups::TabGroupVisualData* visuals =
          groups->GetTabGroup(id)->visual_data();
@@ -103,7 +104,7 @@ index 5fd00bda5c..1cb9e54e29 100644
          base::BindRepeating(&ArcomiumSpaceSwitcher::SwitchTo,
                              base::Unretained(this), id),
          visuals->color(), focused == id,
-@@ -215,7 +237,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+@@ -215,7 +238,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
    auto add = views::CreateVectorImageButtonWithNativeTheme(
        base::BindRepeating(&ArcomiumSpaceSwitcher::CreateSpace,
                            base::Unretained(browser_.get())),
