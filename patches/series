@@ -10,3 +10,4 @@ sync/sync-setup-page.patch
 spaces/link-routing.patch
 media/mini-player-and-auto-pip.patch
 spaces/collapsed-tab-strip.patch
+spaces/sidebar-drag-and-drop.patch

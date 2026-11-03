@@ -59,7 +59,7 @@ it imported before.
 | Area | State |
 |---|---|
 | Spaces with separate logins | done |
-| Arc sidebar, Arc import | done; drag and drop to do |
+| Arc sidebar, Arc import, drag and drop | done |
 | Sync | done with your own server; public server to do |
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | done |
