@@ -88,10 +88,11 @@ sign-in. As in Brave Sync v2:
 
 - The first device generates a 24-word sync code (BIP39). Other devices join by typing
   it or scanning a QR code from a device that is already in.
-- HKDF over the code derives an Ed25519 key pair. Every request carries an access token
-  `base64(timestamp | signature(timestamp) | public key)`; the server checks the
-  signature and freshness and uses the public key as the account id. No passwords, no
-  emails, nothing to leak but a public key.
+- HKDF over the code derives an Ed25519 key pair. Every request carries a token: the
+  public key and a timestamp, signed with the private key. The server checks the
+  signature and freshness and knows the chain only by a hash of the public key. No
+  passwords, no emails, nothing to leak but a public key. The exact format is in
+  [arcomium-sync's protocol notes](https://github.com/VizzleTF/arcomium-sync/blob/main/docs/protocol.md).
 - The same code derives the Nigori custom passphrase with `encrypt_everything` on, so
   bookmarks, tabs, Spaces, passwords and history are encrypted on the device.
 - Client side: a local primary account for the sync code (the identity layer reports it
@@ -100,26 +101,26 @@ sign-in. As in Brave Sync v2:
 
 ### Server: arcomium-sync
 
-A fork of [brave/go-sync](https://github.com/brave/go-sync) (Go, MPL-2.0). It already
-speaks the Chromium sync protocol (`POST /v2/command/`) and verifies sync-chain tokens.
-Code: [arcomium-sync](https://github.com/VizzleTF/arcomium-sync). Changes:
+Written for Arcomium in Go: [arcomium-sync](https://github.com/VizzleTF/arcomium-sync).
+It speaks the Chromium sync protocol (`POST /v2/command/`), with the protocol buffers of
+the Chromium tree we build, so every data type Chromium syncs works without server
+changes.
 
-- PostgreSQL store (transactions keep go-sync's semantics: unique tags, optimistic
-  versions) and an in-process cache instead of Redis. Any Postgres works: a container,
-  CloudNativePG, or a free managed database (Neon, Supabase), which also makes the server
-  itself stateless.
-- Protocol buffers from the Chromium tree we build (156).
+- PostgreSQL store. Each chain has a version counter; a commit runs in one transaction
+  that holds the chain's lock, so versions only grow and a device never misses a change.
+  Any Postgres works: a container, CloudNativePG, or a free managed database (Neon,
+  Supabase), which also makes the server itself stateless.
 - `GET /v2/events` Server-Sent Events: after a Commit, the server tells the chain's other
   devices which data types changed, through Postgres `NOTIFY` so several instances can
-  share a database. Measured: 19 ms from commit to event. A small client patch subscribes
-  and triggers a sync cycle; without it the client polls every 15 seconds. SSE rather than
-  WebSocket because Chromium's network stack streams it with a plain URL loader.
-- Per-chain rate limit (token bucket, 600 requests a minute by default).
+  share a database. A small client patch subscribes and triggers a sync cycle; without it
+  the client polls once an hour. SSE rather than WebSocket because Chromium's network
+  stack streams it with a plain URL loader.
+- Per-chain limits: requests a minute, entity size, entities per chain, event streams.
 - One static binary, a distroless image, and a compose file with Postgres.
 
-[selfsync](https://github.com/loyalpartner/selfsync) (Rust, SQLite, GPL-3.0) is the other
-current Chromium sync server. It has no authentication and expects a real sign-in, so it
-would need the same work; go-sync is the better base.
+Existing servers were not a fit: [brave/go-sync](https://github.com/brave/go-sync) is
+built around DynamoDB and Redis, and [selfsync](https://github.com/loyalpartner/selfsync)
+(SQLite) has no authentication and expects a real sign-in.
 
 ### Where the server runs
 
