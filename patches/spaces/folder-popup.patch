@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
-index 6b99afcb06..a43c0989b5 100644
+index 6b99afcb06..2b0254af33 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 @@ -45,11 +45,13 @@
@@ -49,7 +49,19 @@ index 6b99afcb06..a43c0989b5 100644
    if (model_) {
      model_->RemoveObserver(this);
    }
-@@ -641,10 +651,15 @@ ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
+@@ -457,6 +467,11 @@ void ArcomiumSidebarView::BookmarkModelChanged() {
+   ScheduleRebuild();
+ }
+ 
++void ArcomiumSidebarView::BookmarkMetaInfoChanged(
++    const bookmarks::BookmarkNode* node) {
++  ScheduleRebuild();
++}
++
+ void ArcomiumSidebarView::BookmarkModelBeingDeleted() {
+   model_->RemoveObserver(this);
+   model_ = nullptr;
+@@ -641,10 +656,15 @@ ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
  }
  
  void ArcomiumSidebarView::ScheduleRebuild() {
@@ -68,7 +80,7 @@ index 6b99afcb06..a43c0989b5 100644
    }
    weak_factory_.InvalidateWeakPtrs();
    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-@@ -699,6 +714,23 @@ void ArcomiumSidebarView::Rebuild() {
+@@ -699,6 +719,23 @@ void ArcomiumSidebarView::Rebuild() {
      }
    }
  
@@ -92,7 +104,7 @@ index 6b99afcb06..a43c0989b5 100644
    PreferredSizeChanged();
  }
  
-@@ -819,6 +851,7 @@ void ArcomiumSidebarView::OnBookmarkPressed(int64_t id) {
+@@ -819,6 +856,7 @@ void ArcomiumSidebarView::OnBookmarkPressed(int64_t id) {
  
  void ArcomiumSidebarView::OnFolderPressed(int64_t id) {
    hover_timer_.Stop();
@@ -100,7 +112,7 @@ index 6b99afcb06..a43c0989b5 100644
    if (const bookmarks::BookmarkNode* node = GetNode(id)) {
      model_->SetNodeMetaInfo(node, kOpenMetaKey, IsOpen(node) ? "0" : "1");
    }
-@@ -904,48 +937,152 @@ void ArcomiumSidebarView::OnFolderHovered(int64_t id,
+@@ -904,48 +942,152 @@ void ArcomiumSidebarView::OnFolderHovered(int64_t id,
      hover_timer_.Stop();
      return;
    }
@@ -242,7 +254,7 @@ index 6b99afcb06..a43c0989b5 100644
 +  if (!folder_popup_) {
 +    CloseFolderPopup();
 +    return;
-   }
++  }
 +  const gfx::Point point = display::Screen::Get()->GetCursorScreenPoint();
 +  const gfx::Rect bubble = folder_popup_->GetWindowBoundsInScreen();
 +  bool inside = bubble.Contains(point);
@@ -265,7 +277,7 @@ index 6b99afcb06..a43c0989b5 100644
 +  folder_popup_id_ = 0;
 +  if (!folder_popup_) {
 +    return;
-+  }
+   }
 +  // Deleted later: this may run from inside the popup's own events.
 +  folder_popup_->Hide();
 +  auto runner = base::SequencedTaskRunner::GetCurrentDefault();
@@ -279,7 +291,7 @@ index 6b99afcb06..a43c0989b5 100644
  }
  
  void ArcomiumSidebarView::ShowContextMenuForViewImpl(
-@@ -955,9 +1092,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -955,9 +1097,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
    hover_timer_.Stop();
    menu_node_ = 0;
    menu_tab_ = tabs::TabInterface::Handle();
@@ -290,7 +302,7 @@ index 6b99afcb06..a43c0989b5 100644
  
    const auto it = row_targets_.find(source);
    if (it != row_targets_.end()) {
-@@ -993,17 +1129,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -993,17 +1134,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
  }
  
  void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
@@ -309,7 +321,7 @@ index 6b99afcb06..a43c0989b5 100644
    tabs::TabInterface* tab = menu_tab_.Get();
    switch (command_id) {
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
-index 61a9a29dfb..9f8d8fe564 100644
+index 61a9a29dfb..9f6ab8d37d 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 @@ -28,6 +28,7 @@
@@ -328,7 +340,16 @@ index 61a9a29dfb..9f8d8fe564 100644
  class MenuRunner;
  }  // namespace views
  
-@@ -158,11 +160,22 @@ class ArcomiumSidebarView : public views::View,
+@@ -77,6 +79,8 @@ class ArcomiumSidebarView : public views::View,
+ 
+   // bookmarks::BaseBookmarkModelObserver:
+   void BookmarkModelChanged() override;
++  // Folders keep their open state in meta info.
++  void BookmarkMetaInfoChanged(const bookmarks::BookmarkNode* node) override;
+   void BookmarkModelBeingDeleted() override;
+ 
+   // TabStripModelObserver:
+@@ -158,11 +162,22 @@ class ArcomiumSidebarView : public views::View,
    void PinTab(tabs::TabInterface* tab, const bookmarks::BookmarkNode* folder);
    void AddFolder(const bookmarks::BookmarkNode* parent);
  
@@ -355,7 +376,7 @@ index 61a9a29dfb..9f8d8fe564 100644
  
    raw_ptr<BrowserWindowInterface> browser_;
    raw_ptr<bookmarks::BookmarkModel> model_;
-@@ -212,11 +225,17 @@ class ArcomiumSidebarView : public views::View,
+@@ -212,11 +227,17 @@ class ArcomiumSidebarView : public views::View,
    int64_t menu_node_ = 0;
    tabs::TabInterface::Handle menu_tab_;
    std::unique_ptr<ui::SimpleMenuModel> menu_model_;
