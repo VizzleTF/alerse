@@ -16,8 +16,10 @@ and the Arc import tool. Builds come from the platform repositories below.
   logged into different accounts side by side. Spaces survive restarts.
 
   ![The Work Space, switched to with the dots at the bottom of the sidebar](docs/images/spaces.png)
-- **Sync on your terms** (in progress): a free public server or your own, end-to-end
-  encrypted, with no account; see [arcomium-sync](https://github.com/VizzleTF/arcomium-sync).
+- **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
+  [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
+  encrypted, with no account: devices join with a 24-word sync code. Set it up at
+  `chrome://arcomium-sync`. A free public server is planned.
 - **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
 
 ## Download
@@ -54,7 +56,7 @@ it imported before.
 |---|---|
 | Spaces with separate logins | done |
 | Arc sidebar, Arc import | done; drag and drop to do |
-| Sync | server and browser done; setup page to do |
+| Sync | done with your own server; public server to do |
 | Link routing to Spaces | links from other apps open in the current Space; rules to do |
 | Media mini player, auto picture-in-picture | to do |
 

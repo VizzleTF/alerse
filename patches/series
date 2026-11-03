@@ -6,3 +6,4 @@ spaces/enable-tab-group-focus.patch
 spaces/space-sidebar.patch
 look/content-card.patch
 sync/arcomium-sync-client.patch
+sync/sync-setup-page.patch
