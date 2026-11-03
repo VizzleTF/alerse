@@ -11,3 +11,5 @@ spaces/link-routing.patch
 media/mini-player-and-auto-pip.patch
 spaces/collapsed-tab-strip.patch
 spaces/sidebar-drag-and-drop.patch
+look/compact-toolbar.patch
+spaces/folder-popup.patch
