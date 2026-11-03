@@ -1,0 +1,75 @@
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
+index a756f076ff..a2d28ee3ae 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -68,8 +68,9 @@ MultiContentsView::MultiContentsView(
+     std::unique_ptr<MultiContentsViewDelegate> delegate)
+     : browser_view_(browser_view),
+       delegate_(std::move(delegate)),
++      // Arcomium: the page card starts right at the sidebar's edge, as in Arc.
+       split_view_insets_(gfx::Insets::TLBR(0,
+-                                           kSplitViewContentInset,
++                                           0,
+                                            kSplitViewContentInset,
+                                            kSplitViewContentInset)) {
+   SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
+@@ -228,7 +229,8 @@ void MultiContentsView::SetBackgroundRadii(const gfx::RoundedCornersF& radii) {
+   background_view_->SetRoundedCorners(radii);
+ 
+   if (!IsInSplitView()) {
+-    GetActiveContentsContainerView()->SetRoundedCorners(radii);
++    GetActiveContentsContainerView()->SetRoundedCorners(
++        kSplitViewContentRoundedCorners);
+     GetInactiveContentsContainerView()->SetRoundedCorners(
+         gfx::RoundedCornersF());
+   }
+@@ -507,8 +509,8 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+ 
+   gfx::Rect available_space = gfx::Rect(width, height);
+ 
+-  const bool show_background =
+-      drop_target_view_->GetVisible() || IsInSplitView();
++  // Arcomium: the page is always a floating card, as in split view.
++  const bool show_background = true;
+   layouts.child_layouts.emplace_back(background_view_.get(), show_background,
+                                      available_space);
+ 
+@@ -520,9 +522,8 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   available_space =
+       CalculateSeparatorLayouts(available_space, layouts.child_layouts);
+ 
+-  if (IsInSplitView()) {
+-    available_space.Inset(split_view_insets_);
+-  }
++  // Arcomium: inset the single page too, so it floats as a card.
++  available_space.Inset(split_view_insets_);
+   ViewSizes sizes = GetViewSizes(available_space);
+ 
+   gfx::Rect start_rect, resize_rect, end_rect;
+@@ -800,9 +801,9 @@ void MultiContentsView::UpdateContentsBorderAndOverlay() {
+     const bool is_active =
+         contents_container_view->contents_view() == GetActiveContentsView();
+     contents_container_view->SetRoundedCorners(
+-        is_in_split
+-            ? kSplitViewContentRoundedCorners
+-            : (is_active ? GetBackgroundRadii() : gfx::RoundedCornersF()));
++        // Arcomium: the single page is a card with all corners rounded.
++        is_in_split || is_active ? kSplitViewContentRoundedCorners
++                                 : gfx::RoundedCornersF());
+     contents_container_view->UpdateBorderAndOverlay(
+         is_in_split, is_active, is_active && active_contents_view_highlighted_);
+   }
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
+index e39f000c2a..13dd500826 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.h
++++ b/chrome/browser/ui/views/frame/multi_contents_view.h
+@@ -65,7 +65,8 @@ class MultiContentsView
+   };
+ 
+   static constexpr int kSplitViewContentInset = 8;
+-  static constexpr float kSplitViewContentCornerRadius = 6;
++  // Arcomium: Arc-like card radius.
++  static constexpr float kSplitViewContentCornerRadius = 10;
+   static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
+       kSplitViewContentCornerRadius};
+ 

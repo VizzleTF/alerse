@@ -1,0 +1,384 @@
+diff --git a/chrome/browser/sessions/session_restore.cc b/chrome/browser/sessions/session_restore.cc
+index e21bf8de37..99f1d32c10 100644
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -73,6 +73,7 @@
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
+ #include "chrome/browser/ui/startup/startup_tab.h"
+ #include "chrome/browser/ui/startup/startup_types.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -1025,6 +1026,13 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+     // why some browsers don't have an active tab on startup.
+     CHECK(!window.tabs.empty());
+ 
++    // Arcomium: which tab groups of this window are Spaces.
++    arcomium_spaces_.clear();
++    if (auto it = window.extra_data.find(arcomium::kSpacesWindowExtraDataKey);
++        it != window.extra_data.end()) {
++      arcomium_spaces_ = arcomium::ParseSpacesExtraData(it->second);
++    }
++
+     // TODO(crbug.com/41440719): Check that tab groups are contiguous in
+     // |window| to ensure tabs will not be reordered when restoring. This is not
+     // possible yet due the ordering of TabStripModelObserver notifications in
+@@ -1144,13 +1152,22 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+       new_group = it->second;
+     }
+ 
++    // Arcomium: a tab of a Space is recreated in the Space's partition.
++    std::map<std::string, std::string> extra_data = tab.extra_data;
++    if (tab.group) {
++      if (auto it = arcomium_spaces_.find(tab.group->ToString());
++          it != arcomium_spaces_.end()) {
++        extra_data[arcomium::kSpaceTabExtraDataKey] = it->second;
++      }
++    }
++
+     // Apply the stored group.
+     WebContents* web_contents = chrome::AddRestoredTab(
+         browser, tab.navigations, tab_index, selected_index,
+         tab.extension_app_id, new_group, is_selected_tab, tab.pinned,
+         last_active_time_ticks, last_active_time,
+-        session_storage_namespace.get(), tab.user_agent_override,
+-        tab.extra_data, true /* from_session_restore */, is_active_browser);
++        session_storage_namespace.get(), tab.user_agent_override, extra_data,
++        true /* from_session_restore */, is_active_browser);
+     DCHECK(web_contents);
+ 
+     RestoredTab restored_tab(web_contents, is_selected_tab,
+@@ -1473,6 +1490,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+   // The profile to create the sessions for.
+   raw_ptr<Profile> profile_;
+ 
++  // Arcomium: {tab group id: Space id} of the window being restored.
++  base::flat_map<std::string, std::string> arcomium_spaces_;
++
+   // The first browser to restore to, may be null.
+   raw_ptr<BrowserWindowInterface, DanglingUntriaged> browser_;
+ 
+diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
+index 2e2a9d24d7..b8808fe214 100644
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -773,6 +774,14 @@ void SessionServiceBase::BuildCommandsForBrowser(
+     }
+   }
+ 
++  // Arcomium: remember which tab groups are Spaces.
++  if (tab_strip->SupportsTabGroups()) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddWindowExtraDataCommand(
++            browser->GetSessionID(), arcomium::kSpacesWindowExtraDataKey,
++            arcomium::BuildSpacesExtraData(tab_strip)));
++  }
++
+   int index = 0;
+   for (const tabs::TabInterface* tab_interface : *tab_strip) {
+     WebContents* tab = tab_interface->GetContents();
+diff --git a/chrome/browser/ui/browser.cc b/chrome/browser/ui/browser.cc
+index 07de580deb..ccbbac17b0 100644
+--- a/chrome/browser/ui/browser.cc
++++ b/chrome/browser/ui/browser.cc
+@@ -100,6 +100,7 @@
+ #include "chrome/browser/ui/tab_dialogs.h"
+ #include "chrome/browser/ui/tab_helpers.h"
+ #include "chrome/browser/ui/tab_ui_helper.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_change_type.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+@@ -642,6 +643,10 @@ void Browser::OnTabGroupFocusChanged(
+         session_id_, tabs::TabStripModelSelectionState::kFocusedTabGroupIdKey,
+         new_focused_group.has_value() ? new_focused_group->ToString()
+                                       : std::string());
++    // Arcomium: a focused group is a Space; keep the Space map current.
++    service->AddWindowExtraData(
++        session_id_, arcomium::kSpacesWindowExtraDataKey,
++        arcomium::BuildSpacesExtraData(tab_strip_model_.get()));
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
+index 6aca93a450..10ea8ad5af 100644
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
+ #include "chrome/browser/ui/tab_ui_helper.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -76,9 +77,24 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+       WebContents::CreateParams::kNoRendererProcess;
+   create_params.last_active_time_ticks = last_active_time_ticks;
+   create_params.last_active_time = last_active_time;
+-  std::unique_ptr<WebContents> web_contents =
+-      WebContents::CreateWithSessionStorage(create_params,
+-                                            session_storage_namespace_map);
++  // Arcomium: a tab of a Space comes back in the Space's storage partition.
++  // Its sessionStorage was kept in that partition, so it is not restored.
++  scoped_refptr<content::SiteInstance> space_site_instance;
++  if (auto space = extra_data.find(arcomium::kSpaceTabExtraDataKey);
++      space != extra_data.end() && selected_navigation >= 0 &&
++      static_cast<size_t>(selected_navigation) < navigations.size()) {
++    space_site_instance = arcomium::CreateSpaceSiteInstance(
++        browser->GetProfile(), navigations[selected_navigation].virtual_url(),
++        space->second);
++  }
++  std::unique_ptr<WebContents> web_contents;
++  if (space_site_instance) {
++    create_params.site_instance = space_site_instance;
++    web_contents = WebContents::Create(create_params);
++  } else {
++    web_contents = WebContents::CreateWithSessionStorage(
++        create_params, session_storage_namespace_map);
++  }
+   apps::SetAppIdForWebContents(browser->GetProfile(), web_contents.get(),
+                                extension_app_id);
+ 
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index b95a279fab..1c0988f4db 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -11,6 +11,7 @@
+ #include <string_view>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/notimplemented.h"
+@@ -41,6 +42,7 @@
+ #include "chrome/browser/ui/singleton_tabs.h"
+ #include "chrome/browser/ui/status_bubble.h"
+ #include "chrome/browser/ui/tab_helpers.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -72,8 +74,10 @@
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/render_view_host.h"
++#include "content/public/browser/site_instance.h"
+ #include "content/public/browser/site_isolation_policy.h"
+ #include "content/public/browser/web_contents.h"
++#include "content/public/common/url_constants.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -490,6 +494,33 @@ Profile* GetSourceProfile(NavigateParams* params) {
+   return params->initiating_profile;
+ }
+ 
++// Arcomium: returns the Space a new tab opened by `params` belongs to: the
++// Space of the page it was opened from, else the Space of its tab group
++// (explicit or the focused one). --arcomium-space=<id> forces a Space, for
++// testing.
++std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
++  const std::string forced =
++      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++          "arcomium-space");
++  if (!forced.empty()) {
++    return forced;
++  }
++  if (params.source_contents) {
++    if (std::optional<std::string> space =
++            arcomium::GetSpaceOfContents(params.source_contents)) {
++      return space;
++    }
++  }
++  if (!params.browser ||
++      (params.tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
++    return std::nullopt;
++  }
++  const TabStripModel* model = params.browser->GetTabStripModel();
++  std::optional<tab_groups::TabGroupId> group =
++      params.group ? params.group : model->GetFocusedGroup();
++  return group ? arcomium::GetSpaceOfGroup(model, *group) : std::nullopt;
++}
++
+ std::unique_ptr<content::WebContents> CreateTargetContents(
+     const NavigateParams& params,
+     const GURL& url) {
+@@ -503,10 +534,23 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+   // subsequent navigation is cross-process (i.e. cross-SiteInstance), then it
+   // will stay in the same BrowsingInstance (creating frame proxies as needed)
+   // preserving the requested opener relationship along the way.
+-  scoped_refptr<content::SiteInstance> initial_site_instance_for_new_contents =
+-      params.opener ? params.opener->GetSiteInstance()
+-                    : tab_util::GetSiteInstanceForNewTab(
+-                          params.browser->GetProfile(), url);
++  scoped_refptr<content::SiteInstance> initial_site_instance_for_new_contents;
++  if (params.opener) {
++    initial_site_instance_for_new_contents = params.opener->GetSiteInstance();
++  } else {
++    if (std::optional<std::string> space = GetSpaceForNewTab(params)) {
++      GURL effective_url = url;
++      content::BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(
++          &effective_url, params.browser->GetProfile());
++      initial_site_instance_for_new_contents =
++          arcomium::CreateSpaceSiteInstance(params.browser->GetProfile(),
++                                            effective_url, *space);
++    }
++    if (!initial_site_instance_for_new_contents) {
++      initial_site_instance_for_new_contents =
++          tab_util::GetSiteInstanceForNewTab(params.browser->GetProfile(), url);
++    }
++  }
+ 
+   WebContents::CreateParams create_params(
+       params.browser->GetProfile(), initial_site_instance_for_new_contents);
+@@ -902,6 +946,13 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+   if (!contents_to_navigate_or_insert) {
+     DCHECK(!params->url.is_empty());
+     if (params->disposition != WindowOpenDisposition::CURRENT_TAB) {
++      // Arcomium: the New Tab page is WebUI and cannot live in a Space's
++      // partition, so a new tab of a Space starts blank.
++      if (params->url.SchemeIs(content::kChromeUIScheme) &&
++          params->url.host() == chrome::kChromeUINewTabHost &&
++          GetSpaceForNewTab(*params)) {
++        params->url = GURL(url::kAboutBlankURL);
++      }
+       tab_to_insert = std::make_unique<tabs::TabModel>(
+           CreateTargetContents(*params, params->url),
+           params->browser->GetTabStripModel());
+diff --git a/chrome/browser/ui/tabs/arcomium_spaces.h b/chrome/browser/ui/tabs/arcomium_spaces.h
+new file mode 100644
+index 0000000000..11f017e4b8
+--- /dev/null
++++ b/chrome/browser/ui/tabs/arcomium_spaces.h
+@@ -0,0 +1,120 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_TABS_ARCOMIUM_SPACES_H_
++#define CHROME_BROWSER_UI_TABS_ARCOMIUM_SPACES_H_
++
++// Arcomium Spaces. A Space is a tab group shown in focus mode, so the vertical
++// tab strip lists only its tabs. Web tabs of a Space live in a dedicated
++// storage partition ("arcomium" domain, partition name = Space id), so each
++// Space has its own cookies and site data. The Space of a group is the
++// partition of its tabs; the session keeps a group -> Space map in the window
++// extra data so restored tabs come back in their partition.
++
++#include <optional>
++#include <string>
++
++#include "base/containers/flat_map.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/values.h"
++#include "chrome/browser/ui/tabs/tab_group_model.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "components/tab_groups/tab_group_id.h"
++#include "components/tabs/public/tab_group.h"
++#include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/browser_context.h"
++#include "content/public/browser/site_instance.h"
++#include "content/public/browser/storage_partition.h"
++#include "content/public/browser/storage_partition_config.h"
++#include "content/public/browser/web_contents.h"
++#include "url/gurl.h"
++
++namespace arcomium {
++
++inline constexpr char kSpacePartitionDomain[] = "arcomium";
++// Window extra data: JSON object {tab group id: Space id}.
++inline constexpr char kSpacesWindowExtraDataKey[] = "arcomium.spaces";
++// Tab extra data handed from session restore to the restored tab factory.
++inline constexpr char kSpaceTabExtraDataKey[] = "arcomium.space";
++
++// Returns the Space of `contents`, or nullopt for the default partition.
++inline std::optional<std::string> GetSpaceOfContents(
++    content::WebContents* contents) {
++  if (!contents) {
++    return std::nullopt;
++  }
++  content::StoragePartition* partition =
++      contents->GetBrowserContext()->GetStoragePartition(
++          contents->GetSiteInstance());
++  if (!partition ||
++      partition->GetConfig().partition_domain() != kSpacePartitionDomain) {
++    return std::nullopt;
++  }
++  return partition->GetConfig().partition_name();
++}
++
++inline std::optional<std::string> GetSpaceOfGroup(
++    const TabStripModel* model,
++    const tab_groups::TabGroupId& group) {
++  if (!model->group_model() || !model->group_model()->ContainsTabGroup(group)) {
++    return std::nullopt;
++  }
++  tabs::TabInterface* first =
++      model->group_model()->GetTabGroup(group)->GetFirstTab();
++  return first ? GetSpaceOfContents(first->GetContents()) : std::nullopt;
++}
++
++// SiteInstance that pins a new tab to the partition of `space`. Only web
++// pages and about:blank can live there; returns nullptr for anything else.
++inline scoped_refptr<content::SiteInstance> CreateSpaceSiteInstance(
++    content::BrowserContext* browser_context,
++    const GURL& url,
++    const std::string& space) {
++  if (space.empty() || browser_context->IsOffTheRecord() ||
++      (!url.SchemeIsHTTPOrHTTPS() && !url.IsAboutBlank())) {
++    return nullptr;
++  }
++  return content::SiteInstance::CreateForFixedStoragePartition(
++      browser_context, url,
++      content::StoragePartitionConfig::Create(
++          browser_context, kSpacePartitionDomain, space, /*in_memory=*/false));
++}
++
++inline std::string BuildSpacesExtraData(const TabStripModel* model) {
++  base::DictValue spaces;
++  if (model->group_model()) {
++    for (const tab_groups::TabGroupId& group :
++         model->group_model()->ListTabGroups()) {
++      if (std::optional<std::string> space = GetSpaceOfGroup(model, group)) {
++        spaces.Set(group.ToString(), *space);
++      }
++    }
++  }
++  std::string json;
++  base::JSONWriter::Write(spaces, &json);
++  return json;
++}
++
++// Parses BuildSpacesExtraData() output into {tab group id string: Space id}.
++inline base::flat_map<std::string, std::string> ParseSpacesExtraData(
++    const std::string& json) {
++  base::flat_map<std::string, std::string> spaces;
++  std::optional<base::DictValue> dict =
++      base::JSONReader::ReadDict(json, base::JSON_PARSE_RFC);
++  if (!dict) {
++    return spaces;
++  }
++  for (const auto [group, space] : *dict) {
++    if (space.is_string()) {
++      spaces[group] = space.GetString();
++    }
++  }
++  return spaces;
++}
++
++}  // namespace arcomium
++
++#endif  // CHROME_BROWSER_UI_TABS_ARCOMIUM_SPACES_H_
