@@ -6,7 +6,7 @@ Arc's sidebar, Spaces with separate logins in one window, and sync you can host 
 This repository holds what all platforms share: the Chromium patches, the design notes
 and the Arc import tool. Builds come from the platform repositories below.
 
-![Spaces in the sidebar](docs/images/spaces-switcher.png)
+![Arcomium: the Personal Space with pinned items, nested folders and open tabs](docs/images/sidebar.png)
 
 ## Features
 
@@ -14,6 +14,8 @@ and the Arc import tool. Builds come from the platform repositories below.
   collapsed folders, a popup of a folder's links on hover, New Tab, then the Space's tabs.
 - **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
   logged into different accounts side by side. Spaces survive restarts.
+
+  ![The Work Space, switched to with the dots at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms** (in progress): a free public server or your own, end-to-end
   encrypted, with no account; see [arcomium-sync](https://github.com/VizzleTF/arcomium-sync).
 - **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
