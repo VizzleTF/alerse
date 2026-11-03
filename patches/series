@@ -5,6 +5,7 @@ spaces/space-storage-partitions.patch
 spaces/enable-tab-group-focus.patch
 spaces/space-sidebar.patch
 look/content-card.patch
+sync/arcomium-sync-core.patch
 sync/arcomium-sync-client.patch
 sync/sync-setup-page.patch
 spaces/link-routing.patch
