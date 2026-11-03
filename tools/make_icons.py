@@ -3,12 +3,17 @@
 The glyph is the sidebar's logo (an arch crossed by a swoosh, see
 ArcLogoButton) in white on a rounded square with a blue-violet gradient. The
 files land in branding/ at their paths in the Chromium tree; build.py copies
-them over the source tree after patching.
+them over the source tree after patching. macOS icons follow Apple's grid,
+and on macOS the script also compiles app.icns and Assets.car.
 
 Usage:
   python tools/make_icons.py
 """
 
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 from PIL import Image, ImageDraw
@@ -40,14 +45,13 @@ def bezier(p0, p1, p2, p3, steps=200):
 
 def draw(size):
     big = size * SUPERSAMPLE
-    # The rounded square with a vertical gradient.
-    gradient = Image.new('RGBA', (big, big))
-    pixels = gradient.load()
+    # The rounded square with a vertical gradient, stretched from one column.
+    column = Image.new('RGBA', (1, big))
     for y in range(big):
         f = y / (big - 1)
-        color = tuple(round(a + (b - a) * f) for a, b in zip(TOP, BOTTOM)) + (255,)
-        for x in range(big):
-            pixels[x, y] = color
+        column.putpixel(
+            (0, y), tuple(round(a + (b - a) * f) for a, b in zip(TOP, BOTTOM)) + (255,))
+    gradient = column.resize((big, big))
     mask = Image.new('L', (big, big), 0)
     ImageDraw.Draw(mask).rounded_rectangle(
         (0, 0, big - 1, big - 1), radius=round(big * 0.225), fill=255)
@@ -69,10 +73,49 @@ def draw(size):
     return icon.resize((size, size), Image.LANCZOS)
 
 
-def save_png(path, size):
+def draw_mac(size):
+    # Apple's icon grid: the shape takes 824 of 1024 pixels, centred.
+    inner = round(size * 824 / 1024)
+    shape = draw(inner)
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    canvas.paste(shape, ((size - inner) // 2, (size - inner) // 2), shape)
+    return canvas
+
+
+def save_png(path, size, painter=draw):
     target = OUT / path
     target.parent.mkdir(parents=True, exist_ok=True)
-    draw(size).save(target)
+    painter(size).save(target)
+
+
+def make_mac_icons():
+    """app.icns and Assets.car, which Chromium's mac build ships prebuilt."""
+    mac = OUT / f'{THEME}/chromium/mac'
+    appiconset = mac / 'Assets.xcassets/AppIcon.appiconset'
+    for size in (16, 32, 64, 128, 256, 512, 1024):
+        save_png(appiconset.relative_to(OUT) / f'appicon_{size}.png', size, draw_mac)
+    iconset = mac / 'Assets.xcassets/Icon.iconset'
+    save_png(iconset.relative_to(OUT) / 'icon_256x256.png', 256, draw_mac)
+    save_png(iconset.relative_to(OUT) / 'icon_256x256@2x.png', 512, draw_mac)
+    if sys.platform != 'darwin':
+        print('Not on macOS: app.icns and Assets.car left as they are')
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        full = Path(tmp) / 'AppIcon.iconset'
+        full.mkdir()
+        for size in (16, 32, 128, 256, 512):
+            draw_mac(size).save(full / f'icon_{size}x{size}.png')
+            draw_mac(size * 2).save(full / f'icon_{size}x{size}@2x.png')
+        subprocess.run(['iconutil', '-c', 'icns', '-o', str(mac / 'app.icns'), str(full)],
+                       check=True)
+        compiled = Path(tmp) / 'compiled'
+        compiled.mkdir()
+        subprocess.run(['xcrun', 'actool', '--compile', str(compiled),
+                        '--platform', 'macosx', '--minimum-deployment-target', '12.0',
+                        '--app-icon', 'AppIcon', '--output-partial-info-plist',
+                        str(Path(tmp) / 'partial.plist'),
+                        str(mac / 'Assets.xcassets')], check=True, stdout=subprocess.DEVNULL)
+        shutil.copy(compiled / 'Assets.car', mac / 'Assets.car')
 
 
 def main():
@@ -92,6 +135,7 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         images[-1].save(target, sizes=[(s, s) for s in sizes],
                         append_images=images[:-1])
+    make_mac_icons()
     print(f'Wrote icons to {OUT}')
 
 
