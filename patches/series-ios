@@ -3,3 +3,4 @@
 sync/arcomium-sync-core.patch
 ios/arcomium-ios-sync.patch
 ios/arcomium-ios-name.patch
+ios/arcomium-ios-icon.patch

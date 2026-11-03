@@ -43,18 +43,18 @@ def bezier(p0, p1, p2, p3, steps=200):
                t ** 3 * p3[1])
 
 
-def draw(size):
-    big = size * SUPERSAMPLE
+def draw(size, radius=0.225, top=TOP, bottom=BOTTOM, glyph=(255, 255, 255, 255)):
+    big = size * min(SUPERSAMPLE, max(2, 4096 // size))
     # The rounded square with a vertical gradient, stretched from one column.
     column = Image.new('RGBA', (1, big))
     for y in range(big):
         f = y / (big - 1)
         column.putpixel(
-            (0, y), tuple(round(a + (b - a) * f) for a, b in zip(TOP, BOTTOM)) + (255,))
+            (0, y), tuple(round(a + (b - a) * f) for a, b in zip(top, bottom)) + (255,))
     gradient = column.resize((big, big))
     mask = Image.new('L', (big, big), 0)
     ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, big - 1, big - 1), radius=round(big * 0.225), fill=255)
+        (0, 0, big - 1, big - 1), radius=round(big * radius), fill=255)
     icon = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     icon.paste(gradient, (0, 0), mask)
 
@@ -69,8 +69,22 @@ def draw(size):
             for x, y in bezier(*segment):
                 cx, cy = offset[0] + x * scale, offset[1] + y * scale
                 r = stroke / 2
-                pen.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(255, 255, 255, 255))
+                pen.ellipse((cx - r, cy - r, cx + r, cy + r), fill=glyph)
     return icon.resize((size, size), Image.LANCZOS)
+
+
+def make_ios_icons():
+    """iOS masks the corners itself, so its icons fill the whole square."""
+    res = 'ios/chrome/app/resources'
+    legacy = f'{res}/ChromiumIconsLegacy.xcassets/AppIcon.appiconset'
+    save_png(f'{legacy}/Icon-1024.png', 1024, lambda s: draw(s, radius=0))
+    save_png(f'{legacy}/Icon-1024Dark.png', 1024,
+             lambda s: draw(s, radius=0, top=(0x26, 0x2A, 0x5C), bottom=(0x37, 0x1F, 0x66)))
+    save_png(f'{legacy}/Icon-1024Tinted.png', 1024,
+             lambda s: draw(s, radius=0, top=(0, 0, 0), bottom=(0, 0, 0)))
+    # The single layer of the iOS 26 icon, which Icon Composer files describe.
+    save_png(f'{res}/ChromiumIcons.xcassets/AppIcon.icon/Assets/arcomium.png', 1024,
+             lambda s: draw(s, radius=0))
 
 
 def draw_mac(size):
@@ -136,6 +150,7 @@ def main():
         images[-1].save(target, sizes=[(s, s) for s in sizes],
                         append_images=images[:-1])
     make_mac_icons()
+    make_ios_icons()
     print(f'Wrote icons to {OUT}')
 
 
