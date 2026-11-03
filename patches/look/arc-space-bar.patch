@@ -1,0 +1,151 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+index 5fd00bda5c..1cb9e54e29 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+@@ -48,8 +48,17 @@
+ 
+ namespace {
+ 
+-constexpr int kDotDiameter = 10;
+-constexpr int kButtonSize = 24;
++// Arc's Space bar: inactive Spaces are small grey dots, the active one a
++// card in its color, "+" at the right edge.
++constexpr int kButtonSize = 28;
++constexpr int kDotDiameter = 6;
++constexpr int kCardWidth = 12;
++constexpr int kCardHeight = 16;
++constexpr int kCardRadius = 3;
++constexpr int kAddIconSize = 20;
++constexpr SkColor kDotColor = SkColorSetRGB(0x84, 0x84, 0x84);
++constexpr SkColor kDotHoverColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
++constexpr SkColor kHomeColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
+ 
+ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
+     tab_groups::TabGroupColorId::kBlue,   tab_groups::TabGroupColorId::kPurple,
+@@ -58,7 +67,7 @@ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
+     tab_groups::TabGroupColorId::kYellow, tab_groups::TabGroupColorId::kRed,
+ };
+ 
+-// A dot in the Space's color; the active Space gets a ring around it.
++// A Space: a grey dot, or a card in the Space's color while active.
+ class SpaceDot : public views::Button {
+   METADATA_HEADER(SpaceDot, views::Button)
+ 
+@@ -74,19 +83,22 @@ class SpaceDot : public views::Button {
+   }
+ 
+   void PaintButtonContents(gfx::Canvas* canvas) override {
+-    const SkColor color = GetColorProvider()->GetColor(
+-        GetTabGroupTabStripColorId(color_, /*active_frame=*/true));
+     const gfx::PointF center = gfx::RectF(GetContentsBounds()).CenterPoint();
+     cc::PaintFlags flags;
+     flags.setAntiAlias(true);
+-    flags.setColor(color);
+-    canvas->DrawCircle(center, kDotDiameter / 2.0f, flags);
+-    if (active_ || IsMouseHovered()) {
+-      flags.setStyle(cc::PaintFlags::kStroke_Style);
+-      flags.setStrokeWidth(2);
+-      flags.setAlphaf(active_ ? 1.0f : 0.5f);
+-      canvas->DrawCircle(center, kDotDiameter / 2.0f + 4, flags);
++    if (!active_) {
++      flags.setColor(IsMouseHovered() ? kDotHoverColor : kDotColor);
++      canvas->DrawCircle(center, kDotDiameter / 2.0f, flags);
++      return;
+     }
++    flags.setColor(color_ == tab_groups::TabGroupColorId::kGrey
++                       ? kHomeColor
++                       : GetColorProvider()->GetColor(GetTabGroupTabStripColorId(
++                             color_, /*active_frame=*/true)));
++    canvas->DrawRoundRect(
++        gfx::RectF(center.x() - kCardWidth / 2.0f,
++                   center.y() - kCardHeight / 2.0f, kCardWidth, kCardHeight),
++        kCardRadius, flags);
+   }
+ 
+   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
+@@ -103,8 +115,8 @@ END_METADATA
+ 
+ ArcomiumSpaceSwitcher::ArcomiumSpaceSwitcher(BrowserWindowInterface* browser)
+     : browser_(browser), model_(browser->GetTabStripModel()) {
+-  SetLayoutManager(std::make_unique<views::BoxLayout>(
+-      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(2, 4), 2));
++  layout_ = SetLayoutManager(std::make_unique<views::BoxLayout>(
++      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(4, 6)));
+   model_->AddObserver(this);
+   Rebuild();
+ }
+@@ -193,8 +205,18 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+   });
+   const std::optional<tab_groups::TabGroupId> focused =
+       model_->GetFocusedGroup();
++
++  // As wide as "+", so the Spaces sit centered.
++  AddChildView(std::make_unique<views::View>())
++      ->SetPreferredSize(gfx::Size(kButtonSize, kButtonSize));
++  views::View* dots = AddChildView(std::make_unique<views::View>());
++  dots->SetLayoutManager(std::make_unique<views::BoxLayout>(
++                             views::BoxLayout::Orientation::kHorizontal))
++      ->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
++  layout_->SetFlexForView(dots, 1);
++
+   // The tabs outside of any Space form the first, default Space.
+-  AddChildView(std::make_unique<SpaceDot>(
++  dots->AddChildView(std::make_unique<SpaceDot>(
+       base::BindRepeating(
+           [](TabStripModel* model) {
+             model->ExitFocusMode(
+@@ -205,7 +227,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+   for (const tab_groups::TabGroupId& id : spaces) {
+     const tab_groups::TabGroupVisualData* visuals =
+         groups->GetTabGroup(id)->visual_data();
+-    AddChildView(std::make_unique<SpaceDot>(
++    dots->AddChildView(std::make_unique<SpaceDot>(
+         base::BindRepeating(&ArcomiumSpaceSwitcher::SwitchTo,
+                             base::Unretained(this), id),
+         visuals->color(), focused == id,
+@@ -215,7 +237,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+   auto add = views::CreateVectorImageButtonWithNativeTheme(
+       base::BindRepeating(&ArcomiumSpaceSwitcher::CreateSpace,
+                           base::Unretained(browser_.get())),
+-      vector_icons::kAdd2Icon, 16);
++      vector_icons::kAdd2Icon, kAddIconSize);
++  add->SetPreferredSize(gfx::Size(kButtonSize, kButtonSize));
+   add->SetTooltipText(u"New Space");
+   add->GetViewAccessibility().SetName(u"New Space");
+   AddChildView(std::move(add));
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+index 440503908d..0d6ef5d193 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+ #include "components/tab_groups/tab_group_id.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
++#include "ui/views/layout/box_layout.h"
+ #include "ui/views/view.h"
+ 
+ class BrowserWindowInterface;
+@@ -45,6 +46,7 @@ class ArcomiumSpaceSwitcher : public views::View, public TabStripModelObserver {
+   void SwitchTo(const tab_groups::TabGroupId& group);
+ 
+   raw_ptr<BrowserWindowInterface> browser_;
++  raw_ptr<views::BoxLayout> layout_ = nullptr;
+   raw_ptr<TabStripModel> model_;
+   base::WeakPtrFactory<ArcomiumSpaceSwitcher> weak_factory_{this};
+ };
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+index 8c42106133..7403899990 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -100,6 +100,11 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
+   // The Spaces row needs the width of the expanded strip. While expanded, the
+   // sidebar's own "New Tab" row replaces the new tab button.
+   space_switcher_->SetVisible(!collapsed);
++  space_switcher_->SetProperty(
++      views::kFlexBehaviorKey,
++      views::FlexSpecification(orientation,
++                               views::MinimumFlexSizeRule::kScaleToMinimum,
++                               views::MaximumFlexSizeRule::kUnbounded));
+   new_tab_button_->SetVisible(collapsed);
+   // Arcomium: while expanded the row sits at the bottom of the window, as Arc's
+   // Space bar does.
