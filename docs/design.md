@@ -191,9 +191,12 @@ which each device makes up on its own.
 
 ## Media and picture-in-picture
 
-- Mini player at the bottom of the sidebar, built from the existing global media controls
-  views (`chrome/browser/ui/views/global_media_controls/`), showing the media session of
-  any tab in any Space.
-- Automatic picture-in-picture when leaving a playing video tab: Chromium already has
-  the auto-PiP machinery (`kAutoPictureInPicture*` features, `media/base/media_switches.cc`);
-  enable it by default and extend the trigger to Space switches.
+- **Mini player** at the bottom of the sidebar (`ArcomiumMiniPlayer`): the media
+  session that last took audio focus, in any Space or window of the profile, while its
+  tab is not the one you are looking at. It shows the artwork (or the site's icon), the
+  title and the artist, pauses and resumes, and a click goes to the tab and its Space.
+- **Automatic picture-in-picture** when you leave a playing video's tab or Space, on any
+  site: Chromium's browser-initiated automatic picture-in-picture
+  (`BrowserInitiatedAutomaticPictureInPicture`), enabled by default. Its permission
+  defaults to Allow, as in Arc, which also skips Chromium's media engagement check; a
+  site can be blocked in its settings.

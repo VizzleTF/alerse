@@ -22,6 +22,8 @@ and the Arc import tool. Builds come from the platform repositories below.
   in the app menu. A free public server is planned.
 - **Link routing**: links from other apps open in the Space you choose for their site,
   such as github.com in Work.
+- **Media**: a mini player at the bottom of the sidebar for media playing in another
+  tab, and picture-in-picture when you leave a playing video.
 - **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
 
 ## Download
@@ -60,7 +62,7 @@ it imported before.
 | Arc sidebar, Arc import | done; drag and drop to do |
 | Sync | done with your own server; public server to do |
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
-| Media mini player, auto picture-in-picture | to do |
+| Media mini player, auto picture-in-picture | done |
 
 ## Learn more
 

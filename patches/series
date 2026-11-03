@@ -8,3 +8,4 @@ look/content-card.patch
 sync/arcomium-sync-client.patch
 sync/sync-setup-page.patch
 spaces/link-routing.patch
+media/mini-player-and-auto-pip.patch
