@@ -18,8 +18,8 @@ and the Arc import tool. Builds come from the platform repositories below.
   ![The Work Space, switched to with the dots at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
   [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
-  encrypted, with no account: devices join with a 24-word sync code. Set it up at
-  `chrome://arcomium-sync`. A free public server is planned.
+  encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
+  in the app menu. A free public server is planned.
 - **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
 
 ## Download

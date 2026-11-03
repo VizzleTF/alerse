@@ -1,3 +1,40 @@
+diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
+index ef66f5ce50..575fc18a9c 100644
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -490,6 +490,14 @@ void ShowSettingsSubPageInTabbedBrowser(BrowserWindowInterface* browser,
+                                         std::string_view sub_page) {
+   base::RecordAction(UserMetricsAction("ShowOptions"));
+ 
++  // Arcomium sets up sync on its own page; Chromium's sync settings are for
++  // Google accounts.
++  if (sub_page == kSyncSetupSubPage) {
++    FocusWebContents(browser);
++    ShowSingletonTab(browser, GURL("chrome://arcomium-sync/"));
++    return;
++  }
++
+   // Since the user may be triggering navigation from another UI element such as
+   // a menu, ensure the web contents (and therefore the settings page that is
+   // about to be shown) is focused. (See crbug.com/41438063 for motivation.)
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 1a6eec656a..09f826b368 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2256,6 +2256,13 @@ void AppMenuModel::Build() {
+ #endif
+ #endif
+ 
++  // Arcomium: sync has no Google account to show it, so it gets its own
++  // item, opening chrome://arcomium-sync.
++  AddItemWithStringIdAndVectorIcon(
++      this, IDC_SHOW_SYNC_SETTINGS, IDS_SETTINGS_SYNC,
++      features::IsRoundedIconsEnabled() ? vector_icons::kSyncIcon
++                                        : kSyncRefreshOldIcon);
++
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_OPTIONS, IDS_SETTINGS,
+       features::IsRoundedIconsEnabled() ? kSettingsIcon : kSettingsMenuOldIcon);
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
 index efb8fba86c..7f5aa7c3ea 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
