@@ -18,3 +18,4 @@ look/sidebar-animations.patch
 look/sidebar-close-button.patch
 defaults/continue-session.patch
 look/arc-space-bar.patch
+spaces/sidebar-context-menu.patch

@@ -1,0 +1,303 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+index be82babda5..c7372bd733 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/favicon/favicon_utils.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/tab_contents/tab_util.h"
+ #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+@@ -36,10 +37,15 @@
+ #include "components/bookmarks/browser/bookmark_utils.h"
+ #include "components/bookmarks/common/bookmark_metrics.h"
+ #include "components/tabs/public/tab_group.h"
++#include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/vector_icons/vector_icons.h"
++#include "chrome/common/webui_url_constants.h"
++#include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/web_contents.h"
+ #include "third_party/skia/include/core/SkColor.h"
+ #include "third_party/skia/include/core/SkPathBuilder.h"
++#include "base/strings/utf_string_conversions.h"
++#include "ui/base/clipboard/scoped_clipboard_writer.h"
+ #include "ui/base/dragdrop/drag_drop_types.h"
+ #include "ui/base/dragdrop/drop_target_event.h"
+ #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+@@ -140,6 +146,11 @@ enum Command {
+   kRename,
+   kRemove,
+   kCloseTab,
++  kCopyLink,
++  kDuplicate,
++  kMoveTo,
++  // "Move to" submenu: one command per Space from here.
++  kMoveToFirst = 100,
+ };
+ 
+ // Arc draws its sidebar with Segoe UI Variable: "Text" optical size,
+@@ -544,11 +555,16 @@ std::u16string ArcomiumSidebarView::GetActiveSpaceTitle() const {
+ 
+ const bookmarks::BookmarkNode* ArcomiumSidebarView::GetSpaceFolder(
+     bool create) {
++  return GetSpaceFolderFor(GetActiveSpace(), GetActiveSpaceTitle(), create);
++}
++
++const bookmarks::BookmarkNode* ArcomiumSidebarView::GetSpaceFolderFor(
++    const std::string& space,
++    const std::u16string& title,
++    bool create) {
+   if (!model_ || !model_->loaded()) {
+     return nullptr;
+   }
+-  const std::string space = GetActiveSpace();
+-  const std::u16string title = GetActiveSpaceTitle();
+   const bookmarks::BookmarkNode* folder =
+       FindSpaceFolder(model_->other_node(), space);
+   if (!folder && !title.empty()) {
+@@ -1292,20 +1308,43 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+   const bookmarks::BookmarkNode* node = GetNode(menu_node_);
+   tabs::TabInterface* tab = menu_tab_.Get();
+ 
++  // "Move to": the other Spaces.
++  menu_spaces_ = GetOtherSpaces();
++  move_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
++  for (size_t i = 0; i < menu_spaces_.size(); ++i) {
++    move_menu_model_->AddItem(kMoveToFirst + static_cast<int>(i),
++                              menu_spaces_[i].title);
++  }
++  auto add_move_to = [this] {
++    if (!menu_spaces_.empty()) {
++      menu_model_->AddSubMenu(kMoveTo, u"Move to", move_menu_model_.get());
++    }
++  };
++
+   if (node && node->is_folder()) {
+     menu_model_->AddItem(kPinTab, u"Pin current tab here");
+     menu_model_->AddItem(kNewFolder, u"New folder inside");
+     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+     menu_model_->AddItem(kRename, u"Rename…");
++    add_move_to();
++    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+     menu_model_->AddItem(kRemove, u"Delete folder");
+   } else if (node) {
++    menu_model_->AddItem(kCopyLink, u"Copy Link");
+     menu_model_->AddItem(kRename, u"Rename…");
++    menu_model_->AddItem(kDuplicate, u"Duplicate");
++    add_move_to();
++    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+     menu_model_->AddItem(kRemove, u"Unpin");
+     if (tab) {
+       menu_model_->AddItem(kCloseTab, u"Close tab");
+     }
+   } else if (tab) {
++    menu_model_->AddItem(kCopyLink, u"Copy Link");
++    menu_model_->AddItem(kDuplicate, u"Duplicate");
+     menu_model_->AddItem(kPinTab, u"Pin to this Space");
++    add_move_to();
++    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+     menu_model_->AddItem(kCloseTab, u"Close tab");
+   } else {
+     menu_model_->AddItem(kNewFolder, u"New folder");
+@@ -1317,10 +1356,151 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+                           views::MenuAnchorPosition::kTopLeft, source_type);
+ }
+ 
++std::vector<ArcomiumSidebarView::SpaceTarget>
++ArcomiumSidebarView::GetOtherSpaces() const {
++  std::vector<SpaceTarget> spaces;
++  TabStripModel* tabs = browser_->GetTabStripModel();
++  const std::optional<tab_groups::TabGroupId> focused = tabs->GetFocusedGroup();
++  if (focused) {
++    spaces.push_back({std::nullopt, kDefaultSpace, u"home"});
++  }
++  TabGroupModel* groups = tabs->group_model();
++  if (!groups) {
++    return spaces;
++  }
++  // In the Space bar's order.
++  std::vector<tab_groups::TabGroupId> ids = groups->ListTabGroups();
++  std::ranges::sort(ids, {}, [groups](const tab_groups::TabGroupId& id) {
++    return groups->GetTabGroup(id)->ListTabs().start();
++  });
++  for (const tab_groups::TabGroupId& id : ids) {
++    std::optional<std::string> space = arcomium::GetSpaceOfGroup(tabs, id);
++    if (id == focused || !space) {
++      continue;
++    }
++    const std::u16string& title = groups->GetTabGroup(id)->visual_data()->title();
++    spaces.push_back({id, *space, title.empty() ? u"Space" : title});
++  }
++  return spaces;
++}
++
++void ArcomiumSidebarView::MoveToSpace(const SpaceTarget& target) {
++  const bookmarks::BookmarkNode* node = GetNode(menu_node_);
++  tabs::TabInterface* tab = menu_tab_.Get();
++  if (!node) {
++    if (tab) {
++      MoveTabToSpace(tab, target);
++    }
++    return;
++  }
++  const bookmarks::BookmarkNode* folder =
++      GetSpaceFolderFor(target.space, target.title, /*create=*/true);
++  if (!folder || folder == node || folder->HasAncestor(node)) {
++    return;
++  }
++  // A pinned item's open tab stays behind in this Space's storage, so it
++  // closes; the item opens again in the target Space.
++  tabs::TabInterface* bound = node->is_folder() ? nullptr : GetBoundTab(node->id());
++  model_->Move(node, folder, folder->children().size());
++  if (bound) {
++    bound_.erase(node->id());
++    OnTabClosePressed(bound->GetHandle());
++  }
++}
++
++void ArcomiumSidebarView::MoveTabToSpace(tabs::TabInterface* tab,
++                                         const SpaceTarget& target) {
++  TabStripModel* tabs = browser_->GetTabStripModel();
++  content::WebContents* old_contents = tab->GetContents();
++  GURL url = old_contents->GetLastCommittedURL();
++  if (!url.is_valid()) {
++    url = old_contents->GetVisibleURL();
++  }
++  // Each Space has its own storage, so the page opens anew in the target's.
++  Profile* profile = browser_->GetProfile();
++  content::WebContents::CreateParams create_params(
++      profile, target.group
++                   ? arcomium::CreateSpaceSiteInstance(profile, url, target.space)
++                   : tab_util::GetSiteInstanceForNewTab(profile, url));
++  std::unique_ptr<content::WebContents> contents =
++      content::WebContents::Create(create_params);
++  contents->GetController().LoadURL(url, content::Referrer(),
++                                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
++                                    std::string());
++  int index = tabs->count();
++  if (target.group && tabs->group_model() &&
++      tabs->group_model()->ContainsTabGroup(*target.group)) {
++    index = static_cast<int>(
++        tabs->group_model()->GetTabGroup(*target.group)->ListTabs().end());
++  }
++  tabs->AddWebContents(std::move(contents), index,
++                       ui::PAGE_TRANSITION_AUTO_TOPLEVEL, AddTabTypes::ADD_NONE,
++                       target.group);
++
++  // A Space lives as long as its group has a tab: its last tab leaves a New
++  // Tab behind.
++  if (const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
++      group && tabs->group_model() &&
++      tabs->group_model()->GetTabGroup(*group)->tab_count() == 1) {
++    NavigateParams params(browser_, GURL(chrome::kChromeUINewTabURL),
++                          ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
++    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    params.group = group;
++    Navigate(&params);
++  }
++  OnTabClosePressed(tab->GetHandle());
++}
++
++void ArcomiumSidebarView::DuplicateItem() {
++  const bookmarks::BookmarkNode* node = GetNode(menu_node_);
++  tabs::TabInterface* tab = menu_tab_.Get();
++  TabStripModel* tabs = browser_->GetTabStripModel();
++  if (tab) {
++    // Keeps the page's history.
++    chrome::DuplicateTabAt(browser_, tabs->GetIndexOfTab(tab));
++    return;
++  }
++  if (node && node->is_url()) {
++    NavigateParams params(browser_, node->url(),
++                          ui::PAGE_TRANSITION_AUTO_BOOKMARK);
++    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++    params.group = tabs->GetFocusedGroup();
++    Navigate(&params);
++  }
++}
++
++void ArcomiumSidebarView::CopyLink() {
++  const bookmarks::BookmarkNode* node = GetNode(menu_node_);
++  tabs::TabInterface* tab = menu_tab_.Get();
++  GURL url;
++  if (node && node->is_url()) {
++    url = node->url();
++  } else if (tab) {
++    url = tab->GetContents()->GetLastCommittedURL();
++  }
++  if (url.is_valid()) {
++    ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
++        .WriteText(base::UTF8ToUTF16(url.spec()));
++  }
++}
++
+ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
++  if (command_id >= kMoveToFirst) {
++    const size_t index = static_cast<size_t>(command_id - kMoveToFirst);
++    if (index < menu_spaces_.size()) {
++      MoveToSpace(menu_spaces_[index]);
++    }
++    return;
++  }
+   const bookmarks::BookmarkNode* node = GetNode(menu_node_);
+   tabs::TabInterface* tab = menu_tab_.Get();
+   switch (command_id) {
++    case kCopyLink:
++      CopyLink();
++      break;
++    case kDuplicate:
++      DuplicateItem();
++      break;
+     case kPinTab:
+       PinTab(tab ? tab : browser_->GetTabStripModel()->GetActiveTab(),
+              node && node->is_folder() ? node : nullptr);
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
+index 05c08bd259..fe4b1f06b3 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
+@@ -19,6 +19,7 @@
+ #include "base/timer/timer.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+ #include "components/bookmarks/browser/base_bookmark_model_observer.h"
++#include "components/tab_groups/tab_group_id.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
+ #include "ui/base/models/image_model.h"
+@@ -137,6 +138,25 @@ class ArcomiumSidebarView : public views::View,
+   std::u16string GetActiveSpaceTitle() const;
+   // The bookmark folder of the active Space; created on demand.
+   const bookmarks::BookmarkNode* GetSpaceFolder(bool create);
++  // The pinned folder of `space`, adopting an imported one of the same title.
++  const bookmarks::BookmarkNode* GetSpaceFolderFor(const std::string& space,
++                                                   const std::u16string& title,
++                                                   bool create);
++
++  // A Space the context menu can move an item to.
++  struct SpaceTarget {
++    // Unset for home, the tabs outside of groups.
++    std::optional<tab_groups::TabGroupId> group;
++    std::string space;
++    std::u16string title;
++  };
++  std::vector<SpaceTarget> GetOtherSpaces() const;
++  // Moves the context menu's item: a pinned item to the target's pinned
++  // folder, a tab into the target, opened anew in the target's storage.
++  void MoveToSpace(const SpaceTarget& target);
++  void MoveTabToSpace(tabs::TabInterface* tab, const SpaceTarget& target);
++  void DuplicateItem();
++  void CopyLink();
+   const bookmarks::BookmarkNode* GetNode(int64_t id) const;
+   bool IsInActiveSpace(const tabs::TabInterface* tab) const;
+   // The open tab bound to a pinned item, if any.
+@@ -257,6 +277,9 @@ class ArcomiumSidebarView : public views::View,
+   int64_t menu_node_ = 0;
+   tabs::TabInterface::Handle menu_tab_;
+   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
++  std::unique_ptr<ui::SimpleMenuModel> move_menu_model_;
++  // The Spaces behind the "Move to" submenu's commands.
++  std::vector<SpaceTarget> menu_spaces_;
+   std::unique_ptr<views::MenuRunner> menu_runner_;
+ 
+   // The folder popup, its folder and the timers that show and close it.
