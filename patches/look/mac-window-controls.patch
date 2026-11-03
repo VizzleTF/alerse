@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 052478368a..9b0858c3e9 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -294,7 +294,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+     host_size.set_height(kArcHeaderHeight);
+     // The container starts 12 px into the strip; Arc's icons sit at x = 23,
+     // 58 and 93 of the window.
+-    const int centers[] = {11, 46, 81};
++    // On macOS the window controls lead the row, as in Arc, and the buttons
++    // follow them; elsewhere `caption_button_width_` is 0.
++    const int lead = caption_button_width_;
++    const int centers[] = {lead + 11, lead + 46, lead + 81};
+     views::View* buttons[] = {arc_logo_button_.get(), arc_sidebar_button_.get(),
+                               arc_downloads_button_.get()};
+     for (size_t i = 0; i < std::size(buttons); ++i) {
