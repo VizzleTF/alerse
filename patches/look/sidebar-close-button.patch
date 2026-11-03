@@ -1,13 +1,30 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
-index f75f5bb507..b285aa1442 100644
+index f75f5bb507..be82babda5 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
-@@ -326,7 +326,7 @@ class ArcomiumSidebarView::Row : public views::Button {
+@@ -326,11 +326,14 @@ class ArcomiumSidebarView::Row : public views::Button {
  
    void SetCloseCallback(PressedCallback callback) {
      auto close = views::CreateVectorImageButtonWithNativeTheme(
 -        std::move(callback), vector_icons::kCloseSmallIcon, 14);
-+        std::move(callback), vector_icons::kCloseIcon, 16);
++        std::move(callback), vector_icons::kCloseIcon, 18);
      close->SetTooltipText(u"Close tab");
      close->GetViewAccessibility().SetName(u"Close tab");
      close_ = AddChildView(std::move(close));
+-    close_->SetVisible(active_);
++    // As in Arc, shown only while the row is hovered.
++    close_->SetVisible(false);
++    // Hovering the close button keeps the row hovered.
++    SetNotifyEnterExitOnChild(true);
+   }
+ 
+   void SetHoverCallback(base::RepeatingCallback<void(bool)> callback) {
+@@ -413,7 +416,7 @@ class ArcomiumSidebarView::Row : public views::Button {
+  private:
+   void UpdateHover(bool hovered) {
+     if (close_) {
+-      close_->SetVisible(hovered || active_);
++      close_->SetVisible(hovered);
+       InvalidateLayout();
+     }
+     SchedulePaint();
