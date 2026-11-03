@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
-index 6b99afcb06..fbd1c50f12 100644
+index 6b99afcb06..a43c0989b5 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 @@ -45,11 +45,13 @@
@@ -24,7 +24,7 @@ index 6b99afcb06..fbd1c50f12 100644
  #include "ui/views/border.h"
  #include "ui/views/button_drag_utils.h"
  #include "ui/views/controls/button/button.h"
-@@ -115,8 +118,16 @@ constexpr SkColor kGlyphFillColor = SkColorSetRGB(0x18, 0x18, 0x18);
+@@ -115,8 +118,14 @@ constexpr SkColor kGlyphFillColor = SkColorSetRGB(0x18, 0x18, 0x18);
  constexpr SkColor kHoverColor = SkColorSetARGB(0x10, 0xFF, 0xFF, 0xFF);
  constexpr SkColor kActiveColor = SkColorSetARGB(0x1E, 0xFF, 0xFF, 0xFF);
  
@@ -38,12 +38,10 @@ index 6b99afcb06..fbd1c50f12 100644
 +constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(100);
 +// Polls the pointer may spend outside before the popup closes.
 +constexpr int kPopupOutsideTicks = 3;
-+// Nesting shown inside the popup.
-+constexpr int kPopupMaxDepth = 3;
  
  enum Command {
    kPinTab = 1,
-@@ -448,6 +459,7 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
+@@ -448,6 +457,7 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
  }
  
  ArcomiumSidebarView::~ArcomiumSidebarView() {
@@ -51,7 +49,7 @@ index 6b99afcb06..fbd1c50f12 100644
    if (model_) {
      model_->RemoveObserver(this);
    }
-@@ -641,10 +653,15 @@ ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
+@@ -641,10 +651,15 @@ ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
  }
  
  void ArcomiumSidebarView::ScheduleRebuild() {
@@ -70,7 +68,7 @@ index 6b99afcb06..fbd1c50f12 100644
    }
    weak_factory_.InvalidateWeakPtrs();
    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-@@ -699,6 +716,23 @@ void ArcomiumSidebarView::Rebuild() {
+@@ -699,6 +714,23 @@ void ArcomiumSidebarView::Rebuild() {
      }
    }
  
@@ -94,7 +92,7 @@ index 6b99afcb06..fbd1c50f12 100644
    PreferredSizeChanged();
  }
  
-@@ -819,6 +853,7 @@ void ArcomiumSidebarView::OnBookmarkPressed(int64_t id) {
+@@ -819,6 +851,7 @@ void ArcomiumSidebarView::OnBookmarkPressed(int64_t id) {
  
  void ArcomiumSidebarView::OnFolderPressed(int64_t id) {
    hover_timer_.Stop();
@@ -102,7 +100,7 @@ index 6b99afcb06..fbd1c50f12 100644
    if (const bookmarks::BookmarkNode* node = GetNode(id)) {
      model_->SetNodeMetaInfo(node, kOpenMetaKey, IsOpen(node) ? "0" : "1");
    }
-@@ -904,50 +939,127 @@ void ArcomiumSidebarView::OnFolderHovered(int64_t id,
+@@ -904,48 +937,152 @@ void ArcomiumSidebarView::OnFolderHovered(int64_t id,
      hover_timer_.Stop();
      return;
    }
@@ -138,22 +136,18 @@ index 6b99afcb06..fbd1c50f12 100644
 -  menu_runner_->RunMenuAt(row->GetWidget(), nullptr, row->GetBoundsInScreen(),
 -                          views::MenuAnchorPosition::kBubbleRight,
 -                          ui::mojom::MenuSourceType::kMouse);
++  folder_popup_open_.clear();
 +  auto contents = std::make_unique<views::View>();
 +  contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
 +      views::BoxLayout::Orientation::kVertical));
-+  AddFolderPopupRows(contents.get(), node, 0);
-+  int height = 0;
-+  for (const views::View* child : contents->children()) {
-+    height += child->GetPreferredSize().height();
-+  }
-+  contents->SetPreferredSize(gfx::Size(kPopupWidth, height));
++  FillFolderPopup(contents.get(), node);
 +
-+  // A bubble right of the row that never takes focus.
++  // A bubble right of the row, shown without taking focus. It must be able to
++  // activate: Windows drops clicks on bubbles that cannot.
 +  auto delegate = std::make_unique<views::BubbleDialogDelegate>(
 +      row, views::BubbleBorder::LEFT_TOP);
 +  delegate->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
 +  delegate->SetShowCloseButton(false);
-+  delegate->SetCanActivate(false);
 +  delegate->set_close_on_deactivate(false);
 +  delegate->set_margins(gfx::Insets::VH(kPopupPadding, 0));
 +  delegate->SetBackgroundColor(kPopupColor);
@@ -171,7 +165,37 @@ index 6b99afcb06..fbd1c50f12 100644
  
 -void ArcomiumSidebarView::FillFolderMenu(
 -    ui::SimpleMenuModel* model,
--    const bookmarks::BookmarkNode* folder) {
++void ArcomiumSidebarView::FillFolderPopup(
++    views::View* contents,
+     const bookmarks::BookmarkNode* folder) {
++  contents->RemoveAllChildViews();
++  AddFolderPopupRows(contents, folder, 0);
++  int height = 0;
++  for (const views::View* child : contents->children()) {
++    height += child->GetPreferredSize().height();
++  }
++  contents->SetPreferredSize(gfx::Size(kPopupWidth, height));
++}
++
++void ArcomiumSidebarView::ToggleFolderPopupFolder(int64_t id) {
++  if (!folder_popup_open_.erase(id)) {
++    folder_popup_open_.insert(id);
++  }
++  // Later: the pressed row is among those rebuilt.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&ArcomiumSidebarView::RefreshFolderPopup,
++                                drop_weak_factory_.GetWeakPtr()));
++}
++
++void ArcomiumSidebarView::RefreshFolderPopup() {
++  const bookmarks::BookmarkNode* folder = GetNode(folder_popup_id_);
++  if (!folder_popup_ || !folder) {
++    return;
++  }
++  FillFolderPopup(folder_popup_delegate_->GetContentsView(), folder);
++  folder_popup_delegate_->SizeToContents();
++}
++
 +void ArcomiumSidebarView::AddFolderPopupRows(
 +    views::View* container,
 +    const bookmarks::BookmarkNode* folder,
@@ -191,15 +215,15 @@ index 6b99afcb06..fbd1c50f12 100644
 -          kFolderMenuFirstCommand + static_cast<int>(menu_bookmarks_.size()),
 -          node->GetTitle(), GetBookmarkIcon(node));
 -      menu_bookmarks_.push_back(node->id());
-+      if (depth + 1 >= kPopupMaxDepth) {
-+        continue;
-+      }
 +      container->AddChildView(std::make_unique<Row>(
-+          views::Button::PressedCallback(),
++          base::BindRepeating(&ArcomiumSidebarView::ToggleFolderPopupFolder,
++                              base::Unretained(this), node->id()),
 +          std::make_unique<FolderGlyph>(false, FolderIcon(node)),
 +          node->GetTitle(), depth, ItemFont(true), kFolderColor,
 +          /*slash=*/false, /*active=*/false));
-+      AddFolderPopupRows(container, node, depth + 1);
++      if (folder_popup_open_.contains(node->id())) {
++        AddFolderPopupRows(container, node, depth + 1);
++      }
 +      continue;
      }
 +    container->AddChildView(std::make_unique<Row>(
@@ -211,14 +235,14 @@ index 6b99afcb06..fbd1c50f12 100644
 +            base::Unretained(this), node->id()),
 +        MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
 +        ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
-   }
- }
- 
++  }
++}
++
 +void ArcomiumSidebarView::CheckFolderPopupHover() {
 +  if (!folder_popup_) {
 +    CloseFolderPopup();
 +    return;
-+  }
+   }
 +  const gfx::Point point = display::Screen::Get()->GetCursorScreenPoint();
 +  const gfx::Rect bubble = folder_popup_->GetWindowBoundsInScreen();
 +  bool inside = bubble.Contains(point);
@@ -252,12 +276,10 @@ index 6b99afcb06..fbd1c50f12 100644
 +void ArcomiumSidebarView::OnFolderPopupClosed(
 +    views::Widget::ClosedReason reason) {
 +  CloseFolderPopup();
-+}
-+
+ }
+ 
  void ArcomiumSidebarView::ShowContextMenuForViewImpl(
-     views::View* source,
-     const gfx::Point& point,
-@@ -955,9 +1067,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -955,9 +1092,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
    hover_timer_.Stop();
    menu_node_ = 0;
    menu_tab_ = tabs::TabInterface::Handle();
@@ -268,7 +290,7 @@ index 6b99afcb06..fbd1c50f12 100644
  
    const auto it = row_targets_.find(source);
    if (it != row_targets_.end()) {
-@@ -993,17 +1104,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -993,17 +1129,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
  }
  
  void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
@@ -287,7 +309,7 @@ index 6b99afcb06..fbd1c50f12 100644
    tabs::TabInterface* tab = menu_tab_.Get();
    switch (command_id) {
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
-index 61a9a29dfb..66906040fd 100644
+index 61a9a29dfb..9f8d8fe564 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 @@ -28,6 +28,7 @@
@@ -306,7 +328,7 @@ index 61a9a29dfb..66906040fd 100644
  class MenuRunner;
  }  // namespace views
  
-@@ -158,11 +160,17 @@ class ArcomiumSidebarView : public views::View,
+@@ -158,11 +160,22 @@ class ArcomiumSidebarView : public views::View,
    void PinTab(tabs::TabInterface* tab, const bookmarks::BookmarkNode* folder);
    void AddFolder(const bookmarks::BookmarkNode* parent);
  
@@ -318,9 +340,14 @@ index 61a9a29dfb..66906040fd 100644
 -  void FillFolderMenu(ui::SimpleMenuModel* model,
 -                      const bookmarks::BookmarkNode* folder);
 +  void ShowFolderPopup(int64_t id, views::View* row);
++  // Fills the popup with `folder`'s items, subfolders opened in place.
++  void FillFolderPopup(views::View* contents,
++                       const bookmarks::BookmarkNode* folder);
 +  void AddFolderPopupRows(views::View* container,
 +                          const bookmarks::BookmarkNode* folder,
 +                          int depth);
++  void ToggleFolderPopupFolder(int64_t id);
++  void RefreshFolderPopup();
 +  // Closes the popup once the pointer has left the folder row and the popup.
 +  void CheckFolderPopupHover();
 +  void CloseFolderPopup();
@@ -328,7 +355,7 @@ index 61a9a29dfb..66906040fd 100644
  
    raw_ptr<BrowserWindowInterface> browser_;
    raw_ptr<bookmarks::BookmarkModel> model_;
-@@ -212,11 +220,15 @@ class ArcomiumSidebarView : public views::View,
+@@ -212,11 +225,17 @@ class ArcomiumSidebarView : public views::View,
    int64_t menu_node_ = 0;
    tabs::TabInterface::Handle menu_tab_;
    std::unique_ptr<ui::SimpleMenuModel> menu_model_;
@@ -341,6 +368,8 @@ index 61a9a29dfb..66906040fd 100644
 +  std::unique_ptr<views::BubbleDialogDelegate> folder_popup_delegate_;
 +  std::unique_ptr<views::Widget> folder_popup_;
 +  int64_t folder_popup_id_ = 0;
++  // Subfolders opened inside the popup.
++  std::set<int64_t> folder_popup_open_;
    base::OneShotTimer hover_timer_;
 +  base::RepeatingTimer folder_popup_timer_;
 +  int folder_popup_outside_ticks_ = 0;
