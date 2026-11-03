@@ -1,0 +1,919 @@
+diff --git a/chrome/browser/sync/chrome_sync_controller_builder.cc b/chrome/browser/sync/chrome_sync_controller_builder.cc
+index 7be90bc493..41ff38c946 100644
+--- a/chrome/browser/sync/chrome_sync_controller_builder.cc
++++ b/chrome/browser/sync/chrome_sync_controller_builder.cc
+@@ -195,18 +195,21 @@ ChromeSyncControllerBuilder::Build(syncer::SyncService* sync_service) {
+   syncer::RepeatingDataTypeStoreFactory data_type_store_factory =
+       data_type_store_service_.value()->GetStoreFactory();
+ 
+-    syncer::DataTypeControllerDelegate* security_events_delegate =
+-        security_event_recorder_.value()->GetControllerDelegate().get();
+-    // Forward both full-sync and transport-only modes to the same delegate,
+-    // since behavior for SECURITY_EVENTS does not differ.
+-    controllers.push_back(std::make_unique<syncer::DataTypeController>(
+-        syncer::SECURITY_EVENTS,
+-        /*delegate_for_full_sync_mode=*/
+-        std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
+-            security_events_delegate),
+-        /*delegate_for_transport_mode=*/
+-        std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
+-            security_events_delegate)));
++    // Arcomium: ungoogled-chromium builds no security event recorder.
++    if (security_event_recorder_.value()) {
++      syncer::DataTypeControllerDelegate* security_events_delegate =
++          security_event_recorder_.value()->GetControllerDelegate().get();
++      // Forward both full-sync and transport-only modes to the same delegate,
++      // since behavior for SECURITY_EVENTS does not differ.
++      controllers.push_back(std::make_unique<syncer::DataTypeController>(
++          syncer::SECURITY_EVENTS,
++          /*delegate_for_full_sync_mode=*/
++          std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
++              security_events_delegate),
++          /*delegate_for_transport_mode=*/
++          std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
++              security_events_delegate)));
++    }
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+     if (extension_sync_service_.value()) {
+diff --git a/chrome/browser/sync/sync_service_factory.cc b/chrome/browser/sync/sync_service_factory.cc
+index 417f64dda1..65b53ca64d 100644
+--- a/chrome/browser/sync/sync_service_factory.cc
++++ b/chrome/browser/sync/sync_service_factory.cc
+@@ -83,6 +83,7 @@
+ #include "components/sync/base/command_line_switches.h"
+ #include "components/sync/base/features.h"
+ #include "components/sync/engine/net/http_bridge.h"
++#include "components/sync/service/arcomium_sync_account.h"
+ #include "components/sync/service/sync_service_impl.h"
+ #include "components/sync_preferences/pref_service_syncable.h"
+ #include "components/variations/service/google_groups_manager.h"
+@@ -314,6 +315,8 @@ syncer::DataTypeController::TypeVector CreateChromeControllers(
+ 
+   builder.SetDataTypeStoreService(
+       DataTypeStoreServiceFactory::GetForProfile(profile));
++  // ungoogled-chromium builds no security event recorder.
++  builder.SetSecurityEventRecorder(nullptr);
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   builder.SetExtensionSyncService(ExtensionSyncService::Get(profile));
+@@ -378,7 +381,6 @@ syncer::DataTypeController::TypeVector CreateChromeControllers(
+   return builder.Build(sync_service);
+ }
+ 
+-[[maybe_unused]]
+ syncer::DataTypeController::TypeVector CreateControllers(
+     Profile* profile,
+     syncer::SyncService* sync_service) {
+@@ -388,7 +390,6 @@ syncer::DataTypeController::TypeVector CreateControllers(
+   return controllers;
+ }
+ 
+-[[maybe_unused]]
+ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
+   CHECK(profile);
+ 
+@@ -408,7 +409,91 @@ std::unique_ptr<KeyedService> BuildSyncService(
+     std::optional<syncer::CreateHttpPostProviderFactory>
+         create_http_post_provider_factory_for_test,
+     content::BrowserContext* context) {
+-      return nullptr;
++  if (create_http_post_provider_factory_for_test.has_value()) {
++    CHECK_IS_TEST();
++  }
++
++  Profile* profile = Profile::FromBrowserContext(context);
++  CHECK(profile);
++
++  // Incognito, guest, or system profiles aren't relevant for Sync, and
++  // no SyncService should be created for those types of profiles.
++  CHECK(profiles::IsRegularUserProfile(profile));
++
++  // ungoogled-chromium builds no sync service. Arcomium builds one only for a
++  // profile set up to sync with an Arcomium server, which runs in local sync
++  // mode: no Google account, no GCM.
++  syncer::ArcomiumSyncAccount::ApplyCommandLine(profile->GetPrefs());
++  if (!syncer::ArcomiumSyncAccount::GetServerURL(*profile->GetPrefs())
++           .is_valid()) {
++    return nullptr;
++  }
++
++  syncer::SyncServiceImpl::InitParams init_params;
++  init_params.sync_client = BuildSyncClient(profile);
++  init_params.url_loader_factory = profile->GetDefaultStoragePartition()
++                                       ->GetURLLoaderFactoryForBrowserProcess();
++  init_params.create_http_post_provider_factory =
++      std::move(create_http_post_provider_factory_for_test)
++          .value_or(base::BindRepeating(
++              [](const std::string& user_agent,
++                 std::unique_ptr<network::PendingSharedURLLoaderFactory>
++                     pending_url_loader_factory)
++                  -> std::unique_ptr<syncer::HttpPostProviderFactory> {
++                return std::make_unique<syncer::HttpBridgeFactory>(
++                    user_agent, std::move(pending_url_loader_factory));
++              }));
++  init_params.network_connection_tracker =
++      content::GetNetworkConnectionTracker();
++  init_params.channel = chrome::GetChannel();
++  init_params.debug_identifier = profile->GetDebugName();
++  init_params.os_crypt_async = g_browser_process->os_crypt_async();
++
++  auto sync_service =
++      std::make_unique<syncer::SyncServiceImpl>(std::move(init_params));
++  sync_service->Initialize(CreateControllers(profile, sync_service.get()));
++
++  // Notify the PasswordStore of complete initialisation to resolve a circular
++  // dependency.
++  auto profile_password_store = ProfilePasswordStoreFactory::GetForProfile(
++      profile, ServiceAccessType::EXPLICIT_ACCESS);
++  // PasswordStoreInterface may be null in tests.
++  if (profile_password_store) {
++    profile_password_store->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  auto account_password_store = AccountPasswordStoreFactory::GetForProfile(
++      profile, ServiceAccessType::EXPLICIT_ACCESS);
++
++  if (account_password_store) {
++    account_password_store->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  // Notify PasswordReceiverService of complete initialization to resolve a
++  // circular dependency.
++  password_manager::PasswordReceiverService* password_receiver_service =
++      PasswordReceiverServiceFactory::GetForProfile(profile);
++  if (password_receiver_service) {
++    password_receiver_service->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  SendTabToSelfSyncServiceFactory::GetForProfile(profile)
++      ->OnSyncServiceInitialized(sync_service.get());
++
++  collaboration::CollaborationServiceFactory::GetForProfile(profile)
++      ->OnSyncServiceInitialized(sync_service.get());
++
++  // Allow sync_preferences/ components to use SyncService.
++  sync_preferences::PrefServiceSyncable* pref_service =
++      PrefServiceSyncableFromProfile(profile);
++  pref_service->OnSyncServiceInitialized(sync_service.get());
++
++  if (GoogleGroupsManager* groups_updater_service =
++          GoogleGroupsManagerFactory::GetForBrowserContext(profile)) {
++    groups_updater_service->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  return sync_service;
+ }
+ 
+ }  // namespace
+diff --git a/components/sync/service/BUILD.gn b/components/sync/service/BUILD.gn
+index 60d8dc0f7d..4183e81fb1 100644
+--- a/components/sync/service/BUILD.gn
++++ b/components/sync/service/BUILD.gn
+@@ -4,6 +4,10 @@
+ 
+ static_library("service") {
+   sources = [
++    "arcomium_sync_account.cc",
++    "arcomium_sync_account.h",
++    "arcomium_sync_events.cc",
++    "arcomium_sync_events.h",
+     "active_devices_provider.h",
+     "backend_migrator.cc",
+     "backend_migrator.h",
+@@ -127,6 +131,7 @@ static_library("service") {
+     "//components/version_info",
+     "//components/version_info:generate_version_info",
+     "//services/network/public/cpp",
++    "//third_party/boringssl",
+     "//ui/base",
+   ]
+ 
+diff --git a/components/sync/service/arcomium_sync_account.cc b/components/sync/service/arcomium_sync_account.cc
+new file mode 100644
+index 0000000000..999edb90f5
+--- /dev/null
++++ b/components/sync/service/arcomium_sync_account.cc
+@@ -0,0 +1,148 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/sync/service/arcomium_sync_account.h"
++
++#include <string_view>
++#include <vector>
++
++#include "base/base64.h"
++#include "base/base64url.h"
++#include "base/command_line.h"
++#include "base/containers/span.h"
++#include "base/logging.h"
++#include "base/numerics/byte_conversions.h"
++#include "base/strings/string_number_conversions.h"
++#include "components/os_crypt/async/common/encryptor.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/prefs/pref_service.h"
++#include "third_party/boringssl/src/include/openssl/curve25519.h"
++#include "third_party/boringssl/src/include/openssl/digest.h"
++#include "third_party/boringssl/src/include/openssl/hkdf.h"
++
++namespace syncer {
++
++namespace {
++
++constexpr char kServerURLPref[] = "arcomium.sync.server_url";
++constexpr char kSecretPref[] = "arcomium.sync.secret";
++
++// For setting up a device by hand until the settings page exists. The secret
++// on a command line is visible to other programs of the user, so the switch
++// is for testing only.
++constexpr char kServerURLSwitch[] = "arcomium-sync-url";
++constexpr char kSecretSwitch[] = "arcomium-sync-secret";
++
++constexpr uint8_t kTokenVersion = 0x01;
++constexpr std::string_view kTokenContext = "arcomium-sync-token-v1";
++constexpr std::string_view kKdfSalt = "arcomium-sync";
++constexpr std::string_view kKeyInfo = "ed25519-key";
++constexpr std::string_view kPassphraseInfo = "nigori-passphrase";
++
++std::array<uint8_t, 32> Derive(base::span<const uint8_t> secret,
++                               std::string_view info) {
++  std::array<uint8_t, 32> out;
++  CHECK(HKDF(out.data(), out.size(), EVP_sha256(), secret.data(),
++             secret.size(), reinterpret_cast<const uint8_t*>(kKdfSalt.data()),
++             kKdfSalt.size(), reinterpret_cast<const uint8_t*>(info.data()),
++             info.size()));
++  return out;
++}
++
++}  // namespace
++
++// static
++void ArcomiumSyncAccount::RegisterProfilePrefs(PrefRegistrySimple* registry) {
++  registry->RegisterStringPref(kServerURLPref, std::string());
++  registry->RegisterStringPref(kSecretPref, std::string());
++}
++
++// static
++void ArcomiumSyncAccount::ApplyCommandLine(PrefService* prefs) {
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch(kServerURLSwitch)) {
++    prefs->SetString(kServerURLPref,
++                     command_line.GetSwitchValueASCII(kServerURLSwitch));
++  }
++}
++
++// static
++GURL ArcomiumSyncAccount::GetServerURL(const PrefService& prefs) {
++  GURL url(prefs.GetString(kServerURLPref));
++  return url.is_valid() ? url : GURL();
++}
++
++// static
++std::optional<ArcomiumSyncAccount> ArcomiumSyncAccount::Load(
++    PrefService* prefs,
++    const os_crypt_async::Encryptor& encryptor) {
++  std::array<uint8_t, kSecretSize> secret;
++
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch(kSecretSwitch)) {
++    if (!base::HexStringToSpan(command_line.GetSwitchValueASCII(kSecretSwitch),
++                               secret)) {
++      LOG(ERROR) << "--" << kSecretSwitch << " needs 64 hex digits";
++      return std::nullopt;
++    }
++    std::string ciphertext;
++    if (!encryptor.EncryptString(
++            std::string(secret.begin(), secret.end()), &ciphertext)) {
++      LOG(ERROR) << "Cannot encrypt the Arcomium sync secret";
++      return std::nullopt;
++    }
++    prefs->SetString(kSecretPref, base::Base64Encode(ciphertext));
++    return ArcomiumSyncAccount(secret);
++  }
++
++  std::string ciphertext;
++  std::string plaintext;
++  if (!base::Base64Decode(prefs->GetString(kSecretPref), &ciphertext) ||
++      ciphertext.empty() || !encryptor.DecryptString(ciphertext, &plaintext) ||
++      plaintext.size() != kSecretSize) {
++    return std::nullopt;
++  }
++  base::span(secret).copy_from(base::as_byte_span(plaintext));
++  return ArcomiumSyncAccount(secret);
++}
++
++ArcomiumSyncAccount::ArcomiumSyncAccount(
++    const std::array<uint8_t, kSecretSize>& secret) {
++  const std::array<uint8_t, 32> seed = Derive(secret, kKeyInfo);
++  ED25519_keypair_from_seed(public_key_.data(), private_key_.data(),
++                            seed.data());
++  passphrase_ = base::Base64Encode(Derive(secret, kPassphraseInfo));
++}
++
++ArcomiumSyncAccount::ArcomiumSyncAccount(const ArcomiumSyncAccount&) = default;
++ArcomiumSyncAccount& ArcomiumSyncAccount::operator=(
++    const ArcomiumSyncAccount&) = default;
++ArcomiumSyncAccount::~ArcomiumSyncAccount() = default;
++
++std::string ArcomiumSyncAccount::MakeToken(base::Time now) const {
++  std::vector<uint8_t> token;
++  token.push_back(kTokenVersion);
++  token.insert(token.end(), public_key_.begin(), public_key_.end());
++  const auto issued_at = base::U64ToBigEndian(
++      static_cast<uint64_t>(now.InMillisecondsSinceUnixEpoch()));
++  token.insert(token.end(), issued_at.begin(), issued_at.end());
++
++  // Signed: the context, then the key and time (the token without its
++  // version byte).
++  std::vector<uint8_t> message(kTokenContext.begin(), kTokenContext.end());
++  message.insert(message.end(), token.begin() + 1, token.end());
++  std::array<uint8_t, 64> signature;
++  CHECK(ED25519_sign(signature.data(), message.data(), message.size(),
++                     private_key_.data()));
++  token.insert(token.end(), signature.begin(), signature.end());
++
++  std::string encoded;
++  base::Base64UrlEncode(token, base::Base64UrlEncodePolicy::OMIT_PADDING,
++                        &encoded);
++  return encoded;
++}
++
++}  // namespace syncer
+diff --git a/components/sync/service/arcomium_sync_account.h b/components/sync/service/arcomium_sync_account.h
+new file mode 100644
+index 0000000000..7e61e0c60c
+--- /dev/null
++++ b/components/sync/service/arcomium_sync_account.h
+@@ -0,0 +1,75 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_ACCOUNT_H_
++#define COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_ACCOUNT_H_
++
++#include <array>
++#include <cstdint>
++#include <optional>
++#include <string>
++
++#include "base/time/time.h"
++#include "url/gurl.h"
++
++class PrefRegistrySimple;
++class PrefService;
++
++namespace os_crypt_async {
++class Encryptor;
++}  // namespace os_crypt_async
++
++namespace syncer {
++
++// Arcomium syncs without a Google account. The devices of a sync chain share
++// a 32-byte secret, from which each derives the same Ed25519 key pair, which
++// is the chain's identity on the server, and the same custom passphrase,
++// which encrypts all data before it leaves the device.
++//
++// The server URL lives in prefs; the secret is kept encrypted with OSCrypt.
++// Sync runs in Chromium's local sync mode (no account, full sync) against the
++// server, with tokens signed by the chain's key as access tokens.
++class ArcomiumSyncAccount {
++ public:
++  static constexpr size_t kSecretSize = 32;
++
++  static void RegisterProfilePrefs(PrefRegistrySimple* registry);
++
++  // Copies --arcomium-sync-url into prefs. Call before SyncPrefs reads
++  // whether sync is enabled.
++  static void ApplyCommandLine(PrefService* prefs);
++
++  // The server's URL, or an empty one when the profile does not sync.
++  static GURL GetServerURL(const PrefService& prefs);
++
++  // Reads the chain's secret: from --arcomium-sync-secret (64 hex digits),
++  // which is then stored encrypted, or from prefs. Returns nullopt when there
++  // is none or it cannot be decrypted.
++  static std::optional<ArcomiumSyncAccount> Load(
++      PrefService* prefs,
++      const os_crypt_async::Encryptor& encryptor);
++
++  explicit ArcomiumSyncAccount(
++      const std::array<uint8_t, kSecretSize>& secret);
++  ArcomiumSyncAccount(const ArcomiumSyncAccount&);
++  ArcomiumSyncAccount& operator=(const ArcomiumSyncAccount&);
++  ~ArcomiumSyncAccount();
++
++  // A token for the server, valid from `now` for a day:
++  // base64url(0x01 | public key | issued at (ms, big-endian) | signature),
++  // signed over "arcomium-sync-token-v1" | public key | issued at.
++  std::string MakeToken(base::Time now) const;
++
++  // The custom passphrase of the chain's data.
++  const std::string& passphrase() const { return passphrase_; }
++
++ private:
++  std::array<uint8_t, 32> public_key_;
++  std::array<uint8_t, 64> private_key_;
++  std::string passphrase_;
++};
++
++}  // namespace syncer
++
++#endif  // COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_ACCOUNT_H_
+diff --git a/components/sync/service/arcomium_sync_events.cc b/components/sync/service/arcomium_sync_events.cc
+new file mode 100644
+index 0000000000..4b1c15d4de
+--- /dev/null
++++ b/components/sync/service/arcomium_sync_events.cc
+@@ -0,0 +1,181 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/sync/service/arcomium_sync_events.h"
++
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/json/json_reader.h"
++#include "base/strings/escape.h"
++#include "base/strings/string_util.h"
++#include "base/values.h"
++#include "net/base/load_flags.h"
++#include "net/http/http_request_headers.h"
++#include "net/traffic_annotation/network_traffic_annotation.h"
++#include "services/network/public/cpp/resource_request.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/simple_url_loader.h"
++
++namespace syncer {
++
++namespace {
++
++constexpr base::TimeDelta kFirstReconnectDelay = base::Seconds(5);
++constexpr base::TimeDelta kMaxReconnectDelay = base::Minutes(5);
++// A line longer than this is not an event of the server's.
++constexpr size_t kMaxLineLength = 64 * 1024;
++
++constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
++    net::DefineNetworkTrafficAnnotation("arcomium_sync_events", R"(
++      semantics {
++        sender: "Arcomium Sync"
++        description:
++          "Keeps a stream open to the Arcomium sync server the user chose, "
++          "which says when another device of the user's sync chain changed "
++          "data, so this device fetches the change right away."
++        trigger: "Sync with an Arcomium server is set up and running."
++        data:
++          "A token signed with the sync chain's key and this device's sync "
++          "cache ID. No browsing data is sent."
++        destination: OTHER
++        destination_other: "The Arcomium sync server the user set up."
++      }
++      policy {
++        cookies_allowed: NO
++        setting: "Turn off Arcomium sync in settings."
++        policy_exception_justification: "Not implemented."
++      })");
++
++GURL MakeEventsURL(const GURL& server_url, const std::string& cache_guid) {
++  std::string spec = server_url.spec();
++  if (!spec.ends_with('/')) {
++    spec += '/';
++  }
++  return GURL(spec + "events?cache_guid=" +
++              base::EscapeQueryParamValue(cache_guid, /*use_plus=*/true));
++}
++
++}  // namespace
++
++ArcomiumSyncEvents::ArcomiumSyncEvents(
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++    const GURL& server_url,
++    const std::string& cache_guid,
++    TokenGetter token_getter,
++    Refresh refresh)
++    : url_loader_factory_(std::move(url_loader_factory)),
++      events_url_(MakeEventsURL(server_url, cache_guid)),
++      token_getter_(std::move(token_getter)),
++      refresh_(std::move(refresh)),
++      reconnect_delay_(kFirstReconnectDelay) {
++  Connect();
++}
++
++ArcomiumSyncEvents::~ArcomiumSyncEvents() = default;
++
++void ArcomiumSyncEvents::Connect() {
++  pending_.clear();
++  event_name_.clear();
++  event_data_.clear();
++
++  auto request = std::make_unique<network::ResourceRequest>();
++  request->url = events_url_;
++  request->method = net::HttpRequestHeaders::kGetMethod;
++  request->credentials_mode = network::mojom::CredentialsMode::kOmit;
++  request->load_flags = net::LOAD_DISABLE_CACHE;
++  request->headers.SetHeader(net::HttpRequestHeaders::kAuthorization,
++                             "Bearer " + token_getter_.Run());
++  request->headers.SetHeader(net::HttpRequestHeaders::kAccept,
++                             "text/event-stream");
++
++  loader_ = network::SimpleURLLoader::Create(std::move(request),
++                                             kTrafficAnnotation);
++  loader_->DownloadAsStream(url_loader_factory_.get(), this);
++}
++
++void ArcomiumSyncEvents::OnDataReceived(std::string_view data,
++                                        base::OnceClosure resume) {
++  // Data means the server accepted the stream.
++  reconnect_delay_ = kFirstReconnectDelay;
++  pending_.append(data);
++  size_t start = 0;
++  for (size_t end; (end = pending_.find('\n', start)) != std::string::npos;
++       start = end + 1) {
++    std::string_view line(pending_.data() + start, end - start);
++    if (line.ends_with('\r')) {
++      line.remove_suffix(1);
++    }
++    HandleLine(line);
++  }
++  pending_.erase(0, start);
++  if (pending_.size() > kMaxLineLength) {
++    pending_.clear();
++  }
++  std::move(resume).Run();
++}
++
++void ArcomiumSyncEvents::OnComplete(bool success) {
++  // The stream should not end; when it does, connect again, waiting longer
++  // each time it fails before any data.
++  loader_.reset();
++  reconnect_timer_.Start(FROM_HERE, reconnect_delay_,
++                         base::BindOnce(&ArcomiumSyncEvents::Connect,
++                                        base::Unretained(this)));
++  reconnect_delay_ = std::min(reconnect_delay_ * 2, kMaxReconnectDelay);
++}
++
++void ArcomiumSyncEvents::OnRetry(base::OnceClosure start_retry) {
++  // Retries are not enabled.
++  NOTREACHED();
++}
++
++void ArcomiumSyncEvents::HandleLine(std::string_view line) {
++  if (line.empty()) {
++    DispatchEvent();
++    return;
++  }
++  if (line.starts_with(':')) {
++    return;  // A comment, such as the server's keep-alive ping.
++  }
++  if (line.starts_with("event:")) {
++    event_name_ = std::string(
++        base::TrimWhitespaceASCII(line.substr(6), base::TRIM_LEADING));
++  } else if (line.starts_with("data:")) {
++    event_data_ = std::string(
++        base::TrimWhitespaceASCII(line.substr(5), base::TRIM_LEADING));
++  }
++}
++
++void ArcomiumSyncEvents::DispatchEvent() {
++  const std::string name = std::exchange(event_name_, std::string());
++  const std::string data = std::exchange(event_data_, std::string());
++
++  if (name == "ready" || name == "resync") {
++    refresh_.Run(ProtocolTypes());
++    return;
++  }
++  if (name != "changed") {
++    return;
++  }
++  std::optional<base::DictValue> event = base::JSONReader::ReadDict(data, base::JSON_PARSE_RFC);
++  const base::ListValue* numbers = event ? event->FindList("types") : nullptr;
++  if (!numbers) {
++    return;
++  }
++  DataTypeSet types;
++  for (const base::Value& number : *numbers) {
++    if (number.is_int()) {
++      const DataType type = GetDataTypeFromSpecificsFieldNumber(number.GetInt());
++      if (type != UNSPECIFIED) {
++        types.Put(type);
++      }
++    }
++  }
++  if (!types.empty()) {
++    refresh_.Run(types);
++  }
++}
++
++}  // namespace syncer
+diff --git a/components/sync/service/arcomium_sync_events.h b/components/sync/service/arcomium_sync_events.h
+new file mode 100644
+index 0000000000..a78ab19688
+--- /dev/null
++++ b/components/sync/service/arcomium_sync_events.h
+@@ -0,0 +1,80 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_EVENTS_H_
++#define COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_EVENTS_H_
++
++#include <memory>
++#include <string>
++#include <string_view>
++
++#include "base/functional/callback.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/time/time.h"
++#include "base/timer/timer.h"
++#include "components/sync/base/data_type.h"
++#include "services/network/public/cpp/simple_url_loader_stream_consumer.h"
++#include "url/gurl.h"
++
++namespace network {
++class SharedURLLoaderFactory;
++class SimpleURLLoader;
++}  // namespace network
++
++namespace syncer {
++
++// Keeps the Arcomium sync server's event stream (GET <server>/events) open, so
++// a commit on another device of the chain is fetched right away instead of at
++// the next poll. The stream is Server-Sent Events:
++//
++//   event: ready     the stream is open: fetch what may have been missed
++//   event: changed   data: {"types":[32904]}: fetch these data types
++//   event: resync    the server lost events: fetch everything
++//
++// It reconnects with growing delays when the stream ends.
++class ArcomiumSyncEvents : public network::SimpleURLLoaderStreamConsumer {
++ public:
++  // Returns a fresh token for the request.
++  using TokenGetter = base::RepeatingCallback<std::string()>;
++  // Fetches updates of these data types.
++  using Refresh = base::RepeatingCallback<void(const DataTypeSet&)>;
++
++  ArcomiumSyncEvents(
++      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++      const GURL& server_url,
++      const std::string& cache_guid,
++      TokenGetter token_getter,
++      Refresh refresh);
++  ArcomiumSyncEvents(const ArcomiumSyncEvents&) = delete;
++  ArcomiumSyncEvents& operator=(const ArcomiumSyncEvents&) = delete;
++  ~ArcomiumSyncEvents() override;
++
++  // network::SimpleURLLoaderStreamConsumer:
++  void OnDataReceived(std::string_view data, base::OnceClosure resume) override;
++  void OnComplete(bool success) override;
++  void OnRetry(base::OnceClosure start_retry) override;
++
++ private:
++  void Connect();
++  void HandleLine(std::string_view line);
++  void DispatchEvent();
++
++  const scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
++  const GURL events_url_;
++  const TokenGetter token_getter_;
++  const Refresh refresh_;
++
++  std::unique_ptr<network::SimpleURLLoader> loader_;
++  // Text after the last full line, and the event being read.
++  std::string pending_;
++  std::string event_name_;
++  std::string event_data_;
++
++  base::OneShotTimer reconnect_timer_;
++  base::TimeDelta reconnect_delay_;
++};
++
++}  // namespace syncer
++
++#endif  // COMPONENTS_SYNC_SERVICE_ARCOMIUM_SYNC_EVENTS_H_
+diff --git a/components/sync/service/sync_prefs.cc b/components/sync/service/sync_prefs.cc
+index b51a7b1de0..5400f7efd9 100644
+--- a/components/sync/service/sync_prefs.cc
++++ b/components/sync/service/sync_prefs.cc
+@@ -26,6 +26,7 @@
+ #include "components/signin/public/base/signin_buildflags.h"
+ #include "components/signin/public/base/signin_switches.h"
+ #include "components/sync/base/account_pref_utils.h"
++#include "components/sync/service/arcomium_sync_account.h"
+ #include "components/sync/base/custom_passphrase_bootstrap_token.h"
+ #include "components/sync/base/features.h"
+ #include "components/sync/base/passphrase_enums.h"
+@@ -93,8 +94,10 @@ SyncPrefObserver::~SyncPrefObserver() = default;
+ 
+ SyncPrefs::SyncPrefs(PrefService* pref_service)
+     : pref_service_(pref_service),
++      // Arcomium sync runs in local sync mode against its own server.
+       local_sync_enabled_(
+-          pref_service_->GetBoolean(prefs::kEnableLocalSyncBackend)) {
++          pref_service_->GetBoolean(prefs::kEnableLocalSyncBackend) ||
++          ArcomiumSyncAccount::GetServerURL(*pref_service_).is_valid()) {
+   DCHECK(pref_service);
+   // Watch the preference that indicates sync is managed so we can take
+   // appropriate action.
+@@ -196,6 +199,7 @@ void SyncPrefs::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+   registry->RegisterIntegerPref(
+       prefs::internal::kSyncPassphrasePromptMutedProductVersion, 0);
+   registry->RegisterBooleanPref(prefs::kEnableLocalSyncBackend, false);
++  ArcomiumSyncAccount::RegisterProfilePrefs(registry);
+   registry->RegisterFilePathPref(prefs::kLocalSyncBackendDir, base::FilePath());
+ #if BUILDFLAG(ENABLE_DICE_SUPPORT)
+   registry->RegisterBooleanPref(kAutofillPerAccountPrefMigrationDone, false);
+diff --git a/components/sync/service/sync_service_impl.cc b/components/sync/service/sync_service_impl.cc
+index d37ce22f7d..069ed12c89 100644
+--- a/components/sync/service/sync_service_impl.cc
++++ b/components/sync/service/sync_service_impl.cc
+@@ -7,6 +7,7 @@
+ #include <cstddef>
+ #include <utility>
+ 
++#include "base/auto_reset.h"
+ #include "base/barrier_callback.h"
+ #include "base/check_is_test.h"
+ #include "base/command_line.h"
+@@ -40,6 +41,7 @@
+ #include "components/sync/base/command_line_switches.h"
+ #include "components/sync/base/custom_passphrase_bootstrap_token.h"
+ #include "components/sync/base/data_type.h"
++#include "components/sync/base/passphrase_enums.h"
+ #include "components/sync/base/data_type_histogram.h"
+ #include "components/sync/base/features.h"
+ #include "components/sync/base/stop_source.h"
+@@ -595,6 +597,19 @@ void SyncServiceImpl::TryStartImpl(
+   base::UmaHistogramTimes("Sync.EncryptorReceivedTime",
+                           base::TimeTicks::Now() - try_start_time);
+ 
++  const GURL arcomium_server_url =
++      ArcomiumSyncAccount::GetServerURL(*sync_client_->GetPrefService());
++  if (arcomium_server_url.is_valid()) {
++    arcomium_account_ = ArcomiumSyncAccount::Load(
++        sync_client_->GetPrefService(), *encryptors[0]);
++    if (!arcomium_account_) {
++      LOG(ERROR) << "Arcomium sync is set up without a secret; not starting";
++      return;
++    }
++    // Joining a sync chain is the whole setup: there is nothing to confirm.
++    sync_prefs_.SetInitialSyncFeatureSetupComplete();
++  }
++
+   // One instance of Encryptor is needed for SyncServiceImpl and one for
+   // SyncEngine.
+   crypto_.SetEncryptor(std::move(encryptors[0]));
+@@ -640,7 +655,7 @@ void SyncServiceImpl::TryStartImpl(
+ 
+   params.sync_manager_factory =
+       std::make_unique<SyncManagerFactory>(network_connection_tracker_);
+-  if (sync_prefs_.IsLocalSyncEnabled()) {
++  if (sync_prefs_.IsLocalSyncEnabled() && !arcomium_account_) {
+     params.engine_components_factory =
+         EngineComponentsFactoryImpl::CreateForLocalSync(
+             EngineSwitchesFromCommandLine(),
+@@ -648,7 +663,8 @@ void SyncServiceImpl::TryStartImpl(
+   } else {
+     params.engine_components_factory =
+         EngineComponentsFactoryImpl::CreateForServerSync(
+-            EngineSwitchesFromCommandLine(), sync_service_url_,
++            EngineSwitchesFromCommandLine(),
++            arcomium_account_ ? arcomium_server_url : sync_service_url_,
+             base::BindOnce(
+                 create_http_post_provider_factory_override_for_test_.value_or(
+                     create_http_post_provider_factory_),
+@@ -667,6 +683,57 @@ void SyncServiceImpl::TryStartImpl(
+   }
+ 
+   engine_->Initialize(std::move(params));
++
++  if (arcomium_account_) {
++    UpdateArcomiumCredentials();
++    // A token lasts a day; renewing it hourly keeps it valid despite clock
++    // differences.
++    arcomium_token_timer_.Start(FROM_HERE, base::Hours(1), this,
++                                &SyncServiceImpl::UpdateArcomiumCredentials);
++  }
++}
++
++void SyncServiceImpl::UpdateArcomiumCredentials() {
++  if (!engine_ || !arcomium_account_) {
++    return;
++  }
++  const base::Time now = base::Time::Now();
++  SyncCredentials credentials;
++  credentials.access_token_info = signin::AccessTokenInfo(
++      arcomium_account_->MakeToken(now), now + base::Hours(23),
++      /*id_token=*/std::string());
++  engine_->UpdateCredentials(credentials);
++}
++
++// Encrypts the chain's data with its passphrase: the first device sets it,
++// the others decrypt with it.
++void SyncServiceImpl::MaybeApplyArcomiumPassphrase() {
++  if (!arcomium_account_ || !engine_ || !engine_->IsInitialized() ||
++      applying_arcomium_passphrase_) {
++    return;
++  }
++  base::AutoReset<bool> applying(&applying_arcomium_passphrase_, true);
++
++  if (user_settings_->IsPassphraseRequired()) {
++    if (!user_settings_->SetDecryptionPassphrase(
++            arcomium_account_->passphrase())) {
++      LOG(ERROR) << "The sync chain's data is encrypted with another "
++                    "passphrase";
++    }
++    return;
++  }
++  if (arcomium_passphrase_set_) {
++    return;
++  }
++  const std::optional<PassphraseType> type =
++      user_settings_->GetPassphraseType();
++  if (!type || user_settings_->IsTrustedVaultKeyRequired()) {
++    return;  // Encryption state not known yet.
++  }
++  arcomium_passphrase_set_ = true;
++  if (!IsExplicitPassphrase(*type)) {
++    user_settings_->SetEncryptionPassphrase(arcomium_account_->passphrase());
++  }
+ }
+ 
+ void SyncServiceImpl::Shutdown() {
+@@ -763,6 +830,9 @@ std::unique_ptr<SyncEngine> SyncServiceImpl::ResetEngine(
+ 
+   engine_->Shutdown(shutdown_reason);
+   std::unique_ptr<SyncEngine> engine_to_be_destroyed = std::move(engine_);
++  arcomium_events_.reset();
++  arcomium_token_timer_.Stop();
++  arcomium_passphrase_set_ = false;
+ 
+   // Clear various state.
+   crypto_.Reset();
+@@ -984,6 +1054,7 @@ void SyncServiceImpl::NotifyObservers() {
+   if (is_shutting_down_) {
+     return;
+   }
++  MaybeApplyArcomiumPassphrase();
+   CHECK(observers_);
+   SyncService::UserActionableError user_actionable_error =
+       GetUserActionableError();
+@@ -1087,6 +1158,22 @@ void SyncServiceImpl::OnEngineInitialized(bool success,
+ 
+   crypto_.SetSyncEngine(GetAccountInfo(), engine_.get());
+ 
++  if (arcomium_account_) {
++    // Owned here and reset with the engine, so Unretained is safe.
++    arcomium_events_ = std::make_unique<ArcomiumSyncEvents>(
++        url_loader_factory_,
++        ArcomiumSyncAccount::GetServerURL(*sync_client_->GetPrefService()),
++        engine_->GetCacheGuid(),
++        base::BindRepeating(
++            [](const ArcomiumSyncAccount* account) {
++              return account->MakeToken(base::Time::Now());
++            },
++            base::Unretained(&*arcomium_account_)),
++        base::BindRepeating(&SyncServiceImpl::TriggerRefresh,
++                            base::Unretained(this),
++                            TriggerRefreshSource::kSyncInvalidationsService));
++  }
++
+   std::vector<base::OnceClosure> tasks;
+   tasks.swap(tasks_waiting_for_engine_initialization_);
+   for (base::OnceClosure& task : tasks) {
+diff --git a/components/sync/service/sync_service_impl.h b/components/sync/service/sync_service_impl.h
+index ba56598bb0..ee62c5c7d9 100644
+--- a/components/sync/service/sync_service_impl.h
++++ b/components/sync/service/sync_service_impl.h
+@@ -23,6 +23,8 @@
+ #include "base/timer/timer.h"
+ #include "build/build_config.h"
+ #include "components/os_crypt/async/common/encryptor.h"
++#include "components/sync/service/arcomium_sync_account.h"
++#include "components/sync/service/arcomium_sync_events.h"
+ #include "components/signin/public/identity_manager/identity_manager.h"
+ #include "components/sync/base/data_type.h"
+ #include "components/sync/engine/configure_reason.h"
+@@ -519,6 +521,16 @@ class SyncServiceImpl : public SyncService,
+ 
+   bool is_shutting_down_ = false;
+ 
++  // Arcomium sync: set while the profile syncs with an Arcomium server, see
++  // ArcomiumSyncAccount.
++  void UpdateArcomiumCredentials();
++  void MaybeApplyArcomiumPassphrase();
++  std::optional<ArcomiumSyncAccount> arcomium_account_;
++  base::RepeatingTimer arcomium_token_timer_;
++  std::unique_ptr<ArcomiumSyncEvents> arcomium_events_;
++  bool arcomium_passphrase_set_ = false;
++  bool applying_arcomium_passphrase_ = false;
++
+   // Note: This is an Optional so that we can control its destruction - in
+   // particular, to trigger the "check_empty" test in Shutdown().
+   // TODO(crbug.com/484371187): Investigate if reentrancy can be removed.

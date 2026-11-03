@@ -54,7 +54,7 @@ it imported before.
 |---|---|
 | Spaces with separate logins | done |
 | Arc sidebar, Arc import | done; drag and drop to do |
-| Sync | server done; browser side to do |
+| Sync | server and browser done; setup page to do |
 | Link routing to Spaces | links from other apps open in the current Space; rules to do |
 | Media mini player, auto picture-in-picture | to do |
 
