@@ -31,7 +31,8 @@ and the Arc import tool. Builds come from the platform repositories below.
 | Platform | Builds |
 |---|---|
 | Windows | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
-| macOS, iPhone | build from source: [arcomium-mac](https://github.com/VizzleTF/arcomium-mac), [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
+| macOS (Apple Silicon) | [arcomium-mac releases](https://github.com/VizzleTF/arcomium-mac/releases) |
+| iPhone | build from source: [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
 | Linux | planned |
 
 ## Move from Arc
