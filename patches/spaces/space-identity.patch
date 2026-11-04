@@ -1,0 +1,130 @@
+diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
+index 31656a73ef..e86ad33854 100644
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -549,7 +549,9 @@ std::optional<std::string> GetSpaceForNewTab(
+   const TabStripModel* model = params.browser->GetTabStripModel();
+   std::optional<tab_groups::TabGroupId> group =
+       params.group ? params.group : model->GetFocusedGroup();
+-  return group ? arcomium::GetSpaceOfGroup(model, *group) : std::nullopt;
++  return group ? arcomium::GetSpaceOfGroupOrFolder(
++                     params.browser->GetProfile(), model, *group)
++               : std::nullopt;
+ }
+ 
+ std::unique_ptr<content::WebContents> CreateTargetContents(
+diff --git a/chrome/browser/ui/tabs/arcomium_spaces.h b/chrome/browser/ui/tabs/arcomium_spaces.h
+index 11f017e4b8..89e0c2ab43 100644
+--- a/chrome/browser/ui/tabs/arcomium_spaces.h
++++ b/chrome/browser/ui/tabs/arcomium_spaces.h
+@@ -20,9 +20,13 @@
+ #include "base/json/json_writer.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/values.h"
++#include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "components/bookmarks/browser/bookmark_model.h"
++#include "components/bookmarks/browser/bookmark_node.h"
+ #include "components/tab_groups/tab_group_id.h"
++#include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/tab_group.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/browser_context.h"
+@@ -30,6 +34,7 @@
+ #include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/storage_partition_config.h"
+ #include "content/public/browser/web_contents.h"
++#include "ui/gfx/range/range.h"
+ #include "url/gurl.h"
+ 
+ namespace arcomium {
+@@ -62,9 +67,47 @@ inline std::optional<std::string> GetSpaceOfGroup(
+   if (!model->group_model() || !model->group_model()->ContainsTabGroup(group)) {
+     return std::nullopt;
+   }
+-  tabs::TabInterface* first =
+-      model->group_model()->GetTabGroup(group)->GetFirstTab();
+-  return first ? GetSpaceOfContents(first->GetContents()) : std::nullopt;
++  // Any tab in the Space's partition tells: the New Tab page and other
++  // WebUI cannot live there.
++  const gfx::Range tabs = model->group_model()->GetTabGroup(group)->ListTabs();
++  for (size_t i = tabs.start(); i < tabs.end(); ++i) {
++    if (std::optional<std::string> space = GetSpaceOfContents(
++            model->GetWebContentsAt(static_cast<int>(i)))) {
++      return space;
++    }
++  }
++  return std::nullopt;
++}
++
++// The Space of `group` as GetSpaceOfGroup() finds it, or else the Space whose
++// bookmark folder has the group's title: a Space none of whose tabs is in its
++// partition any more, as when only a New Tab page is open in it.
++inline std::optional<std::string> GetSpaceOfGroupOrFolder(
++    content::BrowserContext* context,
++    const TabStripModel* model,
++    const tab_groups::TabGroupId& group) {
++  if (std::optional<std::string> space = GetSpaceOfGroup(model, group)) {
++    return space;
++  }
++  if (!model->group_model() || !model->group_model()->ContainsTabGroup(group)) {
++    return std::nullopt;
++  }
++  const std::u16string& title =
++      model->group_model()->GetTabGroup(group)->visual_data()->title();
++  const bookmarks::BookmarkModel* bookmarks =
++      BookmarkModelFactory::GetForBrowserContext(context);
++  if (title.empty() || !bookmarks || !bookmarks->loaded()) {
++    return std::nullopt;
++  }
++  for (const auto& folder : bookmarks->other_node()->children()) {
++    std::string space;
++    if (folder->is_folder() && folder->GetTitle() == title &&
++        folder->GetMetaInfo("arcomium.space", &space) && !space.empty() &&
++        space != "default" && !space.starts_with("arc:")) {
++      return space;
++    }
++  }
++  return std::nullopt;
+ }
+ 
+ // SiteInstance that pins a new tab to the partition of `space`. Only web
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+index c970a8d583..bb53dc4815 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+@@ -545,8 +545,8 @@ void ArcomiumSidebarView::OnTabGroupFocusChanged(
+ std::string ArcomiumSidebarView::GetActiveSpace() const {
+   const TabStripModel* tabs = browser_->GetTabStripModel();
+   if (std::optional<tab_groups::TabGroupId> group = tabs->GetFocusedGroup()) {
+-    if (std::optional<std::string> space =
+-            arcomium::GetSpaceOfGroup(tabs, *group)) {
++    if (std::optional<std::string> space = arcomium::GetSpaceOfGroupOrFolder(
++            browser_->GetProfile(), tabs, *group)) {
+       return *space;
+     }
+   }
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+index 1f6f469b7c..ea8442bc80 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+@@ -407,7 +407,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+     const tab_groups::TabGroupVisualData* visuals =
+         groups->GetTabGroup(id)->visual_data();
+     const std::string space =
+-        arcomium::GetSpaceOfGroup(model_, id).value_or(std::string());
++        arcomium::GetSpaceOfGroupOrFolder(browser_->GetProfile(), model_, id)
++            .value_or(std::string());
+     add_icon(base::BindRepeating(&ArcomiumSpaceSwitcher::SwitchTo,
+                                  base::Unretained(this), id),
+              GetSpaceIcon(space, std::string()), focused == id,
+@@ -589,7 +590,7 @@ void ArcomiumSpaceSwitcher::LinkSpaceFolders() {
+   }
+   for (const tab_groups::TabGroupId& id : groups->ListTabGroups()) {
+     const std::optional<std::string> space =
+-        arcomium::GetSpaceOfGroup(model_, id);
++        arcomium::GetSpaceOfGroupOrFolder(browser_->GetProfile(), model_, id);
+     const std::optional<tab_groups::SavedTabGroup> saved =
+         sync_service_->GetGroup(id);
+     if (!space || !saved) {
