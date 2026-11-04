@@ -30,3 +30,4 @@ extensions/web-store.patch
 look/sidebar-address-bar.patch
 look/space-icons.patch
 spaces/space-identity.patch
+look/space-menu-crash.patch
