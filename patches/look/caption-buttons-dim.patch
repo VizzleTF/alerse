@@ -1,0 +1,236 @@
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.h b/chrome/browser/ui/views/frame/browser_frame_view_win.h
+index e731b2c4c1..ee1ce3f6a6 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_win.h
++++ b/chrome/browser/ui/views/frame/browser_frame_view_win.h
+@@ -6,14 +6,18 @@
+ #define CHROME_BROWSER_UI_VIEWS_FRAME_BROWSER_FRAME_VIEW_WIN_H_
+ 
+ #include <array>
++#include <memory>
+ 
+ #include "base/memory/raw_ptr.h"
++#include "base/time/time.h"
++#include "base/timer/timer.h"
+ #include "base/win/scoped_gdi_object.h"
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/windows_caption_button.h"
+ #include "chrome/browser/ui/views/tab_icon_view.h"
+ #include "chrome/browser/ui/views/tab_icon_view_model.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
++#include "ui/events/event_observer.h"
+ #include "ui/gfx/geometry/rounded_corners_f.h"
+ #include "ui/views/window/frame_view.h"
+ 
+@@ -21,10 +25,13 @@ class BrowserView;
+ class BrowserCaptionButtonContainer;
+ 
+ namespace views {
++class EventMonitor;
+ class Label;
+ }
+ 
+-class BrowserFrameViewWin : public BrowserFrameView, public TabIconViewModel {
++class BrowserFrameViewWin : public BrowserFrameView,
++                            public TabIconViewModel,
++                            public ui::EventObserver {
+   METADATA_HEADER(BrowserFrameViewWin, BrowserFrameView)
+ 
+  public:
+@@ -161,6 +168,15 @@ class BrowserFrameViewWin : public BrowserFrameView, public TabIconViewModel {
+   // Displays the next throbber frame.
+   void DisplayNextThrobberFrame();
+ 
++  // ui::EventObserver: the pointer moving over the window.
++  void OnEvent(const ui::Event& event) override;
++
++  // Arcomium: while the Arc sidebar hides the toolbar, the caption buttons
++  // float over the page's top right corner, dimmed until the pointer is near
++  // them.
++  bool IsArcomiumCaptionOverlay() const;
++  void UpdateArcomiumCaptionReveal();
++
+   // The bounds of the ClientView.
+   gfx::Rect client_view_bounds_;
+ 
+@@ -176,6 +192,14 @@ class BrowserFrameViewWin : public BrowserFrameView, public TabIconViewModel {
+   // The container holding the caption buttons (minimize, maximize, close, etc.)
+   raw_ptr<BrowserCaptionButtonContainer> caption_button_container_;
+ 
++  // Arcomium: watches the pointer for the floating caption buttons, and
++  // whether they are bright now.
++  std::unique_ptr<views::EventMonitor> arcomium_caption_monitor_;
++  base::RepeatingTimer arcomium_caption_timer_;
++  bool arcomium_caption_overlay_ = false;
++  bool arcomium_caption_revealed_ = false;
++  base::TimeTicks arcomium_caption_left_at_;
++
+   // Whether or not the window throbber is currently animating.
+   bool throbber_running_ = false;
+ 
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
+index 5bafaddaac..60c102eea6 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
++++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
+@@ -47,6 +47,9 @@
+ #include "ui/base/win/hwnd_metrics.h"
+ #include "ui/color/color_provider_key.h"
+ #include "ui/display/win/dpi.h"
++#include "ui/compositor/layer.h"
++#include "ui/compositor/scoped_layer_animation_settings.h"
++#include "ui/display/screen.h"
+ #include "ui/display/win/screen_win.h"
+ #include "ui/gfx/canvas.h"
+ #include "ui/gfx/geometry/dip_util.h"
+@@ -56,6 +59,8 @@
+ #include "ui/gfx/scoped_canvas.h"
+ #include "ui/gfx/win/icon_util.h"
+ #include "ui/strings/grit/ui_strings.h"
++#include "ui/views/background.h"
++#include "ui/views/event_monitor.h"
+ #include "ui/views/metadata/view_factory.h"
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/widget/widget_observer.h"
+@@ -142,7 +147,8 @@ BrowserLayoutParams BrowserFrameViewWin::GetBrowserLayoutParams() const {
+   // In some cases, the top of the client area is moved down, but slightly
+   // overlaps the bottom of the caption container. In that case, don't count
+   // the caption buttons in the exclusion area.
+-  if (top < caption.bottom() - 2) {
++  // Arcomium: the floating caption buttons take no room from the page.
++  if (top < caption.bottom() - 2 && !IsArcomiumCaptionOverlay()) {
+     if (CaptionButtonsOnLeadingEdge()) {
+       params.leading_exclusion.content =
+           gfx::SizeF(caption.right(), caption.bottom() - top);
+@@ -289,6 +295,20 @@ int BrowserFrameViewWin::NonClientHitTest(const gfx::Point& point) {
+     return HTNOWHERE;
+   }
+ 
++  // Arcomium: the floating caption buttons lie over the page, so they come
++  // before it.
++  if (IsArcomiumCaptionOverlay() && caption_button_container_->GetVisible()) {
++    const gfx::Point caption_point =
++        ConvertPointToTarget(parent(), caption_button_container_, point);
++    if (caption_button_container_->HitTestPoint(caption_point)) {
++      const int caption_component =
++          caption_button_container_->NonClientHitTest(caption_point);
++      if (caption_component != HTNOWHERE) {
++        return caption_component;
++      }
++    }
++  }
++
+   // At the window corners the resize area is not actually bigger, but the 16
+   // pixels at the end of the top and bottom edges trigger diagonal resizing.
+   constexpr int kResizeCornerWidth = 16;
+@@ -730,17 +750,50 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
+ 
+   const bool hide_window_buttons =
+       base::CommandLine::ForCurrentProcess()->HasSwitch("hide-window-buttons");
++  arcomium_caption_overlay_ = IsArcomiumCaptionOverlay();
+   caption_button_container_->SetVisible(
+       !hide_window_buttons &&
+       (!browser_widget()->IsFullscreen() ||
+        GetBrowserView()->IsWindowControlsOverlayEnabled()));
++  if (arcomium_caption_overlay_) {
++    // Painted on a layer over the page, with the frame's color behind them
++    // and the corner towards the page rounded; dimmed until the pointer
++    // comes near.
++    constexpr float kIdleOpacity = 0.4f;
++    if (!caption_button_container_->layer()) {
++      caption_button_container_->SetPaintToLayer();
++      caption_button_container_->layer()->SetFillsBoundsOpaquely(false);
++      caption_button_container_->layer()->SetOpacity(kIdleOpacity);
++    }
++    const float opacity = arcomium_caption_revealed_ ? 1.0f : kIdleOpacity;
++    ui::Layer* layer = caption_button_container_->layer();
++    if (layer->GetTargetOpacity() != opacity) {
++      ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
++      fade.SetTransitionDuration(base::Milliseconds(150));
++      layer->SetOpacity(opacity);
++    }
++    if (children().back() != caption_button_container_) {
++      ReorderChildView(caption_button_container_, children().size());
++    }
++    caption_button_container_->SetBackground(views::CreateRoundedRectBackground(
++        GetTitlebarColor(), gfx::RoundedCornersF(0, 0, 0, 10)));
++    if (!arcomium_caption_monitor_ && GetWidget()) {
++      arcomium_caption_monitor_ = views::EventMonitor::CreateWindowMonitor(
++          this, GetWidget()->GetNativeWindow(), {ui::EventType::kMouseMoved});
++    }
++  } else if (!GetBrowserView()->IsWindowControlsOverlayEnabled() &&
++             caption_button_container_->layer()) {
++    caption_button_container_->SetBackground(nullptr);
++    caption_button_container_->DestroyLayer();
++  }
+ 
+   const gfx::Size preferred_size =
+       hide_window_buttons ? gfx::Size()
+                           : caption_button_container_->GetPreferredSize();
+ 
+   const int height =
+-      !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
++      arcomium_caption_overlay_ ? preferred_size.height()
++      : !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
+           ? (TitlebarHeight(false) - WindowTopY())
+           : GetFrameHeight();
+ 
+@@ -749,6 +802,60 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
+                                        height);
+ }
+ 
++void BrowserFrameViewWin::OnEvent(const ui::Event& event) {
++  UpdateArcomiumCaptionReveal();
++}
++
++bool BrowserFrameViewWin::IsArcomiumCaptionOverlay() const {
++  return GetBrowserView()->IsArcomiumSidebarShown() &&
++         !browser_widget()->IsFullscreen() &&
++         !GetBrowserView()->IsWindowControlsOverlayEnabled();
++}
++
++void BrowserFrameViewWin::UpdateArcomiumCaptionReveal() {
++  // Room around the buttons where the pointer brightens them, and how long
++  // they stay bright after it leaves, so that reaching for them is forgiving.
++  constexpr int kRevealMargin = 12;
++  constexpr base::TimeDelta kHideDelay = base::Milliseconds(250);
++
++  const bool overlay = IsArcomiumCaptionOverlay();
++  bool reveal = false;
++  if (overlay && GetWidget()) {
++    gfx::Point cursor = display::Screen::Get()->GetCursorScreenPoint();
++    views::View::ConvertPointFromScreen(this, &cursor);
++    const gfx::Size buttons = caption_button_container_->GetPreferredSize();
++    const gfx::Rect zone(width() - buttons.width() - kRevealMargin, 0,
++                         buttons.width() + kRevealMargin,
++                         WindowTopY() + buttons.height() + kRevealMargin);
++    reveal = zone.Contains(cursor);
++  }
++  const base::TimeTicks now = base::TimeTicks::Now();
++  if (reveal) {
++    arcomium_caption_left_at_ = base::TimeTicks();
++  } else if (overlay && arcomium_caption_revealed_) {
++    if (arcomium_caption_left_at_.is_null()) {
++      arcomium_caption_left_at_ = now;
++    }
++    reveal = now - arcomium_caption_left_at_ < kHideDelay;
++  }
++
++  // While they are bright, the pointer may leave the window over them
++  // without passing the page, so keep looking.
++  if (reveal && !arcomium_caption_timer_.IsRunning()) {
++    arcomium_caption_timer_.Start(
++        FROM_HERE, base::Milliseconds(100), this,
++        &BrowserFrameViewWin::UpdateArcomiumCaptionReveal);
++  } else if (!reveal) {
++    arcomium_caption_timer_.Stop();
++  }
++
++  if (reveal != arcomium_caption_revealed_ ||
++      overlay != arcomium_caption_overlay_) {
++    arcomium_caption_revealed_ = reveal;
++    LayoutCaptionButtons();
++  }
++}
++
+ void BrowserFrameViewWin::LayoutClientView() {
+   client_view_bounds_ = GetLocalBounds();
+   int top_inset = GetTopInset(false);
