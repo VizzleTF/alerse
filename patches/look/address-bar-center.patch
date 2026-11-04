@@ -1,0 +1,52 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 857c74456e..7391c8bdbc 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -777,9 +777,18 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+     return;
+   }
+   arcomium_compact_ = compact;
++  UpdateArcomiumAlignment();
+   InvalidateLayout();
+ }
+ 
++void LocationBarView::UpdateArcomiumAlignment() {
++  if (omnibox_view_) {
++    omnibox_view_->SetHorizontalAlignment(
++        arcomium_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
++                                                        : gfx::ALIGN_LEFT);
++  }
++}
++
+ void LocationBarView::SetArcomiumHovered(bool hovered) {
+   if (arcomium_hovered_ == hovered) {
+     return;
+@@ -2081,6 +2090,7 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
+ }
+ 
+ void LocationBarView::OnOmniboxFocused() {
++  UpdateArcomiumAlignment();
+   if (views::FocusRing::Get(this)) {
+     views::FocusRing::Get(this)->Refresh();
+   }
+@@ -2104,6 +2114,7 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+ }
+ 
+ void LocationBarView::OnOmniboxBlurred() {
++  UpdateArcomiumAlignment();
+   if (views::FocusRing::Get(this)) {
+     views::FocusRing::Get(this)->Refresh();
+   }
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 889d453a11..8fba97363c 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -327,6 +327,8 @@ class LocationBarView
+   // actions, and the site settings icon only while hovered or editing.
+   void SetArcomiumCompact(bool compact);
+   void SetArcomiumHovered(bool hovered);
++  // The site sits centered in the compact location bar until it is edited.
++  void UpdateArcomiumAlignment();
+ 
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
