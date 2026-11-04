@@ -1,0 +1,21 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 9b0858c3e9..8dc0aef718 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -448,6 +448,16 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+     return false;
+   }
+ 
++  // Arcomium: the Arc header row's buttons take clicks too; on macOS the
++  // window caption would otherwise start a window drag instead.
++  for (views::View* arc_button :
++       {arc_logo_button_.get(), arc_sidebar_button_.get(),
++        arc_downloads_button_.get()}) {
++    if (arc_button && IsHitInView(arc_button, point)) {
++      return false;
++    }
++  }
++
+   return true;
+ }
+ 
