@@ -1,0 +1,987 @@
+diff --git a/chrome/browser/resources/omnibox_popup/app.css b/chrome/browser/resources/omnibox_popup/app.css
+index 48ae23bb48..f2bb905993 100644
+--- a/chrome/browser/resources/omnibox_popup/app.css
++++ b/chrome/browser/resources/omnibox_popup/app.css
+@@ -24,8 +24,9 @@
+   font-size: var(--omnibox-font-size);
+ }
+ 
++/* Arcomium: Arc's command bar rows keep their own 4 px from the bottom. */
+ :host([has-visible-matches_]) .dropdownContainer {
+-  padding-bottom: 10px;
++  padding-bottom: 0;
+ }
+ 
+ /**
+@@ -35,3 +36,10 @@
+   display: block;
+   width: 50%;
+ }
++
++/* Arcomium: Arc's command bar: a hairline under the address row, then 4 px
++ * before the first row; the rows keep 4 px from the panel's bottom. */
++.dropdownContainer {
++  border-top: 1px solid rgb(28, 28, 28);
++  padding-top: 4px;
++}
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index e5e4b1943e..a71c593f71 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -107,8 +107,18 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+     mixer[kColorToolbarButtonIcon] = {SkColorSetRGB(0x52, 0x52, 0x52)};
+     mixer[kColorToolbarButtonIconInactive] = {SkColorSetRGB(0x52, 0x52, 0x52)};
+     // Its address text and window controls.
+-    mixer[kColorOmniboxText] = {SkColorSetRGB(0xDA, 0xDA, 0xDA)};
++    // Its address is white in the command bar (the pill dims it), with a
++    // grey selection.
++    mixer[kColorOmniboxText] = {SK_ColorWHITE};
++    mixer[kColorOmniboxSelectionBackground] = {SkColorSetRGB(0x78, 0x78, 0x78)};
++    mixer[kColorOmniboxSelectionForeground] = {SK_ColorWHITE};
+     mixer[kColorCaptionButtonOnToolbar] = {SkColorSetRGB(0x66, 0x66, 0x66)};
++    // Its command bar: a near-black panel with a grey selected row.
++    mixer[kColorOmniboxResultsBackground] = {SkColorSetRGB(0x09, 0x09, 0x09)};
++    mixer[kColorOmniboxResultsBackgroundHovered] = {
++        SkColorSetRGB(0x1E, 0x1E, 0x1E)};
++    mixer[kColorOmniboxResultsBackgroundSelected] = {
++        SkColorSetRGB(0x2E, 0x2E, 0x2E)};
+     // And its blank page.
+     mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x27, 0x27, 0x27)};
+   }
+diff --git a/chrome/browser/ui/location_bar/location_bar.cc b/chrome/browser/ui/location_bar/location_bar.cc
+index 4251e591ff..87c504f7ce 100644
+--- a/chrome/browser/ui/location_bar/location_bar.cc
++++ b/chrome/browser/ui/location_bar/location_bar.cc
+@@ -38,6 +38,10 @@ void LocationBar::NotifyFocusChanged() {
+   observers_.Notify(&Observer::OnLocationBarFocusChanged);
+ }
+ 
++bool LocationBar::ArcomiumOpensNewTab() const {
++  return false;
++}
++
+ bool LocationBar::in_popup_state_transition() const {
+   return false;
+ }
+diff --git a/chrome/browser/ui/location_bar/location_bar.h b/chrome/browser/ui/location_bar/location_bar.h
+index f357b9b1a4..808c6d85c7 100644
+--- a/chrome/browser/ui/location_bar/location_bar.h
++++ b/chrome/browser/ui/location_bar/location_bar.h
+@@ -176,6 +176,10 @@ class LocationBar {
+   // Returns the profile this is for.
+   virtual Profile* GetProfile() = 0;
+ 
++  // Arcomium: whether what the omnibox opens goes to a new tab, as when Arc's
++  // command bar is opened to start one.
++  virtual bool ArcomiumOpensNewTab() const;
++
+   // Returns true if the location bar finished initializing --- it's linked to
+   // the UI and has the subobjects all created.
+   virtual bool IsInitialized() const = 0;
+diff --git a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
+index f808a0b719..21040f262c 100644
+--- a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
++++ b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
+@@ -965,6 +965,12 @@ void ChromeOmniboxClient::OnAutocompleteAccept(
+                     {header.first, ": ", header.second, "\r\n"});
+   }
+ 
++  // Arcomium: Arc's command bar opened to start a new tab opens it there.
++  if (disposition == WindowOpenDisposition::CURRENT_TAB &&
++      location_bar_->ArcomiumOpensNewTab()) {
++    disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
++  }
++
+   // Store the details necessary to open the omnibox match via browser commands.
+   location_bar_->set_navigation_params(LocationBar::NavigationParams(
+       destination_url, disposition, transition, match_selection_timestamp,
+diff --git a/chrome/browser/ui/omnibox/omnibox_controller.cc b/chrome/browser/ui/omnibox/omnibox_controller.cc
+index e0018a3bb6..b999df3e65 100644
+--- a/chrome/browser/ui/omnibox/omnibox_controller.cc
++++ b/chrome/browser/ui/omnibox/omnibox_controller.cc
+@@ -44,6 +44,8 @@ OmniboxController::OmniboxController(
+   if (omnibox::IsWebUIOmniboxPopupEnabled()) {
+     autocomplete_controller_config.show_iph_matches = false;
+   }
++  // Arcomium: Arc's command bar finds open tabs as you type, without @tabs.
++  autocomplete_controller_config.unscoped_open_tab_suggestions = true;
+   if (autocomplete_stop_timer_duration.has_value()) {
+     autocomplete_controller_config.stop_timer_duration =
+         autocomplete_stop_timer_duration.value();
+diff --git a/chrome/browser/ui/omnibox/omnibox_edit_model.cc b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
+index e1d5a40954..664e27e148 100644
+--- a/chrome/browser/ui/omnibox/omnibox_edit_model.cc
++++ b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
+@@ -2604,8 +2604,8 @@ void OmniboxEditModel::OpenMatch(
+   // originated while in keyword mode.  This is to support the keyword mode
+   // starter pack's tab search (@tabs) feature, which should open all
+   // suggestions in the existing open tab.
++  // Arcomium: as in Arc, an open tab picked anywhere is switched to.
+   bool is_open_tab_match =
+-      match.from_keyword &&
+       match.type == omnibox::AutocompleteMatchType::kOpenTab;
+   // Also switch the window disposition for tab switch actions. The action
+   // itself will already open with SWITCH_TO_TAB disposition, but the change
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 979583ee26..38e96a9074 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+ 
++#include "ui/views/painter.h"
++
+ #include "cc/paint/paint_flags.h"
+ 
+ #include "base/strings/utf_string_conversions.h"
+@@ -263,8 +265,9 @@ LocationBarView::LocationBarView(BrowserWindowInterface* browser,
+           }
+ 
+           // Show focus ring when the Omnibox is visibly focused and the popup
+-          // is closed.
+-          return v->GetOmniboxController()->edit_model()->is_caret_visible() &&
++          // is closed. Arcomium: not in Arc's command bar, whose panel shows.
++          return !v->arcomium_command_bar_ &&
++                 v->GetOmniboxController()->edit_model()->is_caret_visible() &&
+                  !v->GetOmniboxController()->IsPopupOpen();
+         }));
+     views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+@@ -841,6 +844,19 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+   InvalidateLayout();
+ }
+ 
++void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
++  if (arcomium_command_bar_ == command_bar) {
++    return;
++  }
++  arcomium_command_bar_ = command_bar;
++  RefreshBackground();
++  InvalidateLayout();
++}
++
++bool LocationBarView::ArcomiumOpensNewTab() const {
++  return arcomium_command_bar_ && arcomium_new_tab_;
++}
++
+ bool LocationBarView::IsArcomiumCenteredIdle() const {
+   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ }
+@@ -907,6 +923,13 @@ void LocationBarView::LayoutArcomiumCentered() {
+ 
+ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
+   views::View::OnPaintBackground(canvas);
++  if (arcomium_command_bar_) {
++    // Arc's magnifier, 16 px wide, centred 27 px in.
++    const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
++        vector_icons::kArcomiumSearchIcon, 16,
++        GetColorProvider()->GetColor(kColorOmniboxText));
++    canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
++  }
+   if (arcomium_pill_bounds_.IsEmpty()) {
+     return;
+   }
+@@ -1210,6 +1233,15 @@ void LocationBarView::Layout(PassKey) {
+   arcomium_pill_bounds_ = gfx::Rect();
+   if (IsArcomiumCenteredIdle()) {
+     LayoutArcomiumCentered();
++  } else if (arcomium_command_bar_) {
++    // Arc's command bar: a magnifier 20 px into the panel (OnPaintBackground)
++    // and the address 51 px in; this row sits 6 px into the panel.
++    constexpr int kTextInset = 51 - 6;
++    location_icon_view_->SetVisible(false);
++    omnibox_view_->SetBounds(kTextInset, omnibox_view_->y(),
++                             std::max(0, omnibox_view_->bounds().right() -
++                                             kTextInset),
++                             omnibox_view_->height());
+   }
+ 
+   LayoutSuperclass<View>(this);
+@@ -1618,6 +1650,10 @@ void LocationBarView::RefreshBackground() {
+     // Only the pill behind the address is painted (OnPaintBackground).
+     background_color_ = GetArcomiumPillColor();
+     SetBackground(nullptr);
++  } else if (arcomium_command_bar_) {
++    // In Arc's command bar the panel behind paints the row.
++    background_color_ = color_provider->GetColor(kColorOmniboxResultsBackground);
++    SetBackground(nullptr);
+   } else if (is_popup_mode_) {
+     SetBackground(views::CreateSolidBackground(background_color_));
+   } else {
+@@ -1630,10 +1666,19 @@ void LocationBarView::RefreshBackground() {
+   // Keep the views::Textfield in sync. It needs an opaque background to
+   // correctly enable subpixel AA.
+   omnibox_view_->SetBackgroundColor(background_color_);
+-  // Arcomium: Arc for Windows sets its centred address in greyscale.
++  // Arcomium: Arc for Windows sets its centred address in greyscale, a shade
++  // dimmer than in its command bar.
+   if (IsArcomiumCenteredIdle()) {
+     omnibox_view_->SetBackgroundColor(SK_ColorTRANSPARENT);
+   }
++  if (arcomium_centered_) {
++    if (!omnibox_view_->layer()) {
++      omnibox_view_->SetPaintToLayer();
++      omnibox_view_->layer()->SetFillsBoundsOpaquely(false);
++    }
++    omnibox_view_->layer()->SetOpacity(IsArcomiumCenteredIdle() ? 0.83f
++                                                                : 1.0f);
++  }
+ 
+   // The divider between indicators and request chips should have the same color
+   // as the omnibox.
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index ab419c54c5..a2ee826eed 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -333,6 +333,12 @@ class LocationBarView
+   // a pill centred on the toolbar between a copy-link button and the site
+   // settings button.
+   void SetArcomiumCentered(bool centered);
++  // Arcomium: while in Arc's command bar the address row is the top of its
++  // panel.
++  void SetArcomiumCommandBar(bool command_bar);
++  // Arcomium: Arc's command bar opened to start a new tab.
++  void SetArcomiumNewTab(bool new_tab) { arcomium_new_tab_ = new_tab; }
++  bool ArcomiumOpensNewTab() const override;
+ 
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
+@@ -578,6 +584,8 @@ class LocationBarView
+   bool arcomium_compact_ = false;
+   bool arcomium_hovered_ = false;
+   bool arcomium_centered_ = false;
++  bool arcomium_command_bar_ = false;
++  bool arcomium_new_tab_ = false;
+   // Where the centred address's pill is painted; empty unless it shows.
+   gfx::Rect arcomium_pill_bounds_;
+   raw_ptr<views::ImageButton> arcomium_copy_button_ = nullptr;
+diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+index c54974b200..f58a47d064 100644
+--- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
++++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+@@ -4,6 +4,12 @@
+ 
+ #include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
+ 
++#include "ui/color/color_provider.h"
++
++#include "ui/views/border.h"
++
++#include "ui/gfx/color_utils.h"
++
+ #include <memory>
+ #include <utility>
+ 
+@@ -41,6 +47,9 @@
+ 
+ namespace {
+ 
++// Arcomium: the corner radius of Arc's command bar panel.
++constexpr int kArcomiumCommandBarRadius = 9;
++
+ #if !defined(USE_AURA)
+ 
+ struct WidgetEventPair {
+@@ -233,9 +242,10 @@ RoundedOmniboxResultsFrame::RoundedOmniboxResultsFrame(
+     views::View* contents,
+     LocationBar* location_bar,
+     bool forward_mouse_events)
+-    : contents_(contents), forward_mouse_events_(forward_mouse_events) {
+-  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
+-      views::ShapeContextTokens::kOmniboxExpandedRadius);
++    : location_bar_(location_bar),
++      contents_(contents),
++      forward_mouse_events_(forward_mouse_events) {
++  const int corner_radius = kArcomiumCommandBarRadius;
+   auto* webui_content = GetOmniboxPopupWebUIBaseContent();
+   // When the page paints the popup's shadow, this frame must not paint a
+   // background, rounded corners or a shadow: the renderer draws all of them,
+@@ -362,8 +372,7 @@ void RoundedOmniboxResultsFrame::SetCutoutVisibility(bool visible) {
+ }
+ 
+ void RoundedOmniboxResultsFrame::SetElevation(int elevation) {
+-  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
+-      views::ShapeContextTokens::kOmniboxExpandedRadius);
++  const int corner_radius = kArcomiumCommandBarRadius;
+   auto border = std::make_unique<views::BubbleBorder>(
+       views::BubbleBorder::Arrow::NONE,
+       elevation == 0 ? views::BubbleBorder::Shadow::NO_SHADOW
+@@ -385,7 +394,7 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+ 
+   if (top_background_->GetVisible()) {
+     gfx::Rect top_bounds(contents_host_->GetContentsBounds());
+-    top_bounds.set_height(GetNonResultSectionHeight(true));
++    top_bounds.set_height(GetCutoutHeight());
+     top_bounds.Inset(GetLocationBarAlignmentInsets());
+     top_background_->SetBoundsRect(top_bounds);
+   }
+@@ -408,7 +417,8 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+   results_bounds.Inset(GetContentInsets());
+ 
+   // Align webview horizontal bounds and positioning with the outer view.
+-  results_bounds.set_x(0);
++  // Arcomium: inside the panel's rim.
++  results_bounds.set_x(contents_host_->GetContentsBounds().x());
+   results_bounds.set_width(contents_host_->GetContentsBounds().width());
+ 
+   auto* webui_content = GetOmniboxPopupWebUIBaseContent();
+@@ -434,6 +444,17 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+   contents_->SetBoundsRect(results_bounds);
+ }
+ 
++void RoundedOmniboxResultsFrame::OnThemeChanged() {
++  views::View::OnThemeChanged();
++  if (draw_shadow_in_webui_) {
++    return;
++  }
++  contents_host_->SetBorder(views::CreateRoundedRectBorder(
++      1, kArcomiumCommandBarRadius,
++      color_utils::BlendTowardMaxContrast(
++          GetColorProvider()->GetColor(kColorOmniboxResultsBackground), 0x56)));
++}
++
+ void RoundedOmniboxResultsFrame::AddedToWidget() {
+ #if defined(USE_AURA)
+   if (!forward_mouse_events_) {
+@@ -476,7 +497,18 @@ void RoundedOmniboxResultsFrame::OnMouseEvent(ui::MouseEvent* event) {
+ // Insets used to position |contents_| within |contents_host_|.
+ gfx::Insets RoundedOmniboxResultsFrame::GetContentInsets() {
+   return gfx::Insets::TLBR(
+-      GetNonResultSectionHeight(top_background_->GetVisible()), 0, 0, 0);
++      top_background_->GetVisible() ? GetCutoutHeight() : 0, 0, 0, 0);
++}
++
++int RoundedOmniboxResultsFrame::GetCutoutHeight() const {
++  const int standard = GetNonResultSectionHeight(true);
++  if (!location_bar_) {
++    return standard;
++  }
++  // Less the panel's 1 px rim, which already holds the contents down.
++  return std::max(standard, location_bar_->Bounds().height() +
++                                GetLocationBarAlignmentInsets().height()) -
++         (draw_shadow_in_webui_ ? 0 : 1);
+ }
+ 
+ BEGIN_METADATA(RoundedOmniboxResultsFrame)
+diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
+index 5e581378f2..01e937968b 100644
+--- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
++++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
+@@ -67,6 +67,8 @@ class RoundedOmniboxResultsFrame : public views::View {
+   // views::View:
+   void Layout(PassKey) override;
+   void AddedToWidget() override;
++  // Arcomium: the 1 px rim of Arc's command bar panel, in the theme's colors.
++  void OnThemeChanged() override;
+ #if !defined(USE_AURA)
+   void OnMouseMoved(const ui::MouseEvent& event) override;
+   void OnMouseEvent(ui::MouseEvent* event) override;
+@@ -76,6 +78,10 @@ class RoundedOmniboxResultsFrame : public views::View {
+   void SetElevation(int elevation);
+ 
+   gfx::Insets GetContentInsets();
++  // Arcomium: the cutout as tall as the location bar, which is taller than
++  // usual in Arc's command bar.
++  int GetCutoutHeight() const;
++  raw_ptr<const LocationBar> location_bar_ = nullptr;
+ 
+   raw_ptr<views::View> top_background_ = nullptr;
+   raw_ptr<views::View> contents_host_ = nullptr;
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+index e29cddedba..3ff08198a3 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+@@ -14,6 +14,14 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/browser_commands.h"
++#include "chrome/browser/ui/tabs/tab_enums.h"
++#include "ui/gfx/canvas.h"
++#include "ui/views/border.h"
++#include "ui/views/painter.h"
++#include "ui/gfx/color_utils.h"
++#include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
+ #include "chrome/browser/ui/views/theme_copying_widget.h"
+@@ -39,9 +47,32 @@ constexpr int kVerticalInset = 4;
+ constexpr int kCopyIconSize = 16;
+ constexpr int kCopyButtonSize = 24;
+ constexpr int kCopyButtonEndInset = 6;
+-// The floating field is as wide as Arc's, unless the window is narrower.
+-constexpr int kEditorWidth = 800;
+-constexpr int kEditorEndMargin = 12;
++// Arc's command bar: 722 px wide and centred on the window, its 318 px panel
++// 30 px below the middle; the address row is its top 52 px.
++constexpr int kCommandBarWidth = 722;
++constexpr int kCommandBarHeight = 318;
++constexpr int kCommandBarOffset = 30;
++constexpr int kCommandBarInputHeight = 52;
++constexpr int kCommandBarMargin = 16;
++constexpr int kCommandBarRadius = 9;
++
++// The top of Arc's command bar panel, behind the address row.
++class ArcomiumCommandBarPanel : public views::View {
++  METADATA_HEADER(ArcomiumCommandBarPanel, views::View)
++
++ public:
++  void OnPaintBackground(gfx::Canvas* canvas) override {
++    const SkColor background =
++        GetColorProvider()->GetColor(kColorOmniboxResultsBackground);
++    views::Painter::CreateRoundRectWith1PxBorderPainter(
++        background, color_utils::BlendTowardMaxContrast(background, 0x56),
++        kCommandBarRadius)
++        ->Paint(canvas, size());
++  }
++};
++
++BEGIN_METADATA(ArcomiumCommandBarPanel)
++END_METADATA
+ 
+ }  // namespace
+ 
+@@ -122,15 +153,48 @@ void ArcomiumAddressBar::OnMouseExited(const ui::MouseEvent& event) {
+ }
+ 
+ void ArcomiumAddressBar::OnViewIsDeleting(views::View* observed_view) {
++  if (observed_view == edit_placeholder_) {
++    edit_placeholder_observation_.Reset();
++    edit_placeholder_ = nullptr;
++    return;
++  }
+   placeholder_observation_.Reset();
+   toolbar_placeholder_ = nullptr;
+ }
+ 
++void ArcomiumAddressBar::OpenCommandBar(bool new_tab) {
++  LocationBarView* location_bar = GetEditableLocationBar();
++  if (!location_bar) {
++    if (new_tab) {
++      chrome::NewTab(browser_, NewTabTypes::kNewTabButton);
++    }
++    return;
++  }
++  location_bar->SetArcomiumNewTab(new_tab);
++  // Focus opens the command bar (UpdateEditing).
++  location_bar->FocusLocation(/*is_user_initiated=*/true,
++                              /*clear_focus_if_failed=*/false);
++}
++
++LocationBarView* ArcomiumAddressBar::GetEditableLocationBar() const {
++  if (location_bar_) {
++    return location_bar_;
++  }
++  if (!GetWidget() || !IsDrawn()) {
++    return nullptr;
++  }
++  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
++  ToolbarView* toolbar = browser_view && browser_view->IsToolbarVisible()
++                             ? browser_view->toolbar()
++                             : nullptr;
++  return toolbar ? toolbar->location_bar_view() : nullptr;
++}
++
+ void ArcomiumAddressBar::OnDidChangeFocus(views::View* focused_before,
+                                           views::View* focused_now) {
+   // Focus going nowhere, as when the window deactivates, keeps the field: the
+   // address gets focus back with the window.
+-  if (!moving_ && location_bar_ && focused_now) {
++  if (!moving_ && focused_now && (editing_ || GetEditableLocationBar())) {
+     ScheduleUpdateEditing();
+   }
+ }
+@@ -147,22 +211,27 @@ void ArcomiumAddressBar::ScheduleUpdateEditing() {
+ }
+ 
+ void ArcomiumAddressBar::UpdateEditing() {
+-  if (!location_bar_ || !focus_manager_) {
++  LocationBarView* location_bar =
++      editing_ ? editing_location_bar_.get() : GetEditableLocationBar();
++  if (!location_bar || !focus_manager_) {
+     return;
+   }
+-  const bool focused = location_bar_->Contains(focus_manager_->GetFocusedView());
++  const bool focused = location_bar->Contains(focus_manager_->GetFocusedView());
+   if (focused && !editing_) {
+-    StartEditing();
++    StartEditing(location_bar);
+   } else if (!focused && editing_ && focus_manager_->GetFocusedView()) {
+     // Leaving the field drops what was typed, as in Arc.
+-    location_bar_->Revert();
++    location_bar->Revert();
+     StopEditing();
+   }
+ }
+ 
+-void ArcomiumAddressBar::StartEditing() {
+-  views::Widget* widget = GetWidget();
+-  if (!widget || !IsDrawn()) {
++void ArcomiumAddressBar::StartEditing(LocationBarView* location_bar) {
++  // The panel floats over the whole window, not over the sidebar's widget.
++  views::Widget* widget = GetWidget() ? GetWidget()->GetTopLevelWidget()
++                                      : nullptr;
++  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
++  if (!widget || !browser_view || !IsDrawn()) {
+     return;
+   }
+   if (!editor_) {
+@@ -176,29 +245,61 @@ void ArcomiumAddressBar::StartEditing() {
+     // Not activatable, like the find bar: the window keeps the keyboard and
+     // its focus manager routes it here.
+     editor_->Init(std::move(params));
+-    auto contents = std::make_unique<views::View>();
++    // The panel's top: the suggestions' color, a 1 px rim and round corners,
++    // around the address inset as far as the suggestions' frame reaches out
++    // of it, so the two make one panel.
++    auto contents = std::make_unique<ArcomiumCommandBarPanel>();
+     contents->SetLayoutManager(std::make_unique<views::FillLayout>());
++    contents->SetBorder(views::CreateEmptyBorder(
++        RoundedOmniboxResultsFrame::GetLocationBarAlignmentInsets()));
+     editor_->SetContentsView(std::move(contents));
+     editor_->AddObserver(this);
+   }
+ 
+-  // Over the address field, as wide as Arc's where the window allows.
+-  gfx::Rect bounds = location_bar_->ConvertRectToWidget(
+-      gfx::Rect(location_bar_->size()));
+-  const int room =
+-      widget->GetRootView()->width() - bounds.x() - kEditorEndMargin;
+-  bounds.set_width(std::max(bounds.width(), std::min(kEditorWidth, room)));
++  // Where Arc puts its command bar.
++  const gfx::Rect area =
++      browser_view->ConvertRectToWidget(browser_view->GetLocalBounds());
++  const int width =
++      std::min(kCommandBarWidth, area.width() - 2 * kCommandBarMargin);
++  const gfx::Rect bounds(
++      area.x() + (area.width() - width + 1) / 2,
++      area.y() + std::max(kCommandBarMargin,
++                          (area.height() - kCommandBarHeight) / 2 +
++                              kCommandBarOffset),
++      width, kCommandBarInputHeight);
+ 
+   moving_ = true;
+   editing_ = true;
+-  editor_->GetContentsView()->AddChildView(location_bar_.get());
++  editing_location_bar_ = location_bar;
++  if (location_bar != location_bar_) {
++    // The toolbar keeps the address's place while it is away.
++    views::View* toolbar = location_bar->parent();
++    auto placeholder = std::make_unique<views::View>();
++    if (const views::FlexSpecification* flex =
++            location_bar->GetProperty(views::kFlexBehaviorKey)) {
++      placeholder->SetProperty(views::kFlexBehaviorKey, *flex);
++    }
++    if (const gfx::Insets* margins =
++            location_bar->GetProperty(views::kMarginsKey)) {
++      placeholder->SetProperty(views::kMarginsKey, *margins);
++    }
++    edit_placeholder_ = toolbar->AddChildViewAt(
++        std::move(placeholder), *toolbar->GetIndexOf(location_bar));
++    edit_placeholder_observation_.Observe(edit_placeholder_);
++  }
++  editor_->GetContentsView()->AddChildView(location_bar);
+   editor_->SetBounds(bounds);
+   editor_->Show();
+   moving_ = false;
+-
+-  location_bar_->FocusLocation(/*is_user_initiated=*/true,
+-                               /*clear_focus_if_failed=*/false);
+-  location_bar_->omnibox_view()->SelectAll(/*reversed=*/true);
++  location_bar->SetArcomiumCommandBar(true);
++
++  location_bar->FocusLocation(/*is_user_initiated=*/true,
++                              /*clear_focus_if_failed=*/false);
++  if (location_bar->ArcomiumOpensNewTab()) {
++    location_bar->omnibox_view()->SetUserText(std::u16string());
++  } else {
++    location_bar->omnibox_view()->SelectAll(/*reversed=*/true);
++  }
+ }
+ 
+ void ArcomiumAddressBar::StopEditing() {
+@@ -207,7 +308,20 @@ void ArcomiumAddressBar::StopEditing() {
+   }
+   moving_ = true;
+   editing_ = false;
+-  AddChildViewAt(location_bar_.get(), 0);
++  LocationBarView* location_bar = editing_location_bar_;
++  editing_location_bar_ = nullptr;
++  location_bar->SetArcomiumCommandBar(false);
++  location_bar->SetArcomiumNewTab(false);
++  if (location_bar == location_bar_) {
++    AddChildViewAt(location_bar, 0);
++  } else if (edit_placeholder_) {
++    views::View* placeholder = edit_placeholder_;
++    views::View* toolbar = placeholder->parent();
++    edit_placeholder_observation_.Reset();
++    edit_placeholder_ = nullptr;
++    toolbar->AddChildViewAt(location_bar, *toolbar->GetIndexOf(placeholder));
++    toolbar->RemoveChildViewT(placeholder);
++  }
+   editor_->Hide();
+   moving_ = false;
+   InvalidateLayout();
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+index 675197cd8d..813cbfe6ce 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+@@ -29,7 +29,8 @@ class Widget;
+ // bar while the sidebar shows and gives it back while the sidebar is hidden,
+ // so the address stays reachable; beside a toolbar it stays empty.
+ // Hovering it shows a button that copies the page's address. Editing the
+-// address happens in a wider field floating over the page, as in Arc.
++// address, here or in the toolbar beside the sidebar, happens in Arc's command
++// bar: a panel centred on the window.
+ class ArcomiumAddressBar : public views::View,
+                            public views::ViewObserver,
+                            public views::FocusChangeListener,
+@@ -42,6 +43,9 @@ class ArcomiumAddressBar : public views::View,
+   ArcomiumAddressBar& operator=(const ArcomiumAddressBar&) = delete;
+   ~ArcomiumAddressBar() override;
+ 
++  // Opens Arc's command bar: on the address, or empty to start a new tab.
++  void OpenCommandBar(bool new_tab);
++
+   // views::View:
+   gfx::Size CalculatePreferredSize(
+       const views::SizeBounds& available_size) const override;
+@@ -52,8 +56,8 @@ class ArcomiumAddressBar : public views::View,
+   void OnMouseEntered(const ui::MouseEvent& event) override;
+   void OnMouseExited(const ui::MouseEvent& event) override;
+ 
+-  // views::ViewObserver: the placeholder goes with the toolbar when the window
+-  // closes; the location bar then stays here and goes with this view.
++  // views::ViewObserver: a placeholder goes with the toolbar when the window
++  // closes; the location bar then stays where it is and goes with it.
+   void OnViewIsDeleting(views::View* observed_view) override;
+ 
+   // views::FocusChangeListener: the floating field opens when the address gets
+@@ -80,8 +84,11 @@ class ArcomiumAddressBar : public views::View,
+   // changes arrive while the focus manager is busy.
+   void ScheduleUpdateEditing();
+   void UpdateEditing();
+-  void StartEditing();
++  void StartEditing(LocationBarView* location_bar);
+   void StopEditing();
++  // The location bar whose focus opens the command bar: the one held here, or
++  // beside the sidebar the toolbar's.
++  LocationBarView* GetEditableLocationBar() const;
+ 
+   raw_ptr<BrowserWindowInterface> browser_;
+   raw_ptr<LocationBarView> location_bar_ = nullptr;
+@@ -95,6 +102,12 @@ class ArcomiumAddressBar : public views::View,
+   // The floating field and whether the location bar is in it now.
+   std::unique_ptr<views::Widget> editor_;
+   bool editing_ = false;
++  // The location bar in the command bar, and the toolbar slot it came from,
++  // held by a placeholder until it goes back.
++  raw_ptr<LocationBarView> editing_location_bar_ = nullptr;
++  raw_ptr<views::View> edit_placeholder_ = nullptr;
++  base::ScopedObservation<views::View, views::ViewObserver>
++      edit_placeholder_observation_{this};
+   // Set while the location bar changes widgets: the focus it loses then does
+   // not close the field.
+   bool moving_ = false;
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+index bb53dc4815..8f96b810b2 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+@@ -462,6 +462,22 @@ class ArcomiumSidebarView::Row : public views::Button {
+ BEGIN_METADATA(ArcomiumSidebarView, Row)
+ END_METADATA
+ 
++bool ArcomiumSidebarView::OnMousePressed(const ui::MouseEvent& event) {
++  if (!event.IsOnlyLeftMouseButton() || !rows_) {
++    return false;
++  }
++  // Only below the rows: elsewhere the press missed a row or a label.
++  gfx::Point rows_bottom(0, rows_->height());
++  views::View::ConvertPointToTarget(rows_, this, &rows_bottom);
++  return event.y() >= rows_bottom.y();
++}
++
++void ArcomiumSidebarView::OnMouseReleased(const ui::MouseEvent& event) {
++  if (event.IsOnlyLeftMouseButton() && HitTestPoint(event.location())) {
++    address_bar_->OpenCommandBar(/*new_tab=*/true);
++  }
++}
++
+ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
+     : browser_(browser),
+       model_(
+@@ -470,7 +486,7 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
+   // at the bottom.
+   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
+       views::BoxLayout::Orientation::kVertical));
+-  AddChildView(std::make_unique<ArcomiumAddressBar>(browser_));
++  address_bar_ = AddChildView(std::make_unique<ArcomiumAddressBar>(browser_));
+   auto* scroll = AddChildView(std::make_unique<views::ScrollView>());
+   layout->SetFlexForView(scroll, 1);
+   scroll->SetBackgroundColor(std::nullopt);
+@@ -752,12 +768,14 @@ void ArcomiumSidebarView::Rebuild() {
+ 
+   rows_->AddChildView(std::make_unique<Divider>());
+ 
++  // Arc's New Tab opens its command bar; what is picked there opens in a
++  // new tab.
+   AddRow(std::make_unique<Row>(
+       base::BindRepeating(
+-          [](BrowserWindowInterface* browser) {
+-            chrome::NewTab(browser, NewTabTypes::kNewTabButton);
++          [](ArcomiumAddressBar* address_bar) {
++            address_bar->OpenCommandBar(/*new_tab=*/true);
+           },
+-          base::Unretained(browser_.get())),
++          base::Unretained(address_bar_.get())),
+       std::make_unique<PlusGlyph>(), u"New Tab", 0, ItemFont(false),
+       kNewTabColor, /*slash=*/false, /*active=*/false));
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
+index fe4b1f06b3..609cef0b98 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
+@@ -33,6 +33,7 @@
+ #include "ui/views/view.h"
+ #include "ui/views/widget/widget.h"
+ 
++class ArcomiumAddressBar;
+ class BrowserWindowInterface;
+ 
+ namespace bookmarks {
+@@ -77,6 +78,11 @@ class ArcomiumSidebarView : public views::View,
+ 
+  public:
+   explicit ArcomiumSidebarView(BrowserWindowInterface* browser);
++  // views::View: a click in the empty space below the rows opens Arc's
++  // command bar to start a new tab, as in Arc.
++  bool OnMousePressed(const ui::MouseEvent& event) override;
++  void OnMouseReleased(const ui::MouseEvent& event) override;
++
+   ArcomiumSidebarView(const ArcomiumSidebarView&) = delete;
+   ArcomiumSidebarView& operator=(const ArcomiumSidebarView&) = delete;
+   ~ArcomiumSidebarView() override;
+@@ -216,6 +222,8 @@ class ArcomiumSidebarView : public views::View,
+   raw_ptr<BrowserWindowInterface> browser_;
+   raw_ptr<bookmarks::BookmarkModel> model_;
+   raw_ptr<views::View> rows_ = nullptr;
++  // Arcomium: its address bar, which opens Arc's command bar.
++  raw_ptr<ArcomiumAddressBar> address_bar_ = nullptr;
+ 
+   // What each row stands for, for the context menu.
+   struct RowTarget {
+diff --git a/components/omnibox/browser/open_tab_provider.cc b/components/omnibox/browser/open_tab_provider.cc
+index 7a2c444d9f..d50d349c9b 100644
+--- a/components/omnibox/browser/open_tab_provider.cc
++++ b/components/omnibox/browser/open_tab_provider.cc
+@@ -7,8 +7,11 @@
+ #include <algorithm>
+ 
+ #include "base/i18n/case_conversion.h"
++#include "base/strings/strcat.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "components/bookmarks/browser/bookmark_model.h"
++#include "components/bookmarks/browser/url_and_title.h"
+ #include "components/omnibox/browser/suggestion_group_util.h"
+ #if BUILDFLAG(IS_ANDROID)
+ #include "components/browser_ui/util/android/url_constants.h"
+@@ -117,6 +120,56 @@ int Score(const AutocompleteInput& input,
+   return normalized_factors * kMaxScore;
+ }
+ 
++// Arcomium: Arc's fuzzy match. 0 unless every letter of `query` (spaces
++// dropped) appears in `text` in order; otherwise higher the tighter they sit
++// and the earlier they start, up to 1.
++double ArcomiumFuzzyFactor(const std::u16string& query,
++                           const std::u16string& text) {
++  size_t first = std::u16string::npos;
++  size_t last = 0;
++  size_t letters = 0;
++  size_t at = 0;
++  for (char16_t c : query) {
++    if (c == u' ') {
++      continue;
++    }
++    at = text.find(c, at);
++    if (at == std::u16string::npos) {
++      return 0;
++    }
++    if (first == std::u16string::npos) {
++      first = at;
++    }
++    last = at++;
++    ++letters;
++  }
++  if (!letters) {
++    return 0;
++  }
++  const double tightness = double(letters) / double(last - first + 1);
++  const double start = 1.0 / (1.0 + first / 10.0);
++  return tightness * 0.75 + start * 0.25;
++}
++
++// The fuzzy factor over a title and the URL's host and path.
++double ArcomiumFuzzyFactor(const std::u16string& query,
++                           const std::u16string& title,
++                           const GURL& url) {
++  const std::u16string lower_title = base::i18n::ToLower(title);
++  const std::u16string lower_url = base::i18n::ToLower(
++      base::UTF8ToUTF16(base::StrCat({url.host(), url.path()})));
++  return std::max(ArcomiumFuzzyFactor(query, lower_title),
++                  ArcomiumFuzzyFactor(query, lower_url));
++}
++
++// Arcomium: open tabs rank just under what was typed, so Enter still goes
++// where the address says; fuzzy matches lower still.
++int ArcomiumTabRelevance(int score) {
++  return 1000 + score * 250 / (100 * 100);
++}
++constexpr int kArcomiumFuzzyRelevance = 700;
++constexpr int kArcomiumFuzzyRelevanceRange = 250;
++
+ bool ShouldRunProvider(AutocompleteProviderClient* client,
+                        const AutocompleteInput& input) {
+   bool zps_or_empty = input.IsZeroSuggest() || input.text().empty();
+@@ -167,7 +220,59 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+     int score = Score(input, input_query_nodes, open_tab);
+     if (score > 0) {
+       matches_.push_back(CreateOpenTabMatch(adjusted_input, open_tab.title, url,
+-                                            score, template_url));
++                                            ArcomiumTabRelevance(score),
++                                            template_url));
++      continue;
++    }
++    // Arcomium: what words missed, letters in order may still find.
++    const double fuzzy =
++        ArcomiumFuzzyFactor(adjusted_input_text, open_tab.title, url);
++    if (fuzzy > 0) {
++      AutocompleteMatch match = CreateOpenTabMatch(
++          adjusted_input, open_tab.title, url,
++          kArcomiumFuzzyRelevance + fuzzy * kArcomiumFuzzyRelevanceRange,
++          template_url);
++      match.allowed_to_be_default_match = false;
++      matches_.push_back(std::move(match));
++    }
++  }
++
++  // Arcomium: bookmarks (the sidebar's pinned sites) by the same fuzzy
++  // match; word matches already come from the bookmark provider.
++  if (!template_url && adjusted_input_text.size() >= 2) {
++    if (bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
++        model && model->loaded()) {
++      for (const bookmarks::UrlAndTitle& bookmark : model->GetUniqueUrls()) {
++        if (!bookmark.url.is_valid() ||
++            Score(input, input_query_nodes,
++                  TabMatcher::TabWrapper(bookmark.title, bookmark.url,
++                                         base::Time())) > 0) {
++          continue;
++        }
++        const double fuzzy = ArcomiumFuzzyFactor(adjusted_input_text,
++                                                 bookmark.title, bookmark.url);
++        if (fuzzy <= 0) {
++          continue;
++        }
++        AutocompleteMatch match(
++            this, kArcomiumFuzzyRelevance - 50 +
++                      fuzzy * kArcomiumFuzzyRelevanceRange,
++            /*deletable=*/false,
++            omnibox::AutocompleteMatchType::kBookmarkTitle);
++        match.destination_url = bookmark.url;
++        match.fill_into_edit = base::UTF8ToUTF16(bookmark.url.spec());
++        match.contents = url_formatter::FormatUrl(
++            bookmark.url,
++            AutocompleteMatch::GetFormatTypes(/*preserve_scheme=*/false,
++                                              /*preserve_subdomain=*/false),
++            base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
++        match.contents_class = {
++            ACMatchClassification(0, ACMatchClassification::URL)};
++        match.description = bookmark.title;
++        match.description_class = {
++            ACMatchClassification(0, ACMatchClassification::NONE)};
++        matches_.push_back(std::move(match));
++      }
+     }
+   }
+ 
+diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
+index c50b4e2c97..abdd18ffff 100644
+--- a/components/vector_icons/BUILD.gn
++++ b/components/vector_icons/BUILD.gn
+@@ -20,6 +20,7 @@ if (current_toolchain == default_toolchain) {
+       "arcomium_forward.icon",
+       "arcomium_link.icon",
+       "arcomium_reload.icon",
++      "arcomium_search.icon",
+       "arcomium_sidebar.icon",
+       "arcomium_tune.icon",
+       "${branding_path_component}/product.icon",
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+index 0420bd5f0b..45246779f9 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+@@ -389,3 +389,47 @@
+   font-size: 12px;
+   line-height: 16px;
+ }
++
++/* Arcomium: the omnibox's suggestions as rows of Arc's command bar: 48 px
++ * high, 4 px apart and in from the panel's sides, a rounded grey highlight,
++ * the favicon 15 px and the text 43 px in, the URL in grey after an em dash,
++ * no focus bar, action chips or remove button. */
++:host([is-top-chrome-searchbox_]) .container:not(.actions) {
++  border-radius: 6px;
++  box-sizing: border-box;
++  height: 48px;
++  margin: 0 6px 4px 4px;
++  padding: 0;
++  padding-inline-start: 11px;
++}
++
++/* !important: the component shows these with more specific rules. */
++:host([is-top-chrome-searchbox_]) #focusIndicator,
++:host([is-top-chrome-searchbox_]) #actions-container,
++:host([is-top-chrome-searchbox_]) #remove,
++:host([is-top-chrome-searchbox_]) #separator {
++  display: none !important;
++}
++
++/* The text sits 2 px below the row's middle. */
++:host([is-top-chrome-searchbox_]) #text-container {
++  margin-top: 4px;
++  padding-inline-start: 4px;
++}
++
++:host([is-top-chrome-searchbox_]) #contents {
++  color: rgb(255, 255, 255);
++}
++
++:host([is-top-chrome-searchbox_]) .match {
++  font-weight: inherit;
++}
++
++:host([is-top-chrome-searchbox_]) #description,
++:host([is-top-chrome-searchbox_]) #description .url {
++  color: rgb(199, 199, 199);
++}
++
++:host([is-top-chrome-searchbox_]) #description:not(:empty)::before {
++  content: ' — ';
++}
+diff --git a/components/vector_icons/arcomium_search.icon b/components/vector_icons/arcomium_search.icon
+new file mode 100644
+index 0000000000..7876781248
+--- /dev/null
++++ b/components/vector_icons/arcomium_search.icon
+@@ -0,0 +1,10 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' command bar magnifier: a ring and a short handle.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1.25f,
++CIRCLE, 6.75f, 6.75f, 4.25f,
++MOVE_TO, 9.9f, 9.9f,
++LINE_TO, 13.25f, 13.25f
