@@ -68,7 +68,7 @@ index a71c593f71..42803f46b4 100644
      key.custom_theme->AddColorMixers(provider, key);
    }
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
-index 609cef0b98..dd761c469a 100644
+index 609cef0b98..e43ea14fcf 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h
 @@ -16,6 +16,7 @@
@@ -79,16 +79,22 @@ index 609cef0b98..dd761c469a 100644
  #include "base/timer/timer.h"
  #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
  #include "components/bookmarks/browser/base_bookmark_model_observer.h"
-@@ -82,6 +83,8 @@ class ArcomiumSidebarView : public views::View,
-   // command bar to start a new tab, as in Arc.
-   bool OnMousePressed(const ui::MouseEvent& event) override;
-   void OnMouseReleased(const ui::MouseEvent& event) override;
-+  // Rows recolor for a light or dark frame.
+@@ -78,10 +79,10 @@ class ArcomiumSidebarView : public views::View,
+ 
+  public:
+   explicit ArcomiumSidebarView(BrowserWindowInterface* browser);
+-  // views::View: a click in the empty space below the rows opens Arc's
+-  // command bar to start a new tab, as in Arc.
+-  bool OnMousePressed(const ui::MouseEvent& event) override;
+-  void OnMouseReleased(const ui::MouseEvent& event) override;
++  // views::View: rows recolor for a light or dark frame. A right click in the
++  // empty space below the rows offers Arc's "Edit Theme Color"; a left click
++  // there does nothing.
 +  void OnThemeChanged() override;
  
    ArcomiumSidebarView(const ArcomiumSidebarView&) = delete;
    ArcomiumSidebarView& operator=(const ArcomiumSidebarView&) = delete;
-@@ -218,6 +221,11 @@ class ArcomiumSidebarView : public views::View,
+@@ -218,6 +219,11 @@ class ArcomiumSidebarView : public views::View,
    void CheckFolderPopupHover();
    void CloseFolderPopup();
    void OnFolderPopupClosed(views::Widget::ClosedReason reason);
@@ -100,7 +106,7 @@ index 609cef0b98..dd761c469a 100644
  
    raw_ptr<BrowserWindowInterface> browser_;
    raw_ptr<bookmarks::BookmarkModel> model_;
-@@ -281,8 +289,9 @@ class ArcomiumSidebarView : public views::View,
+@@ -281,8 +287,9 @@ class ArcomiumSidebarView : public views::View,
    // Decoded icons imported from Arc ("arcomium.icon" meta info).
    base::flat_map<int64_t, ui::ImageModel> imported_icons_;
  
@@ -111,7 +117,7 @@ index 609cef0b98..dd761c469a 100644
    tabs::TabInterface::Handle menu_tab_;
    std::unique_ptr<ui::SimpleMenuModel> menu_model_;
    std::unique_ptr<ui::SimpleMenuModel> move_menu_model_;
-@@ -300,6 +309,10 @@ class ArcomiumSidebarView : public views::View,
+@@ -300,6 +307,10 @@ class ArcomiumSidebarView : public views::View,
    base::RepeatingTimer folder_popup_timer_;
    int folder_popup_outside_ticks_ = 0;
  
@@ -123,7 +129,7 @@ index 609cef0b98..dd761c469a 100644
    // Not invalidated by rebuilds, unlike `weak_factory_`.
    base::WeakPtrFactory<ArcomiumSidebarView> drop_weak_factory_{this};
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
-index 8f96b810b2..0158c3d663 100644
+index 8f96b810b2..365a6cac73 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
 @@ -152,6 +152,7 @@ enum Command {
@@ -223,7 +229,30 @@ index 8f96b810b2..0158c3d663 100644
    int height_;
    raw_ptr<views::View> icon_ = nullptr;
    raw_ptr<views::Label> slash_ = nullptr;
-@@ -499,6 +513,8 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
+@@ -462,22 +476,6 @@ class ArcomiumSidebarView::Row : public views::Button {
+ BEGIN_METADATA(ArcomiumSidebarView, Row)
+ END_METADATA
+ 
+-bool ArcomiumSidebarView::OnMousePressed(const ui::MouseEvent& event) {
+-  if (!event.IsOnlyLeftMouseButton() || !rows_) {
+-    return false;
+-  }
+-  // Only below the rows: elsewhere the press missed a row or a label.
+-  gfx::Point rows_bottom(0, rows_->height());
+-  views::View::ConvertPointToTarget(rows_, this, &rows_bottom);
+-  return event.y() >= rows_bottom.y();
+-}
+-
+-void ArcomiumSidebarView::OnMouseReleased(const ui::MouseEvent& event) {
+-  if (event.IsOnlyLeftMouseButton() && HitTestPoint(event.location())) {
+-    address_bar_->OpenCommandBar(/*new_tab=*/true);
+-  }
+-}
+-
+ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
+     : browser_(browser),
+       model_(
+@@ -499,6 +497,8 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
    rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
        views::BoxLayout::Orientation::kVertical));
    rows->set_context_menu_controller(this);
@@ -232,7 +261,7 @@ index 8f96b810b2..0158c3d663 100644
    rows_ = scroll->SetContents(std::move(rows));
    AddChildView(std::make_unique<ArcomiumMiniPlayer>(browser_));
    drop_indicator_ = AddChildView(std::make_unique<views::View>());
-@@ -756,7 +772,7 @@ void ArcomiumSidebarView::Rebuild() {
+@@ -756,7 +756,7 @@ void ArcomiumSidebarView::Rebuild() {
    }
    auto* space_label = rows_->AddChildView(MakeLabel(
        title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
@@ -241,7 +270,7 @@ index 8f96b810b2..0158c3d663 100644
    space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
        2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
    space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
-@@ -1198,7 +1214,7 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
+@@ -1198,7 +1198,7 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
    delegate->SetShowCloseButton(false);
    delegate->set_close_on_deactivate(false);
    delegate->set_margins(gfx::Insets::VH(kPopupPadding, 0));
@@ -250,7 +279,7 @@ index 8f96b810b2..0158c3d663 100644
    delegate->SetContentsView(std::move(contents));
    folder_popup_ = views::BubbleDialogDelegate::CreateBubble(
        delegate.get(), base::BindOnce(&ArcomiumSidebarView::OnFolderPopupClosed,
-@@ -1328,6 +1344,7 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -1328,6 +1328,7 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
      ui::mojom::MenuSourceType source_type) {
    hover_timer_.Stop();
    menu_node_ = 0;
@@ -258,7 +287,7 @@ index 8f96b810b2..0158c3d663 100644
    menu_tab_ = tabs::TabInterface::Handle();
    CloseFolderPopup();
    menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-@@ -1380,6 +1397,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+@@ -1380,6 +1381,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
      menu_model_->AddItem(kCloseTab, u"Close tab");
    } else {
      menu_model_->AddItem(kNewFolder, u"New folder");
@@ -267,7 +296,7 @@ index 8f96b810b2..0158c3d663 100644
    }
    menu_runner_ = std::make_unique<views::MenuRunner>(
        menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
-@@ -1559,6 +1578,72 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
+@@ -1559,6 +1562,72 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
          OnTabClosePressed(tab->GetHandle());
        }
        break;
@@ -340,7 +369,7 @@ index 8f96b810b2..0158c3d663 100644
    }
  }
  
-@@ -1763,9 +1848,10 @@ void ArcomiumSidebarView::ShowDropIndicator(
+@@ -1763,9 +1832,10 @@ void ArcomiumSidebarView::ShowDropIndicator(
    }
    drop_indicator_->SetBackground(
        target->into_folder
@@ -509,10 +538,10 @@ index 79b6a57dda..bf59ae2748 100644
  END_METADATA
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h b/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h
 new file mode 100644
-index 0000000000..bf9cd145e7
+index 0000000000..0c0bc45374
 --- /dev/null
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,68 @@
 +// Copyright 2026 The Arcomium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -543,11 +572,12 @@ index 0000000000..bf9cd145e7
 +
 +// A Space's theme color, as Arc's picker sets it: a point on its pad (hue by
 +// angle, saturation by distance from the grey centre), how strongly it tints
-+// the window, and light or dark mode.
++// the window, how dark or light it is (0.5 as is), and light or dark mode.
 +struct SpaceColor {
 +  double hue = 0;
 +  double saturation = 0;
 +  double intensity = 0.5;
++  double brightness = 0.5;
 +  bool light = false;
 +
 +  bool operator==(const SpaceColor&) const = default;
@@ -582,10 +612,10 @@ index 0000000000..bf9cd145e7
 +#endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_COLOR_H_
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.cc
 new file mode 100644
-index 0000000000..b2298abbed
+index 0000000000..e39f282f8f
 --- /dev/null
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_color.cc
-@@ -0,0 +1,424 @@
+@@ -0,0 +1,473 @@
 +// Copyright 2026 The Arcomium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -632,13 +662,14 @@ index 0000000000..b2298abbed
 +namespace {
 +
 +// Arc's picker: a square pad, a row with the light/dark switch and the
-+// intensity slider, then a row of preset swatches.
++// intensity slider, a brightness slider, then a row of preset swatches.
 +constexpr int kMargin = 10;
 +constexpr int kPadSize = 290;
 +constexpr int kPadRadius = 8;
 +constexpr int kWidth = kMargin * 2 + kPadSize;
 +constexpr int kControlsY = kMargin + kPadSize + 27;
-+constexpr int kSwatchY = kControlsY + 42;
++constexpr int kBrightnessY = kControlsY + 36;
++constexpr int kSwatchY = kBrightnessY + 40;
 +constexpr int kHeight = kSwatchY + 26;
 +constexpr float kHandleRadius = 11;
 +constexpr float kSwatchRadius = 14;
@@ -647,6 +678,9 @@ index 0000000000..b2298abbed
 +constexpr float kSwitchHeight = 20;
 +constexpr float kSliderLeft = 104;
 +constexpr float kSliderRight = kWidth - 14;
++// The brightness slider, between a dim and a bright disc.
++constexpr float kBrightnessLeft = 34;
++constexpr float kBrightnessRight = kWidth - 36;
 +
 +constexpr SkColor kControlColor = SkColorSetRGB(0xE6, 0xE6, 0xE6);
 +constexpr SkColor kSwitchRimColor = SkColorSetRGB(0x8A, 0x8A, 0x8A);
@@ -700,6 +734,11 @@ index 0000000000..b2298abbed
 +      SetFromSlider(point);
 +      return true;
 +    }
++    if (BrightnessBounds().Contains(point)) {
++      drag_ = Drag::kBrightness;
++      SetFromBrightness(point);
++      return true;
++    }
 +    for (size_t i = 0; i < std::size(kPresets); ++i) {
 +      if ((point - SwatchCenter(i)).Length() <= kSwatchRadius + 2) {
 +        color_.hue = kPresets[i].hue;
@@ -717,6 +756,8 @@ index 0000000000..b2298abbed
 +      SetFromPad(point);
 +    } else if (drag_ == Drag::kSlider) {
 +      SetFromSlider(point);
++    } else if (drag_ == Drag::kBrightness) {
++      SetFromBrightness(point);
 +    }
 +    return drag_ != Drag::kNone;
 +  }
@@ -742,7 +783,7 @@ index 0000000000..b2298abbed
 +  }
 +
 + private:
-+  enum class Drag { kNone, kPad, kSlider };
++  enum class Drag { kNone, kPad, kSlider, kBrightness };
 +
 +  static gfx::RectF PadBounds() {
 +    return gfx::RectF(kMargin, kMargin, kPadSize, kPadSize);
@@ -754,6 +795,10 @@ index 0000000000..b2298abbed
 +  static gfx::RectF SliderBounds() {
 +    return gfx::RectF(kSliderLeft - 10, kControlsY - 12,
 +                      kSliderRight - kSliderLeft + 20, 24);
++  }
++  static gfx::RectF BrightnessBounds() {
++    return gfx::RectF(kBrightnessLeft - 10, kBrightnessY - 12,
++                      kBrightnessRight - kBrightnessLeft + 20, 24);
 +  }
 +  static gfx::PointF SwatchCenter(size_t index) {
 +    const float first = kMargin + kSwatchRadius;
@@ -788,6 +833,31 @@ index 0000000000..b2298abbed
 +    color_.intensity = std::clamp(
 +        (point.x() - kSliderLeft) / (kSliderRight - kSliderLeft), 0.0f, 1.0f);
 +    Changed(/*commit=*/false);
++  }
++
++  void SetFromBrightness(const gfx::PointF& point) {
++    color_.brightness = std::clamp(
++        (point.x() - kBrightnessLeft) / (kBrightnessRight - kBrightnessLeft),
++        0.0f, 1.0f);
++    Changed(/*commit=*/false);
++  }
++
++  static void PaintSlider(gfx::Canvas* canvas,
++                          float left,
++                          float right,
++                          float y,
++                          double value) {
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    const float knob = left + (right - left) * static_cast<float>(value);
++    flags.setColor(kTrackColor);
++    canvas->DrawRoundRect(gfx::RectF(left, y - 2, right - left, 4), 2, flags);
++    flags.setColor(kSliderColor);
++    canvas->DrawRoundRect(gfx::RectF(left, y - 2, knob - left, 4), 2, flags);
++    flags.setColor(SkColorSetRGB(0x55, 0x55, 0x55));
++    canvas->DrawCircle(gfx::PointF(knob, y), 9, flags);
++    flags.setColor(kSliderColor);
++    canvas->DrawCircle(gfx::PointF(knob, y), 5, flags);
 +  }
 +
 +  void Changed(bool commit) {
@@ -886,20 +956,20 @@ index 0000000000..b2298abbed
 +    canvas->DrawCircle(moon + gfx::Vector2dF(-3.5f, -2.5f), 5, flags);
 +
 +    // The intensity slider.
-+    const float knob = kSliderLeft + (kSliderRight - kSliderLeft) *
-+                                         static_cast<float>(color_.intensity);
-+    flags.setColor(kTrackColor);
-+    canvas->DrawRoundRect(
-+        gfx::RectF(kSliderLeft, kControlsY - 2, kSliderRight - kSliderLeft, 4),
-+        2, flags);
-+    flags.setColor(kSliderColor);
-+    canvas->DrawRoundRect(
-+        gfx::RectF(kSliderLeft, kControlsY - 2, knob - kSliderLeft, 4), 2,
-+        flags);
-+    flags.setColor(SkColorSetRGB(0x55, 0x55, 0x55));
-+    canvas->DrawCircle(gfx::PointF(knob, kControlsY), 9, flags);
-+    flags.setColor(kSliderColor);
-+    canvas->DrawCircle(gfx::PointF(knob, kControlsY), 5, flags);
++    PaintSlider(canvas, kSliderLeft, kSliderRight, kControlsY,
++                color_.intensity);
++
++    // Brightness: darker at the dim disc, lighter at the bright one.
++    cc::PaintFlags dim;
++    dim.setAntiAlias(true);
++    dim.setStyle(cc::PaintFlags::kStroke_Style);
++    dim.setStrokeWidth(1.4f);
++    dim.setColor(kControlColor);
++    canvas->DrawCircle(gfx::PointF(17, kBrightnessY), 5.5f, dim);
++    flags.setColor(kControlColor);
++    canvas->DrawCircle(gfx::PointF(kWidth - 18, kBrightnessY), 6.5f, flags);
++    PaintSlider(canvas, kBrightnessLeft, kBrightnessRight, kBrightnessY,
++                color_.brightness);
 +  }
 +
 +  void PaintSwatches(gfx::Canvas* canvas) {
@@ -935,12 +1005,16 @@ index 0000000000..b2298abbed
 +  const std::vector<std::string> parts = base::SplitString(
 +      value, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
 +  SpaceColor color;
-+  if (parts.size() != 4 || !base::StringToDouble(parts[0], &color.hue) ||
++  if ((parts.size() != 4 && parts.size() != 5) ||
++      !base::StringToDouble(parts[0], &color.hue) ||
 +      !base::StringToDouble(parts[1], &color.saturation) ||
 +      !base::StringToDouble(parts[2], &color.intensity) ||
-+      (parts[3] != "light" && parts[3] != "dark")) {
++      (parts[3] != "light" && parts[3] != "dark") ||
++      (parts.size() == 5 &&
++       !base::StringToDouble(parts[4], &color.brightness))) {
 +    return std::nullopt;
 +  }
++  color.brightness = std::clamp(color.brightness, 0.0, 1.0);
 +  color.hue = std::fmod(std::fmod(color.hue, 360) + 360, 360);
 +  color.saturation = std::clamp(color.saturation, 0.0, 1.0);
 +  color.intensity = std::clamp(color.intensity, 0.0, 1.0);
@@ -949,8 +1023,9 @@ index 0000000000..b2298abbed
 +}
 +
 +std::string SerializeSpaceColor(const SpaceColor& color) {
-+  return base::StringPrintf("%.1f,%.3f,%.3f,%s", color.hue, color.saturation,
-+                            color.intensity, color.light ? "light" : "dark");
++  return base::StringPrintf("%.1f,%.3f,%.3f,%s,%.3f", color.hue,
++                            color.saturation, color.intensity,
++                            color.light ? "light" : "dark", color.brightness);
 +}
 +
 +SkColor GetSpaceFrameColor(const SpaceColor& color) {
@@ -966,6 +1041,10 @@ index 0000000000..b2298abbed
 +    hsl.s = saturation * (0.30 + 0.50 * intensity);
 +    hsl.l = 0.106 + 0.12 * intensity * saturation;
 +  }
++  // Brightness moves it darker or lighter, staying a light or a dark frame.
++  const double shift = (std::clamp(color.brightness, 0.0, 1.0) - 0.5) * 0.3;
++  hsl.l = color.light ? std::clamp(hsl.l + shift, 0.62, 0.98)
++                      : std::clamp(hsl.l + shift, 0.02, 0.40);
 +  return color_utils::HSLToSkColor(hsl, 255);
 +}
 +
