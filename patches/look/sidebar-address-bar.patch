@@ -1,3 +1,115 @@
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+index 4d0ba90b38..acd93730d4 100644
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+@@ -80,6 +80,12 @@ bool ChromeLocationBarModelDelegate::GetURL(GURL* url) const {
+   return true;
+ }
+ 
++bool ChromeLocationBarModelDelegate::ShouldTrimDisplayUrlAfterHostName()
++    const {
++  // Arcomium: only the site shows until the URL is edited, as in Arc.
++  return true;
++}
++
+ bool ChromeLocationBarModelDelegate::ShouldPreventElision() {
+   Profile* const profile = GetProfile();
+   if (profile &&
+@@ -316,5 +322,6 @@ TemplateURLService* ChromeLocationBarModelDelegate::GetTemplateURLService() {
+ // static
+ void ChromeLocationBarModelDelegate::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+-  registry->RegisterBooleanPref(omnibox::kPreventUrlElisionsInOmnibox, true);
++  // Arcomium: like Arc, the steady state shows the site, not the full URL.
++  registry->RegisterBooleanPref(omnibox::kPreventUrlElisionsInOmnibox, false);
+ }
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h
+index b4d971dbff..66192b20a0 100644
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h
+@@ -36,6 +36,7 @@ class ChromeLocationBarModelDelegate : public LocationBarModelDelegate {
+       const GURL& url,
+       const std::u16string& formatted_url) const override;
+   bool GetURL(GURL* url) const override;
++  bool ShouldTrimDisplayUrlAfterHostName() const override;
+   bool ShouldPreventElision() override;
+   bool ShouldDisplayURL() const override;
+   security_state::SecurityLevel GetSecurityLevel() const override;
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index bac174d0b2..857c74456e 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -772,6 +772,22 @@ gfx::Size LocationBarView::CalculatePreferredSize(
+   return gfx::Size(preferred_width, height);
+ }
+ 
++void LocationBarView::SetArcomiumCompact(bool compact) {
++  if (arcomium_compact_ == compact) {
++    return;
++  }
++  arcomium_compact_ = compact;
++  InvalidateLayout();
++}
++
++void LocationBarView::SetArcomiumHovered(bool hovered) {
++  if (arcomium_hovered_ == hovered) {
++    return;
++  }
++  arcomium_hovered_ = hovered;
++  InvalidateLayout();
++}
++
+ void LocationBarView::Layout(PassKey) {
+   if (!IsInitialized()) {
+     return;
+@@ -870,6 +886,9 @@ void LocationBarView::Layout(PassKey) {
+         vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
+         /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
+     selected_keyword_view_->SetKeyword(keyword);
++  } else if (arcomium_compact_ && !arcomium_hovered_ &&
++             !omnibox_view_->HasFocus()) {
++    location_icon_view_->SetVisible(false);
+   } else if (location_icon_view_->GetShowText() &&
+              !ShouldChipOverrideLocationIcon()) {
+     location_icon_view_->SetVisible(true);
+@@ -894,7 +913,11 @@ void LocationBarView::Layout(PassKey) {
+     }
+   };
+ 
+-  if (features::IsPageActionsElevatedToolbarEnabled()) {
++  if (arcomium_compact_) {
++    if (page_action_container_) {
++      page_action_container_->SetBoundsRect(gfx::Rect());
++    }
++  } else if (features::IsPageActionsElevatedToolbarEnabled()) {
+     if (page_action_container_ && page_action_container_->GetVisible()) {
+       const bool is_capsule_active = page_action_container_->IsCapsuleActive();
+       const int capsule_height =
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 05979cd142..889d453a11 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -323,6 +323,11 @@ class LocationBarView
+ 
+   OmniboxPopupUI* GetOmniboxPopupUI();
+ 
++  // Arcomium: compact while the location bar sits in the Arc sidebar: no page
++  // actions, and the site settings icon only while hovered or editing.
++  void SetArcomiumCompact(bool compact);
++  void SetArcomiumHovered(bool hovered);
++
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
+   FRIEND_TEST_ALL_PREFIXES(TouchLocationBarViewBrowserTest,
+@@ -563,6 +568,8 @@ class LocationBarView
+   // An icon to the left of the edit field: the HTTPS lock, blank page icon,
+   // search icon, EV HTTPS bubble, etc.
+   raw_ptr<LocationIconView> location_icon_view_ = nullptr;
++  bool arcomium_compact_ = false;
++  bool arcomium_hovered_ = false;
+ 
+   // Views to show inline autocompletion when an IME is active.  In this case,
+   // we shouldn't change the text or selection inside the OmniboxView itself,
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
 index 60a3274b86..6553e46b13 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
@@ -164,10 +276,10 @@ index 0000000000..87f5c73be2
 +#endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_ADDRESS_BAR_H_
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
 new file mode 100644
-index 0000000000..6216d571da
+index 0000000000..28bf304a44
 --- /dev/null
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,182 @@
 +// Copyright 2026 The Arcomium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -306,6 +418,8 @@ index 0000000000..6216d571da
 +      std::move(placeholder), *toolbar->GetIndexOf(location_bar));
 +  placeholder_observation_.Observe(toolbar_placeholder_);
 +  location_bar_ = AddChildViewAt(location_bar, 0);
++  location_bar_->SetArcomiumCompact(true);
++  location_bar_->SetArcomiumHovered(hovered_);
 +  PreferredSizeChanged();
 +}
 +
@@ -315,6 +429,7 @@ index 0000000000..6216d571da
 +  }
 +  LocationBarView* location_bar = location_bar_;
 +  location_bar_ = nullptr;
++  location_bar->SetArcomiumCompact(false);
 +  views::View* placeholder = toolbar_placeholder_;
 +  views::View* toolbar = placeholder ? placeholder->parent() : nullptr;
 +  placeholder_observation_.Reset();
@@ -330,6 +445,9 @@ index 0000000000..6216d571da
 +
 +void ArcomiumAddressBar::UpdateCopyButton() {
 +  copy_button_->SetVisible(hovered_ && location_bar_);
++  if (location_bar_) {
++    location_bar_->SetArcomiumHovered(hovered_);
++  }
 +}
 +
 +void ArcomiumAddressBar::CopyAddress() {
