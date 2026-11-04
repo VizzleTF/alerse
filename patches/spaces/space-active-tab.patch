@@ -1,0 +1,120 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+index 15f2603b62..7ffbb4a2f0 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+@@ -5,7 +5,9 @@
+ #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_
+ #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_
+ 
++#include <map>
+ #include <memory>
++#include <optional>
+ #include <set>
+ #include <string>
+ 
+@@ -14,6 +16,7 @@
+ #include "base/scoped_observation.h"
+ #include "base/uuid.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
++#include "components/tabs/public/tab_interface.h"
+ #include "components/bookmarks/browser/base_bookmark_model_observer.h"
+ #include "components/bookmarks/browser/bookmark_model.h"
+ #include "components/saved_tab_groups/public/tab_group_sync_service.h"
+@@ -55,6 +58,10 @@ class ArcomiumSpaceSwitcher : public views::View,
+   static void CreateSpace(BrowserWindowInterface* browser);
+ 
+   // TabStripModelObserver:
++  void OnTabStripModelChanged(
++      TabStripModel* tab_strip_model,
++      const TabStripModelChange& change,
++      const TabStripSelectionChange& selection) override;
+   void OnTabGroupChanged(const TabGroupChange& change) override;
+   void OnTabGroupFocusChanged(
+       std::optional<tab_groups::TabGroupId> new_focused_group_id,
+@@ -117,6 +124,12 @@ class ArcomiumSpaceSwitcher : public views::View,
+   base::ScopedObservation<bookmarks::BookmarkModel,
+                           bookmarks::BookmarkModelObserver>
+       bookmark_observation_{this};
++  // Makes the tab a Space was last on active again, once switched to it.
++  void RestoreActiveTab(std::optional<tab_groups::TabGroupId> space);
++
++  // The tab each Space was last on, by its tab group; home has none.
++  std::map<std::optional<tab_groups::TabGroupId>, tabs::TabHandle>
++      last_active_tabs_;
+   // The Space whose icon menu is open.
+   std::string menu_space_;
+   std::string menu_sync_id_;
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+index ae6957472b..41a053b06c 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+@@ -304,6 +304,57 @@ void ArcomiumSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser) {
+   chrome::FocusLocationBar(browser);
+ }
+ 
++void ArcomiumSpaceSwitcher::OnTabStripModelChanged(
++    TabStripModel* tab_strip_model,
++    const TabStripModelChange& change,
++    const TabStripSelectionChange& selection) {
++  if (!selection.active_tab_changed()) {
++    return;
++  }
++  // A tab still in the strip, and the Space it is in.
++  auto space_of = [this](tabs::TabInterface* tab)
++      -> std::optional<std::optional<tab_groups::TabGroupId>> {
++    if (!tab || model_->GetIndexOfTab(tab) == TabStripModel::kNoTab) {
++      return std::nullopt;
++    }
++    return tab->GetGroup();
++  };
++  const auto old_space = space_of(selection.old_tab);
++  const auto new_space = space_of(selection.new_tab);
++  // Switching Spaces activates a tab of the new Space that the user did not
++  // pick, so the new tab only counts while moving within one Space; the one
++  // left behind counts when leaving it.
++  if (new_space && (!old_space || *old_space == *new_space)) {
++    last_active_tabs_[*new_space] = selection.new_tab->GetHandle();
++  } else if (old_space && new_space) {
++    last_active_tabs_[*old_space] = selection.old_tab->GetHandle();
++  }
++}
++
++void ArcomiumSpaceSwitcher::RestoreActiveTab(
++    std::optional<tab_groups::TabGroupId> space) {
++  if (model_->GetFocusedGroup() != space) {
++    return;
++  }
++  auto it = last_active_tabs_.find(space);
++  tabs::TabInterface* tab = it != last_active_tabs_.end() ? it->second.Get()
++                                                          : nullptr;
++  int index = tab && tab->GetGroup() == space ? model_->GetIndexOfTab(tab)
++                                              : TabStripModel::kNoTab;
++  // Home never visited yet: its first tab, not a tab of the Space just left.
++  if (index == TabStripModel::kNoTab && !space) {
++    for (int i = 0; i < model_->count(); ++i) {
++      if (!model_->GetTabAtIndex(i)->GetGroup()) {
++        index = i;
++        break;
++      }
++    }
++  }
++  if (index != TabStripModel::kNoTab && index != model_->active_index()) {
++    model_->ActivateTabAt(index);
++  }
++}
++
+ void ArcomiumSpaceSwitcher::OnTabGroupChanged(const TabGroupChange& change) {
+   if (change.type == TabGroupChange::kCreated ||
+       change.type == TabGroupChange::kVisualsChanged ||
+@@ -317,6 +368,11 @@ void ArcomiumSpaceSwitcher::OnTabGroupFocusChanged(
+     std::optional<tab_groups::TabGroupId> new_focused_group_id,
+     std::optional<tab_groups::TabGroupId> old_focused_group_id) {
+   ScheduleRebuild();
++  // Posted: the tab strip does not take changes from its observers.
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&ArcomiumSpaceSwitcher::RestoreActiveTab,
++                                weak_factory_.GetWeakPtr(),
++                                new_focused_group_id));
+ }
+ 
+ void ArcomiumSpaceSwitcher::OnInitialized() {
