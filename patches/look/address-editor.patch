@@ -1,0 +1,265 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+deleted file mode 100644
+index 28bf304a44..0000000000
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
++++ /dev/null
+@@ -1,182 +0,0 @@
+-// Copyright 2026 The Arcomium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#include "chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h"
+-
+-#include <memory>
+-#include <utility>
+-
+-#include "base/functional/bind.h"
+-#include "base/strings/utf_string_conversions.h"
+-#include "base/task/sequenced_task_runner.h"
+-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+-#include "chrome/browser/ui/views/frame/browser_view.h"
+-#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+-#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+-#include "components/vector_icons/vector_icons.h"
+-#include "content/public/browser/web_contents.h"
+-#include "ui/base/clipboard/clipboard_buffer.h"
+-#include "ui/base/clipboard/scoped_clipboard_writer.h"
+-#include "ui/base/metadata/metadata_impl_macros.h"
+-#include "ui/views/accessibility/view_accessibility.h"
+-#include "ui/views/controls/button/image_button.h"
+-#include "ui/views/controls/button/image_button_factory.h"
+-#include "ui/views/layout/flex_layout_types.h"
+-#include "ui/views/view_class_properties.h"
+-
+-namespace {
+-
+-// Room around the address field inside the sidebar.
+-constexpr int kHorizontalInset = 4;
+-constexpr int kVerticalInset = 4;
+-constexpr int kCopyIconSize = 16;
+-constexpr int kCopyButtonSize = 24;
+-constexpr int kCopyButtonEndInset = 6;
+-
+-}  // namespace
+-
+-ArcomiumAddressBar::ArcomiumAddressBar(BrowserWindowInterface* browser)
+-    : browser_(browser) {
+-  SetNotifyEnterExitOnChild(true);
+-  auto copy = views::CreateVectorImageButtonWithNativeTheme(
+-      base::BindRepeating(&ArcomiumAddressBar::CopyAddress,
+-                          base::Unretained(this)),
+-      vector_icons::kContentCopyIcon, kCopyIconSize);
+-  copy->SetTooltipText(u"Copy link");
+-  copy->GetViewAccessibility().SetName(u"Copy link");
+-  copy->SetVisible(false);
+-  copy_button_ = AddChildView(std::move(copy));
+-}
+-
+-ArcomiumAddressBar::~ArcomiumAddressBar() {
+-  ReturnLocationBar();
+-}
+-
+-gfx::Size ArcomiumAddressBar::CalculatePreferredSize(
+-    const views::SizeBounds& available_size) const {
+-  const int height = location_bar_ ? location_bar_->GetPreferredSize().height()
+-                                   : 0;
+-  return gfx::Size(0, location_bar_ ? height + 2 * kVerticalInset : 0);
+-}
+-
+-void ArcomiumAddressBar::Layout(PassKey) {
+-  if (!location_bar_) {
+-    return;
+-  }
+-  gfx::Rect field(size());
+-  field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
+-  location_bar_->SetBoundsRect(field);
+-  copy_button_->SetBounds(
+-      field.right() - kCopyButtonEndInset - kCopyButtonSize,
+-      field.y() + (field.height() - kCopyButtonSize) / 2, kCopyButtonSize,
+-      kCopyButtonSize);
+-}
+-
+-void ArcomiumAddressBar::VisibilityChanged(views::View* starting_from,
+-                                           bool is_visible) {
+-  ScheduleUpdatePlacement();
+-}
+-
+-void ArcomiumAddressBar::AddedToWidget() {
+-  ScheduleUpdatePlacement();
+-}
+-
+-void ArcomiumAddressBar::RemovedFromWidget() {
+-  ReturnLocationBar();
+-}
+-
+-void ArcomiumAddressBar::OnMouseEntered(const ui::MouseEvent& event) {
+-  hovered_ = true;
+-  UpdateCopyButton();
+-}
+-
+-void ArcomiumAddressBar::OnMouseExited(const ui::MouseEvent& event) {
+-  hovered_ = false;
+-  UpdateCopyButton();
+-}
+-
+-void ArcomiumAddressBar::OnViewIsDeleting(views::View* observed_view) {
+-  placeholder_observation_.Reset();
+-  toolbar_placeholder_ = nullptr;
+-}
+-
+-void ArcomiumAddressBar::ScheduleUpdatePlacement() {
+-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+-      FROM_HERE, base::BindOnce(&ArcomiumAddressBar::UpdatePlacement,
+-                                weak_factory_.GetWeakPtr()));
+-}
+-
+-void ArcomiumAddressBar::UpdatePlacement() {
+-  if (GetWidget() && IsDrawn()) {
+-    TakeLocationBar();
+-  } else {
+-    ReturnLocationBar();
+-  }
+-}
+-
+-void ArcomiumAddressBar::TakeLocationBar() {
+-  if (location_bar_) {
+-    return;
+-  }
+-  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+-  ToolbarView* toolbar = browser_view ? browser_view->toolbar() : nullptr;
+-  LocationBarView* location_bar =
+-      toolbar ? toolbar->location_bar_view() : nullptr;
+-  if (!location_bar || location_bar->parent() != toolbar) {
+-    return;
+-  }
+-  auto placeholder = std::make_unique<views::View>();
+-  if (const views::FlexSpecification* flex =
+-          location_bar->GetProperty(views::kFlexBehaviorKey)) {
+-    placeholder->SetProperty(views::kFlexBehaviorKey, *flex);
+-  }
+-  toolbar_placeholder_ = toolbar->AddChildViewAt(
+-      std::move(placeholder), *toolbar->GetIndexOf(location_bar));
+-  placeholder_observation_.Observe(toolbar_placeholder_);
+-  location_bar_ = AddChildViewAt(location_bar, 0);
+-  location_bar_->SetArcomiumCompact(true);
+-  location_bar_->SetArcomiumHovered(hovered_);
+-  PreferredSizeChanged();
+-}
+-
+-void ArcomiumAddressBar::ReturnLocationBar() {
+-  if (!location_bar_) {
+-    return;
+-  }
+-  LocationBarView* location_bar = location_bar_;
+-  location_bar_ = nullptr;
+-  location_bar->SetArcomiumCompact(false);
+-  views::View* placeholder = toolbar_placeholder_;
+-  views::View* toolbar = placeholder ? placeholder->parent() : nullptr;
+-  placeholder_observation_.Reset();
+-  toolbar_placeholder_ = nullptr;
+-  if (!toolbar) {
+-    return;
+-  }
+-  toolbar->AddChildViewAt(location_bar, *toolbar->GetIndexOf(placeholder));
+-  toolbar->RemoveChildViewT(placeholder);
+-  copy_button_->SetVisible(false);
+-  PreferredSizeChanged();
+-}
+-
+-void ArcomiumAddressBar::UpdateCopyButton() {
+-  copy_button_->SetVisible(hovered_ && location_bar_);
+-  if (location_bar_) {
+-    location_bar_->SetArcomiumHovered(hovered_);
+-  }
+-}
+-
+-void ArcomiumAddressBar::CopyAddress() {
+-  content::WebContents* contents =
+-      browser_->GetTabStripModel()->GetActiveWebContents();
+-  if (!contents || contents->GetVisibleURL().is_empty()) {
+-    return;
+-  }
+-  ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+-      .WriteText(base::UTF8ToUTF16(contents->GetVisibleURL().spec()));
+-}
+-
+-BEGIN_METADATA(ArcomiumAddressBar)
+-END_METADATA
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+deleted file mode 100644
+index 87f5c73be2..0000000000
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
++++ /dev/null
+@@ -1,71 +0,0 @@
+-// Copyright 2026 The Arcomium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-#ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_ADDRESS_BAR_H_
+-#define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_ADDRESS_BAR_H_
+-
+-#include "base/memory/raw_ptr.h"
+-#include "base/memory/weak_ptr.h"
+-#include "base/scoped_observation.h"
+-#include "ui/base/metadata/metadata_header_macros.h"
+-#include "ui/views/view.h"
+-#include "ui/views/view_observer.h"
+-
+-class BrowserWindowInterface;
+-class LocationBarView;
+-
+-namespace views {
+-class ImageButton;
+-}
+-
+-// Arcomium: the address bar at the top of the Arc sidebar, as in Arc. It holds
+-// the toolbar's own location bar while the sidebar shows and gives it back to
+-// the toolbar while the sidebar is hidden, so the address stays reachable.
+-// Hovering it shows a button that copies the page's address.
+-class ArcomiumAddressBar : public views::View, public views::ViewObserver {
+-  METADATA_HEADER(ArcomiumAddressBar, views::View)
+-
+- public:
+-  explicit ArcomiumAddressBar(BrowserWindowInterface* browser);
+-  ArcomiumAddressBar(const ArcomiumAddressBar&) = delete;
+-  ArcomiumAddressBar& operator=(const ArcomiumAddressBar&) = delete;
+-  ~ArcomiumAddressBar() override;
+-
+-  // views::View:
+-  gfx::Size CalculatePreferredSize(
+-      const views::SizeBounds& available_size) const override;
+-  void Layout(PassKey) override;
+-  void VisibilityChanged(views::View* starting_from, bool is_visible) override;
+-  void AddedToWidget() override;
+-  void RemovedFromWidget() override;
+-  void OnMouseEntered(const ui::MouseEvent& event) override;
+-  void OnMouseExited(const ui::MouseEvent& event) override;
+-
+-  // views::ViewObserver: the placeholder goes with the toolbar when the window
+-  // closes; the location bar then stays here and goes with this view.
+-  void OnViewIsDeleting(views::View* observed_view) override;
+-
+- private:
+-  // Moves the location bar here or back to the toolbar, whichever matches the
+-  // sidebar's visibility. Posted: visibility changes arrive mid-layout.
+-  void ScheduleUpdatePlacement();
+-  void UpdatePlacement();
+-  void TakeLocationBar();
+-  void ReturnLocationBar();
+-  void UpdateCopyButton();
+-  void CopyAddress();
+-
+-  raw_ptr<BrowserWindowInterface> browser_;
+-  raw_ptr<LocationBarView> location_bar_ = nullptr;
+-  // Stands in the toolbar's flexible slot while the location bar is here, so
+-  // the toolbar buttons keep their places.
+-  raw_ptr<views::View> toolbar_placeholder_ = nullptr;
+-  base::ScopedObservation<views::View, views::ViewObserver>
+-      placeholder_observation_{this};
+-  raw_ptr<views::ImageButton> copy_button_ = nullptr;
+-  bool hovered_ = false;
+-  base::WeakPtrFactory<ArcomiumAddressBar> weak_factory_{this};
+-};
+-
+-#endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_ADDRESS_BAR_H_
