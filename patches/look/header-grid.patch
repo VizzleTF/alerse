@@ -1,0 +1,297 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+index edd763fdbd..37abc2231b 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+@@ -51,6 +51,10 @@ class VerticalTabStripTopContainer : public views::View,
+ 
+   // View:
+   void Layout(PassKey) override;
++  // Arcomium: the Arc header grid is placed against the window, so moving
++  // this view moves the buttons within it.
++  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
++  void AddedToWidget() override;
+ 
+   // Arcomium: the Arc header's app menu and downloads buttons, which stand in
+   // for the toolbar's while it hides.
+@@ -64,6 +68,16 @@ class VerticalTabStripTopContainer : public views::View,
+   views::ProposedLayout CalculateProposedLayout(
+       const views::SizeBounds& size_bounds) const override;
+ 
++  // Arcomium: where the Arc header's rows go. The first row follows the
++  // window controls where they lead it and is centred on them; the second
++  // starts under their left edge.
++  struct ArcHeaderGrid {
++    int first_row_x = 0;
++    int second_row_x = 0;
++    int first_row_center = 0;
++  };
++  ArcHeaderGrid GetArcHeaderGrid() const;
++
+   // Creates a TopContainerButton (Collapse Button).
+   // Arcomium: whether the action behind one of Chromium's buttons is visible.
+   bool IsActionVisible(actions::ActionId action_id) const;
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index d291b09f8a..650da33459 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -17,7 +17,10 @@
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
++#include "base/numerics/safe_conversions.h"
++#include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
+@@ -29,6 +32,7 @@
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/base/ui_base_features.h"
++#include "ui/color/color_id.h"
+ #include "ui/gfx/canvas.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/actions/action_view_controller.h"
+@@ -42,6 +46,8 @@
+ #include "ui/views/layout/layout_types.h"
+ #include "ui/views/layout/proposed_layout.h"
+ #include "ui/views/view_class_properties.h"
++#include "ui/views/widget/widget.h"
++#include "ui/views/window/non_client_view.h"
+ 
+ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+     VerticalTabStripTopContainer,
+@@ -49,11 +55,28 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+ 
+ namespace {
+ 
+-// Arcomium: Arc's header row, measured on Arc for Windows at 100% scale.
++// Arcomium: the Arc header: rows of 28 px buttons 32 px apart with 16 px
++// icons, the gap after the window controls, and the hover corner radius.
+ constexpr int kArcHeaderHeight = 32;
+ constexpr int kArcHeaderButtonSize = 28;
++constexpr int kArcHeaderPitch = 32;
+ constexpr int kArcHeaderIconSize = 16;
+-constexpr SkColor kArcHeaderIconColor = SkColorSetRGB(0xD7, 0xD7, 0xD7);
++constexpr int kArcHeaderCaptionGap = 8;
++constexpr int kArcHeaderButtonRadius = 6;
++// Without window controls: the left edge, as the address bar's, and the first
++// row's centre, as the macOS controls', from the window's top left.
++constexpr int kArcHeaderEdge = 12;
++constexpr int kArcHeaderCenter = 20;
++
++// One look for every Arc header button: hover and press show as a rounded
++// square tinted with the icon color.
++void StyleArcHeaderButton(views::Button* button) {
++  views::InkDrop::Get(button)->SetMode(views::InkDropHost::InkDropMode::ON);
++  views::InkDrop::Get(button)->SetBaseColor(ui::kColorIcon);
++  button->SetHasInkDropActionOnClick(true);
++  views::InstallRoundRectHighlightPathGenerator(button, gfx::Insets(),
++                                                kArcHeaderButtonRadius);
++}
+ 
+ // Arc's logo, an arch crossed by a swoosh; opens the app menu.
+ class ArcLogoButton : public views::Button {
+@@ -64,8 +87,7 @@ class ArcLogoButton : public views::Button {
+       : views::Button(std::move(callback)) {
+     SetTooltipText(u"Arcomium menu");
+     GetViewAccessibility().SetName(u"Arcomium menu");
+-    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
+-    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
++    StyleArcHeaderButton(this);
+   }
+ 
+   void PaintButtonContents(gfx::Canvas* canvas) override {
+@@ -86,7 +108,7 @@ class ArcLogoButton : public views::Button {
+     flags.setStyle(cc::PaintFlags::kStroke_Style);
+     flags.setStrokeWidth(1.4f);
+     flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+-    flags.setColor(kArcHeaderIconColor);
++    flags.setColor(GetColorProvider()->GetColor(ui::kColorIcon));
+     canvas->DrawPath(arch.detach(), flags);
+     canvas->DrawPath(swoosh.detach(), flags);
+   }
+@@ -129,6 +151,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+           },
+           base::Unretained(state_controller_)),
+       kDockToLeftIcon, kArcHeaderIconSize);
++  StyleArcHeaderButton(sidebar.get());
+   sidebar->SetTooltipText(u"Hide sidebar");
+   sidebar->GetViewAccessibility().SetName(u"Hide sidebar");
+   arc_sidebar_button_ = AddChildView(std::move(sidebar));
+@@ -139,6 +162,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+           },
+           base::Unretained(browser_)),
+       kDownloadIcon, kArcHeaderIconSize);
++  StyleArcHeaderButton(downloads.get());
+   downloads->SetTooltipText(u"Downloads");
+   downloads->GetViewAccessibility().SetName(u"Downloads");
+   arc_downloads_button_ = AddChildView(std::move(downloads));
+@@ -173,6 +197,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+             },
+             base::Unretained(browser_), nav.command),
+         nav.icon, kArcHeaderIconSize);
++    StyleArcHeaderButton(button.get());
+     button->SetTooltipText(nav.name);
+     button->GetViewAccessibility().SetName(nav.name);
+     button->SetEnabled(chrome::IsCommandEnabled(browser_, nav.command));
+@@ -207,6 +232,17 @@ void VerticalTabStripTopContainer::Layout(PassKey) {
+   combo_button_->SetOrientation(combo_button_orientation_);
+ }
+ 
++void VerticalTabStripTopContainer::OnBoundsChanged(
++    const gfx::Rect& previous_bounds) {
++  if (bounds().origin() != previous_bounds.origin()) {
++    InvalidateLayout();
++  }
++}
++
++void VerticalTabStripTopContainer::AddedToWidget() {
++  InvalidateLayout();
++}
++
+ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+     const views::SizeBounds& size_bounds) const {
+   views::ProposedLayout layout;
+@@ -344,37 +380,29 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+   } else if (arc_logo_button_) {
+     // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
+     combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
+-    host_size.set_height(2 * kArcHeaderHeight);
+-    // The container starts 12 px into the strip; Arc's icons sit at x = 23,
+-    // 58 and 93 of the window.
+-    // On macOS the window controls lead the row, as in Arc, and the buttons
+-    // follow them; elsewhere `caption_button_width_` is 0.
+-    const int lead = caption_button_width_;
+-    const int centers[] = {lead + 11, lead + 46, lead + 81};
+-    views::View* buttons[] = {arc_logo_button_.get(), arc_sidebar_button_.get(),
+-                              arc_downloads_button_.get()};
+-    for (size_t i = 0; i < std::size(buttons); ++i) {
+-      if (!buttons[i]) {
+-        continue;
++    // Every button sits on one grid: 28 px targets 32 px apart.
++    const ArcHeaderGrid grid = GetArcHeaderGrid();
++    views::View* const rows[2][3] = {
++        {arc_logo_button_.get(), arc_sidebar_button_.get(),
++         arc_downloads_button_.get()},
++        {arc_back_button_.get(), arc_forward_button_.get(),
++         arc_reload_button_.get()}};
++    const int row_x[2] = {grid.first_row_x, grid.second_row_x};
++    const int row_center[2] = {grid.first_row_center,
++                               grid.first_row_center + kArcHeaderPitch};
++    for (size_t row = 0; row < 2; ++row) {
++      for (size_t i = 0; i < 3; ++i) {
++        if (!rows[row][i]) {
++          continue;
++        }
++        layout.child_layouts.emplace_back(
++            rows[row][i], true,
++            gfx::Rect(row_x[row] + static_cast<int>(i) * kArcHeaderPitch,
++                      row_center[row] - kArcHeaderButtonSize / 2,
++                      kArcHeaderButtonSize, kArcHeaderButtonSize));
+       }
+-      layout.child_layouts.emplace_back(
+-          buttons[i], true,
+-          gfx::Rect(centers[i] - kArcHeaderButtonSize / 2,
+-                    (kArcHeaderHeight - kArcHeaderButtonSize) / 2 + 1,
+-                    kArcHeaderButtonSize, kArcHeaderButtonSize));
+-    }
+-    // The navigation row below, aligned with the buttons above it.
+-    views::View* nav_buttons[] = {arc_back_button_.get(),
+-                                  arc_forward_button_.get(),
+-                                  arc_reload_button_.get()};
+-    for (size_t i = 0; i < std::size(nav_buttons); ++i) {
+-      layout.child_layouts.emplace_back(
+-          nav_buttons[i], true,
+-          gfx::Rect(centers[i] - lead - kArcHeaderButtonSize / 2,
+-                    kArcHeaderHeight +
+-                        (kArcHeaderHeight - kArcHeaderButtonSize) / 2,
+-                    kArcHeaderButtonSize, kArcHeaderButtonSize));
+     }
++    host_size.set_height(row_center[1] + kArcHeaderPitch / 2);
+     for (views::View* chromium_button :
+          {static_cast<views::View*>(unfocus_button_.get()),
+           static_cast<views::View*>(collapse_button_.get()),
+@@ -467,6 +495,57 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+   return layout;
+ }
+ 
++VerticalTabStripTopContainer::ArcHeaderGrid
++VerticalTabStripTopContainer::GetArcHeaderGrid() const {
++  ArcHeaderGrid grid{.first_row_center = kArcHeaderHeight / 2};
++  if (caption_button_width_ <= 0) {
++    // No window controls lead the row: it starts at the address bar's edge,
++    // and sits where they would.
++    // The strip may sit in a widget of its own: measure from the window.
++    if (const views::Widget* window =
++            GetWidget() ? GetWidget()->GetTopLevelWidget() : nullptr) {
++      gfx::Point edge = window->GetWindowBoundsInScreen().origin() +
++                        gfx::Vector2d(kArcHeaderEdge, kArcHeaderCenter);
++      views::View::ConvertPointFromScreen(this, &edge);
++      grid.first_row_x = grid.second_row_x = std::max(0, edge.x());
++      grid.first_row_center = std::max(kArcHeaderButtonSize / 2, edge.y());
++    }
++    return grid;
++  }
++  grid.first_row_x = caption_button_width_ + kArcHeaderCaptionGap;
++  // The browser window's frame, which places the window controls.
++  const views::Widget* window =
++      GetWidget() ? GetWidget()->GetTopLevelWidget() : nullptr;
++  const views::NonClientView* non_client =
++      window ? window->non_client_view() : nullptr;
++  const BrowserFrameView* frame =
++      non_client ? static_cast<const BrowserFrameView*>(non_client->frame_view())
++                 : nullptr;
++  if (!frame) {
++    return grid;
++  }
++  // The window controls' margins are even, so their top and left edges lie as
++  // far in as their bottom and right paddings.
++  const BrowserLayoutParams params = frame->GetBrowserLayoutParams();
++  const BrowserLayoutExclusionArea& controls = params.leading_exclusion;
++  const int top = base::ClampRound(controls.vertical_padding);
++  const int bottom = params.visual_client_area.y() +
++                     base::ClampRound(controls.content.height());
++  gfx::Point leading(base::ClampRound(controls.horizontal_padding),
++                     (top + bottom) / 2);
++  gfx::Point trailing(params.visual_client_area.x() +
++                          base::ClampRound(controls.content.width()),
++                      0);
++  views::View::ConvertPointToScreen(frame, &leading);
++  views::View::ConvertPointToScreen(frame, &trailing);
++  views::View::ConvertPointFromScreen(this, &leading);
++  views::View::ConvertPointFromScreen(this, &trailing);
++  grid.first_row_x = trailing.x() + kArcHeaderCaptionGap;
++  grid.second_row_x = std::max(0, leading.x());
++  grid.first_row_center = std::max(kArcHeaderButtonSize / 2, leading.y());
++  return grid;
++}
++
+ bool VerticalTabStripTopContainer::IsActionVisible(
+     actions::ActionId action_id) const {
+   actions::ActionItem* item =
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 70313b52be..673c272a44 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -429,13 +429,16 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+   // There's a bit of padding at the bottom of the tabstrip.
+   available.Inset(gfx::Insets::TLBR(0, 0, vertical_padding, 0));
+ 
+-  // Lay out the top button container.
++  // Lay out the top button container. Arcomium: expanded, it spans the strip
++  // and places the Arc header buttons on its own grid.
++  const int header_padding =
++      state_controller_->IsCollapsed() ? horizontal_padding : 0;
+   layout.child_layouts.push_back(
+       {.child_view = top_button_container_.get(),
+        .visible = true,
+        .bounds =
+-           gfx::Rect(horizontal_padding, 0,
+-                     std::max(0, available.width() - 2 * horizontal_padding),
++           gfx::Rect(header_padding, 0,
++                     std::max(0, available.width() - 2 * header_padding),
+                      button_size.height())});
+   available.Inset(gfx::Insets::TLBR(button_size.height(), 0, 0, 0));
+ 
