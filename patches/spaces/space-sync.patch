@@ -1,0 +1,442 @@
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
+index 2700309804..b9318b7504 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
+@@ -31,6 +31,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "url/gurl.h"
++#include "url/url_constants.h"
+ 
+ namespace tab_groups {
+ 
+@@ -365,8 +366,10 @@ void LocalTabGroupListener::OpenWebContentsFromSync(
+     int index_in_tabstrip) {
+   GURL url_to_open = tab.url();
+   // Open the NTP if the URL is not valid for local tabs.
++  // Arcomium: every tab group is a Space, whose tabs live in the Space's
++  // storage partition; the New Tab page cannot, about:blank can.
+   if (!IsURLValidForLocalTab(url_to_open)) {
+-    url_to_open = GURL(chrome::kChromeUINewTabURL);
++    url_to_open = GURL(url::kAboutBlankURL);
+   }
+ 
+   content::NavigationHandle* navigation_handle =
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+index 629d76ab24..cb0d4796ed 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+@@ -6,12 +6,15 @@
+ 
+ #include <iterator>
+ #include <map>
++#include <string>
+ 
+ #include "base/containers/flat_set.h"
+ #include "base/uuid.h"
++#include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
+@@ -19,15 +22,22 @@
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "components/bookmarks/browser/bookmark_model.h"
++#include "components/bookmarks/browser/bookmark_node.h"
+ #include "components/saved_tab_groups/internal/stats.h"
+ #include "components/saved_tab_groups/internal/tab_group_sync_service_impl.h"
+ #include "components/saved_tab_groups/public/tab_group_sync_service.h"
+ #include "components/saved_tab_groups/public/types.h"
+ #include "components/tab_groups/tab_group_id.h"
+ #include "components/tabs/public/tab_interface.h"
++#include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "ui/gfx/range/range.h"
++#include "url/gurl.h"
++#include "url/url_constants.h"
+ 
+ namespace tab_groups {
+ namespace {
+@@ -134,6 +144,61 @@ tabs::TabInterface* MaybeOpenTabFromSavedTab(const SavedTabGroupTab& saved_tab,
+       navigation_handle->GetWebContents());
+ }
+ 
++// Arcomium: the Space a saved tab group syncs, read from the bookmark folder
++// of the Space ("arcomium.group" holds the saved group's id), or "" for none.
++std::string GetSpaceOfSavedGroup(Profile* profile, const base::Uuid& sync_id) {
++  bookmarks::BookmarkModel* bookmarks =
++      BookmarkModelFactory::GetForBrowserContext(profile);
++  if (!bookmarks || !bookmarks->loaded()) {
++    return std::string();
++  }
++  const std::string id = sync_id.AsLowercaseString();
++  for (const auto& folder : bookmarks->other_node()->children()) {
++    std::string group;
++    std::string space;
++    if (folder->is_folder() &&
++        folder->GetMetaInfo("arcomium.group", &group) && group == id &&
++        folder->GetMetaInfo("arcomium.space", &space) &&
++        !space.starts_with("arc:")) {
++      return space;
++    }
++  }
++  return std::string();
++}
++
++// Arcomium: opens a tab of a saved Space in the Space's storage partition, so
++// it keeps the Space's cookies. A page that cannot live there (the New Tab
++// page, an unsynced URL) opens as about:blank in it: a tab never changes its
++// partition, and the other device navigates it later.
++tabs::TabInterface* MaybeOpenTabInSpace(const SavedTabGroupTab& saved_tab,
++                                        BrowserWindowInterface* browser,
++                                        const std::string& space) {
++  if (space.empty()) {
++    return MaybeOpenTabFromSavedTab(saved_tab, browser);
++  }
++  const GURL url = saved_tab.url().SchemeIsHTTPOrHTTPS()
++                       ? saved_tab.url()
++                       : GURL(url::kAboutBlankURL);
++  scoped_refptr<content::SiteInstance> site_instance =
++      arcomium::CreateSpaceSiteInstance(browser->GetProfile(), url, space);
++  if (!site_instance) {
++    return MaybeOpenTabFromSavedTab(saved_tab, browser);
++  }
++  content::WebContents::CreateParams create_params(browser->GetProfile(),
++                                                   site_instance);
++  create_params.initially_hidden = true;
++  std::unique_ptr<content::WebContents> contents =
++      content::WebContents::Create(create_params);
++  content::WebContents* const raw_contents = contents.get();
++  contents->GetController().LoadURL(url, content::Referrer(),
++                                    ui::PAGE_TRANSITION_AUTO_BOOKMARK,
++                                    std::string());
++  browser->GetTabStripModel()->AddWebContents(
++      std::move(contents), -1, ui::PAGE_TRANSITION_AUTO_BOOKMARK,
++      AddTabTypes::ADD_NONE);
++  return browser->GetTabStripModel()->GetTabForWebContents(raw_contents);
++}
++
+ }  // namespace
+ 
+ TabGroupSyncDelegateDesktop::TabGroupSyncDelegateDesktop(
+@@ -363,9 +428,11 @@ TabGroupSyncDelegateDesktop::OpenTabsAndMapToUuids(
+     BrowserWindowInterface* const browser,
+     const SavedTabGroup& saved_group) {
+   std::map<tabs::TabInterface*, base::Uuid> tab_guid_mapping;
++  const std::string space =
++      GetSpaceOfSavedGroup(browser->GetProfile(), saved_group.saved_guid());
+   for (const SavedTabGroupTab& saved_tab : saved_group.saved_tabs()) {
+     tabs::TabInterface* const tab =
+-        MaybeOpenTabFromSavedTab(saved_tab, browser);
++        MaybeOpenTabInSpace(saved_tab, browser, space);
+     if (tab) {
+       tab_guid_mapping.emplace(tab, saved_tab.saved_tab_guid());
+     }
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+index 7093ff61be..441963cfaf 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.cc
+@@ -21,13 +21,16 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+ #include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_group_theme.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "components/bookmarks/browser/bookmark_model.h"
+ #include "components/bookmarks/browser/bookmark_node.h"
++#include "components/saved_tab_groups/public/saved_tab_group.h"
+ #include "components/tab_groups/tab_group_color.h"
+ #include "components/tab_groups/tab_group_visual_data.h"
+ #include "components/tabs/public/tab_group.h"
+@@ -59,6 +62,11 @@ constexpr int kAddIconSize = 20;
+ constexpr SkColor kDotHoverColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
+ constexpr SkColor kHomeColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
+ 
++// Meta info of a Space's bookmark folder: its Space id, and the saved tab
++// group it syncs as.
++constexpr char kSpaceMetaKey[] = "arcomium.space";
++constexpr char kSavedGroupMetaKey[] = "arcomium.group";
++
+ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
+     tab_groups::TabGroupColorId::kBlue,   tab_groups::TabGroupColorId::kPurple,
+     tab_groups::TabGroupColorId::kGreen,  tab_groups::TabGroupColorId::kPink,
+@@ -119,6 +127,17 @@ ArcomiumSpaceSwitcher::ArcomiumSpaceSwitcher(BrowserWindowInterface* browser)
+   layout_ = SetLayoutManager(std::make_unique<views::BoxLayout>(
+       views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(4, 6)));
+   model_->AddObserver(this);
++  if (!browser->GetProfile()->IsOffTheRecord()) {
++    sync_service_ = tab_groups::TabGroupSyncServiceFactory::GetForProfile(
++        browser->GetProfile());
++  }
++  if (sync_service_) {
++    sync_observation_.Observe(sync_service_);
++  }
++  if (bookmarks::BookmarkModel* bookmarks =
++          BookmarkModelFactory::GetForBrowserContext(browser->GetProfile())) {
++    bookmark_observation_.Observe(bookmarks);
++  }
+   Rebuild();
+ }
+ 
+@@ -186,6 +205,41 @@ void ArcomiumSpaceSwitcher::OnTabGroupFocusChanged(
+   ScheduleRebuild();
+ }
+ 
++void ArcomiumSpaceSwitcher::OnInitialized() {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::OnTabGroupAdded(
++    const tab_groups::SavedTabGroup& group,
++    tab_groups::TriggerSource source) {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::OnTabGroupUpdated(
++    const tab_groups::SavedTabGroup& group,
++    tab_groups::TriggerSource source) {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::OnTabGroupRemoved(
++    const base::Uuid& sync_id,
++    tab_groups::TriggerSource source) {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::BookmarkModelChanged() {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::BookmarkMetaInfoChanged(
++    const bookmarks::BookmarkNode* node) {
++  ScheduleRebuild();
++}
++
++void ArcomiumSpaceSwitcher::BookmarkModelBeingDeleted() {
++  bookmark_observation_.Reset();
++}
++
+ void ArcomiumSpaceSwitcher::ScheduleRebuild() {
+   weak_factory_.InvalidateWeakPtrs();
+   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+@@ -234,6 +288,26 @@ void ArcomiumSpaceSwitcher::Rebuild() {
+         visuals->color(), focused == id,
+         visuals->title().empty() ? u"Space" : visuals->title()));
+   }
++  // Saved Spaces without a tab group here: from other devices, or closed.
++  if (sync_service_) {
++    // Only once its storage partition is known: opened before, its tabs would
++    // stay out of the Space's partition.
++    const std::set<std::string> linked = GetLinkedSavedGroups();
++    for (const tab_groups::SavedTabGroup& saved :
++         sync_service_->GetAllGroups()) {
++      if (saved.local_group_id() || saved.is_shared_tab_group() ||
++          saved.saved_tabs().empty() ||
++          !linked.contains(saved.saved_guid().AsLowercaseString())) {
++        continue;
++      }
++      dots->AddChildView(std::make_unique<SpaceDot>(
++          base::BindRepeating(&ArcomiumSpaceSwitcher::OpenSavedSpace,
++                              base::Unretained(this), saved.saved_guid()),
++          saved.color(), /*active=*/false,
++          saved.title().empty() ? u"Space" : saved.title()));
++    }
++  }
++  LinkSpaceFolders();
+ 
+   auto add = views::CreateVectorImageButtonWithNativeTheme(
+       base::BindRepeating(&ArcomiumSpaceSwitcher::CreateSpace,
+@@ -253,5 +327,95 @@ void ArcomiumSpaceSwitcher::SwitchTo(const tab_groups::TabGroupId& group) {
+   }
+ }
+ 
++void ArcomiumSpaceSwitcher::OpenSavedSpace(const base::Uuid& sync_id) {
++  if (!sync_service_) {
++    return;
++  }
++  std::optional<tab_groups::TabGroupId> group = sync_service_->OpenTabGroup(
++      sync_id, std::make_unique<tab_groups::TabGroupActionContextDesktop>(
++                   browser_, tab_groups::OpeningSource::kOpenedFromRevisitUi));
++  if (group) {
++    SwitchTo(*group);
++  }
++}
++
++std::set<std::string> ArcomiumSpaceSwitcher::GetLinkedSavedGroups() const {
++  std::set<std::string> linked;
++  const bookmarks::BookmarkModel* bookmarks =
++      BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
++  if (!bookmarks || !bookmarks->loaded()) {
++    return linked;
++  }
++  for (const auto& folder : bookmarks->other_node()->children()) {
++    std::string group;
++    std::string space;
++    if (folder->is_folder() &&
++        folder->GetMetaInfo(kSavedGroupMetaKey, &group) &&
++        folder->GetMetaInfo(kSpaceMetaKey, &space) &&
++        !space.starts_with("arc:")) {
++      linked.insert(group);
++    }
++  }
++  return linked;
++}
++
++void ArcomiumSpaceSwitcher::LinkSpaceFolders() {
++  bookmarks::BookmarkModel* bookmarks =
++      BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
++  TabGroupModel* groups = model_->group_model();
++  if (!sync_service_ || !bookmarks || !bookmarks->loaded() || !groups) {
++    return;
++  }
++  for (const tab_groups::TabGroupId& id : groups->ListTabGroups()) {
++    const std::optional<std::string> space =
++        arcomium::GetSpaceOfGroup(model_, id);
++    const std::optional<tab_groups::SavedTabGroup> saved =
++        sync_service_->GetGroup(id);
++    if (!space || !saved) {
++      continue;
++    }
++    const std::string sync_id = saved->saved_guid().AsLowercaseString();
++    const bookmarks::BookmarkNode* folder = nullptr;
++    for (const auto& child : bookmarks->other_node()->children()) {
++      std::string value;
++      if (child->is_folder() && child->GetMetaInfo(kSpaceMetaKey, &value) &&
++          value == *space) {
++        folder = child.get();
++        break;
++      }
++    }
++    const std::u16string& title =
++        groups->GetTabGroup(id)->visual_data()->title();
++    if (!folder) {
++      // Adopt a folder imported from Arc for a Space of the same name, as the
++      // sidebar does.
++      for (const auto& child : bookmarks->other_node()->children()) {
++        std::string value;
++        if (child->is_folder() && child->GetTitle() == title &&
++            child->GetMetaInfo(kSpaceMetaKey, &value) &&
++            value.starts_with("arc:")) {
++          folder = child.get();
++          bookmarks->SetNodeMetaInfo(folder, kSpaceMetaKey, *space);
++          break;
++        }
++      }
++    }
++    if (!folder) {
++      bookmarks::BookmarkNode::MetaInfoMap meta;
++      meta[kSpaceMetaKey] = *space;
++      meta[kSavedGroupMetaKey] = sync_id;
++      bookmarks->AddFolder(bookmarks->other_node(),
++                           bookmarks->other_node()->children().size(),
++                           title.empty() ? u"Space" : title, &meta);
++      continue;
++    }
++    std::string linked;
++    if (!folder->GetMetaInfo(kSavedGroupMetaKey, &linked) ||
++        linked != sync_id) {
++      bookmarks->SetNodeMetaInfo(folder, kSavedGroupMetaKey, sync_id);
++    }
++  }
++}
++
+ BEGIN_METADATA(ArcomiumSpaceSwitcher)
+ END_METADATA
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+index 0d6ef5d193..4059b241cb 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h
+@@ -5,9 +5,17 @@
+ #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_
+ #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_
+ 
++#include <set>
++#include <string>
++
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
++#include "base/scoped_observation.h"
++#include "base/uuid.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
++#include "components/bookmarks/browser/base_bookmark_model_observer.h"
++#include "components/bookmarks/browser/bookmark_model.h"
++#include "components/saved_tab_groups/public/tab_group_sync_service.h"
+ #include "components/tab_groups/tab_group_id.h"
+ #include "ui/base/metadata/metadata_header_macros.h"
+ #include "ui/views/layout/box_layout.h"
+@@ -18,8 +26,13 @@ class TabStripModel;
+ 
+ // Arcomium: row of Spaces at the bottom of the vertical tab strip. Every Space
+ // is a tab group; its dot switches the strip into focus mode for that group.
+-// The "+" button creates a Space with its own storage partition.
+-class ArcomiumSpaceSwitcher : public views::View, public TabStripModelObserver {
++// The "+" button creates a Space with its own storage partition. Spaces sync
++// as saved tab groups: one from another device, or closed here, shows too and
++// opens with its tabs.
++class ArcomiumSpaceSwitcher : public views::View,
++                              public TabStripModelObserver,
++                              public tab_groups::TabGroupSyncService::Observer,
++                              public bookmarks::BaseBookmarkModelObserver {
+   METADATA_HEADER(ArcomiumSpaceSwitcher, views::View)
+ 
+  public:
+@@ -38,16 +51,45 @@ class ArcomiumSpaceSwitcher : public views::View, public TabStripModelObserver {
+       std::optional<tab_groups::TabGroupId> new_focused_group_id,
+       std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
+ 
++  // tab_groups::TabGroupSyncService::Observer:
++  void OnInitialized() override;
++  void OnTabGroupAdded(const tab_groups::SavedTabGroup& group,
++                       tab_groups::TriggerSource source) override;
++  void OnTabGroupUpdated(const tab_groups::SavedTabGroup& group,
++                         tab_groups::TriggerSource source) override;
++  void OnTabGroupRemoved(const base::Uuid& sync_id,
++                         tab_groups::TriggerSource source) override;
++
++  // bookmarks::BaseBookmarkModelObserver: a saved Space shows once the bookmark
++  // folder that names its storage partition has synced.
++  void BookmarkModelChanged() override;
++  void BookmarkMetaInfoChanged(const bookmarks::BookmarkNode* node) override;
++  void BookmarkModelBeingDeleted() override;
++
+  private:
+   // Rebuilds asynchronously: a change may come from a click on one of the
+   // buttons being rebuilt.
+   void ScheduleRebuild();
+   void Rebuild();
+   void SwitchTo(const tab_groups::TabGroupId& group);
++  // Opens a saved Space that has no tab group here, then switches to it.
++  void OpenSavedSpace(const base::Uuid& sync_id);
++  // Records in each Space's bookmark folder the saved tab group it syncs as,
++  // so other devices open its tabs in the Space's storage partition.
++  void LinkSpaceFolders();
++  // Ids of the saved tab groups that a Space's bookmark folder links to.
++  std::set<std::string> GetLinkedSavedGroups() const;
+ 
+   raw_ptr<BrowserWindowInterface> browser_;
+   raw_ptr<views::BoxLayout> layout_ = nullptr;
+   raw_ptr<TabStripModel> model_;
++  raw_ptr<tab_groups::TabGroupSyncService> sync_service_ = nullptr;
++  base::ScopedObservation<tab_groups::TabGroupSyncService,
++                          tab_groups::TabGroupSyncService::Observer>
++      sync_observation_{this};
++  base::ScopedObservation<bookmarks::BookmarkModel,
++                          bookmarks::BookmarkModelObserver>
++      bookmark_observation_{this};
+   base::WeakPtrFactory<ArcomiumSpaceSwitcher> weak_factory_{this};
+ };
+ 

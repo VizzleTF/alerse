@@ -25,3 +25,4 @@ look/mac-window-controls.patch
 look/system-font-elsewhere.patch
 look/mac-header-clicks.patch
 sync/sync-all-types.patch
+spaces/space-sync.patch
