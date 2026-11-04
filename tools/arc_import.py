@@ -149,6 +149,10 @@ def main():
                 continue
             meta = {'arcomium.imported': '1',
                     'arcomium.space': 'default' if first else f'arc:{space_id}'}
+            # Arc's Space icon ("sunny", "book", ...): the Space bar shows it.
+            icon = (space.get('customInfo') or {}).get('iconType', {}).get('icon')
+            if icon:
+                meta['arcomium.space_icon'] = icon
             first = False
             other['children'].append(importer.folder(
                 space['title'], meta, importer.tree(items, pinned)))

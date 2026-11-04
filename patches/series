@@ -28,3 +28,4 @@ sync/sync-all-types.patch
 spaces/space-sync.patch
 extensions/web-store.patch
 look/sidebar-address-bar.patch
+look/space-icons.patch
