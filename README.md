@@ -31,7 +31,8 @@ and the Arc import tool. Builds come from the platform repositories below.
 | Platform | Builds |
 |---|---|
 | Windows | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
-| macOS, Linux, iPhone | planned |
+| macOS, iPhone | build from source: arcomium-mac, arcomium-ios |
+| Linux | planned |
 
 ## Move from Arc
 
@@ -52,7 +53,8 @@ it imported before.
 | arcomium (this one) | Patches, design notes, Arc import |
 | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | Windows build and releases |
 | [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) | Sync server |
-| arcomium-mac, arcomium-ios | planned |
+| arcomium-mac | macOS build on ungoogled-chromium-macos |
+| arcomium-ios | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
 
 ## Status
 
@@ -60,7 +62,9 @@ it imported before.
 |---|---|
 | Spaces with separate logins | done |
 | Arc sidebar, Arc import, drag and drop | done |
-| Sync | done with your own server; public server to do |
+| Sync | done with your own server: Windows, macOS and iOS in one chain; public server to do |
+| macOS | builds and syncs; Arc sidebar as on Windows |
+| iPhone | builds and syncs in the simulator; Spaces and the Arc sidebar not on iOS |
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | done |
 

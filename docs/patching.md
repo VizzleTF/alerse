@@ -46,3 +46,17 @@ git apply ..\arcomium\patches\spaces\space-sidebar.patch
 
 Set up the working tree on the new tag, then for each patch in series order run
 `git apply --3way`, resolve conflicts, and export it again as in "Add a patch".
+
+## iOS patches
+
+ungoogled-chromium has no iOS build, so iOS has its own series, `patches/series-ios`,
+applied to a clean Chromium iOS checkout of the same version. It shares
+`sync/arcomium-sync-core.patch`, the platform-independent sync client, with the desktop
+series; keep that patch applying to both trees.
+
+## Branding and the product name
+
+Binary files, such as the app icons from `tools/make_icons.py`, live in `branding/` at
+their paths in the Chromium tree; each platform's build copies them over the source tree
+after patching. `tools/rename_product.py` then renames Chromium to Arcomium in the
+strings and moves the translations to the new message IDs. Neither belongs in a patch.
