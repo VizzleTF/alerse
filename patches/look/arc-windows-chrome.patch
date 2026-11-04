@@ -1,0 +1,1407 @@
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index 8432f49468..e5e4b1943e 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -10,6 +10,7 @@
+ #include "base/containers/fixed_flat_map.h"
+ #include "base/functional/bind.h"
+ #include "base/no_destructor.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/color/chrome_color_mixer.h"
+ #include "chrome/browser/ui/color/chrome_color_provider_utils.h"
+@@ -19,6 +20,12 @@
+ #include "chrome/browser/ui/color/material_side_panel_color_mixer.h"
+ #include "chrome/browser/ui/color/material_tab_strip_color_mixer.h"
+ #include "chrome/browser/ui/color/native_chrome_color_mixer.h"
++#include "third_party/skia/include/core/SkColor.h"
++#include "ui/color/color_id.h"
++#include "ui/color/color_mixer.h"
++#include "ui/color/color_recipe.h"
++#include "ui/color/color_provider.h"
++#include "ui/color/color_provider_key.h"
+ #include "chrome/browser/ui/color/new_tab_page_color_mixer.h"
+ #include "chrome/browser/ui/color/omnibox_color_mixer.h"
+ #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
+@@ -88,6 +95,25 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+   // Must be the last one in order to override other mixer colors.
+   AddNativeChromeColorMixer(provider, key);
+ 
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for Windows' dark frame, behind its sidebar, its top bar
++  // and the page card; the same whether the window is active or not.
++  if (!key.custom_theme &&
++      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
++    ui::ColorMixer& mixer = provider->AddMixer();
++    mixer[ui::kColorFrameActive] = {SkColorSetRGB(0x1B, 0x1B, 0x1B)};
++    mixer[ui::kColorFrameInactive] = {SkColorSetRGB(0x1B, 0x1B, 0x1B)};
++    // Its top bar's icons are a dim grey whether enabled or not.
++    mixer[kColorToolbarButtonIcon] = {SkColorSetRGB(0x52, 0x52, 0x52)};
++    mixer[kColorToolbarButtonIconInactive] = {SkColorSetRGB(0x52, 0x52, 0x52)};
++    // Its address text and window controls.
++    mixer[kColorOmniboxText] = {SkColorSetRGB(0xDA, 0xDA, 0xDA)};
++    mixer[kColorCaptionButtonOnToolbar] = {SkColorSetRGB(0x66, 0x66, 0x66)};
++    // And its blank page.
++    mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x27, 0x27, 0x27)};
++  }
++#endif
++
+   if (key.custom_theme) {
+     key.custom_theme->AddColorMixers(provider, key);
+   }
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+index 458189b275..ae77ed5f23 100644
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -122,6 +122,12 @@ int GetLayoutConstant(LayoutConstant constant) {
+     case LayoutConstant::kToolbarButtonHeight:
+       return touch_ui ? 48 : 28;
+     case LayoutConstant::kToolbarButtonIconSize:
++#if !BUILDFLAG(IS_MAC)
++      // Arcomium: Arc for Windows' top bar has 16 px icons.
++      if (!touch_ui) {
++        return 16;
++      }
++#endif
+       return touch_ui ? kDefaultTouchableIconSize
+                       : kDefaultIconSizeChromeRefresh;
+     case LayoutConstant::kToolbarDividerCornerRadius:
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
+index 60c102eea6..02ce91b434 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
++++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
+@@ -791,8 +791,13 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
+       hide_window_buttons ? gfx::Size()
+                           : caption_button_container_->GetPreferredSize();
+ 
++  // Arcomium: beside the Arc sidebar the caption buttons fit Arc for
++  // Windows' 33 px top bar.
++  constexpr int kArcomiumCaptionHeight = 31;
+   const int height =
+       arcomium_caption_overlay_ ? preferred_size.height()
++      : GetBrowserView()->ShouldDrawVerticalTabStrip()
++          ? kArcomiumCaptionHeight
+       : !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
+           ? (TitlebarHeight(false) - WindowTopY())
+           : GetFrameHeight();
+@@ -808,6 +813,7 @@ void BrowserFrameViewWin::OnEvent(const ui::Event& event) {
+ 
+ bool BrowserFrameViewWin::IsArcomiumCaptionOverlay() const {
+   return GetBrowserView()->IsArcomiumSidebarShown() &&
++         !GetBrowserView()->IsToolbarVisible() &&
+          !browser_widget()->IsFullscreen() &&
+          !GetBrowserView()->IsWindowControlsOverlayEnabled();
+ }
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index dc26ceab64..0b33489baa 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -3102,9 +3102,13 @@ bool BrowserView::IsToolbarVisible() const {
+   }
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: on macOS the Arc sidebar replaces the toolbar; Windows keeps a
++  // thin one, as Arc for Windows does.
+   if (IsArcomiumSidebarShown()) {
+     return false;
+   }
++#endif
+ 
+   // It's possible to reach here before we've been notified of being added to a
+   // widget, so |toolbar_| is still null.  Return false in this case so callers
+diff --git a/chrome/browser/ui/views/frame/browser_view.h b/chrome/browser/ui/views/frame/browser_view.h
+index 990b8724a3..8b8a0e2eea 100644
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -348,8 +348,8 @@ class BrowserView : public BrowserWindow,
+ 
+   // Returns whether the vertical tabstrip is collapsed.
+   bool IsVerticalTabStripCollapsed() const;
+-  // Arcomium: whether the Arc sidebar shows. It holds the address bar and the
+-  // navigation buttons then, so the window has no toolbar.
++  // Arcomium: whether the Arc sidebar shows. On macOS it holds the address bar
++  // and the navigation buttons then, so the window has no toolbar.
+   bool IsArcomiumSidebarShown() const;
+   // Arcomium: the Arc sidebar's stand-ins for the hidden toolbar's app menu
+   // and downloads buttons, for bubbles to anchor to; null unless drawn.
+diff --git a/chrome/browser/ui/views/frame/contents_container_view.cc b/chrome/browser/ui/views/frame/contents_container_view.cc
+index febd158b3d..6e786336dc 100644
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -4,6 +4,16 @@
+ 
+ #include "chrome/browser/ui/views/frame/contents_container_view.h"
+ 
++#include "build/build_config.h"
++
++#include "ui/color/color_id.h"
++
++#include "ui/color/color_provider.h"
++
++#include "ui/views/background.h"
++
++#include "ui/gfx/color_utils.h"
++
+ #include <memory>
+ #include <optional>
+ #include <utility>
+@@ -204,8 +214,15 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+ 
+   if (!is_in_split) {
+     if (split_changed) {
++#if BUILDFLAG(IS_MAC)
+       SetBorder(nullptr);
++#else
++      // Arcomium: Arc for Windows' page card has a 1 px rim a shade off the
++      // frame.
++      SetBorder(views::CreateEmptyBorder(gfx::Insets(1)));
++#endif
+       UpdateBorderRoundedCorners();
++      OnThemeChanged();
+ 
+       mini_toolbar_->SetVisible(false);
+       container_outline_->SetVisible(false);
+@@ -218,6 +235,7 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+       SetBorder(views::CreateEmptyBorder(gfx::Insets(
+           kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
+       UpdateBorderRoundedCorners();
++      OnThemeChanged();
+     }
+ 
+     container_outline_->UpdateState(is_active, is_highlighted);
+@@ -446,6 +464,18 @@ void ContentsContainerView::SetRoundedCorners(
+ 
+   rounded_corner_radii_ = corner_radii;
+   UpdateBorderRoundedCorners();
++  OnThemeChanged();
++}
++
++void ContentsContainerView::OnThemeChanged() {
++  views::View::OnThemeChanged();
++#if !BUILDFLAG(IS_MAC)
++  // A single page leaves 1 px for the card's rim, which
++  // MultiContentsBackgroundView paints behind it.
++  if (!is_in_split_) {
++    SetBorder(views::CreateEmptyBorder(gfx::Insets(1)));
++  }
++#endif
+ }
+ 
+ void ContentsContainerView::UpdateContentsClip() {
+diff --git a/chrome/browser/ui/views/frame/contents_container_view.h b/chrome/browser/ui/views/frame/contents_container_view.h
+index e3ae9d104d..0b5a307845 100644
+--- a/chrome/browser/ui/views/frame/contents_container_view.h
++++ b/chrome/browser/ui/views/frame/contents_container_view.h
+@@ -140,6 +140,9 @@ class ContentsContainerView : public views::View,
+       std::optional<gfx::Outsets> target_contents_bounds);
+ 
+   void SetRoundedCorners(const gfx::RoundedCornersF& corner_radii);
++  // views::View: Arcomium paints Arc for Windows' card rim in the theme's
++  // colors.
++  void OnThemeChanged() override;
+ 
+   views::View* GetToastAnchorView() { return toast_anchor_view_; }
+ 
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index 2465092e63..9eb04c6230 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -67,6 +67,13 @@ namespace {
+ // Minimum area next to caption buttons to use as a grab handle.
+ constexpr int kVerticalTabsGrabHandleSize = 40;
+ 
++// Arcomium: Arc for Windows' sidebar has no floating corners at its ends.
++#if BUILDFLAG(IS_MAC)
++constexpr bool kArcomiumFlatSidebarEdges = false;
++#else
++constexpr bool kArcomiumFlatSidebarEdges = true;
++#endif
++
+ // Maximum portion of the window a "size-restricted" contents-height side panel
+ // can take up. This is not the only limit on side panel size.
+ constexpr float kMaxContentsHeightSidePanelFraction = 2.f / 3.f;
+@@ -267,6 +274,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
+           info.shadow_box && would_have_separator;
+       break;
+   }
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for Windows has no line under its top bar; the page card
++  // sets itself apart.
++  if (layout_data_->tab_strip_type == TabStripType::kVertical) {
++    info.multi_contents_separator = false;
++    info.top_container_separator = false;
++    info.adjust_for_missing_separator = false;
++  }
++#endif
+ 
+   return info;
+ }
+@@ -633,6 +649,11 @@ BrowserViewTabbedLayoutImpl::CalculateVerticalTabStripAnimation() {
+ }
+ 
+ int BrowserViewTabbedLayoutImpl::GetMinimumGrabHandlePadding() const {
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for Windows' top bar ends at the window controls; its free
++  // space around the address drags the window.
++  return 0;
++#endif
+   return kVerticalTabsGrabHandleSize -
+          GetLayoutInsets(LayoutInset::TOOLBAR_INTERIOR_MARGIN).right();
+ }
+@@ -916,7 +937,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     gfx::Rect corner_bounds;
+     const bool top_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        vertical_tab_strip_animation.top_corner > 0.0;
++        vertical_tab_strip_animation.top_corner > 0.0 &&
++        // Arcomium: Arc for Windows has no curve where its sidebar meets the
++        // top bar; the page card is the only rounded shape.
++        !kArcomiumFlatSidebarEdges;
+ 
+     // The top corner is drawn when the tabstrip goes all the way to the top.
+     if (top_corner_visible) {
+@@ -939,7 +963,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     gfx::Rect corner_bounds;
+     const bool bottom_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        vertical_tab_strip_animation.bottom_corner > 0.0;
++        vertical_tab_strip_animation.bottom_corner > 0.0 &&
++        !kArcomiumFlatSidebarEdges;
+     if (bottom_corner_visible) {
+       auto preferred =
+           views().vertical_tab_strip_bottom_corner->GetPreferredSize();
+@@ -1457,6 +1482,13 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+   } else {
+     background->SetPrimaryColor(CustomCornersBackground::ToolbarTheme());
+   }
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: as in Arc for Windows, the top bar beside the sidebar is part
++  // of the frame; only the page is a card.
++  if (layout_data_->tab_strip_type == TabStripType::kVertical) {
++    background->SetPrimaryColor(CustomCornersBackground::FrameTheme());
++  }
++#endif
+ 
+   // By default, this is just a flat background.
+   CustomCornersBackground::Corners corners;
+@@ -1576,7 +1608,13 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+ 
+     // When the vertical tabs are below the toolbar but next to the bookmarks
+     // bar, draw a curved corner.
+-    if (animation.top_corner < 0.0) {
++    if (animation.top_corner < 0.0
++#if !BUILDFLAG(IS_MAC)
++        // Arcomium: Arc for Windows' top bar is frame, not a card, so the
++        // sidebar meets it without a curve, unless expanded over the page.
++        && views().vertical_tab_strip_region_view->is_expanded_on_hover()
++#endif
++    ) {
+       vertical_tabs_corners[CornerOrientation::kTopTrailing].type =
+           views().vertical_tab_strip_region_view->is_expanded_on_hover()
+               ? CustomCornersBackground::CornerType::kRounded
+@@ -1627,6 +1665,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+     };
+     // Vertical tab strip always draws trailing edge.
+     vertical_tabs_outline.trailing = true;
++#if !BUILDFLAG(IS_MAC)
++    // Arcomium: Arc for Windows' sidebar has no edge line; the page card sets
++    // itself apart. It shows only over the page, expanded on hover.
++    vertical_tabs_outline.trailing = animation.expand_on_hover_width > 0.0;
++#endif
+     // Top edge is drawn when the tabstrip is not flush with the edge of the
+     // screen, or with a visual element that provides a natural border.
+     if (animation.expand_on_hover_width > 0.0 || animation.top_corner < 0.0 ||
+@@ -1636,6 +1679,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+     if (animation.expand_on_hover_width > 0.0) {
+       vertical_tabs_outline.bottom = true;
+     }
++#if !BUILDFLAG(IS_MAC)
++    // Arcomium: nor a top edge where it meets Arc for Windows' top bar.
++    vertical_tabs_outline.top =
++        vertical_tabs_outline.top && animation.expand_on_hover_width > 0.0;
++#endif
+     vertical_tabs_background->SetOutline(vertical_tabs_outline);
+ 
+     // Cut the vertical tab strip out of the top container.
+diff --git a/chrome/browser/ui/views/frame/multi_contents_background_view.cc b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
+index 56e57faa10..0abf1a4f42 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_background_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
+@@ -4,8 +4,18 @@
+ 
+ #include "chrome/browser/ui/views/frame/multi_contents_background_view.h"
+ 
++#include "build/build_config.h"
++#include "cc/paint/paint_flags.h"
++#include "ui/views/view_utils.h"
++#include "ui/gfx/skia_paint_util.h"
++#include "ui/gfx/shadow_value.h"
++#include "ui/gfx/canvas.h"
++#include "ui/gfx/color_utils.h"
++#include "chrome/browser/ui/views/frame/multi_contents_view.h"
+ #include "chrome/browser/ui/views/frame/themed_background.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
++#include "ui/color/color_id.h"
++#include "ui/color/color_provider.h"
+ #include "ui/compositor/layer_solid_color.h"
+ #include "ui/gfx/geometry/rounded_corners_f.h"
+ 
+@@ -43,10 +53,42 @@ void MultiContentsBackgroundView::OnThemeChanged() {
+ 
+ void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
+   CHECK(layer()->AsTextured());
++#if !BUILDFLAG(IS_MAC)
++  const ui::ColorProvider* color_provider = GetColorProvider();
++  if (!color_provider) {
++    return;
++  }
++  const SkColor frame = color_provider->GetColor(ui::kColorFrameActive);
++  canvas->DrawColor(frame);
++  const auto* multi_contents = views::AsViewClass<MultiContentsView>(parent());
++  if (multi_contents && multi_contents->IsInSplitView()) {
++    return;
++  }
++  // The single page card, where MultiContentsView insets it.
++  gfx::Rect card = GetLocalBounds();
++  card.Inset(gfx::Insets::TLBR(0, MultiContentsView::kArcomiumPageLeadingInset,
++                               MultiContentsView::kSplitViewContentInset,
++                               MultiContentsView::kSplitViewContentInset));
++  // Its soft shadow falls mostly below it; its rim is a shade off the frame.
++  const gfx::ShadowValues shadows = {
++      gfx::ShadowValue(gfx::Vector2d(0, 5), 28,
++                       SkColorSetA(SK_ColorBLACK, 0x50))};
++  cc::PaintFlags flags;
++  flags.setAntiAlias(true);
++  flags.setColor(color_utils::BlendTowardMaxContrast(frame, 0x0A));
++  flags.setLooper(gfx::CreateShadowDrawLooper(shadows));
++  canvas->DrawRoundRect(gfx::RectF(card), 4, flags);
++  return;
++#endif
+   ThemedBackground::PaintBackground(canvas, this, browser_view_);
+ }
+ 
+ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: the frame shows around the page card, which casts a soft
++  // shadow, as in Arc for Windows.
++  return ui::LAYER_TEXTURED;
++#endif
+   const bool has_custom_image =
+       !ThemedBackground::GetBackgroundColor(this, browser_view_).has_value();
+   return has_custom_image ? ui::LAYER_TEXTURED : ui::LAYER_SOLID_COLOR;
+@@ -54,6 +96,13 @@ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
+ 
+ void MultiContentsBackgroundView::UpdateSolidLayerColor() {
+   CHECK(layer()->AsSolidColor());
++#if !BUILDFLAG(IS_MAC)
++  if (const ui::ColorProvider* color_provider = GetColorProvider()) {
++    layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(
++        color_provider->GetColor(ui::kColorFrameActive)));
++  }
++  return;
++#endif
+   if (auto color = ThemedBackground::GetBackgroundColor(this, browser_view_)) {
+     layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(*color));
+   }
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
+index 5e8ccde047..01b4f4cb16 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -70,7 +70,13 @@ MultiContentsView::MultiContentsView(
+       delegate_(std::move(delegate)),
+       // Arcomium: the page card starts right at the sidebar's edge, as in Arc.
+       split_view_insets_(gfx::Insets::TLBR(0,
++#if BUILDFLAG(IS_MAC)
+                                            0,
++#else
++                                           // Arc for Windows' page card
++                                           // keeps off the sidebar.
++                                           kArcomiumPageLeadingInset,
++#endif
+                                            kSplitViewContentInset,
+                                            kSplitViewContentInset)) {
+   SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
+@@ -522,11 +528,16 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   available_space =
+       CalculateSeparatorLayouts(available_space, layouts.child_layouts);
+ 
+-  // Arcomium: split pages float as cards; a single page fills the window up
+-  // to its right and bottom edges, as in Arc.
++  // Arcomium: split pages float as cards. A single page fills the window up
++  // to its right and bottom edges on macOS, and is an inset card as in Arc
++  // for Windows elsewhere.
++#if BUILDFLAG(IS_MAC)
+   if (IsInSplitView()) {
+     available_space.Inset(split_view_insets_);
+   }
++#else
++  available_space.Inset(split_view_insets_);
++#endif
+   ViewSizes sizes = GetViewSizes(available_space);
+ 
+   gfx::Rect start_rect, resize_rect, end_rect;
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
+index 431ee6f1f1..493419b734 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.h
++++ b/chrome/browser/ui/views/frame/multi_contents_view.h
+@@ -8,6 +8,7 @@
+ #include <memory>
+ #include <optional>
+ 
++#include "build/build_config.h"
+ #include "base/callback_list.h"
+ #include "base/functional/callback_forward.h"
+ #include "base/gtest_prod_util.h"
+@@ -65,14 +66,22 @@ class MultiContentsView
+   };
+ 
+   static constexpr int kSplitViewContentInset = 8;
++  // Arcomium: the gap between the sidebar and the page card on Windows.
++  static constexpr int kArcomiumPageLeadingInset = 3;
+   // Arcomium: Arc-like card radius.
+   static constexpr float kSplitViewContentCornerRadius = 10;
+   static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
+       kSplitViewContentCornerRadius};
+-  // Arcomium: a single page meets the window's right and bottom edges, so
+-  // only its corners along the sidebar are rounded.
++  // Arcomium: on macOS a single page meets the window's right and bottom
++  // edges, so only its corners along the sidebar are rounded; elsewhere it is
++  // a card like Arc for Windows'.
++#if BUILDFLAG(IS_MAC)
+   static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{
+       kSplitViewContentCornerRadius, 0, 0, kSplitViewContentCornerRadius};
++#else
++  // Arc for Windows' page card has small corners.
++  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{4};
++#endif
+ 
+   MultiContentsView(BrowserView* browser_view,
+                     std::unique_ptr<MultiContentsViewDelegate> delegate);
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 7391c8bdbc..979583ee26 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -4,6 +4,18 @@
+ 
+ #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+ 
++#include "cc/paint/paint_flags.h"
++
++#include "base/strings/utf_string_conversions.h"
++
++#include "ui/gfx/color_utils.h"
++
++#include "components/vector_icons/vector_icons.h"
++
++#include "ui/base/clipboard/clipboard_buffer.h"
++
++#include "ui/base/clipboard/scoped_clipboard_writer.h"
++
+ #include <algorithm>
+ #include <memory>
+ #include <ranges>
+@@ -777,10 +789,136 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+     return;
+   }
+   arcomium_compact_ = compact;
++  if (!compact) {
++    if (page_action_container_) {
++      page_action_container_->SetVisible(true);
++    }
++    RefreshContentSettingViews();
++  }
+   UpdateArcomiumAlignment();
+   InvalidateLayout();
+ }
+ 
++void LocationBarView::SetArcomiumCentered(bool centered) {
++  if (arcomium_centered_ == centered) {
++    return;
++  }
++  arcomium_centered_ = centered;
++  if (centered && !arcomium_copy_button_) {
++    auto copy = views::CreateVectorImageButtonWithNativeTheme(
++        base::BindRepeating(&LocationBarView::CopyArcomiumAddress,
++                            base::Unretained(this)),
++        vector_icons::kArcomiumLinkIcon, 16, kColorToolbarButtonIcon,
++        kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
++    copy->SetTooltipText(u"Copy link");
++    copy->GetViewAccessibility().SetName(u"Copy link");
++    copy->SetVisible(false);
++    arcomium_copy_button_ = AddChildView(std::move(copy));
++    auto site = views::CreateVectorImageButtonWithNativeTheme(
++        base::BindRepeating(
++            [](LocationBarView* location_bar) {
++              location_bar->ShowPageInfoDialog();
++            },
++            base::Unretained(this)),
++        vector_icons::kArcomiumTuneIcon, 16, kColorToolbarButtonIcon,
++        kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
++    site->SetTooltipText(u"Site settings");
++    site->GetViewAccessibility().SetName(u"Site settings");
++    site->SetVisible(false);
++    arcomium_site_button_ = AddChildView(std::move(site));
++  }
++  // Arc for Windows sets the address in a smaller face than an edited one.
++  if (centered) {
++    arcomium_default_font_ = omnibox_view_->GetFontList();
++    omnibox_view_->SetFontList(
++        arcomium_default_font_->DeriveWithSizeDelta(-2));
++  } else if (arcomium_default_font_) {
++    omnibox_view_->SetFontList(*arcomium_default_font_);
++    arcomium_default_font_.reset();
++    omnibox_view_->InstallPlaceholderText();
++  }
++  RefreshBackground();
++  InvalidateLayout();
++}
++
++bool LocationBarView::IsArcomiumCenteredIdle() const {
++  return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
++}
++
++SkColor LocationBarView::GetArcomiumPillColor() const {
++  // A shade off the frame, as Arc for Windows' pill is.
++  return color_utils::BlendTowardMaxContrast(
++      GetColorProvider()->GetColor(ui::kColorFrameActive), 0x0B);
++}
++
++void LocationBarView::CopyArcomiumAddress() {
++  content::WebContents* contents = GetWebContents();
++  if (!contents || contents->GetVisibleURL().is_empty()) {
++    return;
++  }
++  ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
++      .WriteText(base::UTF8ToUTF16(contents->GetVisibleURL().spec()));
++}
++
++void LocationBarView::LayoutArcomiumCentered() {
++  // Arc for Windows' metrics: 16 px icon boxes 8 px off a 27 px pill whose
++  // text has 8 px of room before it and 10 after.
++  constexpr int kIconSize = 16;
++  constexpr int kGap = 8;
++  constexpr int kPillPadding = 8;
++  constexpr int kPillTrailingPadding = 10;
++  constexpr int kPillHeight = 28;
++  static constexpr char16_t kPlaceholder[] = u"Search or Enter URL...";
++  if (omnibox_view_->GetPlaceholderText() != kPlaceholder) {
++    omnibox_view_->SetPlaceholderText(kPlaceholder);
++  }
++  const std::u16string text = omnibox_view_->GetText().empty()
++                                  ? std::u16string(kPlaceholder)
++                                  : omnibox_view_->GetText();
++  const int max_text_width =
++      std::max(0, width() - 2 * (kIconSize + kGap + kPillPadding));
++  const int text_width = std::min(
++      gfx::GetStringWidth(text, omnibox_view_->GetFontList()) + 1,
++      max_text_width);
++  const int pill_width = text_width + kPillPadding + kPillTrailingPadding;
++  const int group_width = 2 * (kIconSize + kGap) + pill_width;
++  // Where Arc for Windows centres it: 2 px left of the toolbar's middle.
++  constexpr int kCenterOffset = -2;
++  const int center =
++      (parent() ? parent()->width() / 2 - x() : width() / 2) + kCenterOffset;
++  const int left = std::clamp(center - group_width / 2, 0,
++                              std::max(0, width() - group_width));
++  const int center_y = height() / 2;
++  // Its icons sit a pixel above the pill's middle.
++  const int icon_y = center_y - kIconSize / 2 - 1;
++  arcomium_copy_button_->SetBounds(left, icon_y, kIconSize, kIconSize);
++  arcomium_copy_button_->SetVisible(true);
++  arcomium_pill_bounds_ =
++      gfx::Rect(left + kIconSize + kGap, center_y - kPillHeight / 2,
++                pill_width, kPillHeight);
++  omnibox_view_->SetBounds(arcomium_pill_bounds_.x() + kPillPadding,
++                           omnibox_view_->y(), text_width,
++                           omnibox_view_->height());
++  location_icon_view_->SetVisible(false);
++  arcomium_site_button_->SetBounds(arcomium_pill_bounds_.right() + kGap,
++                                   icon_y, kIconSize, kIconSize);
++  arcomium_site_button_->SetVisible(true);
++}
++
++void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
++  views::View::OnPaintBackground(canvas);
++  if (arcomium_pill_bounds_.IsEmpty()) {
++    return;
++  }
++  cc::PaintFlags flags;
++  flags.setAntiAlias(true);
++  flags.setColor(GetArcomiumPillColor());
++  // Its top and bottom edges fall between pixels, as in Arc for Windows.
++  gfx::RectF pill(arcomium_pill_bounds_);
++  pill.Inset(gfx::InsetsF::VH(0.5f, 0.f));
++  canvas->DrawRoundRect(pill, 7, flags);
++}
++
+ void LocationBarView::UpdateArcomiumAlignment() {
+   if (omnibox_view_) {
+     omnibox_view_->SetHorizontalAlignment(
+@@ -924,7 +1062,10 @@ void LocationBarView::Layout(PassKey) {
+ 
+   if (arcomium_compact_) {
+     if (page_action_container_) {
+-      page_action_container_->SetBoundsRect(gfx::Rect());
++      page_action_container_->SetVisible(false);
++    }
++    for (ContentSettingImageView* view : content_setting_views_) {
++      view->SetVisible(false);
+     }
+   } else if (features::IsPageActionsElevatedToolbarEnabled()) {
+     if (page_action_container_ && page_action_container_->GetVisible()) {
+@@ -1062,6 +1203,15 @@ void LocationBarView::Layout(PassKey) {
+     position_view(omnibox_additional_text_view_, omnibox_additional_text_width);
+   }
+ 
++  if (arcomium_copy_button_) {
++    arcomium_copy_button_->SetVisible(false);
++    arcomium_site_button_->SetVisible(false);
++  }
++  arcomium_pill_bounds_ = gfx::Rect();
++  if (IsArcomiumCenteredIdle()) {
++    LayoutArcomiumCentered();
++  }
++
+   LayoutSuperclass<View>(this);
+ }
+ 
+@@ -1464,7 +1614,11 @@ void LocationBarView::RefreshBackground() {
+     border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
+   }
+ 
+-  if (is_popup_mode_) {
++  if (IsArcomiumCenteredIdle()) {
++    // Only the pill behind the address is painted (OnPaintBackground).
++    background_color_ = GetArcomiumPillColor();
++    SetBackground(nullptr);
++  } else if (is_popup_mode_) {
+     SetBackground(views::CreateSolidBackground(background_color_));
+   } else {
+     SetBackground(CreateRoundRectBackground(
+@@ -1476,6 +1630,10 @@ void LocationBarView::RefreshBackground() {
+   // Keep the views::Textfield in sync. It needs an opaque background to
+   // correctly enable subpixel AA.
+   omnibox_view_->SetBackgroundColor(background_color_);
++  // Arcomium: Arc for Windows sets its centred address in greyscale.
++  if (IsArcomiumCenteredIdle()) {
++    omnibox_view_->SetBackgroundColor(SK_ColorTRANSPARENT);
++  }
+ 
+   // The divider between indicators and request chips should have the same color
+   // as the omnibox.
+@@ -2091,6 +2249,10 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
+ 
+ void LocationBarView::OnOmniboxFocused() {
+   UpdateArcomiumAlignment();
++  if (arcomium_centered_) {
++    RefreshBackground();
++    InvalidateLayout();
++  }
+   if (views::FocusRing::Get(this)) {
+     views::FocusRing::Get(this)->Refresh();
+   }
+@@ -2115,6 +2277,10 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+ 
+ void LocationBarView::OnOmniboxBlurred() {
+   UpdateArcomiumAlignment();
++  if (arcomium_centered_) {
++    RefreshBackground();
++    InvalidateLayout();
++  }
+   if (views::FocusRing::Get(this)) {
+     views::FocusRing::Get(this)->Refresh();
+   }
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 8fba97363c..ab419c54c5 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -329,6 +329,10 @@ class LocationBarView
+   void SetArcomiumHovered(bool hovered);
+   // The site sits centered in the compact location bar until it is edited.
+   void UpdateArcomiumAlignment();
++  // Arcomium: as in Arc for Windows' top bar, while not edited the address is
++  // a pill centred on the toolbar between a copy-link button and the site
++  // settings button.
++  void SetArcomiumCentered(bool centered);
+ 
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
+@@ -434,6 +438,7 @@ class LocationBarView
+   void OnVisibleBoundsChanged() override;
+   void OnFocus() override;
+   void OnPaintBorder(gfx::Canvas* canvas) override;
++  void OnPaintBackground(gfx::Canvas* canvas) override;
+   // LocationBarView directs mouse button events from
+   // |omnibox_additional_text_view_| to |omnibox_view_| so that e.g., clicking
+   // the former will focus the latter.
+@@ -572,6 +577,16 @@ class LocationBarView
+   raw_ptr<LocationIconView> location_icon_view_ = nullptr;
+   bool arcomium_compact_ = false;
+   bool arcomium_hovered_ = false;
++  bool arcomium_centered_ = false;
++  // Where the centred address's pill is painted; empty unless it shows.
++  gfx::Rect arcomium_pill_bounds_;
++  raw_ptr<views::ImageButton> arcomium_copy_button_ = nullptr;
++  raw_ptr<views::ImageButton> arcomium_site_button_ = nullptr;
++  std::optional<gfx::FontList> arcomium_default_font_;
++  bool IsArcomiumCenteredIdle() const;
++  void LayoutArcomiumCentered();
++  void CopyArcomiumAddress();
++  SkColor GetArcomiumPillColor() const;
+ 
+   // Views to show inline autocompletion when an IME is active.  In this case,
+   // we shouldn't change the text or selection inside the OmniboxView itself,
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+index 14dc30b20a..e29cddedba 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+@@ -220,10 +220,21 @@ void ArcomiumAddressBar::ScheduleUpdatePlacement() {
+ }
+ 
+ void ArcomiumAddressBar::UpdatePlacement() {
+-  if (GetWidget() && IsDrawn()) {
++  const bool sidebar_drawn = GetWidget() && IsDrawn();
++  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
++  if (sidebar_drawn && browser_view && !browser_view->IsToolbarVisible()) {
+     TakeLocationBar();
+-  } else {
+-    ReturnLocationBar();
++    return;
++  }
++  ReturnLocationBar();
++  // A toolbar stays beside the sidebar (Windows): the location bar stays in
++  // it, as compact as here, with the site centred, as in Arc for Windows.
++  ToolbarView* toolbar = browser_view ? browser_view->toolbar() : nullptr;
++  if (LocationBarView* location_bar =
++          toolbar ? toolbar->location_bar_view() : nullptr) {
++    location_bar->SetArcomiumCompact(sidebar_drawn);
++    location_bar->SetArcomiumHovered(sidebar_drawn);
++    location_bar->SetArcomiumCentered(sidebar_drawn);
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+index 09777e5f5a..675197cd8d 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+@@ -24,9 +24,10 @@ class ImageButton;
+ class Widget;
+ }
+ 
+-// Arcomium: the address bar at the top of the Arc sidebar, as in Arc. It holds
+-// the toolbar's own location bar while the sidebar shows and gives it back to
+-// the toolbar while the sidebar is hidden, so the address stays reachable.
++// Arcomium: the address bar at the top of the Arc sidebar, as in Arc. Where
++// the sidebar replaces the toolbar (macOS) it holds the toolbar's own location
++// bar while the sidebar shows and gives it back while the sidebar is hidden,
++// so the address stays reachable; beside a toolbar it stays empty.
+ // Hovering it shows a button that copies the page's address. Editing the
+ // address happens in a wider field floating over the page, as in Arc.
+ class ArcomiumAddressBar : public views::View,
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 650da33459..162e19a9e1 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -34,6 +34,7 @@
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_id.h"
+ #include "ui/gfx/canvas.h"
++#include "ui/gfx/color_utils.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/actions/action_view_controller.h"
+ #include "ui/views/animation/ink_drop.h"
+@@ -59,15 +60,33 @@ namespace {
+ // icons, the gap after the window controls, and the hover corner radius.
+ constexpr int kArcHeaderHeight = 32;
+ constexpr int kArcHeaderButtonSize = 28;
++#if BUILDFLAG(IS_MAC)
+ constexpr int kArcHeaderPitch = 32;
++#else
++// Arc for Windows' header icons are 36 px apart.
++constexpr int kArcHeaderPitch = 36;
++#endif
+ constexpr int kArcHeaderIconSize = 16;
+ constexpr int kArcHeaderCaptionGap = 8;
+ constexpr int kArcHeaderButtonRadius = 6;
+ // Without window controls: the left edge, as the address bar's, and the first
+ // row's centre, as the macOS controls', from the window's top left.
++#if BUILDFLAG(IS_MAC)
+ constexpr int kArcHeaderEdge = 12;
++#else
++// Where Arc for Windows' logo button starts.
++constexpr int kArcHeaderEdge = 18;
++#endif
+ constexpr int kArcHeaderCenter = 20;
+ 
++#if !BUILDFLAG(IS_MAC)
++// Arc for Windows' header icons: thin glyphs a shade off white.
++SkColor GetArcHeaderIconColor(const views::View& view) {
++  return color_utils::BlendTowardMaxContrast(
++      view.GetColorProvider()->GetColor(ui::kColorFrameActive), 0xD6);
++}
++#endif
++
+ // One look for every Arc header button: hover and press show as a rounded
+ // square tinted with the icon color.
+ void StyleArcHeaderButton(views::Button* button) {
+@@ -108,7 +127,11 @@ class ArcLogoButton : public views::Button {
+     flags.setStyle(cc::PaintFlags::kStroke_Style);
+     flags.setStrokeWidth(1.4f);
+     flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
++#if BUILDFLAG(IS_MAC)
+     flags.setColor(GetColorProvider()->GetColor(ui::kColorIcon));
++#else
++    flags.setColor(GetArcHeaderIconColor(*this));
++#endif
+     canvas->DrawPath(arch.detach(), flags);
+     canvas->DrawPath(swoosh.detach(), flags);
+   }
+@@ -117,6 +140,34 @@ class ArcLogoButton : public views::Button {
+ BEGIN_METADATA(ArcLogoButton)
+ END_METADATA
+ 
++#if !BUILDFLAG(IS_MAC)
++// An Arc header button with one of Arc for Windows' glyphs in its color.
++class ArcHeaderIconButton : public views::ImageButton {
++  METADATA_HEADER(ArcHeaderIconButton, views::ImageButton)
++
++ public:
++  ArcHeaderIconButton(PressedCallback callback, const gfx::VectorIcon& icon)
++      : views::ImageButton(std::move(callback)), icon_(icon) {
++    SetImageHorizontalAlignment(ALIGN_CENTER);
++    SetImageVerticalAlignment(ALIGN_MIDDLE);
++  }
++
++  void OnThemeChanged() override {
++    views::ImageButton::OnThemeChanged();
++    const SkColor color = GetArcHeaderIconColor(*this);
++    views::SetImageFromVectorIconWithColor(
++        this, *icon_, kArcHeaderIconSize,
++        {color, color_utils::DeriveDefaultIconColor(color)});
++  }
++
++ private:
++  const raw_ref<const gfx::VectorIcon> icon_;
++};
++
++BEGIN_METADATA(ArcHeaderIconButton)
++END_METADATA
++#endif
++
+ }  // namespace
+ 
+ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+@@ -144,24 +195,32 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+ 
+   arc_logo_button_ = AddChildView(std::make_unique<ArcLogoButton>(
+       base::BindRepeating(&chrome::ShowAppMenu, base::Unretained(browser_))));
++  auto toggle_sidebar = base::BindRepeating(
++      [](tabs::VerticalTabStripStateController* controller) {
++        controller->RequestCollapse(!controller->IsCollapsed());
++      },
++      base::Unretained(state_controller_));
++#if BUILDFLAG(IS_MAC)
+   auto sidebar = views::CreateVectorImageButtonWithNativeTheme(
+-      base::BindRepeating(
+-          [](tabs::VerticalTabStripStateController* controller) {
+-            controller->RequestCollapse(!controller->IsCollapsed());
+-          },
+-          base::Unretained(state_controller_)),
+-      kDockToLeftIcon, kArcHeaderIconSize);
++      std::move(toggle_sidebar), kDockToLeftIcon, kArcHeaderIconSize);
++#else
++  auto sidebar = std::make_unique<ArcHeaderIconButton>(
++      std::move(toggle_sidebar), vector_icons::kArcomiumSidebarIcon);
++#endif
+   StyleArcHeaderButton(sidebar.get());
+   sidebar->SetTooltipText(u"Hide sidebar");
+   sidebar->GetViewAccessibility().SetName(u"Hide sidebar");
+   arc_sidebar_button_ = AddChildView(std::move(sidebar));
++  auto show_downloads = base::BindRepeating(
++      [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
++      base::Unretained(browser_));
++#if BUILDFLAG(IS_MAC)
+   auto downloads = views::CreateVectorImageButtonWithNativeTheme(
+-      base::BindRepeating(
+-          [](BrowserWindowInterface* browser) {
+-            chrome::ShowDownloads(browser);
+-          },
+-          base::Unretained(browser_)),
+-      kDownloadIcon, kArcHeaderIconSize);
++      std::move(show_downloads), kDownloadIcon, kArcHeaderIconSize);
++#else
++  auto downloads = std::make_unique<ArcHeaderIconButton>(
++      std::move(show_downloads), vector_icons::kArcomiumDownloadIcon);
++#endif
+   StyleArcHeaderButton(downloads.get());
+   downloads->SetTooltipText(u"Downloads");
+   downloads->GetViewAccessibility().SetName(u"Downloads");
+@@ -380,8 +439,11 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+   } else if (arc_logo_button_) {
+     // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
+     combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
+-    // Every button sits on one grid: 28 px targets 32 px apart.
++    // Every button sits on one grid: 28 px targets 32 px apart. Beside a
++    // toolbar (Windows) the row lines up with it and the toolbar has the
++    // navigation buttons.
+     const ArcHeaderGrid grid = GetArcHeaderGrid();
++    const size_t row_count = toolbar_height_ > 0 ? 1 : 2;
+     views::View* const rows[2][3] = {
+         {arc_logo_button_.get(), arc_sidebar_button_.get(),
+          arc_downloads_button_.get()},
+@@ -396,13 +458,17 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+           continue;
+         }
+         layout.child_layouts.emplace_back(
+-            rows[row][i], true,
++            rows[row][i], row < row_count,
+             gfx::Rect(row_x[row] + static_cast<int>(i) * kArcHeaderPitch,
+                       row_center[row] - kArcHeaderButtonSize / 2,
+                       kArcHeaderButtonSize, kArcHeaderButtonSize));
+       }
+     }
+-    host_size.set_height(row_center[1] + kArcHeaderPitch / 2);
++    // Beside a toolbar the sidebar's content starts a pixel above its
++    // bottom, as in Arc for Windows.
++    host_size.set_height(row_count == 1 ? std::max(toolbar_height_ - 1,
++                                                   kArcHeaderButtonSize)
++                                        : row_center[1] + kArcHeaderPitch / 2);
+     for (views::View* chromium_button :
+          {static_cast<views::View*>(unfocus_button_.get()),
+           static_cast<views::View*>(collapse_button_.get()),
+@@ -510,6 +576,11 @@ VerticalTabStripTopContainer::GetArcHeaderGrid() const {
+       grid.first_row_x = grid.second_row_x = std::max(0, edge.x());
+       grid.first_row_center = std::max(kArcHeaderButtonSize / 2, edge.y());
+     }
++    if (toolbar_height_ > 0) {
++      // Arc for Windows' header icons sit a pixel below the bar's middle.
++      grid.first_row_center =
++          std::max(kArcHeaderButtonSize / 2, toolbar_height_ / 2 + 1);
++    }
+     return grid;
+   }
+   grid.first_row_x = caption_button_width_ + kArcHeaderCaptionGap;
+diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
+index acff22c8eb..312eea5909 100644
+--- a/chrome/browser/ui/views/toolbar/app_menu.cc
++++ b/chrome/browser/ui/views/toolbar/app_menu.cc
+@@ -1034,9 +1034,21 @@ void AppMenu::RunMenu(views::MenuButtonController* host,
+   UMA_HISTOGRAM_ENUMERATION("WrenchMenu.MenuAction", MENU_ACTION_MENU_OPENED,
+                             LIMIT_MENU_ACTION);
+ 
+-  menu_runner_->RunMenuAt(host->button()->GetWidget(), host,
+-                          host->button()->GetAnchorBoundsInScreen(),
+-                          views::MenuAnchorPosition::kTopRight, source_type,
++  gfx::Rect anchor = host->button()->GetAnchorBoundsInScreen();
++  views::MenuAnchorPosition position = views::MenuAnchorPosition::kTopRight;
++  // Arcomium: without the toolbar's menu button, the sidebar's logo opens
++  // the menu.
++  if (!host->button()->IsDrawn()) {
++    if (BrowserView* browser_view =
++            BrowserView::GetBrowserViewForBrowser(browser_)) {
++      if (views::View* logo = browser_view->GetArcomiumAppMenuAnchor()) {
++        anchor = logo->GetAnchorBoundsInScreen();
++        position = views::MenuAnchorPosition::kTopLeft;
++      }
++    }
++  }
++  menu_runner_->RunMenuAt(host->button()->GetWidget(), host, anchor, position,
++                          source_type,
+                           /*native_view_for_gestures=*/gfx::NativeView(),
+                           /*corners=*/std::nullopt,
+                           "Chrome.AppMenu.MenuHostInitToNextFramePresented");
+diff --git a/chrome/browser/ui/views/toolbar/back_forward_button.cc b/chrome/browser/ui/views/toolbar/back_forward_button.cc
+index 5fd525293c..cfef256cb6 100644
+--- a/chrome/browser/ui/views/toolbar/back_forward_button.cc
++++ b/chrome/browser/ui/views/toolbar/back_forward_button.cc
+@@ -46,12 +46,18 @@ BackForwardButton::BackForwardButton(Direction direction,
+   SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON |
+                            ui::EF_MIDDLE_MOUSE_BUTTON);
+   if (direction == Direction::kBack) {
++#if BUILDFLAG(IS_MAC)
+     SetVectorIcons(features::IsRoundedIconsEnabled()
+                        ? vector_icons::kArrowBackIcon
+                        : vector_icons::kBackArrowChromeRefreshOldIcon,
+                    features::IsRoundedIconsEnabled()
+                        ? vector_icons::kArrowBackIcon
+                        : kBackArrowTouchOldIcon);
++#else
++    // Arcomium: Arc for Windows' thin arrows.
++    SetVectorIcons(vector_icons::kArcomiumBackIcon,
++                   vector_icons::kArcomiumBackIcon);
++#endif
+     SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_BACK));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ACCNAME_BACK));
+     GetViewAccessibility().SetDescription(
+@@ -60,12 +66,17 @@ BackForwardButton::BackForwardButton(Direction direction,
+     SetProperty(views::kElementIdentifierKey, kToolbarBackButtonElementId);
+     set_menu_identifier(kToolbarBackButtonMenuElementId);
+   } else {
++#if BUILDFLAG(IS_MAC)
+     SetVectorIcons(features::IsRoundedIconsEnabled()
+                        ? vector_icons::kArrowForwardIcon
+                        : vector_icons::kForwardArrowChromeRefreshOldIcon,
+                    features::IsRoundedIconsEnabled()
+                        ? vector_icons::kArrowForwardIcon
+                        : kForwardArrowTouchOldIcon);
++#else
++    SetVectorIcons(vector_icons::kArcomiumForwardIcon,
++                   vector_icons::kArcomiumForwardIcon);
++#endif
+     SetTooltipText(l10n_util::GetStringUTF16(IDS_TOOLTIP_FORWARD));
+     GetViewAccessibility().SetName(
+         l10n_util::GetStringUTF16(IDS_ACCNAME_FORWARD));
+diff --git a/chrome/browser/ui/views/toolbar/reload_button.cc b/chrome/browser/ui/views/toolbar/reload_button.cc
+index 5696f67551..88125a8827 100644
+--- a/chrome/browser/ui/views/toolbar/reload_button.cc
++++ b/chrome/browser/ui/views/toolbar/reload_button.cc
+@@ -65,12 +65,18 @@ ReloadButton::ReloadButton(
+                     nullptr),
+       metrics_recorder_(std::make_unique<WaapUIMetricsRecorder>(profile)),
+       command_updater_(command_updater),
++#if BUILDFLAG(IS_MAC)
+       reload_icon_(features::IsRoundedIconsEnabled()
+                        ? vector_icons::kRefreshIcon
+                        : vector_icons::kReloadChromeRefreshOldIcon),
+       reload_touch_icon_(features::IsRoundedIconsEnabled()
+                              ? vector_icons::kRefreshIcon
+                              : kReloadTouchOldIcon),
++#else
++      // Arcomium: Arc for Windows' thin reload.
++      reload_icon_(vector_icons::kArcomiumReloadIcon),
++      reload_touch_icon_(vector_icons::kArcomiumReloadIcon),
++#endif
+       stop_icon_(features::IsRoundedIconsEnabled()
+                      ? kCloseIcon
+                      : kNavigateStopChromeRefreshOldIcon),
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index bb908ae572..c8dda29cd0 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -217,6 +217,44 @@ auto& GetViewCommandMap() {
+ 
+ constexpr int kBrowserAppMenuRefreshCollapsedMargin = 2;
+ constexpr int kLargeSpaceBetweenButtons = 6;
++// Arcomium: the height of Arc for Windows' top bar, above the page card's
++// rim.
++constexpr int kArcomiumTopBarHeight = 32;
++
++// Arcomium: Arc for Windows' split view button: a 10 px rounded square split
++// down the middle, in the toolbar icon color.
++class ArcomiumSplitButton : public ToolbarButton {
++  METADATA_HEADER(ArcomiumSplitButton, ToolbarButton)
++
++ public:
++  explicit ArcomiumSplitButton(PressedCallback callback)
++      : ToolbarButton(std::move(callback)) {}
++
++  // As wide as the navigation buttons, so it sits where Arc's does.
++  gfx::Size CalculatePreferredSize(
++      const views::SizeBounds& available_size) const override {
++    return gfx::Size(32, 28);
++  }
++
++  void PaintButtonContents(gfx::Canvas* canvas) override {
++    constexpr float kSize = 10.f;
++    const gfx::RectF box((width() - kSize) / 2.f, (height() - kSize) / 2.f,
++                         kSize, kSize);
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    flags.setStyle(cc::PaintFlags::kStroke_Style);
++    flags.setStrokeWidth(1.f);
++    flags.setColor(GetColorProvider()->GetColor(kColorToolbarButtonIcon));
++    gfx::RectF outline = box;
++    outline.Inset(0.5f);
++    canvas->DrawRoundRect(outline, 1.5f, flags);
++    canvas->DrawLine(gfx::PointF(box.CenterPoint().x(), box.y()),
++                     gfx::PointF(box.CenterPoint().x(), box.bottom()), flags);
++  }
++};
++
++BEGIN_METADATA(ArcomiumSplitButton)
++END_METADATA
+ constexpr int kInsideBorderAroundGlicButtons = 2;
+ constexpr int kGlicButtonMargin = 5;
+ 
+@@ -365,7 +403,12 @@ void ToolbarView::Init() {
+   if (display_mode_ == DisplayMode::kNormal) {
+     SetBackground(std::make_unique<CustomCornersBackground>(
+         *this, *browser_view_,
++#if BUILDFLAG(IS_MAC)
+         /*primary_color=*/CustomCornersBackground::ToolbarTheme(),
++#else
++        // Arcomium: Arc for Windows' top bar is in the frame's color.
++        /*primary_color=*/CustomCornersBackground::FrameTheme(),
++#endif
+         /*corner_color=*/CustomCornersBackground::FrameTheme()));
+   } else if (display_mode_ == DisplayMode::kCustomTab) {
+     custom_tab_bar_ =
+@@ -516,6 +559,13 @@ void ToolbarView::Init() {
+ 
+   if (extensions_container) {
+     extensions_container_ = AddChildView(std::move(extensions_container));
++#if !BUILDFLAG(IS_MAC)
++    // Arcomium: Arc for Windows' top bar shows pinned extensions only.
++    if (views::View* extensions_button =
++            extensions_container_->GetExtensionsButton()) {
++      extensions_button->SetVisible(false);
++    }
++#endif
+     extensions_toolbar_coordinator_ =
+         std::make_unique<ExtensionsToolbarCoordinator>(extensions_container_);
+   }
+@@ -623,6 +673,12 @@ void ToolbarView::Init() {
+                                    browser_->GetProfile()->IsGuestSession();
+     else if (sab_value == "never")
+       show_avatar_toolbar_button = false;
++#if !BUILDFLAG(IS_MAC)
++    // Arcomium: Arc for Windows has no profile button in its top bar.
++    if (sab_value.empty()) {
++      show_avatar_toolbar_button = false;
++    }
++#endif
+ 
+     avatar_->SetVisible(show_avatar_toolbar_button);
+   }
+@@ -646,6 +702,20 @@ void ToolbarView::Init() {
+         l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP));
+     app_menu_button->SetID(VIEW_ID_APP_MENU);
+     app_menu_button_ = AddChildView(std::move(app_menu_button));
++#if !BUILDFLAG(IS_MAC)
++    // Arcomium: the sidebar's logo opens the app menu, as in Arc for Windows.
++    app_menu_button_->SetVisible(false);
++    // Arcomium: Arc for Windows' split view button ends the top bar.
++    auto split_button = std::make_unique<ArcomiumSplitButton>(
++        base::BindRepeating(
++            [](BrowserWindowInterface* browser) {
++              chrome::ExecuteCommand(browser, IDC_NEW_SPLIT_TAB);
++            },
++            base::Unretained(browser_.get())));
++    split_button->SetTooltipText(u"Split view");
++    split_button->GetViewAccessibility().SetName(u"Split view");
++    AddChildView(std::move(split_button));
++#endif
+   }
+ 
+   if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks) &&
+@@ -1435,6 +1505,12 @@ gfx::Size ToolbarView::CalculatePreferredSize(
+         size.SetToMin({size.width(), max_height});
+       }
+   }
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for Windows' top bar is 33 px high.
++  if (display_mode_ == DisplayMode::kNormal && should_display_vertical_tabs_) {
++    size.set_height(kArcomiumTopBarHeight);
++  }
++#endif
+   size.set_height(size.height() * size_animation_.GetCurrentValue());
+   return size;
+ }
+@@ -1474,6 +1550,11 @@ gfx::Size ToolbarView::GetMinimumSize() const {
+       }
+   }
+   size.set_height(size.height() * size_animation_.GetCurrentValue());
++#if !BUILDFLAG(IS_MAC)
++  if (display_mode_ == DisplayMode::kNormal && should_display_vertical_tabs_) {
++    size.set_height(kArcomiumTopBarHeight);
++  }
++#endif
+   return size;
+ }
+ 
+@@ -1601,6 +1682,23 @@ void ToolbarView::InitLayout() {
+       .SetCollapseMargins(true)
+       .SetDefault(views::kMarginsKey, gfx::Insets::VH(0, default_margin));
+ 
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for Windows' back button starts right at the sidebar.
++  if (back_ && should_display_vertical_tabs_) {
++    back_->SetProperty(views::kMarginsKey,
++                       gfx::Insets::TLBR(0, 0, 0, default_margin));
++    // Its navigation buttons are as tall as the split view button, so all sit
++    // on one line in the 32 px bar.
++    for (views::View* button :
++         {static_cast<views::View*>(back_), static_cast<views::View*>(forward_),
++          static_cast<views::View*>(reload_)}) {
++      if (button) {
++        button->SetPreferredSize(gfx::Size(34, 28));
++      }
++    }
++  }
++#endif
++
+   // If the Views location bar is in use, set its properties here.
+   if (location_bar_view_) {
+     location_bar_view_->SetProperty(views::kFlexBehaviorKey,
+@@ -1786,6 +1884,14 @@ void ToolbarView::LayoutCommon() {
+       interior_margin.set_right(0);
+     }
+   }
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: in Arc for Windows' top bar the back button starts at the
++  // sidebar and the last button ends at the window controls.
++  if (should_display_vertical_tabs_) {
++    // Its buttons sit a pixel below the bar's middle.
++    interior_margin = gfx::Insets::TLBR(2, 0, 0, 0);
++  }
++#endif
+   layout_manager_->SetInteriorMargin(interior_margin);
+ 
+   // Extend buttons to the window edge if we're either in a maximized or
+diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
+index d31061cafc..c50b4e2c97 100644
+--- a/components/vector_icons/BUILD.gn
++++ b/components/vector_icons/BUILD.gn
+@@ -15,6 +15,13 @@ if (current_toolchain == default_toolchain) {
+     generate_unittests = true
+ 
+     sources = [
++      "arcomium_back.icon",
++      "arcomium_download.icon",
++      "arcomium_forward.icon",
++      "arcomium_link.icon",
++      "arcomium_reload.icon",
++      "arcomium_sidebar.icon",
++      "arcomium_tune.icon",
+       "${branding_path_component}/product.icon",
+       "${branding_path_component}/product_refresh.icon",
+       "account_circle.icon",
+diff --git a/components/vector_icons/arcomium_back.icon b/components/vector_icons/arcomium_back.icon
+new file mode 100644
+index 0000000000..faf5951e28
+--- /dev/null
++++ b/components/vector_icons/arcomium_back.icon
+@@ -0,0 +1,13 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' back arrow: 1 px strokes, as its pixels fall.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 5.5f, 2.5f,
++LINE_TO, 0.5f, 7.5f,
++MOVE_TO, 0, 7.5f,
++LINE_TO, 4.9f, 12.4f,
++MOVE_TO, 0.5f, 7.5f,
++LINE_TO, 12, 7.5f
+diff --git a/components/vector_icons/arcomium_download.icon b/components/vector_icons/arcomium_download.icon
+new file mode 100644
+index 0000000000..3d590583de
+--- /dev/null
++++ b/components/vector_icons/arcomium_download.icon
+@@ -0,0 +1,14 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' downloads: an arrow onto a line.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 7.5f, 1,
++LINE_TO, 7.5f, 12.5f,
++MOVE_TO, 3.5f, 8.5f,
++LINE_TO, 7.5f, 12.5f,
++LINE_TO, 11.5f, 8.5f,
++MOVE_TO, 2.5f, 14.5f,
++LINE_TO, 12.5f, 14.5f
+diff --git a/components/vector_icons/arcomium_forward.icon b/components/vector_icons/arcomium_forward.icon
+new file mode 100644
+index 0000000000..adf9b1f140
+--- /dev/null
++++ b/components/vector_icons/arcomium_forward.icon
+@@ -0,0 +1,13 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' forward arrow: 1 px strokes, as its pixels fall.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 6.5f, 2.5f,
++LINE_TO, 11.5f, 7.5f,
++MOVE_TO, 11, 7.5f,
++LINE_TO, 6.1f, 12.4f,
++MOVE_TO, 11.5f, 7.5f,
++LINE_TO, 0, 7.5f
+diff --git a/components/vector_icons/arcomium_link.icon b/components/vector_icons/arcomium_link.icon
+new file mode 100644
+index 0000000000..9c617d0db0
+--- /dev/null
++++ b/components/vector_icons/arcomium_link.icon
+@@ -0,0 +1,17 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' copy link: two half links around a bar.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 7.25f, 5.5f,
++LINE_TO, 5.5f, 5.5f,
++ARC_TO, 3, 3, 0, 0, 0, 5.5f, 11.5f,
++LINE_TO, 7.25f, 11.5f,
++MOVE_TO, 8.75f, 5.5f,
++LINE_TO, 10.5f, 5.5f,
++ARC_TO, 3, 3, 0, 0, 1, 10.5f, 11.5f,
++LINE_TO, 8.75f, 11.5f,
++MOVE_TO, 5, 8.5f,
++LINE_TO, 11, 8.5f
+diff --git a/components/vector_icons/arcomium_reload.icon b/components/vector_icons/arcomium_reload.icon
+new file mode 100644
+index 0000000000..b53c90c7ca
+--- /dev/null
++++ b/components/vector_icons/arcomium_reload.icon
+@@ -0,0 +1,12 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' reload: an open 1 px circle with a corner arrowhead.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 11.42f, 7.04f,
++ARC_TO, 5.5f, 5.5f, 0, 1, 1, 8.41f, 3.06f,
++MOVE_TO, 10.4f, 2,
++LINE_TO, 10.4f, 5.5f,
++LINE_TO, 7.3f, 5.5f
+diff --git a/components/vector_icons/arcomium_sidebar.icon b/components/vector_icons/arcomium_sidebar.icon
+new file mode 100644
+index 0000000000..1b43e9dc55
+--- /dev/null
++++ b/components/vector_icons/arcomium_sidebar.icon
+@@ -0,0 +1,10 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' sidebar toggle: a rounded frame with a pane on the left.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++ROUND_RECT, 1.5f, 2.75f, 13, 10, 2,
++MOVE_TO, 5.6f, 2.75f,
++LINE_TO, 5.6f, 12.75f
+diff --git a/components/vector_icons/arcomium_tune.icon b/components/vector_icons/arcomium_tune.icon
+new file mode 100644
+index 0000000000..124779dcb5
+--- /dev/null
++++ b/components/vector_icons/arcomium_tune.icon
+@@ -0,0 +1,17 @@
++// Copyright 2026 The Arcomium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// Arc for Windows' site controls: two sliders with ring knobs.
++CANVAS_DIMENSIONS, 16,
++STROKE, 1,
++MOVE_TO, 2.25f, 5.5f,
++LINE_TO, 8.15f, 5.5f,
++MOVE_TO, 11.35f, 5.5f,
++LINE_TO, 13.75f, 5.5f,
++CIRCLE, 9.75f, 5.25f, 1.6f,
++MOVE_TO, 2.25f, 11.5f,
++LINE_TO, 4.65f, 11.5f,
++MOVE_TO, 7.85f, 11.5f,
++LINE_TO, 13.75f, 11.5f,
++CIRCLE, 6.25f, 11.25f, 1.6f
