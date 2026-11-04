@@ -1,0 +1,107 @@
+diff --git a/components/history/core/browser/sync/history_data_type_controller.cc b/components/history/core/browser/sync/history_data_type_controller.cc
+index fd2ff8758f..29f1979e42 100644
+--- a/components/history/core/browser/sync/history_data_type_controller.cc
++++ b/components/history/core/browser/sync/history_data_type_controller.cc
+@@ -47,11 +47,13 @@ HistoryDataTypeController::HistoryDataTypeController(
+           /*delegate_for_transport_mode=*/
+           GetDelegateFromHistoryService(history_service,
+                                         /*for_transport_mode=*/true)),
++      // Arcomium: there is no Google account whose enterprise status could
++      // be checked, so history syncs for every sync chain.
+       helper_(syncer::HISTORY,
+               sync_service,
+               pref_service,
+               HistoryDataTypeControllerHelper::AccountManagedStatusPolicy::
+-                  kDisallowEnterprise),
++                  kAllowAll),
+       history_service_(history_service) {
+   sync_observation_.Observe(helper_.sync_service());
+ }
+@@ -61,11 +63,8 @@ HistoryDataTypeController::~HistoryDataTypeController() = default;
+ syncer::DataTypeController::PreconditionState
+ HistoryDataTypeController::GetPreconditionState(
+     const PreconditionContext& context) const {
+-  // syncer::HISTORY doesn't support custom passphrase encryption.
+-  if (helper_.sync_service()->GetUserSettings()->IsEncryptEverythingEnabled()) {
+-    return PreconditionState::kMustStopAndClearData;
+-  }
+-
++  // Arcomium: the chain encrypts history with its passphrase, so history
++  // syncs with a custom passphrase too.
+   return helper_.GetPreconditionState(context);
+ }
+ 
+diff --git a/components/history/core/browser/sync/history_delete_directives_data_type_controller.cc b/components/history/core/browser/sync/history_delete_directives_data_type_controller.cc
+index 154bd84a1c..743a8f0403 100644
+--- a/components/history/core/browser/sync/history_delete_directives_data_type_controller.cc
++++ b/components/history/core/browser/sync/history_delete_directives_data_type_controller.cc
+@@ -65,9 +65,8 @@ syncer::DataTypeController::PreconditionState
+ HistoryDeleteDirectivesDataTypeController::GetPreconditionState(
+     const PreconditionContext& context) const {
+   DCHECK(CalledOnValidThread());
+-  if (helper_.sync_service()->GetUserSettings()->IsEncryptEverythingEnabled()) {
+-    return PreconditionState::kMustStopAndClearData;
+-  }
++  // Arcomium: the chain encrypts history with its passphrase, so history
++  // syncs with a custom passphrase too.
+   return helper_.GetPreconditionState(context);
+ }
+ 
+diff --git a/components/sync/base/data_type.cc b/components/sync/base/data_type.cc
+index c4cb0b8918..2cd489fa17 100644
+--- a/components/sync/base/data_type.cc
++++ b/components/sync/base/data_type.cc
+@@ -378,15 +378,18 @@ constexpr std::array<DataTypeInfo, syncer::GetNumDataTypes()>
+             .debug_string = "History Delete Directives",
+             .histogram_suffix = "HISTORY_DELETE_DIRECTIVE",
+             .stable_lowercase_string = "history_delete_directives",
+-            // History Sync is disabled if encryption is enabled.
+-            .encryption_policy = EncryptionPolicy::kNeverEncrypted,
++            // Arcomium: encrypted with the sync chain's passphrase, like the
++            // other types, so history syncs too.
++            .encryption_policy =
++                EncryptionPolicy::kEncryptedIfCustomPassphraseSet,
+             .priority = DataTypePriority::kRegular,
+             .communication_direction = CommunicationDirection::kRegularTwoWay,
+             .apply_updates_batch_policy = ApplyUpdatesBatchPolicy::kStandard,
+             .unsynced_data_check_on_signout_policy =
+                 UnsyncedDataCheckOnSignoutPolicy::kNone,
+             .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
+-            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
++            // Arcomium syncs through the local sync mode.
++            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
+         },
+         {
+             .type = DICTIONARY,
+@@ -575,7 +578,8 @@ constexpr std::array<DataTypeInfo, syncer::GetNumDataTypes()>
+             .unsynced_data_check_on_signout_policy =
+                 UnsyncedDataCheckOnSignoutPolicy::kNone,
+             .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
+-            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
++            // Arcomium syncs through the local sync mode.
++            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
+         },
+         {
+             .type = SECURITY_EVENTS,
+@@ -704,15 +708,18 @@ constexpr std::array<DataTypeInfo, syncer::GetNumDataTypes()>
+             .debug_string = "History",
+             .histogram_suffix = "HISTORY",
+             .stable_lowercase_string = "history",
+-            // History Sync is disabled if encryption is enabled.
+-            .encryption_policy = EncryptionPolicy::kNeverEncrypted,
++            // Arcomium: encrypted with the sync chain's passphrase, like the
++            // other types, so history syncs too.
++            .encryption_policy =
++                EncryptionPolicy::kEncryptedIfCustomPassphraseSet,
+             .priority = DataTypePriority::kLow,
+             .communication_direction = CommunicationDirection::kRegularTwoWay,
+             .apply_updates_batch_policy = ApplyUpdatesBatchPolicy::kImmediately,
+             .unsynced_data_check_on_signout_policy =
+                 UnsyncedDataCheckOnSignoutPolicy::kNone,
+             .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
+-            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
++            // Arcomium syncs through the local sync mode.
++            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
+         },
+         {
+             .type = PRINTERS_AUTHORIZATION_SERVERS,
