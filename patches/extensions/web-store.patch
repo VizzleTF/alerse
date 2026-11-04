@@ -1,0 +1,282 @@
+diff --git a/chrome/browser/extensions/external_provider_impl.cc b/chrome/browser/extensions/external_provider_impl.cc
+index 1cf32e1b81..eafae95629 100644
+--- a/chrome/browser/extensions/external_provider_impl.cc
++++ b/chrome/browser/extensions/external_provider_impl.cc
+@@ -885,12 +885,9 @@ void ExternalProviderImpl::CreateExternalProviders(
+         bundled_extension_creation_flags));
+ #endif
+ #if BUILDFLAG(IS_WIN)
+-    auto registry_provider = std::make_unique<ExternalProviderImpl>(
+-        service, new ExternalRegistryLoader, profile,
+-        ManifestLocation::kExternalRegistry,
+-        ManifestLocation::kExternalPrefDownload, Extension::NO_FLAGS);
+-    registry_provider->set_allow_updates(true);
+-    provider_list->push_back(std::move(registry_provider));
++    // Arcomium: no extensions from the Windows registry. Other programs list
++    // their Chrome extensions there, and Arcomium now downloads from the Chrome
++    // Web Store, so they would install themselves.
+ #else
+     provider_list->push_back(std::make_unique<ExternalProviderImpl>(
+         service,
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index d505fb6448..f138692fea 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -29,6 +29,7 @@
+ #include "chrome/browser/enterprise/isolated_mode/isolated_mode_settings_service_factory.h"
+ #include "chrome/browser/enterprise/util/managed_browser_utils.h"
+ #include "chrome/browser/extensions/extension_ui_util.h"
++#include "chrome/browser/extensions/webstore_install_with_prompt.h"
+ #include "chrome/browser/feedback/report_unsafe_site_dialog.h"
+ #include "chrome/browser/feedback/show_feedback_page.h"
+ #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
+@@ -149,7 +150,9 @@
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/profiling.h"
+ #include "content/public/common/url_constants.h"
++#include "components/crx_file/id_util.h"
+ #include "extensions/common/extension_features.h"
++#include "extensions/common/extension_urls.h"
+ #include "media/base/media_switches.h"
+ #include "ui/base/accelerators/menu_label_accelerator_util.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -228,6 +231,30 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(HelpMenuModel, kReportUnsafeSiteMenuItem);
+ 
+ namespace {
+ 
++// Arcomium: the Chrome Web Store keeps its own "Add to Chrome" button off in
++// browsers it does not take for Chrome, so the app menu offers the install on
++// an item's page. Not in chrome_command_ids.h: only this menu handles it.
++constexpr int kArcomiumAddFromWebstore = 40391;
++
++// The extension id of the Chrome Web Store item page shown in `browser`, or
++// "" on any other page.
++std::string GetWebstoreItemId(BrowserWindowInterface* browser) {
++  content::WebContents* contents =
++      browser->GetTabStripModel()->GetActiveWebContents();
++  if (!contents) {
++    return std::string();
++  }
++  const GURL& url = contents->GetLastCommittedURL();
++  if (url.host() != extension_urls::GetNewWebstoreLaunchURL().host()) {
++    return std::string();
++  }
++  const std::string_view path = url.path();
++  const size_t slash = path.rfind('/');
++  const std::string id(slash == std::string_view::npos ? path
++                                                       : path.substr(slash + 1));
++  return crx_file::id_util::IdIsValid(id) ? id : std::string();
++}
++
+ ////////////////////////////////////////////////////////////////////////////////
+ // AddItemWithStringIdAndVectorIcon
+ void AddItemWithStringIdAndVectorIcon(ui::SimpleMenuModel* model,
+@@ -1148,6 +1175,18 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
+     return;
+   }
+ 
++  if (command_id == kArcomiumAddFromWebstore) {
++    const std::string id = GetWebstoreItemId(browser_);
++    if (!id.empty()) {
++      auto installer =
++          base::MakeRefCounted<extensions::WebstoreInstallWithPrompt>(
++              id, browser_->GetProfile(), browser_->GetWindow()->GetNativeWindow(),
++              base::DoNothing());
++      installer->BeginInstall();
++    }
++    return;
++  }
++
+   if (command_id == IDC_VIEW_PASSWORDS) {
+     browser()->GetProfile()->GetPrefs()->SetBoolean(
+         password_manager::prefs::kPasswordsPrefWithNewLabelUsed, true);
+@@ -1887,6 +1926,8 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
+   }
+ 
+   switch (command_id) {
++    case kArcomiumAddFromWebstore:
++      return true;
+     case IDC_NEW_INCOGNITO_WINDOW:
+       return IncognitoModePrefs::IsIncognitoTypeAllowed(
+           browser_->GetProfile(),
+@@ -2266,6 +2307,12 @@ void AppMenuModel::Build() {
+       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
+                                         : vector_icons::kLinkOldIcon);
++  if (!GetWebstoreItemId(browser_).empty()) {
++    AddItemWithIcon(kArcomiumAddFromWebstore, u"Add to Arcomium",
++                    ui::ImageModel::FromVectorIcon(
++                        vector_icons::kChromeExtensionIcon, ui::kColorMenuIcon,
++                        ui::SimpleMenuModel::kDefaultIconSize));
++  }
+ 
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_OPTIONS, IDS_SETTINGS,
+diff --git a/extensions/browser/updater/extension_downloader.cc b/extensions/browser/updater/extension_downloader.cc
+index 4f8ae20316..5454cc35bc 100644
+--- a/extensions/browser/updater/extension_downloader.cc
++++ b/extensions/browser/updater/extension_downloader.cc
+@@ -158,7 +158,8 @@ std::optional<GURL> SanitizeUpdateURL(const ExtensionId& extension_id,
+                                       const GURL& update_url) {
+   if (update_url.is_empty()) {
+     // Fill in default update URL.
+-    return std::nullopt;
++    // Arcomium: extensions from the Chrome Web Store install and update.
++    return extension_urls::GetWebstoreUpdateUrl();
+   }
+ 
+   // Skip extensions with non-empty invalid update URLs.
+@@ -176,6 +177,11 @@ std::optional<GURL> SanitizeUpdateURL(const ExtensionId& extension_id,
+     return std::nullopt;
+   }
+ 
++  // Make sure we use SSL for store-hosted extensions.
++  if (extension_urls::IsWebstoreUpdateUrl(update_url) &&
++      !update_url.SchemeIsCryptographic()) {
++    return extension_urls::GetWebstoreUpdateUrl();
++  }
+ 
+   return update_url;
+ }
+@@ -347,6 +353,12 @@ void ExtensionDownloader::DoStartAllPending() {
+     AddToFetches(fetches_preparing, std::move(task));
+   pending_tasks_.clear();
+ 
++  // Arcomium: update checks run, so extensions synced from another device
++  // install and installed ones update.
++  for (auto& fetch_list : fetches_preparing) {
++    for (auto& fetch : fetch_list.second)
++      StartUpdateCheck(std::move(fetch));
++  }
+ }
+ 
+ void ExtensionDownloader::SetIdentityManager(
+diff --git a/extensions/browser/updater/safe_manifest_parser.cc b/extensions/browser/updater/safe_manifest_parser.cc
+index 7148e294a4..604dbc5889 100644
+--- a/extensions/browser/updater/safe_manifest_parser.cc
++++ b/extensions/browser/updater/safe_manifest_parser.cc
+@@ -29,7 +29,9 @@ namespace {
+ 
+ constexpr char kExpectedGupdateProtocol[] = "2.0";
+ constexpr char kExpectedGupdateXmlns[] =
+-    "http://www.google.com/update2/response";
++    // Arcomium: split so that domain substitution keeps the namespace that
++    // update responses of the Chrome Web Store use.
++    "http://www.goo" "gle.com/update2/response";
+ 
+ // Helper function that reads in values for a single <app> tag. It returns a
+ // boolean indicating success or failure. On failure, it writes a error message
+diff --git a/extensions/browser/webstore_installer.cc b/extensions/browser/webstore_installer.cc
+index 3f49bc9571..a1a80062d3 100644
+--- a/extensions/browser/webstore_installer.cc
++++ b/extensions/browser/webstore_installer.cc
+@@ -98,9 +98,15 @@ const char kAuthUserQueryKey[] = "authuser";
+ 
+ constexpr base::TimeDelta kTimeRemainingThreshold = base::Seconds(1);
+ 
++// Folder for downloading crx files from the webstore. This is used so that the
++// crx files don't go via the usual downloads folder.
++// Arcomium: installs from the Chrome Web Store, which ungoogled-chromium
++// disables.
++const base::FilePath::CharType kWebstoreDownloadFolder[] =
++    FILE_PATH_LITERAL("Webstore Downloads");
++
+ base::FilePath* g_download_directory_for_tests = nullptr;
+ 
+-[[maybe_unused]]
+ base::FilePath GetDownloadFilePath(const base::FilePath& download_directory,
+                                    const ExtensionId& id) {
+   // Ensure the download directory exists. TODO(asargent) - make this use
+@@ -477,6 +483,21 @@ void WebstoreInstaller::DownloadNextPendingModule() {
+ 
+ void WebstoreInstaller::DownloadCrx(const ExtensionId& extension_id,
+                                     InstallSource source) {
++  download_url_ = GetWebstoreInstallURL(extension_id, source);
++  MaybeAppendAuthUserParameter(approval_->authuser, download_url_);
++
++  base::FilePath user_data_dir =
++      ExtensionsBrowserClient::Get()->GetUserDataDir();
++  base::FilePath download_path = user_data_dir.Append(kWebstoreDownloadFolder);
++
++  base::FilePath download_directory(g_download_directory_for_tests
++                                        ? *g_download_directory_for_tests
++                                        : download_path);
++
++  GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
++      FROM_HERE,
++      base::BindOnce(&GetDownloadFilePath, download_directory, extension_id),
++      base::BindOnce(&WebstoreInstaller::StartDownload, this, extension_id));
+ }
+ 
+ // http://crbug.com/40957413
+@@ -631,6 +652,24 @@ void WebstoreInstaller::UpdateDownloadProgress() {
+ void WebstoreInstaller::StartCrxInstaller(const DownloadItem& download) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   DCHECK(!crx_installer_.get());
++
++  const InstallApproval* approval = GetAssociatedApproval(download);
++  DCHECK(approval);
++
++  crx_installer_ =
++      ExtensionsBrowserClient::Get()->CreateCrxInstallerFromDownloadItem(
++          browser_context_, download);
++
++  crx_installer_->set_expected_id(approval->extension_id);
++  crx_installer_->set_is_gallery_install(true);
++  crx_installer_->set_allow_silent_install(true);
++  crx_installer_->AddInstallerCallback(base::BindOnce(
++      &WebstoreInstaller::OnInstallerDone, weak_ptr_factory_.GetWeakPtr()));
++  if (approval->withhold_permissions) {
++    crx_installer_->set_withhold_permissions();
++  }
++
++  crx_installer_->InstallCrx(download.GetFullPath());
+ }
+ 
+ void WebstoreInstaller::ReportFailure(const std::string& error,
+diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_api_features.json
+index 0721762e56..2b3c8c1ac3 100644
+--- a/extensions/common/api/_api_features.json
++++ b/extensions/common/api/_api_features.json
+@@ -331,6 +331,7 @@
+   }, {
+     "channel": "stable",
+     "contexts": ["web_page"],
++    // Arcomium: "." keeps domain substitution away from the Web Store.
+     "matches": ["https://chromewebstore.google.com/*"]
+   }, {
+     // Used for webstore testing. See comment in
+@@ -967,6 +968,7 @@
+   "webstorePrivate": [{
+     "channel": "stable",
+     "contexts": ["web_page"],
++    // Arcomium: "." keeps domain substitution away from the Web Store.
+     "matches": ["https://chromewebstore.google.com/*"]
+   }, {
+     // Used for webstore testing. See comment in
+diff --git a/extensions/common/extension_urls.cc b/extensions/common/extension_urls.cc
+index d833569232..b46828b172 100644
+--- a/extensions/common/extension_urls.cc
++++ b/extensions/common/extension_urls.cc
+@@ -38,14 +38,17 @@ const GURL* g_item_snippet_url_for_test_ = nullptr;
+ 
+ }  // namespace
+ 
+-const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
+-const char kNewChromeWebstoreBaseURL[] = "https://chromewebstore.google.com/";
++// Arcomium installs and updates extensions from the Chrome Web Store, so its
++// URLs stay real: the literals are split so that ungoogled-chromium's domain
++// substitution leaves them alone.
++const char kChromeWebstoreBaseURL[] = "https://chrome.goo" "gle.com/webstore";
++const char kNewChromeWebstoreBaseURL[] = "https://chromewebstore.goo" "gle.com/";
+ const char kModernWebGuidanceURL[] =
+     "https://developer.chrome.com/docs/extensions/ai/"
+     "build-with-ai#modern_web_guidance";
+ const char kChromeWebstoreUpdateURL[] =
+-    "https://clients2.google.com/service/update2/crx";
+-const char kChromeWebstoreApiURL[] = "https://chromewebstore.googleapis.com/";
++    "https://clients2.goo" "gle.com/service/update2/crx";
++const char kChromeWebstoreApiURL[] = "https://chromewebstore.goo" "gleapis.com/";
+ 
+ const char kAppMenuUtmSource[] = "ext_app_menu";
+ const char kExtensionsMenuUtmSource[] = "ext_extensions_menu";
