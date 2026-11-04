@@ -31,7 +31,7 @@ and the Arc import tool. Builds come from the platform repositories below.
 | Platform | Builds |
 |---|---|
 | Windows | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
-| macOS, iPhone | build from source: arcomium-mac, arcomium-ios |
+| macOS, iPhone | build from source: [arcomium-mac](https://github.com/VizzleTF/arcomium-mac), [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
 | Linux | planned |
 
 ## Move from Arc
@@ -53,8 +53,8 @@ it imported before.
 | arcomium (this one) | Patches, design notes, Arc import |
 | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | Windows build and releases |
 | [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) | Sync server |
-| arcomium-mac | macOS build on ungoogled-chromium-macos |
-| arcomium-ios | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
+| [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | macOS build on ungoogled-chromium-macos |
+| [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
 
 ## Status
 
