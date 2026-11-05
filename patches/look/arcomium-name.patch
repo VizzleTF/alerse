@@ -15,24 +15,6 @@ index 3de8ca69c9..9a599385de 100644
            </message>
          </else>
        </if>
-diff --git a/chrome/app/theme/chromium/BRANDING b/chrome/app/theme/chromium/BRANDING
-index f8363d5b29..d454971117 100644
---- a/chrome/app/theme/chromium/BRANDING
-+++ b/chrome/app/theme/chromium/BRANDING
-@@ -1,9 +1,9 @@
- COMPANY_FULLNAME=The Chromium Authors
- COMPANY_SHORTNAME=The Chromium Authors
--PRODUCT_FULLNAME=Chromium
--PRODUCT_SHORTNAME=Chromium
--PRODUCT_INSTALLER_FULLNAME=Chromium Installer
--PRODUCT_INSTALLER_SHORTNAME=Chromium Installer
-+PRODUCT_FULLNAME=Arcomium
-+PRODUCT_SHORTNAME=Arcomium
-+PRODUCT_INSTALLER_FULLNAME=Arcomium Installer
-+PRODUCT_INSTALLER_SHORTNAME=Arcomium Installer
- COPYRIGHT=Copyright @LASTCHANGE_YEAR@ The Chromium Authors. All rights reserved.
- MAC_BUNDLE_ID=org.chromium.Chromium
- MAC_CREATOR_CODE=Cr24
 diff --git a/chrome/browser/profiles/profile_shortcut_manager_win.cc b/chrome/browser/profiles/profile_shortcut_manager_win.cc
 index 9d7baf5001..b9d821034b 100644
 --- a/chrome/browser/profiles/profile_shortcut_manager_win.cc
