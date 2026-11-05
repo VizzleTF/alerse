@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
-index 087dd2230f..c9a6cfe9fb 100644
+index 087dd2230f..59a76a1e91 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
 @@ -12,7 +12,15 @@
@@ -28,7 +28,7 @@ index 087dd2230f..c9a6cfe9fb 100644
  
      // Trigger exactly once per physical swipe gesture. Subsequent events in
      // the same touch are consumed until fingers lift or gesture times out.
-@@ -139,17 +150,109 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
+@@ -139,17 +150,110 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
    }
  }
  
@@ -43,7 +43,8 @@ index 087dd2230f..c9a6cfe9fb 100644
 +    forward = !forward;
 +  }
 +  arcomium_tracking_ = true;
-+  sidebar->TrackSpaceSwipe(cumulative_x_, switcher->CanRotateSpace(forward));
++  sidebar->TrackSpaceSwipe(cumulative_x_, forward,
++                           switcher->GetNeighborSpace(forward));
 +#if !BUILDFLAG(IS_MAC)
 +  // Wheel events say nothing of the fingers lifting: a pause ends the swipe.
 +  arcomium_end_timer_.Start(

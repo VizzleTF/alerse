@@ -603,7 +603,16 @@ void ArcomiumSidebarView::OnTabGroupFocusChanged(
   ScheduleRebuild();
 }
 
+std::optional<tab_groups::TabGroupId> ArcomiumSidebarView::GetActiveGroup()
+    const {
+  return preview_space_ ? preview_space_->group
+                        : browser_->GetTabStripModel()->GetFocusedGroup();
+}
+
 std::string ArcomiumSidebarView::GetActiveSpace() const {
+  if (preview_space_) {
+    return preview_space_->space;
+  }
   const TabStripModel* tabs = browser_->GetTabStripModel();
   if (std::optional<tab_groups::TabGroupId> group = tabs->GetFocusedGroup()) {
     if (std::optional<std::string> space = arcomium::GetSpaceOfGroupOrFolder(
@@ -615,6 +624,9 @@ std::string ArcomiumSidebarView::GetActiveSpace() const {
 }
 
 std::u16string ArcomiumSidebarView::GetActiveSpaceTitle() const {
+  if (preview_space_) {
+    return preview_space_->title;
+  }
   const TabStripModel* tabs = browser_->GetTabStripModel();
   std::optional<tab_groups::TabGroupId> group = tabs->GetFocusedGroup();
   if (group && tabs->group_model() &&
@@ -673,8 +685,11 @@ const bookmarks::BookmarkNode* ArcomiumSidebarView::GetNode(int64_t id) const {
 }
 
 bool ArcomiumSidebarView::IsInActiveSpace(const tabs::TabInterface* tab) const {
-  const std::optional<tab_groups::TabGroupId> focused =
-      browser_->GetTabStripModel()->GetFocusedGroup();
+  const std::optional<tab_groups::TabGroupId> focused = GetActiveGroup();
+  if (!focused && preview_space_ && preview_space_->space != kDefaultSpace) {
+    // A closed or synced Space has no tabs here.
+    return false;
+  }
   return focused ? tab->GetGroup() == focused : !tab->GetGroup().has_value();
 }
 
@@ -792,20 +807,95 @@ void ArcomiumSidebarView::CancelSpaceSlide() {
   pending_slide_ = 0;
 }
 
-void ArcomiumSidebarView::TrackSpaceSwipe(float dx, bool can_switch) {
+std::unique_ptr<views::View> ArcomiumSidebarView::BuildSpacePreview(
+    const ArcomiumSpaceRef& space) {
+  auto container = std::make_unique<views::View>();
+  container->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical));
+  container->SetCanProcessEventsWithinSubtree(false);
+  // BuildRows() as for the active Space, into the container, leaving the
+  // active Space's state as it was.
+  views::View* rows = rows_;
+  rows_ = container.get();
+  auto targets = std::move(row_targets_);
+  row_targets_.clear();
+  auto bound = bound_;
+  const double pitch_offset = row_pitch_offset_;
+  row_pitch_offset_ = 0;
+  preview_space_ = space;
+  BuildRows();
+  preview_space_.reset();
+  row_pitch_offset_ = pitch_offset;
+  bound_ = std::move(bound);
+  row_targets_ = std::move(targets);
+  rows_ = rows;
+  return container;
+}
+
+void ArcomiumSidebarView::HideSpacePreview() {
+  drop_preview_after_rebuild_ = false;
+  space_preview_side_ = 0;
+  if (space_preview_) {
+    views::View* preview = space_preview_;
+    space_preview_ = nullptr;
+    RemoveChildViewT(preview);
+  }
+  if (scroll_ && scroll_->layer()) {
+    scroll_->layer()->GetAnimator()->StopAnimating();
+    scroll_->layer()->SetTransform(gfx::Transform());
+    scroll_->layer()->SetOpacity(1.0f);
+  }
+}
+
+void ArcomiumSidebarView::TrackSpaceSwipe(
+    float dx,
+    bool forward,
+    const std::optional<ArcomiumSpaceRef>& neighbor) {
   if (!scroll_ || !scroll_->layer()) {
     return;
   }
   ui::Layer* layer = scroll_->layer();
   layer->GetAnimator()->StopAnimating();
+  if (space_preview_ && space_preview_->layer()) {
+    space_preview_->layer()->GetAnimator()->StopAnimating();
+  }
   pending_slide_ = 0;
-  const float width = std::max(1, scroll_->width());
-  float offset = can_switch ? dx : std::clamp(dx * 0.2f, -24.0f, 24.0f);
-  offset = std::clamp(offset, -width, width);
+  drop_preview_after_rebuild_ = false;
+  const int width = std::max(1, scroll_->width());
+  // The side the neighbor stands on: right of these rows going forward.
+  const int side = neighbor ? (forward ? 1 : -1) : 0;
+  if (side != space_preview_side_) {
+    if (space_preview_) {
+      views::View* preview = space_preview_;
+      space_preview_ = nullptr;
+      RemoveChildViewT(preview);
+    }
+    space_preview_side_ = side;
+    if (side) {
+      auto frame = std::make_unique<views::View>();
+      frame->SetProperty(views::kViewIgnoredByLayoutKey, true);
+      frame->SetCanProcessEventsWithinSubtree(false);
+      frame->SetPaintToLayer();
+      frame->layer()->SetFillsBoundsOpaquely(false);
+      frame->layer()->SetMasksToBounds(true);
+      std::unique_ptr<views::View> rows = BuildSpacePreview(*neighbor);
+      rows->SetBounds(0, 0, width, rows->GetHeightForWidth(width));
+      frame->AddChildView(std::move(rows));
+      frame->SetBoundsRect(scroll_->bounds());
+      space_preview_ = AddChildView(std::move(frame));
+    }
+  }
+  float offset = side ? std::clamp(dx, -1.0f * width, 1.0f * width)
+                      : std::clamp(dx * 0.2f, -24.0f, 24.0f);
   gfx::Transform transform;
   transform.Translate(offset, 0);
   layer->SetTransform(transform);
-  layer->SetOpacity(1.0f - 0.5f * std::abs(offset) / width);
+  layer->SetOpacity(1.0f);
+  if (space_preview_) {
+    gfx::Transform beside;
+    beside.Translate(offset + side * width, 0);
+    space_preview_->layer()->SetTransform(beside);
+  }
 }
 
 void ArcomiumSidebarView::EndSpaceSwipe(bool commit,
@@ -814,57 +904,70 @@ void ArcomiumSidebarView::EndSpaceSwipe(bool commit,
   if (!scroll_ || !scroll_->layer()) {
     return;
   }
-  if (!commit) {
-    views::AnimationBuilder()
-        .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
-                                   IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
-        .Once()
-        .SetDuration(base::Milliseconds(160))
-        .SetTransform(scroll_.get(), gfx::Transform(), gfx::Tween::EASE_OUT)
-        .SetOpacity(scroll_.get(), 1.0f, gfx::Tween::EASE_OUT);
-    return;
+  commit = commit && space_preview_;
+  const int width = std::max(1, scroll_->width());
+  const int side = space_preview_side_;
+  // Quick, and quicker the less of the way is left.
+  const float done =
+      std::abs(scroll_->layer()->transform().To2dTranslation().x()) / width;
+  const float left = commit ? 1.0f - done : done;
+  const base::TimeDelta duration =
+      base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f));
+  gfx::Transform rows_to;
+  gfx::Transform preview_to;
+  if (commit) {
+    rows_to.Translate(-side * width, 0);
+  } else {
+    preview_to.Translate(side * width, 0);
   }
-  const int width = scroll_->width();
-  gfx::Transform out;
-  out.Translate(forward ? -width : width, 0);
-  auto [on_ended, on_aborted] = base::SplitOnceCallback(base::BindOnce(
-      [](base::WeakPtr<ArcomiumSidebarView> sidebar, bool forward, int distance,
-         base::OnceClosure switch_space) {
-        if (!sidebar) {
-          return;
-        }
-        sidebar->PrepareSpaceSlide(forward, distance);
-        std::move(switch_space).Run();
-        base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-            FROM_HERE,
-            base::BindOnce(&ArcomiumSidebarView::RestoreSlide, sidebar),
-            base::Milliseconds(400));
-      },
-      slide_weak_factory_.GetWeakPtr(), forward, width * 2 / 5,
-      std::move(switch_space)));
-  views::AnimationBuilder()
-      .OnEnded(std::move(on_ended))
+  base::OnceClosure finish;
+  if (commit) {
+    finish = base::BindOnce(
+        [](base::WeakPtr<ArcomiumSidebarView> sidebar,
+           base::OnceClosure switch_space) {
+          if (!sidebar) {
+            return;
+          }
+          // The preview stays in place until the switched Space's rows
+          // replace it.
+          sidebar->drop_preview_after_rebuild_ = true;
+          std::move(switch_space).Run();
+          base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+              FROM_HERE,
+              base::BindOnce(&ArcomiumSidebarView::RestoreSlide, sidebar),
+              base::Milliseconds(500));
+        },
+        slide_weak_factory_.GetWeakPtr(), std::move(switch_space));
+  } else {
+    finish = base::BindOnce(&ArcomiumSidebarView::HideSpacePreview,
+                            slide_weak_factory_.GetWeakPtr());
+  }
+  auto [on_ended, on_aborted] = base::SplitOnceCallback(std::move(finish));
+  views::AnimationBuilder builder;
+  builder.OnEnded(std::move(on_ended))
       .OnAborted(std::move(on_aborted))
       .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
-                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
-      .Once()
-      .SetDuration(base::Milliseconds(110))
-      .SetTransform(scroll_.get(), out, gfx::Tween::EASE_IN)
-      .SetOpacity(scroll_.get(), 0.0f, gfx::Tween::EASE_IN);
+                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
+  auto& step = builder.Once().SetDuration(duration).SetTransform(
+      scroll_.get(), rows_to, gfx::Tween::EASE_OUT);
+  if (space_preview_) {
+    step.SetTransform(space_preview_.get(), preview_to, gfx::Tween::EASE_OUT);
+  }
 }
 
 void ArcomiumSidebarView::RestoreSlide() {
-  if (!scroll_ || !scroll_->layer() ||
-      scroll_->layer()->GetAnimator()->is_animating() ||
-      scroll_->layer()->opacity() == 1.0f) {
-    return;
+  if (drop_preview_after_rebuild_) {
+    HideSpacePreview();
   }
-  pending_slide_ = 0;
-  scroll_->layer()->SetTransform(gfx::Transform());
-  scroll_->layer()->SetOpacity(1.0f);
 }
 
 void ArcomiumSidebarView::RunPendingSlide() {
+  if (drop_preview_after_rebuild_ && !preview_space_) {
+    // The swipe's Space is in: its rows where its preview was.
+    scroll_->ScrollToPosition(scroll_->vertical_scroll_bar(), 0);
+    HideSpacePreview();
+    return;
+  }
   if (!pending_slide_ || !scroll_ || !scroll_->layer()) {
     return;
   }
@@ -904,47 +1007,8 @@ void ArcomiumSidebarView::Rebuild() {
     return !entry.second.Get() || !GetNode(entry.first);
   });
 
-  const bookmarks::BookmarkNode* folder = GetSpaceFolder(false);
-
-  // Space name.
-  std::u16string title = GetActiveSpaceTitle();
-  if (title.empty()) {
-    title = folder ? folder->GetTitle() : u"home";
-  }
-  auto* space_label = rows_->AddChildView(MakeLabel(
-      title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
-      arcomium::SidebarInk(this, kSubtleColor)));
-  space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
-      2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
-  space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
-
-  if (folder) {
-    BindTabsByUrl(folder);
-    AddPinnedRows(folder, 0);
-  }
-
-  rows_->AddChildView(std::make_unique<Divider>());
-
-  // Arc's New Tab opens its command bar; what is picked there opens in a
-  // new tab.
-  AddRow(std::make_unique<Row>(
-      base::BindRepeating(
-          [](ArcomiumAddressBar* address_bar) {
-            address_bar->OpenCommandBar(/*new_tab=*/true);
-          },
-          base::Unretained(address_bar_.get())),
-      std::make_unique<PlusGlyph>(), u"New Tab", 0, ItemFont(false),
-      kNewTabColor, /*slash=*/false, /*active=*/false));
-
+  BuildRows();
   TabStripModel* tabs = browser_->GetTabStripModel();
-  for (int i = 0; i < tabs->count(); ++i) {
-    tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
-    // An empty Space's hidden tab has no row.
-    if (IsInActiveSpace(tab) && !IsBound(tab) &&
-        !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
-      AddTabRow(tab);
-    }
-  }
   // It goes once its Space has a tab again and it is not shown.
   for (int i = 0; i < tabs->count(); ++i) {
     tabs::TabInterface* hidden = tabs->GetTabAtIndex(i);
@@ -993,6 +1057,50 @@ void ArcomiumSidebarView::Rebuild() {
   }
 
   PreferredSizeChanged();
+}
+
+void ArcomiumSidebarView::BuildRows() {
+  const bookmarks::BookmarkNode* folder = GetSpaceFolder(false);
+
+  // Space name.
+  std::u16string title = GetActiveSpaceTitle();
+  if (title.empty()) {
+    title = folder ? folder->GetTitle() : u"home";
+  }
+  auto* space_label = rows_->AddChildView(MakeLabel(
+      title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
+      arcomium::SidebarInk(this, kSubtleColor)));
+  space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
+      2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
+  space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
+
+  if (folder) {
+    BindTabsByUrl(folder);
+    AddPinnedRows(folder, 0);
+  }
+
+  rows_->AddChildView(std::make_unique<Divider>());
+
+  // Arc's New Tab opens its command bar; what is picked there opens in a
+  // new tab.
+  AddRow(std::make_unique<Row>(
+      base::BindRepeating(
+          [](ArcomiumAddressBar* address_bar) {
+            address_bar->OpenCommandBar(/*new_tab=*/true);
+          },
+          base::Unretained(address_bar_.get())),
+      std::make_unique<PlusGlyph>(), u"New Tab", 0, ItemFont(false),
+      kNewTabColor, /*slash=*/false, /*active=*/false));
+
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  for (int i = 0; i < tabs->count(); ++i) {
+    tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+    // An empty Space's hidden tab has no row.
+    if (IsInActiveSpace(tab) && !IsBound(tab) &&
+        !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
+      AddTabRow(tab);
+    }
+  }
 }
 
 ArcomiumSidebarView::Row* ArcomiumSidebarView::AddRow(

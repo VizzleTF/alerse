@@ -17,6 +17,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -146,12 +147,14 @@ class ArcomiumSidebarView : public views::View,
   // the next Space's rows slide in. CancelSpaceSlide() if it did not switch.
   void PrepareSpaceSlide(bool forward, int distance = 48);
   void CancelSpaceSlide();
-  // While the fingers move: the rows follow them by `dx`; with no Space that
-  // way, they give only a little.
-  void TrackSpaceSwipe(float dx, bool can_switch);
-  // The fingers lifted. Committed, the rows slide out the way they went, then
-  // `switch_space` runs and the next Space's rows slide in from the other
-  // side; otherwise they spring back.
+  // While the fingers move: the rows follow them by `dx`, the rows of the
+  // `neighbor` Space butted against their side; with no Space that way, they
+  // give only a little.
+  void TrackSpaceSwipe(float dx,
+                       bool forward,
+                       const std::optional<ArcomiumSpaceRef>& neighbor);
+  // The fingers lifted. Committed, both finish the move, then `switch_space`
+  // runs; otherwise they spring back.
   void EndSpaceSwipe(bool commit, bool forward, base::OnceClosure switch_space);
 
  private:
@@ -202,6 +205,12 @@ class ArcomiumSidebarView : public views::View,
   void RunPendingSlide();
   // Shows the rows again if a committed swipe switched nothing.
   void RestoreSlide();
+  // The rows the sidebar shows for `space`, without switching to it.
+  std::unique_ptr<views::View> BuildSpacePreview(const ArcomiumSpaceRef& space);
+  // Rebuild()'s rows of the active Space, or of preview_space_.
+  void BuildRows();
+  void HideSpacePreview();
+  std::optional<tab_groups::TabGroupId> GetActiveGroup() const;
   void AddPinnedRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBoundTabRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBookmarkRow(const bookmarks::BookmarkNode* node, int depth);
@@ -252,6 +261,11 @@ class ArcomiumSidebarView : public views::View,
   raw_ptr<views::View> rows_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
   int pending_slide_ = 0;
+  // The neighbor Space's rows beside these during a swipe.
+  raw_ptr<views::View> space_preview_ = nullptr;
+  std::optional<ArcomiumSpaceRef> preview_space_;
+  int space_preview_side_ = 0;
+  bool drop_preview_after_rebuild_ = false;
   int pending_slide_distance_ = 48;
   base::WeakPtrFactory<ArcomiumSidebarView> slide_weak_factory_{this};
   std::string pending_slide_from_;

@@ -458,6 +458,14 @@ bool ArcomiumSpaceSwitcher::CanRotateSpace(bool forward) const {
          next < static_cast<int>(space_actions_.size());
 }
 
+std::optional<ArcomiumSpaceRef> ArcomiumSpaceSwitcher::GetNeighborSpace(
+    bool forward) const {
+  if (!CanRotateSpace(forward)) {
+    return std::nullopt;
+  }
+  return space_refs_[active_space_ + (forward ? 1 : -1)];
+}
+
 void ArcomiumSpaceSwitcher::Rebuild() {
   RemoveAllChildViews();
   TabGroupModel* groups = model_->group_model();
@@ -482,6 +490,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   layout_->SetFlexForView(icons, 1);
 
   space_actions_.clear();
+  space_refs_.clear();
   active_space_ = -1;
   auto add_icon = [&](base::RepeatingClosure callback,
                       std::string icon, bool active,
@@ -491,6 +500,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
       active_space_ = static_cast<int>(space_actions_.size());
     }
     space_actions_.push_back(callback);
+    space_refs_.push_back(ArcomiumSpaceRef{
+        space, space == kDefaultSpace ? std::u16string() : title, std::nullopt});
     auto* view = icons->AddChildView(std::make_unique<SpaceIcon>(
         views::Button::PressedCallback(std::move(callback)), std::move(icon),
         active, title, std::move(space),
@@ -518,6 +529,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
              GetSpaceIcon(space, std::string()), focused == id,
              visuals->title().empty() ? u"Space" : visuals->title(), space,
              std::string());
+    space_refs_.back().group = id;
+    space_refs_.back().title = visuals->title();
   }
   // Saved Spaces without a tab group here: from other devices, or closed.
   std::set<std::string> shown_saved;

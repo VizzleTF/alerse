@@ -40,6 +40,15 @@ class TabStripModel;
 // The "+" button creates a Space with its own storage partition. Spaces sync
 // as saved tab groups: one from another device, or closed here, shows too and
 // opens with its tabs.
+// A Space as the switcher's row lists it: open, closed or synced.
+struct ArcomiumSpaceRef {
+  // The Space's id; kDefaultSpace for home, empty for a synced Space.
+  std::string space;
+  std::u16string title;
+  // Its tab group here, if it is open.
+  std::optional<tab_groups::TabGroupId> group;
+};
+
 class ArcomiumSpaceSwitcher : public views::View,
                               public TabStripModelObserver,
                               public tab_groups::TabGroupSyncService::Observer,
@@ -107,6 +116,8 @@ class ArcomiumSpaceSwitcher : public views::View,
   bool RotateSpace(bool forward);
   // Whether there is a Space to go to that way.
   bool CanRotateSpace(bool forward) const;
+  // The Space next to the active one that way, if any.
+  std::optional<ArcomiumSpaceRef> GetNeighborSpace(bool forward) const;
 
  private:
   // Rebuilds asynchronously: a change may come from a click on one of the
@@ -115,6 +126,7 @@ class ArcomiumSpaceSwitcher : public views::View,
   void Rebuild();
   // What each icon in the row does, in order, and which one is active.
   std::vector<base::RepeatingClosure> space_actions_;
+  std::vector<ArcomiumSpaceRef> space_refs_;
   int active_space_ = -1;
   void SwitchTo(const tab_groups::TabGroupId& group);
   // Opens a saved Space that has no tab group here, then switches to it.
