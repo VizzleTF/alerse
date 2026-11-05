@@ -50,3 +50,4 @@ look/search-engine.patch
 sync/sync-https-only.patch
 extensions/extensions-in-address-row.patch
 defaults/mac-own-profile-dir.patch
+spaces/space-menu.patch
