@@ -139,9 +139,9 @@ constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(200);
 constexpr int kPopupWidth = 260;
 constexpr int kPopupPadding = 4;
 constexpr SkColor kPopupColor = SkColorSetRGB(0x2B, 0x2B, 0x2B);
-constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(100);
+constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(30);
 // Polls the pointer may spend outside before the popup closes.
-constexpr int kPopupOutsideTicks = 3;
+constexpr int kPopupOutsideTicks = 10;
 
 enum Command {
   kPinTab = 1,
@@ -387,7 +387,35 @@ class ArcomiumSidebarView::Row : public views::Button {
     return gfx::Size(0, height_);
   }
 
+  void AddedToWidget() override {
+    views::Button::AddedToWidget();
+    adopt_hover_ = true;
+  }
+
+  // The folder popup shows without activation, and macOS sends an inactive
+  // window no mouse moves: its rows take their hover from its pointer polls.
+  void SetPolledHover(bool hovered) {
+    if (polled_hover_ != hovered) {
+      polled_hover_ = hovered;
+      SchedulePaint();
+    }
+  }
+
   void Layout(PassKey) override {
+    // The sidebar rebuilds its rows whenever a tab changes (a title, a load):
+    // a new row under the pointer is hovered at once, close button included,
+    // instead of blinking until the pointer moves.
+    if (adopt_hover_ && !size().IsEmpty()) {
+      adopt_hover_ = false;
+      if (IsMouseHovered()) {
+        SetAnimateOnStateChange(false);
+        SetState(STATE_HOVERED);
+        SetAnimateOnStateChange(true);
+        if (close_) {
+          close_->SetVisible(true);
+        }
+      }
+    }
     const int shift = depth_ * kIndent;
     const int center_y = height_ / 2;
     const gfx::Size icon_size = icon_->GetPreferredSize();
@@ -432,7 +460,8 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   void OnPaintBackground(gfx::Canvas* canvas) override {
     // The hover highlight fades with the button's hover animation.
-    const double hover = hover_animation().GetCurrentValue();
+    const double hover =
+        polled_hover_ ? 1.0 : hover_animation().GetCurrentValue();
     if (!active_ && hover <= 0) {
       return;
     }
@@ -469,6 +498,8 @@ class ArcomiumSidebarView::Row : public views::Button {
   raw_ptr<views::Label> slash_ = nullptr;
   raw_ptr<views::Label> label_ = nullptr;
   raw_ptr<views::ImageButton> close_ = nullptr;
+  bool adopt_hover_ = false;
+  bool polled_hover_ = false;
   base::RepeatingCallback<void(bool)> hover_callback_;
   base::RepeatingClosure drag_done_callback_;
 };
@@ -1319,6 +1350,11 @@ void ArcomiumSidebarView::CheckFolderPopupHover() {
                            std::max(row.width(), bubble.x() - row.x()),
                            row.height());
     inside = inside || bridge.Contains(point);
+  }
+  for (views::View* child :
+       folder_popup_delegate_->GetContentsView()->children()) {
+    static_cast<Row*>(child)->SetPolledHover(
+        child->GetBoundsInScreen().Contains(point));
   }
   folder_popup_outside_ticks_ = inside ? 0 : folder_popup_outside_ticks_ + 1;
   if (folder_popup_outside_ticks_ >= kPopupOutsideTicks) {
