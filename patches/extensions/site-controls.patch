@@ -1,0 +1,193 @@
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+index bc17a2395a..902f4441cc 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+@@ -11,12 +11,14 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/extensions/arcomium_site_controls.h"
+ #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
+ #include "chrome/browser/ui/views/extensions/extensions_menu_view.h"
+ #include "chrome/browser/ui/views/extensions/extensions_request_access_button.h"
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/grit/generated_resources.h"
++#include "components/vector_icons/vector_icons.h"
+ #include "extensions/common/extension_features.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+@@ -35,8 +37,9 @@ ExtensionsToolbarButton::ExtensionsToolbarButton(
+   std::unique_ptr<views::MenuButtonController> menu_button_controller =
+       std::make_unique<views::MenuButtonController>(
+           this,
+-          base::BindRepeating(&ExtensionsToolbarButton::ToggleExtensionsMenu,
+-                              base::Unretained(this)),
++          base::BindRepeating(
++              &ExtensionsToolbarButton::ToggleArcomiumSiteControls,
++              base::Unretained(this), nullptr),
+           std::make_unique<views::Button::DefaultButtonControllerDelegate>(
+               this));
+   menu_button_controller_ = menu_button_controller.get();
+@@ -44,10 +47,10 @@ ExtensionsToolbarButton::ExtensionsToolbarButton(
+   button_controller()->set_notify_action(
+       views::ButtonController::NotifyAction::kOnPress);
+ 
+-  SetVectorIcon(ExtensionsToolbarViewModel::GetToolbarButtonIcon(
+-      ExtensionsToolbarViewModel::ExtensionsToolbarButtonState::kDefault));
++  // Arcomium: Arc's site controls.
++  SetVectorIcon(vector_icons::kArcomiumTuneIcon);
+ 
+-  GetViewAccessibility().SetHasPopup(ax::mojom::HasPopup::kMenu);
++  GetViewAccessibility().SetHasPopup(ax::mojom::HasPopup::kDialog);
+ 
+   // Do not flip the Extensions icon in RTL.
+   SetFlipCanvasOnPaintForRTLUI(false);
+@@ -157,6 +160,7 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
+     return;
+   }
+ 
++  extension_menu_observation_.Reset();
+   pressed_lock_ = menu_button_controller_->TakeLock();
+   extensions_toolbar_->OnMenuOpening();
+   base::RecordAction(base::UserMetricsAction("Extensions.Toolbar.MenuOpened"));
+@@ -182,6 +186,27 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
+   extension_menu_observation_.Observe(menu);
+ }
+ 
++void ExtensionsToolbarButton::ToggleArcomiumSiteControls(views::View* anchor) {
++  if (arcomium_site_controls::IsShowing()) {
++    arcomium_site_controls::Hide();
++    return;
++  }
++  if (extensions_menu_coordinator_ &&
++      extensions_menu_coordinator_->IsShowing()) {
++    extensions_menu_coordinator_->Hide();
++  } else if (ExtensionsMenuView::IsShowing()) {
++    ExtensionsMenuView::Hide();
++  }
++  extension_menu_observation_.Reset();
++  pressed_lock_ = menu_button_controller_->TakeLock();
++  extensions_toolbar_->OnMenuOpening();
++  views::Widget* widget =
++      arcomium_site_controls::Show(anchor ? anchor : this, browser_,
++                                   extensions_toolbar_);
++  extensions_menu_widget_ = widget->GetWeakPtr();
++  extension_menu_observation_.Observe(widget);
++}
++
+ bool ExtensionsToolbarButton::GetExtensionsMenuShowing() const {
+   return pressed_lock_.get();
+ }
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.h b/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
+index 668a4ffa01..436e43632f 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
+@@ -38,6 +38,10 @@ class ExtensionsToolbarButton : public ToolbarChipButton,
+   // Toggle the Extensions menu. If the ExtensionsToolbarDesktop is in
+   // kAutoHide mode and hidden this will cause it to show.
+   void ToggleExtensionsMenu();
++  // Arcomium: the button opens Arc's site controls; they reach Chrome's
++  // extensions menu for site access.
++  // `anchor` defaults to this button.
++  void ToggleArcomiumSiteControls(views::View* anchor = nullptr);
+ 
+   bool GetExtensionsMenuShowing() const;
+ 
+diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
+index 25a796c035..7dba46b117 100644
+--- a/chrome/browser/ui/views/extensions/BUILD.gn
++++ b/chrome/browser/ui/views/extensions/BUILD.gn
+@@ -830,12 +830,23 @@ source_set("extensions_toolbar_button") {
+ }
+ 
+ source_set("extensions_toolbar_button_impl") {
+-  sources = [ "extensions_toolbar_button.cc" ]
++  sources = [
++    "arcomium_site_controls.cc",
++    "arcomium_site_controls.h",
++    "extensions_toolbar_button.cc",
++  ]
+   public_deps = [
+     ":extensions_toolbar_button",
+     "//chrome/browser:browser_public_dependencies",
+   ]
+   deps = [
++    ":extensions_views_utils",
++    "//chrome/app/vector_icons",
++    "//chrome/browser/ui:chrome_pages",
++    "//chrome/browser/ui/page_info",
++    "//chrome/browser/ui/views/page_info",
++    "//components/page_info/core",
++    "//components/vector_icons",
+     ":extensions_menu_coordinator",
+     ":extensions_menu_view",
+     ":extensions_request_access_button",
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index c6e137496e..d882476843 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -73,6 +73,8 @@
+ #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+ #include "chrome/browser/ui/views/chrome_typography.h"
++#include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
++#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
+ #include "chrome/browser/ui/views/location_bar/location_bar_actions.h"
+@@ -818,15 +820,12 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+     copy->SetVisible(false);
+     arcomium_copy_button_ = AddChildView(std::move(copy));
+     auto site = views::CreateVectorImageButtonWithNativeTheme(
+-        base::BindRepeating(
+-            [](LocationBarView* location_bar) {
+-              location_bar->ShowPageInfoDialog();
+-            },
+-            base::Unretained(this)),
++        base::BindRepeating(&LocationBarView::ShowArcomiumSiteControls,
++                            base::Unretained(this)),
+         vector_icons::kArcomiumTuneIcon, 16, kColorToolbarButtonIcon,
+         kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
+-    site->SetTooltipText(u"Site settings");
+-    site->GetViewAccessibility().SetName(u"Site settings");
++    site->SetTooltipText(u"Site Controls");
++    site->GetViewAccessibility().SetName(u"Site Controls");
+     site->SetVisible(false);
+     arcomium_site_button_ = AddChildView(std::move(site));
+   }
+@@ -857,6 +856,22 @@ bool LocationBarView::ArcomiumOpensNewTab() const {
+   return arcomium_command_bar_ && arcomium_new_tab_;
+ }
+ 
++void LocationBarView::ShowArcomiumSiteControls() {
++  // Arc's site controls, as the extensions button opens them; without that
++  // button, Chrome's page info.
++  BrowserView* browser_view =
++      browser_ ? BrowserView::GetBrowserViewForBrowser(browser_) : nullptr;
++  ExtensionsToolbarDesktop* extensions =
++      browser_view && browser_view->toolbar()
++          ? browser_view->toolbar()->extensions_container()
++          : nullptr;
++  if (extensions && extensions->GetExtensionsButton()) {
++    extensions->GetExtensionsButton()->ToggleArcomiumSiteControls();
++    return;
++  }
++  ShowPageInfoDialog();
++}
++
+ bool LocationBarView::IsArcomiumCenteredIdle() const {
+   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ }
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index d8462ab7c9..cb6b7e925f 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -597,6 +597,7 @@ class LocationBarView
+   bool IsArcomiumSidebarSearch() const;
+   void LayoutArcomiumCentered();
+   void CopyArcomiumAddress();
++  void ShowArcomiumSiteControls();
+   SkColor GetArcomiumPillColor() const;
+ 
+   // Views to show inline autocompletion when an IME is active.  In this case,

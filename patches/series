@@ -37,3 +37,4 @@ look/sidebar-search-placeholder.patch
 look/search-engine.patch
 extensions/extensions-in-header-row.patch
 defaults/mac-own-profile-dir.patch
+extensions/site-controls.patch
