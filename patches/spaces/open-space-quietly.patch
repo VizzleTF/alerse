@@ -27,3 +27,21 @@ index 7fbe882378..912e9fa4bc 100644
  void TabStripModel::ArcomiumKeepSpaces(
      base::span<tabs::TabInterface* const> tabs) {
    // Not while the window closes, nor in app and popup windows.
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 0b33489baa..d027ad8a29 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -4446,6 +4446,13 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
+     return;
+   }
+ 
++  // Arcomium: an empty Space waits for a bookmark or for typing. The address
++  // bar it had focused when it was left does not come back with it.
++  if (TabStripModel::IsArcomiumEmptySpace(web_contents)) {
++    focus_helper->ResetStoredFocus();
++    return;
++  }
++
+   views::View* stored_focus = focus_helper->GetStoredFocus();
+   if (!stored_focus) {
+     return;
