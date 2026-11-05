@@ -39,6 +39,11 @@ change only Chromium's own files, including the `BUILD.gn` lines that build Arco
 Edit these files in the working tree, then copy them back into `arcomium\src\`. A new
 file goes there too, never into a patch.
 
+Text the user sees goes in `src/chrome/app/arcomium_strings.grdp` as an `IDS_ARCOMIUM_*`
+message, read with `l10n_util::GetStringUTF16()`. Colors are `kColorArcomium*` ids, set in
+`src/chrome/browser/ui/color/arcomium_color_mixer.cc` for dark, light and high-contrast
+frames; a view reads them from its color provider instead of holding an `SkColor`.
+
 ## Add a patch
 
 1. Make the change in `src/`.

@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/arcomium_spaces.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -34,6 +35,7 @@
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -45,6 +47,7 @@
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/menus/simple_menu_model.h"
@@ -71,10 +74,11 @@ constexpr int kButtonSize = 28;
 constexpr int kDotDiameter = 6;
 constexpr int kAddIconSize = 20;
 constexpr int kSpaceIconSize = 16;
-constexpr SkColor kActiveIconColor = SkColorSetRGB(0xF2, 0xF2, 0xF2);
-constexpr SkColor kHoveredIconColor = SkColorSetRGB(0xC4, 0xC4, 0xC4);
-constexpr SkColor kIconColor = SkColorSetRGB(0x7C, 0x7C, 0x7C);
-constexpr SkColor kArchiveSlotColor = SkColorSetRGB(0x1E, 0x1F, 0x20);
+// The colors (chrome/browser/ui/color/arcomium_color_mixer.cc).
+constexpr ui::ColorId kActiveIconColor = kColorArcomiumSpaceIconActive;
+constexpr ui::ColorId kHoveredIconColor = kColorArcomiumSpaceIconHovered;
+constexpr ui::ColorId kIconColor = kColorArcomiumSpaceIcon;
+constexpr ui::ColorId kArchiveSlotColor = kColorArcomiumArchiveSlot;
 // Space icons a folder records; home is a sun until chosen otherwise.
 constexpr char kSpaceIconMetaKey[] = "arcomium.space_icon";
 constexpr char kDefaultSpace[] = "default";
@@ -98,26 +102,26 @@ constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
 // The icons a Space can have, under the names Arc gives them.
 struct SpaceIconChoice {
   const char* name;
-  const char16_t* label;
+  int label;
   // Null for the icons drawn here.
   const gfx::VectorIcon* icon;
 };
 
 const SpaceIconChoice kSpaceIcons[] = {
-    {"sunny", u"Sun", nullptr},
-    {"book", u"Book", &kMenuBookIcon},
-    {"home", u"Home", &vector_icons::kHomeIcon},
-    {"code", u"Code", &vector_icons::kCodeIcon},
-    {"globe", u"Globe", &vector_icons::kGlobeIcon},
-    {"bolt", u"Bolt", &kBoltIcon},
-    {"star", u"Star", &kStarIcon},
-    {"chat", u"Chat", &vector_icons::kChatIcon},
-    {"mail", u"Mail", &vector_icons::kMailIcon},
-    {"lightbulb", u"Idea", &vector_icons::kLightbulbIcon},
-    {"rocket", u"Rocket", &kRocketLaunchIcon},
-    {"pets", u"Pets", &vector_icons::kPetsIcon},
-    {"flight", u"Travel", &vector_icons::kFlightIcon},
-    {"dot", u"Dot", nullptr},
+    {"sunny", IDS_ARCOMIUM_SPACE_ICON_SUN, nullptr},
+    {"book", IDS_ARCOMIUM_SPACE_ICON_BOOK, &kMenuBookIcon},
+    {"home", IDS_ARCOMIUM_SPACE_ICON_HOME, &vector_icons::kHomeIcon},
+    {"code", IDS_ARCOMIUM_SPACE_ICON_CODE, &vector_icons::kCodeIcon},
+    {"globe", IDS_ARCOMIUM_SPACE_ICON_GLOBE, &vector_icons::kGlobeIcon},
+    {"bolt", IDS_ARCOMIUM_SPACE_ICON_BOLT, &kBoltIcon},
+    {"star", IDS_ARCOMIUM_SPACE_ICON_STAR, &kStarIcon},
+    {"chat", IDS_ARCOMIUM_SPACE_ICON_CHAT, &vector_icons::kChatIcon},
+    {"mail", IDS_ARCOMIUM_SPACE_ICON_MAIL, &vector_icons::kMailIcon},
+    {"lightbulb", IDS_ARCOMIUM_SPACE_ICON_IDEA, &vector_icons::kLightbulbIcon},
+    {"rocket", IDS_ARCOMIUM_SPACE_ICON_ROCKET, &kRocketLaunchIcon},
+    {"pets", IDS_ARCOMIUM_SPACE_ICON_PETS, &vector_icons::kPetsIcon},
+    {"flight", IDS_ARCOMIUM_SPACE_ICON_TRAVEL, &vector_icons::kFlightIcon},
+    {"dot", IDS_ARCOMIUM_SPACE_ICON_DOT, nullptr},
 };
 
 const SpaceIconChoice* FindSpaceIcon(const std::string& name) {
@@ -189,9 +193,9 @@ class SpaceIcon : public views::Button {
   const std::string& sync_id() const { return sync_id_; }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
-    const SkColor color = active_            ? kActiveIconColor
-                          : IsMouseHovered() ? kHoveredIconColor
-                                             : kIconColor;
+    const ui::ColorId color = active_            ? kActiveIconColor
+                              : IsMouseHovered() ? kHoveredIconColor
+                                                 : kIconColor;
     PaintSpaceIcon(canvas, gfx::RectF(GetContentsBounds()).CenterPoint(),
                    icon_, arcomium::SidebarInk(this, color));
   }
@@ -215,8 +219,8 @@ class ArchiveButton : public views::Button {
  public:
   explicit ArchiveButton(PressedCallback callback)
       : views::Button(std::move(callback)) {
-    SetTooltipText(u"Archive");
-    GetViewAccessibility().SetName(u"Archive");
+    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_ARCHIVE));
+    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_ARCHIVE));
     SetPreferredSize(gfx::Size(kButtonSize, kButtonSize));
   }
 
@@ -597,8 +601,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
                           base::Unretained(browser_.get())),
       vector_icons::kAdd2Icon, kAddIconSize);
   add->SetPreferredSize(gfx::Size(kButtonSize, kButtonSize));
-  add->SetTooltipText(u"New Space");
-  add->GetViewAccessibility().SetName(u"New Space");
+  add->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
+  add->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
   AddChildView(std::move(add));
 
   PreferredSizeChanged();
@@ -684,21 +688,25 @@ void ArcomiumSpaceSwitcher::ShowContextMenuForViewImpl(
     const int command = kIconCommandFirst + static_cast<int>(i);
     if (choice.icon) {
       icon_menu_model_->AddItemWithIcon(
-          command, choice.label,
+          command, l10n_util::GetStringUTF16(choice.label),
           ui::ImageModel::FromVectorIcon(*choice.icon, ui::kColorMenuIcon,
                                          kSpaceIconSize));
     } else {
-      icon_menu_model_->AddItem(command, choice.label);
+      icon_menu_model_->AddItem(command,
+                                l10n_util::GetStringUTF16(choice.label));
     }
   }
   menu_point_ = point;
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  menu_model_->AddSubMenu(0, u"Icon", icon_menu_model_.get());
-  menu_model_->AddItem(kEditColorCommand, u"Edit Theme Color\u2026");
+  menu_model_->AddSubMenu(0, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPACE_ICON),
+                           icon_menu_model_.get());
+  menu_model_->AddItem(kEditColorCommand,
+                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_THEME_COLOR));
   // home is where tabs outside any Space go; it cannot be deleted.
   if (menu_space_ != kDefaultSpace) {
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kDeleteSpaceCommand, u"Delete Space\u2026");
+    menu_model_->AddItem(kDeleteSpaceCommand,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_SPACE));
   }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
@@ -809,15 +817,17 @@ void ArcomiumSpaceSwitcher::ConfirmDeleteMenuSpace() {
   if (menu_space_ == kDefaultSpace || !GetWidget()) {
     return;
   }
-  std::u16string title = u"This Space";
+  std::u16string body =
+      l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_UNNAMED_SPACE_BODY);
   if (const bookmarks::BookmarkNode* folder =
-          FindSpaceFolder(menu_space_, menu_sync_id_)) {
-    title = u"\u201C" + folder->GetTitle() + u"\u201D";
+          FindSpaceFolder(menu_space_, menu_sync_id_);
+      folder && !folder->GetTitle().empty()) {
+    body = l10n_util::GetStringFUTF16(IDS_ARCOMIUM_DELETE_SPACE_BODY,
+                                      folder->GetTitle());
   }
   chrome::ShowQuestionMessageBoxAsync(
-      GetWidget()->GetNativeWindow(), u"Delete Space?",
-      title + u", its tabs and its pinned tabs will be deleted on all your "
-              u"devices.",
+      GetWidget()->GetNativeWindow(),
+      l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_SPACE_TITLE), body,
       base::BindOnce(&ArcomiumSpaceSwitcher::DeleteSpace,
                      weak_factory_.GetWeakPtr(), menu_space_, menu_sync_id_));
 }

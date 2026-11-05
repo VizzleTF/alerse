@@ -12,7 +12,9 @@
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
@@ -24,6 +26,7 @@
 #include "services/media_session/public/cpp/media_session_service.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/base_window.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/canvas.h"
@@ -43,11 +46,12 @@
 namespace {
 
 // Arc's dark sidebar, as in arcomium_sidebar_view.cc.
-constexpr SkColor kCardColor = SkColorSetARGB(0x1E, 0xFF, 0xFF, 0xFF);
-constexpr SkColor kHoverCardColor = SkColorSetARGB(0x2A, 0xFF, 0xFF, 0xFF);
-constexpr SkColor kTitleColor = SkColorSetRGB(0xDB, 0xDB, 0xDB);
-constexpr SkColor kSubtitleColor = SkColorSetRGB(0x84, 0x84, 0x84);
-constexpr SkColor kGlyphColor = SkColorSetRGB(0xEB, 0xEB, 0xEB);
+// The colors (chrome/browser/ui/color/arcomium_color_mixer.cc).
+constexpr ui::ColorId kCardColor = kColorArcomiumMiniPlayerCard;
+constexpr ui::ColorId kHoverCardColor = kColorArcomiumMiniPlayerCardHover;
+constexpr ui::ColorId kTitleColor = kColorArcomiumSidebarFolder;
+constexpr ui::ColorId kSubtitleColor = kColorArcomiumSidebarSubtle;
+constexpr ui::ColorId kGlyphColor = kColorArcomiumSidebarGlyph;
 
 constexpr int kArtworkSize = 32;
 constexpr int kArtworkRadius = 6;
@@ -225,8 +229,10 @@ void ArcomiumMiniPlayer::UpdatePlayPauseButton() {
       kButtonIconSize,
       views::IconColors(arcomium::SidebarInk(this, kGlyphColor),
                         arcomium::SidebarInk(this, kSubtitleColor)));
-  play_pause_->GetViewAccessibility().SetName(playing_ ? u"Pause" : u"Play");
-  play_pause_->SetTooltipText(playing_ ? u"Pause" : u"Play");
+  const std::u16string play_pause = l10n_util::GetStringUTF16(
+      playing_ ? IDS_ARCOMIUM_PAUSE : IDS_ARCOMIUM_PLAY);
+  play_pause_->GetViewAccessibility().SetName(play_pause);
+  play_pause_->SetTooltipText(play_pause);
 }
 
 void ArcomiumMiniPlayer::TogglePlayPause() {

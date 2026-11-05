@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arcomium's strings (included from generated_resources.grd). -->
+<grit-part>
+  <if expr="not is_android">
+    <!-- Sidebar -->
+    <message name="IDS_ARCOMIUM_NEW_TAB" desc="The sidebar row that opens the command bar for a new tab.">
+      New Tab
+    </message>
+    <message name="IDS_ARCOMIUM_CLOSE_TAB" desc="Tooltip and menu item: close the tab of a sidebar row.">
+      Close tab
+    </message>
+    <message name="IDS_ARCOMIUM_COPY_LINK" desc="Tooltip and menu item: copy the address of a page or a pinned tab.">
+      Copy link
+    </message>
+    <message name="IDS_ARCOMIUM_DUPLICATE" desc="Sidebar menu item: open a copy of a tab or a pinned tab.">
+      Duplicate
+    </message>
+    <message name="IDS_ARCOMIUM_RENAME" desc="Sidebar menu item: rename a folder or a pinned tab.">
+      Rename…
+    </message>
+    <message name="IDS_ARCOMIUM_MOVE_TO" desc="Sidebar menu: the submenu that moves a tab to another Space.">
+      Move to
+    </message>
+    <message name="IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE" desc="Sidebar folder menu item: pin the shown tab into this folder.">
+      Pin current tab here
+    </message>
+    <message name="IDS_ARCOMIUM_NEW_FOLDER_INSIDE" desc="Sidebar folder menu item: create a folder inside this one.">
+      New folder inside
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_FOLDER" desc="Sidebar folder menu item: delete the folder and its pinned tabs.">
+      Delete folder
+    </message>
+    <message name="IDS_ARCOMIUM_UNPIN" desc="Sidebar menu item: unpin a pinned tab.">
+      Unpin
+    </message>
+    <message name="IDS_ARCOMIUM_PIN_TO_SPACE" desc="Sidebar tab menu item: pin the tab to the current Space.">
+      Pin to this Space
+    </message>
+    <message name="IDS_ARCOMIUM_NEW_FOLDER" desc="Sidebar menu item: create a folder of pinned tabs.">
+      New folder
+    </message>
+    <message name="IDS_ARCOMIUM_EDIT_THEME_COLOR" desc="Menu item: pick the color of the current Space.">
+      Edit Theme Color…
+    </message>
+
+    <!-- Spaces -->
+    <message name="IDS_ARCOMIUM_ARCHIVE" desc="Tooltip of the button that opens the history, which Arc calls the archive.">
+      Archive
+    </message>
+    <message name="IDS_ARCOMIUM_NEW_SPACE" desc="Tooltip of the button that creates a Space, a set of tabs with its own pinned tabs.">
+      New Space
+    </message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON" desc="Space menu: the submenu that picks the Space's icon.">
+      Icon
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_SPACE" desc="Space menu item: delete the Space after asking.">
+      Delete Space…
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_SPACE_TITLE" desc="Title of the question asked before deleting a Space.">
+      Delete Space?
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_SPACE_BODY" desc="Question asked before deleting a Space. The placeholder is the Space's name in quotes.">
+      “<ph name="SPACE_NAME">$1<ex>Work</ex></ph>”, its tabs and its pinned tabs will be deleted on all your devices.
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_UNNAMED_SPACE_BODY" desc="Question asked before deleting a Space that has no name.">
+      This Space, its tabs and its pinned tabs will be deleted on all your devices.
+    </message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_SUN" desc="A Space icon: a sun.">Sun</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_BOOK" desc="A Space icon: a book.">Book</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_HOME" desc="A Space icon: a house.">Home</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_CODE" desc="A Space icon: angle brackets for code.">Code</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_GLOBE" desc="A Space icon: a globe.">Globe</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_BOLT" desc="A Space icon: a lightning bolt.">Bolt</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_STAR" desc="A Space icon: a star.">Star</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_CHAT" desc="A Space icon: a speech bubble.">Chat</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_MAIL" desc="A Space icon: an envelope.">Mail</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_IDEA" desc="A Space icon: a light bulb.">Idea</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_ROCKET" desc="A Space icon: a rocket.">Rocket</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_PETS" desc="A Space icon: a paw.">Pets</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_TRAVEL" desc="A Space icon: a plane.">Travel</message>
+    <message name="IDS_ARCOMIUM_SPACE_ICON_DOT" desc="A Space icon: a dot.">Dot</message>
+
+    <!-- Mini player -->
+    <message name="IDS_ARCOMIUM_PLAY" desc="Tooltip of the mini player's button while the media is paused.">
+      Play
+    </message>
+    <message name="IDS_ARCOMIUM_PAUSE" desc="Tooltip of the mini player's button while the media plays.">
+      Pause
+    </message>
+
+    <!-- Site controls -->
+    <message name="IDS_ARCOMIUM_SITE_CONTROLS" desc="Name of the panel of a site's actions, extensions and permissions, and of the button that opens it.">
+      Site Controls
+    </message>
+    <message name="IDS_ARCOMIUM_FIND_IN_PAGE" desc="Site controls button: find text in the page.">
+      Find in Page
+    </message>
+    <message name="IDS_ARCOMIUM_SCREENSHOT" desc="Site controls button: capture a region of the page.">
+      Screenshot
+    </message>
+    <message name="IDS_ARCOMIUM_READING_MODE" desc="Site controls button: show the page in reading mode.">
+      Reading Mode
+    </message>
+    <message name="IDS_ARCOMIUM_EXTENSIONS" desc="Site controls heading over the extensions.">
+      Extensions
+    </message>
+    <message name="IDS_ARCOMIUM_SITE_PERMISSIONS" desc="Site controls heading over the site's permissions.">
+      Settings
+    </message>
+    <message name="IDS_ARCOMIUM_SECURE" desc="Site controls: the connection to the site is secure.">
+      Secure
+    </message>
+    <message name="IDS_ARCOMIUM_NOT_SECURE" desc="Site controls: the connection to the site is not secure.">
+      Not Secure
+    </message>
+    <message name="IDS_ARCOMIUM_MORE" desc="Tooltip of the site controls button that opens more options.">
+      More
+    </message>
+    <message name="IDS_ARCOMIUM_SITE_SETTINGS" desc="Site controls menu item: open the site's settings page.">
+      Site Settings
+    </message>
+    <message name="IDS_ARCOMIUM_EXTENSION_SITE_ACCESS" desc="Site controls menu item: open Chrome's extensions menu, where extensions' access to the site is set.">
+      Extension Site Access
+    </message>
+    <message name="IDS_ARCOMIUM_MANAGE_EXTENSIONS" desc="Site controls tile and menu item: open the extensions page.">
+      Manage Extensions
+    </message>
+  </if>
+</grit-part>

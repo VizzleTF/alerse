@@ -38,10 +38,12 @@
 #include "chrome/browser/ui/views/page_info/page_info_navigation_handler.h"
 #include "chrome/browser/ui/views/page_info/permission_toggle_row_view.h"
 #include "chrome/browser/ui/views/page_info/permission_toggle_row_view_observer.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/page_info/page_info.h"
 #include "components/page_info/page_info_ui.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -188,7 +190,8 @@ class SiteControlsView : public views::View,
 
     AddActions();
     AddExtensions();
-    settings_heading_ = AddChildView(MakeHeading(u"Settings"));
+    settings_heading_ = AddChildView(
+        MakeHeading(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_PERMISSIONS)));
     permissions_ = AddChildView(std::make_unique<views::View>());
     permissions_->SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical));
@@ -281,7 +284,8 @@ class SiteControlsView : public views::View,
         description->summary_style != SecuritySummaryColor::RED &&
         identity_info.connection_status ==
             PageInfo::SITE_CONNECTION_STATUS_ENCRYPTED;
-    secure_button_->SetText(secure ? u"Secure" : u"Not Secure");
+    secure_button_->SetText(l10n_util::GetStringUTF16(
+        secure ? IDS_ARCOMIUM_SECURE : IDS_ARCOMIUM_NOT_SECURE));
     secure_button_->SetImageModel(
         views::Button::STATE_NORMAL,
         ui::ImageModel::FromVectorIcon(
@@ -361,22 +365,23 @@ class SiteControlsView : public views::View,
     struct Action {
       int command;
       raw_ref<const gfx::VectorIcon> icon;
-      const char16_t* name;
+      int name;
     };
     const Action actions[] = {
-        {IDC_COPY_URL, raw_ref(vector_icons::kArcomiumLinkIcon), u"Copy Link"},
-        {IDC_FIND, raw_ref(kFindInPageIcon), u"Find in Page"},
+        {IDC_COPY_URL, raw_ref(vector_icons::kArcomiumLinkIcon),
+         IDS_ARCOMIUM_COPY_LINK},
+        {IDC_FIND, raw_ref(kFindInPageIcon), IDS_ARCOMIUM_FIND_IN_PAGE},
         {IDC_SHARING_HUB_SCREENSHOT, raw_ref(kScreenshotRegionIcon),
-         u"Screenshot"},
+         IDS_ARCOMIUM_SCREENSHOT},
         {IDC_SHOW_READING_MODE_SIDE_PANEL, raw_ref(kMenuBookIcon),
-         u"Reading Mode"},
+         IDS_ARCOMIUM_READING_MODE},
     };
     views::View* row = AddChildView(MakeRow());
     for (const Action& action : actions) {
       auto* tile = row->AddChildView(std::make_unique<Tile>(
           base::BindRepeating(&SiteControlsView::RunCommand,
                               base::Unretained(this), action.command),
-          action.name));
+          l10n_util::GetStringUTF16(action.name)));
       tile->SetImageModel(views::Button::STATE_NORMAL,
                           ui::ImageModel::FromVectorIcon(
                               *action.icon, ui::kColorSysOnSurface, 18));
@@ -389,7 +394,7 @@ class SiteControlsView : public views::View,
   }
 
   void AddExtensions() {
-    AddChildView(MakeHeading(u"Extensions"));
+    AddChildView(MakeHeading(l10n_util::GetStringUTF16(IDS_ARCOMIUM_EXTENSIONS)));
     ExtensionsToolbarViewModel* model = extensions_->GetToolbarViewModel();
     content::WebContents* contents =
         browser_ ? browser_->GetTabStripModel()->GetActiveWebContents()
@@ -441,7 +446,7 @@ class SiteControlsView : public views::View,
     auto* add = next_tile_row()->AddChildView(std::make_unique<Tile>(
         base::BindRepeating(&SiteControlsView::ExecuteCommand,
                             base::Unretained(this), kManageExtensions, 0),
-        u"Manage Extensions"));
+        l10n_util::GetStringUTF16(IDS_ARCOMIUM_MANAGE_EXTENSIONS)));
     add->SetImageModel(
         views::Button::STATE_NORMAL,
         ui::ImageModel::FromVectorIcon(kAddIcon, ui::kColorSysOnSurface, 18));
@@ -458,7 +463,7 @@ class SiteControlsView : public views::View,
     secure_button_ = footer->AddChildView(std::make_unique<views::LabelButton>(
         base::BindRepeating(&SiteControlsView::OpenPageInfo,
                             base::Unretained(this), std::nullopt),
-        u"Secure"));
+        l10n_util::GetStringUTF16(IDS_ARCOMIUM_SECURE)));
     secure_button_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(6, 10)));
     secure_button_->SetImageLabelSpacing(6);
     secure_button_->SetBackground(
@@ -478,8 +483,8 @@ class SiteControlsView : public views::View,
     more->SetPreferredSize(gfx::Size(34, 34));
     more->SetBackground(
         views::CreateRoundedRectBackground(ui::kColorSysNeutralContainer, 17));
-    more->SetTooltipText(u"More");
-    more->GetViewAccessibility().SetName(u"More");
+    more->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
+    more->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
     more_button_ = footer->AddChildView(std::move(more));
   }
 
@@ -551,10 +556,12 @@ class SiteControlsView : public views::View,
   void ShowMoreMenu() {
     menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
     if (url_.SchemeIsHTTPOrHTTPS()) {
-      menu_model_->AddItem(kSiteSettings, u"Site Settings");
+      menu_model_->AddItem(kSiteSettings, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS));
     }
-    menu_model_->AddItem(kExtensionSiteAccess, u"Extension Site Access");
-    menu_model_->AddItem(kManageExtensions, u"Manage Extensions");
+    menu_model_->AddItem(kExtensionSiteAccess,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_EXTENSION_SITE_ACCESS));
+    menu_model_->AddItem(kManageExtensions,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_MANAGE_EXTENSIONS));
     menu_runner_ = std::make_unique<views::MenuRunner>(
         menu_model_.get(), views::MenuRunner::HAS_MNEMONICS);
     menu_runner_->RunMenuAt(GetWidget(), nullptr,
@@ -598,7 +605,7 @@ views::Widget* Show(views::View* anchor,
   delegate->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   delegate->SetShowCloseButton(false);
   delegate->SetShowTitle(false);
-  delegate->SetTitle(u"Site Controls");
+  delegate->SetTitle(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
   delegate->set_margins(gfx::Insets(kMargin));
   delegate->set_fixed_width(kWidth);
   g_shown = delegate->SetContentsView(

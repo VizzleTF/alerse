@@ -11,6 +11,7 @@
 
 #include "base/functional/callback.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/color/color_id.h"
 
 namespace views {
 class View;
@@ -53,6 +54,8 @@ void ApplySpaceColor(views::Widget* widget,
 // The sidebar's colors are drawn for a dark frame; on a light frame (a light
 // theme) they are inverted.
 SkColor SidebarInk(const views::View* view, SkColor dark_color);
+// The sidebar's color `id` (chrome/browser/ui/color/arcomium_color_mixer.cc).
+SkColor SidebarInk(const views::View* view, ui::ColorId id);
 
 // Arc's theme color picker: the pad, the light/dark switch, the intensity
 // slider and preset swatches. `callback` runs on every change; `commit` is

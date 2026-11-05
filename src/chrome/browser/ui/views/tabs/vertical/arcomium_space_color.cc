@@ -464,6 +464,11 @@ SkColor SidebarInk(const views::View* view, SkColor dark_color) {
                         255 - SkColorGetB(dark_color));
 }
 
+SkColor SidebarInk(const views::View* view, ui::ColorId id) {
+  const ui::ColorProvider* provider = view ? view->GetColorProvider() : nullptr;
+  return provider ? provider->GetColor(id) : gfx::kPlaceholderColor;
+}
+
 std::unique_ptr<views::View> CreateSpaceColorPicker(
     const SpaceColor& initial,
     SpaceColorCallback callback) {

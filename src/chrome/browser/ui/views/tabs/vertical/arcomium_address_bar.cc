@@ -16,6 +16,8 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/grit/generated_resources.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/canvas.h"
 #include "ui/views/border.h"
 #include "ui/views/painter.h"
@@ -95,8 +97,9 @@ ArcomiumAddressBar::ArcomiumAddressBar(BrowserWindowInterface* browser)
       base::BindRepeating(&ArcomiumAddressBar::CopyAddress,
                           base::Unretained(this)),
       vector_icons::kContentCopyIcon, kCopyIconSize);
-  copy->SetTooltipText(u"Copy link");
-  copy->GetViewAccessibility().SetName(u"Copy link");
+  copy->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+  copy->GetViewAccessibility().SetName(
+      l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
   copy->SetVisible(false);
   copy_button_ = AddChildView(std::move(copy));
 }

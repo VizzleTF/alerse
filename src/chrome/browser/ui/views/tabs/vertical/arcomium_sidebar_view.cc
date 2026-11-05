@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
 
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h"
 
 #include <algorithm>
@@ -35,6 +36,7 @@
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_mini_player.h"
+#include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
@@ -53,6 +55,7 @@
 #include "ui/base/dragdrop/drop_target_event.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
@@ -125,16 +128,17 @@ constexpr int kRowBackgroundInsetX = 8;
 constexpr int kRowBackgroundInsetY = 4;
 constexpr float kRowBackgroundRadius = 8;
 
-constexpr SkColor kItemColor = SkColorSetRGB(0xCF, 0xCF, 0xCF);
-constexpr SkColor kFolderColor = SkColorSetRGB(0xDB, 0xDB, 0xDB);
-constexpr SkColor kSubtleColor = SkColorSetRGB(0x84, 0x84, 0x84);
-constexpr SkColor kNewTabColor = SkColorSetRGB(0x87, 0x87, 0x87);
-constexpr SkColor kPlusColor = SkColorSetRGB(0x77, 0x77, 0x77);
-constexpr SkColor kDividerColor = SkColorSetRGB(0x3E, 0x3E, 0x3E);
-constexpr SkColor kGlyphColor = SkColorSetRGB(0xEB, 0xEB, 0xEB);
-constexpr SkColor kGlyphFillColor = SkColorSetRGB(0x18, 0x18, 0x18);
-constexpr SkColor kHoverColor = SkColorSetARGB(0x10, 0xFF, 0xFF, 0xFF);
-constexpr SkColor kActiveColor = SkColorSetARGB(0x1E, 0xFF, 0xFF, 0xFF);
+// The colors (chrome/browser/ui/color/arcomium_color_mixer.cc).
+constexpr ui::ColorId kItemColor = kColorArcomiumSidebarItem;
+constexpr ui::ColorId kFolderColor = kColorArcomiumSidebarFolder;
+constexpr ui::ColorId kSubtleColor = kColorArcomiumSidebarSubtle;
+constexpr ui::ColorId kNewTabColor = kColorArcomiumSidebarNewTab;
+constexpr ui::ColorId kPlusColor = kColorArcomiumSidebarPlus;
+constexpr ui::ColorId kDividerColor = kColorArcomiumSidebarDivider;
+constexpr ui::ColorId kGlyphColor = kColorArcomiumSidebarGlyph;
+constexpr ui::ColorId kGlyphFillColor = kColorArcomiumSidebarGlyphFill;
+constexpr ui::ColorId kHoverColor = kColorArcomiumSidebarHover;
+constexpr ui::ColorId kActiveColor = kColorArcomiumSidebarActive;
 
 // Animations: folders opening and closing, the folder popup fading in.
 constexpr base::TimeDelta kFolderAnimationDuration = base::Milliseconds(150);
@@ -144,7 +148,7 @@ constexpr base::TimeDelta kPopupFadeDuration = base::Milliseconds(120);
 constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(200);
 constexpr int kPopupWidth = 260;
 constexpr int kPopupPadding = 4;
-constexpr SkColor kPopupColor = SkColorSetRGB(0x2B, 0x2B, 0x2B);
+constexpr ui::ColorId kPopupColor = kColorArcomiumSidebarPopup;
 constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(30);
 // Polls the pointer may spend outside before the popup closes.
 constexpr int kPopupOutsideTicks = 10;
@@ -188,7 +192,7 @@ gfx::FontList ItemFont(bool bold) {
 
 std::unique_ptr<views::Label> MakeLabel(const std::u16string& text,
                                         const gfx::FontList& font,
-                                        SkColor color) {
+                                        ui::ColorId color) {
   auto label = std::make_unique<views::Label>(text);
   label->SetFontList(font);
   label->SetEnabledColor(color);
@@ -337,7 +341,7 @@ class ArcomiumSidebarView::Row : public views::Button {
       const std::u16string& title,
       int depth,
       const gfx::FontList& font,
-      SkColor color,
+      ui::ColorId color,
       bool slash,
       bool active)
       : views::Button(std::move(callback)),
@@ -360,8 +364,9 @@ class ArcomiumSidebarView::Row : public views::Button {
   void SetCloseCallback(PressedCallback callback) {
     auto close = views::CreateVectorImageButtonWithNativeTheme(
         std::move(callback), vector_icons::kCloseIcon, 18);
-    close->SetTooltipText(u"Close tab");
-    close->GetViewAccessibility().SetName(u"Close tab");
+    close->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
+    close->GetViewAccessibility().SetName(
+        l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
     close_ = AddChildView(std::move(close));
     // As in Arc, shown only while the row is hovered.
     close_->SetVisible(false);
@@ -498,7 +503,7 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   const int depth_;
   const bool active_;
-  const SkColor color_;
+  const ui::ColorId color_;
   int height_;
   raw_ptr<views::View> icon_ = nullptr;
   raw_ptr<views::Label> slash_ = nullptr;
@@ -1069,7 +1074,7 @@ void ArcomiumSidebarView::BuildRows() {
   }
   auto* space_label = rows_->AddChildView(MakeLabel(
       title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
-      arcomium::SidebarInk(this, kSubtleColor)));
+      kSubtleColor));
   space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
       2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
   space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
@@ -1089,7 +1094,8 @@ void ArcomiumSidebarView::BuildRows() {
             address_bar->OpenCommandBar(/*new_tab=*/true);
           },
           base::Unretained(address_bar_.get())),
-      std::make_unique<PlusGlyph>(), u"New Tab", 0, ItemFont(false),
+      std::make_unique<PlusGlyph>(),
+      l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB), 0, ItemFont(false),
       kNewTabColor, /*slash=*/false, /*active=*/false));
 
   TabStripModel* tabs = browser_->GetTabStripModel();
@@ -1644,39 +1650,43 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
   }
   auto add_move_to = [this] {
     if (!menu_spaces_.empty()) {
-      menu_model_->AddSubMenu(kMoveTo, u"Move to", move_menu_model_.get());
+      menu_model_->AddSubMenu(kMoveTo, l10n_util::GetStringUTF16(IDS_ARCOMIUM_MOVE_TO),
+                               move_menu_model_.get());
     }
   };
 
   if (node && node->is_folder()) {
-    menu_model_->AddItem(kPinTab, u"Pin current tab here");
-    menu_model_->AddItem(kNewFolder, u"New folder inside");
+    menu_model_->AddItem(kPinTab,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE));
+    menu_model_->AddItem(kNewFolder,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER_INSIDE));
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kRename, u"Rename…");
+    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kRemove, u"Delete folder");
+    menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_FOLDER));
   } else if (node) {
-    menu_model_->AddItem(kCopyLink, u"Copy Link");
-    menu_model_->AddItem(kRename, u"Rename…");
-    menu_model_->AddItem(kDuplicate, u"Duplicate");
+    menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
+    menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kRemove, u"Unpin");
+    menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_UNPIN));
     if (tab) {
-      menu_model_->AddItem(kCloseTab, u"Close tab");
+      menu_model_->AddItem(kCloseTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
     }
   } else if (tab) {
-    menu_model_->AddItem(kCopyLink, u"Copy Link");
-    menu_model_->AddItem(kDuplicate, u"Duplicate");
-    menu_model_->AddItem(kPinTab, u"Pin to this Space");
+    menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+    menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
+    menu_model_->AddItem(kPinTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_TO_SPACE));
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kCloseTab, u"Close tab");
+    menu_model_->AddItem(kCloseTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
   } else {
-    menu_model_->AddItem(kNewFolder, u"New folder");
+    menu_model_->AddItem(kNewFolder, l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kEditColor, u"Edit Theme Color\u2026");
+    menu_model_->AddItem(kEditColor,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_THEME_COLOR));
   }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
