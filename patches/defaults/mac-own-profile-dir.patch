@@ -1,0 +1,70 @@
+diff --git a/chrome/common/chrome_paths_mac.mm b/chrome/common/chrome_paths_mac.mm
+index 6829c9cb92..12d3fbb17b 100644
+--- a/chrome/common/chrome_paths_mac.mm
++++ b/chrome/common/chrome_paths_mac.mm
+@@ -3,7 +3,11 @@
+ // found in the LICENSE file.
+ 
+ #import <Foundation/Foundation.h>
++#include <fcntl.h>
++#include <stdio.h>
+ #include <string.h>
++#include <sys/stat.h>
++#include <unistd.h>
+ 
+ #include <memory>
+ #include <string>
+@@ -83,8 +87,52 @@ bool GetDefaultUserDataDirectoryForProduct(const std::string& product_dir,
+ 
+ namespace chrome {
+ 
++// Arcomium: versions before it had its own bundle ID kept their profile in
++// "Chromium", beside Chromium's and ungoogled-chromium's. The first start
++// with the "Arcomium" directory (CrProductDirName) moves that profile there,
++// if it is Arcomium's: its preferences have Arcomium's own. Plain POSIX calls:
++// this runs before the browser allows blocking calls to be checked.
++namespace {
++
++void MoveArcomiumProfileFromChromium(const base::FilePath& user_data_dir) {
++  if (user_data_dir.BaseName().value() != "Arcomium") {
++    return;
++  }
++  struct stat info;
++  if (stat(user_data_dir.value().c_str(), &info) == 0) {
++    return;
++  }
++  const base::FilePath old_dir = user_data_dir.DirName().Append("Chromium");
++  const std::string prefs =
++      old_dir.Append("Default").Append("Preferences").value();
++  const int fd = open(prefs.c_str(), O_RDONLY);
++  if (fd < 0) {
++    return;
++  }
++  // Arcomium's preferences are a JSON object with an "arcomium" member.
++  std::string text;
++  char buffer[64 * 1024];
++  ssize_t read_size;
++  while (text.size() < 16 * 1024 * 1024 &&
++         (read_size = read(fd, buffer, sizeof(buffer))) > 0) {
++    text.append(buffer, static_cast<size_t>(read_size));
++  }
++  close(fd);
++  if (text.find("\"arcomium\":") == std::string::npos) {
++    return;
++  }
++  rename(old_dir.value().c_str(), user_data_dir.value().c_str());
++}
++
++}  // namespace
++
+ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+-  return GetDefaultUserDataDirectoryForProduct(ProductDirName(), result);
++  const bool success =
++      GetDefaultUserDataDirectoryForProduct(ProductDirName(), result);
++  if (success) {
++    MoveArcomiumProfileFromChromium(*result);
++  }
++  return success;
+ }
+ 
+ bool GetUserDocumentsDirectory(base::FilePath* result) {

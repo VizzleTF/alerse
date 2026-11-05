@@ -7,6 +7,9 @@ the translations, renamed too, to the new IDs. "The Chromium Authors" and
 "Chromium OS" keep their names. Run it on a patched source tree; running it
 again changes nothing.
 
+It also gives Arcomium its own macOS bundle ID and profile directory, so it
+shares neither with Chromium nor ungoogled-chromium installed beside it.
+
 Usage:
   python tools/rename_product.py SRC_DIR
 """
@@ -88,8 +91,32 @@ def rename(grd):
     return len(moved)
 
 
+MAC_BUNDLE_ID = 'io.github.vizzletf.arcomium'
+PRODUCT_DIR_KEY = '<key>CrProductDirName</key>'
+
+
+def set_mac_identity(src):
+    branding = src / 'chrome/app/theme/chromium/BRANDING'
+    plist = src / 'chrome/app/app-Info.plist'
+    if not branding.exists() or not plist.exists():
+        return
+    text = branding.read_text(encoding='utf-8')
+    branding.write_text(
+        re.sub(r'^MAC_BUNDLE_ID=.*$', f'MAC_BUNDLE_ID={MAC_BUNDLE_ID}', text,
+               flags=re.M),
+        encoding='utf-8', newline='\n')
+    # ~/Library/Application Support/Arcomium, not .../Chromium.
+    text = plist.read_text(encoding='utf-8')
+    if PRODUCT_DIR_KEY not in text:
+        text = text.replace(
+            '<dict>\n',
+            f'<dict>\n\t{PRODUCT_DIR_KEY}\n\t<string>Arcomium</string>\n', 1)
+        plist.write_text(text, encoding='utf-8', newline='\n')
+
+
 def main():
     src = Path(sys.argv[1]).resolve()
+    set_mac_identity(src)
     sys.path.insert(0, str(src / 'tools' / 'grit'))
     for path in GRDS:
         grd = src / path
