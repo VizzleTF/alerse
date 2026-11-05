@@ -19,7 +19,7 @@ index 6aa0e2168f..864380680b 100644
    // WebContents to be destroyed, but it may not happen immediately.
    // `close_types` is a bitmask of CloseTypes.
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
-index f2f3415e6f..17e9f1b924 100644
+index f2f3415e6f..7fbe882378 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -105,7 +105,9 @@
@@ -32,7 +32,7 @@ index f2f3415e6f..17e9f1b924 100644
  #include "content/public/browser/reload_type.h"
  #include "content/public/browser/render_process_host.h"
  #include "content/public/browser/render_widget_host.h"
-@@ -1332,9 +1334,104 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+@@ -1332,9 +1334,105 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
  
    CHECK(contents);
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
@@ -68,7 +68,8 @@ index f2f3415e6f..17e9f1b924 100644
 +  const GURL& url = contents->GetVisibleURL();
 +  if (!url.is_empty() && !url.IsAboutBlank() &&
 +      !(url.SchemeIs(content::kChromeUIScheme) &&
-+        (url.host() == "newtab" || url.host() == "new-tab-page"))) {
++        (url.host() == chrome::kChromeUINewTabHost ||
++         url.host() == chrome::kChromeUINewTabPageHost))) {
 +    return false;
 +  }
 +  if (ArcomiumEmptySpaceMarker::FromWebContents(contents)) {
@@ -137,7 +138,7 @@ index f2f3415e6f..17e9f1b924 100644
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
    CHECK(ContainsIndex(index));
    CloseWebContents(GetWebContentsAt(index), close_types);
-@@ -3412,6 +3509,7 @@ void TabStripModel::ExecuteCloseTabs(
+@@ -3412,6 +3510,7 @@ void TabStripModel::ExecuteCloseTabs(
    ReentrancyCheck::ValidateNotReentrant(&reentrancy_guard_);
    const std::vector<tabs::TabInterface*> tabs_to_close =
        std::move(get_tabs_to_close).Run();
