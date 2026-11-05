@@ -1,0 +1,45 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
+index 087dd2230f..549ce8ce14 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
+@@ -12,6 +12,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
++#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
+ #include "ui/events/event.h"
+ 
+ VerticalTabStripFocusSwipeController::VerticalTabStripFocusSwipeController(
+@@ -146,10 +147,32 @@ void VerticalTabStripFocusSwipeController::ResetGesture() {
+   has_triggered_in_current_gesture_ = false;
+ }
+ 
++namespace {
++
++ArcomiumSpaceSwitcher* FindSpaceSwitcher(views::View* view) {
++  if (auto* switcher = views::AsViewClass<ArcomiumSpaceSwitcher>(view)) {
++    return switcher;
++  }
++  for (views::View* child : view->children()) {
++    if (ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcher(child)) {
++      return switcher;
++    }
++  }
++  return nullptr;
++}
++
++}  // namespace
++
+ void VerticalTabStripFocusSwipeController::RotateTabGroupFocus(bool forward) {
+   if (!region_view_ || !region_view_->tab_strip_model()) {
+     return;
+   }
++  // Arcomium: through the Spaces as the switcher shows them, closed ones
++  // included, which have no tab group to rotate to until they open.
++  if (ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcher(region_view_)) {
++    switcher->RotateSpace(forward);
++    return;
++  }
+ 
+   region_view_->tab_strip_model()->RotateFocusedGroup(forward);
+ }

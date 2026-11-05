@@ -102,11 +102,18 @@ class ArcomiumSpaceSwitcher : public views::View,
   // views::View:
   void AddedToWidget() override;
 
+  // Switches to the next or the previous Space in the row, closed ones
+  // included, as the trackpad's horizontal swipe asks. False at either end.
+  bool RotateSpace(bool forward);
+
  private:
   // Rebuilds asynchronously: a change may come from a click on one of the
   // buttons being rebuilt.
   void ScheduleRebuild();
   void Rebuild();
+  // What each icon in the row does, in order, and which one is active.
+  std::vector<base::RepeatingClosure> space_actions_;
+  int active_space_ = -1;
   void SwitchTo(const tab_groups::TabGroupId& group);
   // Opens a saved Space that has no tab group here, then switches to it.
   void OpenSavedSpace(const base::Uuid& sync_id);

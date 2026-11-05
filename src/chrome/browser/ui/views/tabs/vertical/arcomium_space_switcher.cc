@@ -440,6 +440,18 @@ void ArcomiumSpaceSwitcher::ScheduleRebuild() {
                                 weak_factory_.GetWeakPtr()));
 }
 
+bool ArcomiumSpaceSwitcher::RotateSpace(bool forward) {
+  const int next = active_space_ + (forward ? 1 : -1);
+  if (active_space_ < 0 || next < 0 ||
+      next >= static_cast<int>(space_actions_.size())) {
+    return false;
+  }
+  // A copy: switching rebuilds the row.
+  base::RepeatingClosure action = space_actions_[next];
+  action.Run();
+  return true;
+}
+
 void ArcomiumSpaceSwitcher::Rebuild() {
   RemoveAllChildViews();
   TabGroupModel* groups = model_->group_model();
@@ -463,12 +475,19 @@ void ArcomiumSpaceSwitcher::Rebuild() {
       ->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
   layout_->SetFlexForView(icons, 1);
 
-  auto add_icon = [&](views::Button::PressedCallback callback,
+  space_actions_.clear();
+  active_space_ = -1;
+  auto add_icon = [&](base::RepeatingClosure callback,
                       std::string icon, bool active,
                       const std::u16string& title, std::string space,
                       std::string sync_id) {
+    if (active) {
+      active_space_ = static_cast<int>(space_actions_.size());
+    }
+    space_actions_.push_back(callback);
     auto* view = icons->AddChildView(std::make_unique<SpaceIcon>(
-        std::move(callback), std::move(icon), active, title, std::move(space),
+        views::Button::PressedCallback(std::move(callback)), std::move(icon),
+        active, title, std::move(space),
         std::move(sync_id)));
     view->set_context_menu_controller(this);
   };

@@ -1,0 +1,75 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index d882476843..f6df3fe057 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -876,6 +876,15 @@ bool LocationBarView::IsArcomiumCenteredIdle() const {
+   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ }
+ 
++std::optional<std::u16string> LocationBarView::GetArcomiumPlaceholder() const {
++  if (!arcomium_compact_ || arcomium_centered_) {
++    return std::nullopt;
++  }
++  // Arc's sidebar says "Search..." where there is no address, not which
++  // search engine; Arc's command bar shows none.
++  return arcomium_command_bar_ ? std::u16string() : u"Search...";
++}
++
+ bool LocationBarView::IsArcomiumSidebarSearch() const {
+   return arcomium_compact_ && !arcomium_centered_ && !arcomium_command_bar_ &&
+          !omnibox_view_->HasFocus() && omnibox_view_->GetText().empty();
+@@ -1257,15 +1266,9 @@ void LocationBarView::Layout(PassKey) {
+     arcomium_site_button_->SetVisible(false);
+   }
+   arcomium_pill_bounds_ = gfx::Rect();
+-  if (arcomium_compact_ && !arcomium_centered_) {
+-    // Arc's sidebar says "Search..." where there is no address, not which
+-    // search engine; Arc's command bar shows none.
+-    static constexpr char16_t kSidebarPlaceholder[] = u"Search...";
+-    const std::u16string placeholder =
+-        arcomium_command_bar_ ? std::u16string() : kSidebarPlaceholder;
+-    if (omnibox_view_->GetPlaceholderText() != placeholder) {
+-      omnibox_view_->SetPlaceholderText(placeholder);
+-    }
++  if (std::optional<std::u16string> placeholder = GetArcomiumPlaceholder();
++      placeholder && omnibox_view_->GetPlaceholderText() != *placeholder) {
++    omnibox_view_->SetPlaceholderText(*placeholder);
+   }
+   if (IsArcomiumCenteredIdle()) {
+     LayoutArcomiumCentered();
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index cb6b7e925f..39274ec540 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -598,6 +598,13 @@ class LocationBarView
+   void LayoutArcomiumCentered();
+   void CopyArcomiumAddress();
+   void ShowArcomiumSiteControls();
++
++ public:
++  // Arcomium: the placeholder the sidebar's address bar shows instead of the
++  // search engine's, which the omnibox installs again when engines load.
++  std::optional<std::u16string> GetArcomiumPlaceholder() const;
++
++ private:
+   SkColor GetArcomiumPillColor() const;
+ 
+   // Views to show inline autocompletion when an IME is active.  In this case,
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+index 6ac205d996..d0122eaaca 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -437,6 +437,13 @@ void OmniboxViewViews::InstallPlaceholderText() {
+   std::optional<std::u16string> maybe_a11y_placeholder_text;
+   omnibox::ComputePlaceholderText(location_bar_view_, placeholder_text,
+                                   maybe_a11y_placeholder_text);
++  if (location_bar_view_) {
++    if (std::optional<std::u16string> arcomium =
++            location_bar_view_->GetArcomiumPlaceholder()) {
++      placeholder_text = *arcomium;
++      maybe_a11y_placeholder_text.reset();
++    }
++  }
+   SetPlaceholderText(placeholder_text);
+   const std::u16string a11y_text =
+       maybe_a11y_placeholder_text.value_or(placeholder_text);
