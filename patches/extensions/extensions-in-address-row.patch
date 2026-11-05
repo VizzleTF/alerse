@@ -33,7 +33,7 @@ index b0497948dc..c5be55314b 100644
    bool hovered_ = false;
    // The floating field and whether the location bar is in it now.
 diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
-index 1e746f0597..a48c7c0b74 100644
+index 1e746f0597..f03132be4f 100644
 --- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
 @@ -13,6 +13,7 @@
@@ -93,7 +93,7 @@ index 1e746f0597..a48c7c0b74 100644
    if (observed_view == edit_placeholder_) {
      edit_placeholder_observation_.Reset();
      edit_placeholder_ = nullptr;
-@@ -430,14 +452,53 @@ void ArcomiumAddressBar::TakeLocationBar() {
+@@ -430,14 +452,50 @@ void ArcomiumAddressBar::TakeLocationBar() {
    location_bar_ = AddChildViewAt(location_bar, 0);
    location_bar_->SetArcomiumCompact(true);
    location_bar_->SetArcomiumHovered(hovered_);
@@ -107,12 +107,9 @@ index 1e746f0597..a48c7c0b74 100644
 +  if (extensions_ || !extensions || extensions->parent() != toolbar) {
 +    return;
 +  }
-+  // The toolbar keeps their place while they are here.
++  // The toolbar keeps their place while they are here. Not their flex rule:
++  // it asks their own animating layout manager, which a placeholder has not.
 +  auto placeholder = std::make_unique<views::View>();
-+  if (const views::FlexSpecification* flex =
-+          extensions->GetProperty(views::kFlexBehaviorKey)) {
-+    placeholder->SetProperty(views::kFlexBehaviorKey, *flex);
-+  }
 +  extensions_placeholder_ = toolbar->AddChildViewAt(
 +      std::move(placeholder), *toolbar->GetIndexOf(extensions));
 +  extensions_placeholder_observation_.Observe(extensions_placeholder_);
