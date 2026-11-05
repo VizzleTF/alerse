@@ -1,14 +1,16 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 42803f46b4..0e4cbfb776 100644
+index 42803f46b4..60fb253fb7 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -106,13 +106,20 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+@@ -106,13 +106,22 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
      // Its top bar's icons are a dim grey whether enabled or not.
      mixer[kColorToolbarButtonIcon] = {SkColorSetRGB(0x52, 0x52, 0x52)};
      mixer[kColorToolbarButtonIconInactive] = {SkColorSetRGB(0x52, 0x52, 0x52)};
 -    // Its address text and window controls.
++#if BUILDFLAG(IS_WIN)
 +    // Its window controls.
 +    mixer[kColorCaptionButtonOnToolbar] = {SkColorSetRGB(0x66, 0x66, 0x66)};
++#endif
 +  }
 +#endif
 +
@@ -25,7 +27,7 @@ index 42803f46b4..0e4cbfb776 100644
      // Its command bar: a near-black panel with a grey selected row.
      mixer[kColorOmniboxResultsBackground] = {SkColorSetRGB(0x09, 0x09, 0x09)};
      mixer[kColorOmniboxResultsBackgroundHovered] = {
-@@ -122,7 +129,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+@@ -122,7 +131,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
      // And its blank page.
      mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x27, 0x27, 0x27)};
    }

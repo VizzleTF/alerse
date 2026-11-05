@@ -1,0 +1,64 @@
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index f138692fea..178c10ad92 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2307,6 +2307,12 @@ void AppMenuModel::Build() {
+       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
+                                         : vector_icons::kLinkOldIcon);
++  // Arcomium: ungoogled-chromium starts with no search engine, so the address
++  // bar cannot search until one is picked; this opens where it is.
++  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, u"Search Engine",
++                  ui::ImageModel::FromVectorIcon(
++                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
+   if (!GetWebstoreItemId(browser_).empty()) {
+     AddItemWithIcon(kArcomiumAddFromWebstore, u"Add to Arcomium",
+                     ui::ImageModel::FromVectorIcon(
+diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
+index 575fc18a9c..78164928bc 100644
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -632,10 +632,8 @@ void ShowAboutChrome(BrowserWindowInterface* browser) {
+ 
+ void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
+   base::RecordAction(UserMetricsAction("EditSearchEngines"));
+-  ShowSettingsSubPage(
+-      browser, base::FeatureList::IsEnabled(switches::kSearchSettingsUpdate)
+-                   ? kSearchSubPage
+-                   : kSearchEnginesSubPage);
++  // Arcomium: the page that both picks the default and adds one's own.
++  ShowSettingsSubPage(browser, kSearchEnginesSubPage);
+ }
+ 
+ void ShowWebStore(BrowserWindowInterface* browser,
+diff --git a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
+index ec10c20e31..4da6f6feab 100644
+--- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
++++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
+@@ -28,7 +28,7 @@
+     // existing data should get a new version. Otherwise, existing data may
+     // continue to be used and updates made here will not always appear.
+     // Also then run tools/search_engine_choice/generate_search_engine_icons.py.
+-    "kCurrentDataVersion": 215
++    "kCurrentDataVersion": 216
+   },
+ 
+   // The following engines are included in country lists and are added to the
+@@ -173,11 +173,11 @@
+     },
+ 
+     "google": {
+-      "name": "No Search",
+-      "keyword": "nosearch",
+-      "favicon_url": "about:blank",
+-      "search_url": "http://{searchTerms}",
+-      "new_tab_url": "about:blank",
++      "name": "Google",
++      "keyword": "google.com",
++      "favicon_url": "https://www.google.com/favicon.ico",
++      "search_url": "https://www.google.com/search?q={searchTerms}&ie={inputEncoding}",
++      "suggest_url": "https://www.google.com/complete/search?client=chrome&q={searchTerms}",
+       "type": "SEARCH_ENGINE_GOOGLE",
+       "preconnect_to_search_url" : "ALLOWED",
+       "prefetch_likely_navigations" : "ALLOWED",

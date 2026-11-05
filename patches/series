@@ -42,6 +42,8 @@ look/overlay-scrollbars.patch
 look/command-bar.patch
 look/space-theme-color.patch
 look/arc-colors-everywhere.patch
-spaces/keep-window-open.patch
+spaces/empty-space.patch
+spaces/reopen-closed-spaces.patch
 look/command-bar-click-outside.patch
 look/sidebar-search-placeholder.patch
+look/search-engine.patch

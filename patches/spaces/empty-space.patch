@@ -1,0 +1,273 @@
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
+index 6aa0e2168f..864380680b 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -331,6 +331,15 @@ class TabStripModel {
+   // CloseWebContentsAt() when a WebContents* is already available.
+   void CloseWebContents(content::WebContents* contents, uint32_t close_types);
+ 
++  // Arcomium: as in Arc, a Space (a tab group, or the ungrouped tabs) and the
++  // window stay when the Space's last tab goes: an empty Space shows a blank
++  // page and no tab. Adds a hidden New Tab to every Space that closing or
++  // moving away `tabs` would empty; it shows if the Space's last tab was
++  // active.
++  void ArcomiumKeepSpaces(base::span<tabs::TabInterface* const> tabs);
++  // Whether `contents` is such a hidden tab, still on its New Tab page.
++  static bool IsArcomiumEmptySpace(content::WebContents* contents);
++
+   // Closes the WebContents at the specified index. This causes the
+   // WebContents to be destroyed, but it may not happen immediately.
+   // `close_types` is a bitmask of CloseTypes.
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index f2f3415e6f..17e9f1b924 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -105,7 +105,9 @@
+ #include "components/web_modal/web_contents_modal_dialog_manager.h"
+ #include "components/webapps/common/web_app_id.h"
+ #include "content/public/browser/browser_thread.h"
++#include "content/public/browser/web_contents_user_data.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/navigation_entry.h"
+ #include "content/public/browser/reload_type.h"
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/render_widget_host.h"
+@@ -1332,9 +1334,104 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+ 
+   CHECK(contents);
+   CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
++  if (tabs::TabInterface* tab = GetTabForWebContents(contents)) {
++    tabs::TabInterface* const closing[] = {tab};
++    ArcomiumKeepSpaces(closing);
++  }
+   CloseTabs({contents}, close_types);
+ }
+ 
++namespace {
++
++// Marks the hidden New Tab of an empty Space.
++class ArcomiumEmptySpaceMarker
++    : public content::WebContentsUserData<ArcomiumEmptySpaceMarker> {
++ private:
++  explicit ArcomiumEmptySpaceMarker(content::WebContents* contents)
++      : content::WebContentsUserData<ArcomiumEmptySpaceMarker>(*contents) {}
++  friend class content::WebContentsUserData<ArcomiumEmptySpaceMarker>;
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(ArcomiumEmptySpaceMarker);
++
++}  // namespace
++
++// static
++bool TabStripModel::IsArcomiumEmptySpace(content::WebContents* contents) {
++  if (!contents) {
++    return false;
++  }
++  // Once it goes somewhere, it is a tab like any other.
++  const GURL& url = contents->GetVisibleURL();
++  if (!url.is_empty() && !url.IsAboutBlank() &&
++      !(url.SchemeIs(content::kChromeUIScheme) &&
++        (url.host() == "newtab" || url.host() == "new-tab-page"))) {
++    return false;
++  }
++  if (ArcomiumEmptySpaceMarker::FromWebContents(contents)) {
++    return true;
++  }
++  // After a restart the mark is gone: a blank page with no history that no
++  // page opened and that is not loading anything is an empty Space's.
++  content::NavigationController& controller = contents->GetController();
++  return (url.is_empty() || url.IsAboutBlank()) && !contents->HasOpener() &&
++         !controller.GetPendingEntry() && controller.GetEntryCount() <= 1;
++}
++
++void TabStripModel::ArcomiumKeepSpaces(
++    base::span<tabs::TabInterface* const> tabs) {
++  // Not while the window closes, nor in app and popup windows.
++  if (tabs.empty() || closing_all_ || !delegate()->IsNormalWindow() ||
++      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++          "close-window-with-last-tab") == "always") {
++    return;
++  }
++  std::set<tabs::TabInterface*> leaving(tabs.begin(), tabs.end());
++  std::vector<std::optional<tab_groups::TabGroupId>> spaces;
++  for (tabs::TabInterface* tab : tabs) {
++    if (std::ranges::find(spaces, tab->GetGroup()) == spaces.end()) {
++      spaces.push_back(tab->GetGroup());
++    }
++  }
++  tabs::TabInterface* const active = GetActiveTab();
++  for (const std::optional<tab_groups::TabGroupId>& space : spaces) {
++    bool emptied = true;
++    for (int i = 0; i < count(); ++i) {
++      tabs::TabInterface* tab = GetTabAtIndex(i);
++      if (tab->GetGroup() == space && !leaving.contains(tab)) {
++        emptied = false;
++        break;
++      }
++    }
++    if (!emptied) {
++      continue;
++    }
++    std::set<content::WebContents*> before;
++    for (int i = 0; i < count(); ++i) {
++      before.insert(GetWebContentsAt(i));
++    }
++    // It shows when the Space's last tab was the one shown.
++    const bool foreground =
++        active && leaving.contains(active) && active->GetGroup() == space;
++    // A blank page: Arc shows an empty Space as nothing. Marked before it
++    // shows, so that it does not take the address bar's focus; not plain
++    // about:blank, which content focuses the address bar for at startup.
++    delegate()->AddTabAt(GURL("about:blank#arcomium-space"), -1,
++                         /*foreground=*/false, space);
++    for (int i = 0; i < count(); ++i) {
++      content::WebContents* contents = GetWebContentsAt(i);
++      if (!before.contains(contents)) {
++        ArcomiumEmptySpaceMarker::CreateForWebContents(contents);
++        if (foreground) {
++          ActivateTabAt(i);
++        }
++        break;
++      }
++    }
++  }
++}
++
+ void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
+   CHECK(ContainsIndex(index));
+   CloseWebContents(GetWebContentsAt(index), close_types);
+@@ -3412,6 +3509,7 @@ void TabStripModel::ExecuteCloseTabs(
+   ReentrancyCheck::ValidateNotReentrant(&reentrancy_guard_);
+   const std::vector<tabs::TabInterface*> tabs_to_close =
+       std::move(get_tabs_to_close).Run();
++  ArcomiumKeepSpaces(tabs_to_close);
+   if (!tabs_to_close.empty() && !closing_all_ &&
+       static_cast<int>(tabs_to_close.size()) == count() &&
+       delegate()->IsNormalWindow() &&
+diff --git a/chrome/browser/ui/browser_tab_strip_model_delegate.cc b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+index 874a5f3550..9a3664369c 100644
+--- a/chrome/browser/ui/browser_tab_strip_model_delegate.cc
++++ b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+@@ -464,6 +464,13 @@ void BrowserTabStripModelDelegate::CloseTab(
+     }
+   }
+ 
++  // Arcomium: the Space and the window stay (TabStripModel::
++  // ArcomiumKeepSpaces()).
++  {
++    tabs::TabInterface* const closing[] = {model->GetTabAtIndex(tab_index)};
++    model->ArcomiumKeepSpaces(closing);
++  }
++
+   if (model->count() == 1 && IsNormalWindow() &&
+       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+           "close-window-with-last-tab") == "never") {
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+index 365a6cac73..55a5b0bb54 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.cc
+@@ -782,10 +782,32 @@ void ArcomiumSidebarView::Rebuild() {
+   TabStripModel* tabs = browser_->GetTabStripModel();
+   for (int i = 0; i < tabs->count(); ++i) {
+     tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+-    if (IsInActiveSpace(tab) && !IsBound(tab)) {
++    // An empty Space's hidden tab has no row.
++    if (IsInActiveSpace(tab) && !IsBound(tab) &&
++        !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
+       AddTabRow(tab);
+     }
+   }
++  // It goes once its Space has a tab again and it is not shown.
++  for (int i = 0; i < tabs->count(); ++i) {
++    tabs::TabInterface* hidden = tabs->GetTabAtIndex(i);
++    if (hidden == tabs->GetActiveTab() ||
++        !TabStripModel::IsArcomiumEmptySpace(hidden->GetContents())) {
++      continue;
++    }
++    for (int j = 0; j < tabs->count(); ++j) {
++      tabs::TabInterface* other = tabs->GetTabAtIndex(j);
++      if (other != hidden && other->GetGroup() == hidden->GetGroup() &&
++          !TabStripModel::IsArcomiumEmptySpace(other->GetContents())) {
++        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++            FROM_HERE,
++            base::BindOnce(&ArcomiumSidebarView::OnTabClosePressed,
++                           drop_weak_factory_.GetWeakPtr(),
++                           hidden->GetHandle()));
++        break;
++      }
++    }
++  }
+ 
+   expanding_folder_ = 0;
+   if (folder_anim_ && folder_anim_->to > folder_anim_->from) {
+@@ -1331,6 +1353,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
+   menu_point_ = point;
+   menu_tab_ = tabs::TabInterface::Handle();
+   CloseFolderPopup();
++  // The previous menu's runner refers to the models replaced below.
++  menu_runner_.reset();
+   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+ 
+   const auto it = row_targets_.find(source);
+@@ -1472,16 +1496,10 @@ void ArcomiumSidebarView::MoveTabToSpace(tabs::TabInterface* tab,
+                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL, AddTabTypes::ADD_NONE,
+                        target.group);
+ 
+-  // A Space lives as long as its group has a tab: its last tab leaves a New
+-  // Tab behind.
+-  if (const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
+-      group && tabs->group_model() &&
+-      tabs->group_model()->GetTabGroup(*group)->tab_count() == 1) {
+-    NavigateParams params(browser_, GURL(chrome::kChromeUINewTabURL),
+-                          ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
+-    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+-    params.group = group;
+-    Navigate(&params);
++  // The Space it leaves stays, empty, as in Arc.
++  {
++    tabs::TabInterface* const leaving[] = {tab};
++    tabs->ArcomiumKeepSpaces(leaving);
+   }
+   OnTabClosePressed(tab->GetHandle());
+ }
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index 3bc40bcc91..baee294121 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -881,6 +881,11 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
+   if (source != browser_->GetTabStripModel()->GetActiveWebContents()) {
+     return false;
+   }
++  // Arcomium: an empty Space shows nothing; the command bar opens only when
++  // asked for.
++  if (TabStripModel::IsArcomiumEmptySpace(source)) {
++    return false;
++  }
+ 
+   // This should be based on the pending entry if there is one, so that
+   // back/forward navigations to the NTP are handled.  The visible entry can't
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+index acd93730d4..2c9318f827 100644
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+@@ -16,6 +16,7 @@
+ #include "chrome/browser/search_engines/template_url_service_factory.h"
+ #include "chrome/browser/ssl/chrome_security_state_util.h"
+ #include "chrome/browser/ui/login/login_tab_helper.h"
++#include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/common/webui_url_constants.h"
+@@ -108,6 +109,11 @@ bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
+     return true;
+   }
+ 
++  // Arcomium: an empty Space has no address, so the bar offers to search.
++  if (TabStripModel::IsArcomiumEmptySpace(GetActiveWebContents())) {
++    return false;
++  }
++
+   security_interstitials::SecurityInterstitialTabHelper*
+       security_interstitial_tab_helper =
+           security_interstitials::SecurityInterstitialTabHelper::
