@@ -1,0 +1,13 @@
+// Copyright 2026 The Arcomium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Arc for Windows' back arrow: 1 px strokes, as its pixels fall.
+CANVAS_DIMENSIONS, 16,
+STROKE, 1,
+MOVE_TO, 5.5f, 2.5f,
+LINE_TO, 0.5f, 7.5f,
+MOVE_TO, 0, 7.5f,
+LINE_TO, 4.9f, 12.4f,
+MOVE_TO, 0.5f, 7.5f,
+LINE_TO, 12, 7.5f

@@ -23,6 +23,22 @@ Then apply the patches listed in `arcomium\patches\series`, in order:
 git apply ..\arcomium\patches\spaces\space-sidebar.patch
 ```
 
+and copy Arcomium's own files over the tree:
+
+```cmd
+xcopy /e /y /q ..\arcomium\src .
+```
+
+## Arcomium's own files
+
+Files Arcomium adds (the sidebar, Spaces, the command bar, sync) are not in patches.
+They live in `src/` at their paths in the Chromium tree, and each platform's build
+copies them over the source tree after the patches, as it does `branding/`. Patches
+change only Chromium's own files, including the `BUILD.gn` lines that build Arcomium's.
+
+Edit these files in the working tree, then copy them back into `arcomium\src\`. A new
+file goes there too, never into a patch.
+
 ## Add a patch
 
 1. Make the change in `src/`.
@@ -33,7 +49,10 @@ git apply ..\arcomium\patches\spaces\space-sidebar.patch
    ```
 
 3. Add `<area>/<name>.patch` to `arcomium\patches\series`.
-4. Check that the whole series still applies to a clean tree:
+4. Check that the whole series still applies to a clean tree. In
+   [arcomium-linux](https://github.com/VizzleTF/arcomium-linux), `./check-patches.sh`
+   applies it to the Chromium release source in a few minutes, Arcomium's patches with
+   no fuzz; CI runs it on every push. In the working tree:
 
    ```cmd
    cd src

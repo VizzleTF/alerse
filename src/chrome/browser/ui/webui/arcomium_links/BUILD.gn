@@ -1,0 +1,23 @@
+# Copyright 2026 The Arcomium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("arcomium_links") {
+  sources = [
+    "../arcomium_common/arcomium_page_style.inc",
+    "arcomium_links_page.inc",
+    "arcomium_links_ui.cc",
+    "arcomium_links_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/prefs",
+    "//components/tab_groups",
+    "//components/tabs:public",
+    "//url",
+  ]
+}

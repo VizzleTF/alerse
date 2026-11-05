@@ -95,7 +95,7 @@ index 37abc2231b..fe04531116 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 162e19a9e1..1153f1eadf 100644
+index 162e19a9e1..2fa2a8f22d 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 @@ -19,7 +19,11 @@
@@ -145,7 +145,17 @@ index 162e19a9e1..1153f1eadf 100644
      for (size_t row = 0; row < 2; ++row) {
        for (size_t i = 0; i < 3; ++i) {
          if (!rows[row][i]) {
-@@ -754,6 +772,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
+@@ -668,7 +686,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+   for (views::View* arc_button :
+        {arc_logo_button_.get(), arc_sidebar_button_.get(),
+         arc_downloads_button_.get(), arc_back_button_.get(),
+-        arc_forward_button_.get(), arc_reload_button_.get()}) {
++        arc_forward_button_.get(), arc_reload_button_.get(),
++        arc_extensions_.get()}) {
+     if (arc_button && IsHitInView(arc_button, point)) {
+       return false;
+     }
+@@ -754,6 +773,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
      return;
    }
    toolbar_height_ = toolbar_height;
@@ -153,7 +163,7 @@ index 162e19a9e1..1153f1eadf 100644
    InvalidateLayout(/*avoid_propagate_during_layout=*/true);
  }
  
-@@ -834,5 +853,77 @@ int VerticalTabStripTopContainer::GetBaselineMinHeight() const {
+@@ -834,5 +854,77 @@ int VerticalTabStripTopContainer::GetBaselineMinHeight() const {
    return std::max(toolbar_height_, min_height);
  }
  
