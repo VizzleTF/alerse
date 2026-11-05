@@ -83,6 +83,10 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/scroll_view.h"
+#include "ui/views/animation/animation_builder.h"
+#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+#include "ui/compositor/layer.h"
+#include "ui/gfx/geometry/transform.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view_class_properties.h"
@@ -517,6 +521,10 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
       views::BoxLayout::Orientation::kVertical));
   address_bar_ = AddChildView(std::make_unique<ArcomiumAddressBar>(browser_));
   auto* scroll = AddChildView(std::make_unique<views::ScrollView>());
+  scroll_ = scroll;
+  // A layer for the Space slide.
+  scroll->SetPaintToLayer();
+  scroll->layer()->SetFillsBoundsOpaquely(false);
   layout->SetFlexForView(scroll, 1);
   scroll->SetBackgroundColor(std::nullopt);
   scroll->SetHorizontalScrollBarMode(
@@ -767,7 +775,47 @@ void ArcomiumSidebarView::ScheduleRebuild() {
                                 weak_factory_.GetWeakPtr()));
 }
 
+void ArcomiumSidebarView::PrepareSpaceSlide(bool forward) {
+  pending_slide_ = forward ? 1 : -1;
+  pending_slide_from_ = GetActiveSpace();
+  pending_slide_until_ = base::TimeTicks::Now() + base::Seconds(1);
+}
+
+void ArcomiumSidebarView::CancelSpaceSlide() {
+  pending_slide_ = 0;
+}
+
+void ArcomiumSidebarView::RunPendingSlide() {
+  if (!pending_slide_ || !scroll_ || !scroll_->layer()) {
+    return;
+  }
+  if (base::TimeTicks::Now() > pending_slide_until_) {
+    pending_slide_ = 0;
+    return;
+  }
+  if (GetActiveSpace() == pending_slide_from_) {
+    return;
+  }
+  // Quick, as Arc's: 48 px in from the side the fingers moved away from,
+  // fading in.
+  constexpr int kSlideDistance = 48;
+  constexpr base::TimeDelta kSlideDuration = base::Milliseconds(170);
+  gfx::Transform start;
+  start.Translate(pending_slide_ * kSlideDistance, 0);
+  pending_slide_ = 0;
+  scroll_->layer()->SetTransform(start);
+  scroll_->layer()->SetOpacity(0.0f);
+  views::AnimationBuilder()
+      .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
+                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
+      .Once()
+      .SetDuration(kSlideDuration)
+      .SetTransform(scroll_.get(), gfx::Transform(), gfx::Tween::EASE_OUT)
+      .SetOpacity(scroll_.get(), 1.0f, gfx::Tween::EASE_OUT);
+}
+
 void ArcomiumSidebarView::Rebuild() {
+  absl::Cleanup slide = [this] { RunPendingSlide(); };
   hover_timer_.Stop();
   FinishFolderAnimation();
   folder_anim_.reset();

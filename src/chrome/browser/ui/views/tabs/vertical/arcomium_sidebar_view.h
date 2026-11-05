@@ -17,6 +17,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
@@ -49,6 +50,7 @@ class OSExchangeData;
 }  // namespace ui
 
 namespace views {
+class ScrollView;
 class BubbleDialogDelegate;
 class MenuRunner;
 }  // namespace views
@@ -140,6 +142,11 @@ class ArcomiumSidebarView : public views::View,
   void OnDragExited() override;
   DropCallback GetDropCallback(const ui::DropTargetEvent& event) override;
 
+  // Arcomium: a horizontal swipe is about to switch Spaces, forward or back;
+  // the next Space's rows slide in. CancelSpaceSlide() if it did not switch.
+  void PrepareSpaceSlide(bool forward);
+  void CancelSpaceSlide();
+
  private:
   class Row;
 
@@ -183,6 +190,9 @@ class ArcomiumSidebarView : public views::View,
   // Rebuilds asynchronously: a change may come from a click on a row.
   void ScheduleRebuild();
   void Rebuild();
+  // Slides the rows of a Space that a swipe just switched to in from the side
+  // the swipe went to.
+  void RunPendingSlide();
   void AddPinnedRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBoundTabRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBookmarkRow(const bookmarks::BookmarkNode* node, int depth);
@@ -231,6 +241,10 @@ class ArcomiumSidebarView : public views::View,
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<bookmarks::BookmarkModel> model_;
   raw_ptr<views::View> rows_ = nullptr;
+  raw_ptr<views::ScrollView> scroll_ = nullptr;
+  int pending_slide_ = 0;
+  std::string pending_slide_from_;
+  base::TimeTicks pending_slide_until_;
   // Arcomium: its address bar, which opens Arc's command bar.
   raw_ptr<ArcomiumAddressBar> address_bar_ = nullptr;
 
