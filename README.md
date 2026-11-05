@@ -69,6 +69,20 @@ it imported before.
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | done |
 
+## Privacy
+
+Arcomium keeps ungoogled-chromium's privacy defaults, with these exceptions:
+
+| Exception | What reaches Google | Off by |
+|---|---|---|
+| Google is the default search engine | Your searches, only when you search | Picking another engine in the Arc logo menu, Search Engine |
+| Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
+| The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
+
+ungoogled-chromium rewrites Google domains in the source after the patches apply. The
+Web Store's addresses in `extensions/web-store.patch` are written split
+(`"clients2.goo" "gle.com"`) so that this rewriting leaves them working.
+
 ## Learn more
 
 - [How Arcomium works](docs/design.md): Spaces, the sidebar, sync, platforms.
