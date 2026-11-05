@@ -105,6 +105,8 @@ class ArcomiumSpaceSwitcher : public views::View,
   // Switches to the next or the previous Space in the row, closed ones
   // included, as the trackpad's horizontal swipe asks. False at either end.
   bool RotateSpace(bool forward);
+  // Whether there is a Space to go to that way.
+  bool CanRotateSpace(bool forward) const;
 
  private:
   // Rebuilds asynchronously: a change may come from a click on one of the

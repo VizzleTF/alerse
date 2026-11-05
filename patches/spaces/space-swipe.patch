@@ -1,17 +1,93 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
-index 087dd2230f..8b3048fa56 100644
+index 087dd2230f..c9a6cfe9fb 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
-@@ -12,6 +12,8 @@
+@@ -12,7 +12,15 @@
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
 +#include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
 +#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
  #include "ui/events/event.h"
++#include "ui/views/view_tracker.h"
++
++namespace {
++ArcomiumSpaceSwitcher* FindSpaceSwitcher(views::View* view);
++ArcomiumSidebarView* FindSidebar(views::View* view);
++}  // namespace
  
  VerticalTabStripFocusSwipeController::VerticalTabStripFocusSwipeController(
-@@ -146,10 +148,50 @@ void VerticalTabStripFocusSwipeController::ResetGesture() {
+     VerticalTabStripRegionView* region_view)
+@@ -124,6 +132,9 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
+   if (gesture_state_ == GestureState::kHorizontalSwipe) {
+     event->SetHandled();
+     event->StopPropagation();
++    if (TrackArcomiumSwipe()) {
++      return;
++    }
+ 
+     // Trigger exactly once per physical swipe gesture. Subsequent events in
+     // the same touch are consumed until fingers lift or gesture times out.
+@@ -139,17 +150,109 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
+   }
+ }
+ 
++bool VerticalTabStripFocusSwipeController::TrackArcomiumSwipe() {
++  ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcher(region_view_);
++  ArcomiumSidebarView* sidebar = FindSidebar(region_view_);
++  if (!switcher || !sidebar) {
++    return false;
++  }
++  bool forward = cumulative_x_ < 0;
++  if (base::i18n::IsRTL()) {
++    forward = !forward;
++  }
++  arcomium_tracking_ = true;
++  sidebar->TrackSpaceSwipe(cumulative_x_, switcher->CanRotateSpace(forward));
++#if !BUILDFLAG(IS_MAC)
++  // Wheel events say nothing of the fingers lifting: a pause ends the swipe.
++  arcomium_end_timer_.Start(
++      FROM_HERE, base::Milliseconds(160),
++      base::BindOnce(&VerticalTabStripFocusSwipeController::ResetGesture,
++                     base::Unretained(this)));
++#endif
++  return true;
++}
++
++void VerticalTabStripFocusSwipeController::FinishArcomiumSwipe() {
++  if (!arcomium_tracking_) {
++    return;
++  }
++  arcomium_tracking_ = false;
++  arcomium_end_timer_.Stop();
++  ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcher(region_view_);
++  ArcomiumSidebarView* sidebar = FindSidebar(region_view_);
++  if (!sidebar) {
++    return;
++  }
++  bool forward = cumulative_x_ < 0;
++  if (base::i18n::IsRTL()) {
++    forward = !forward;
++  }
++  const bool commit = switcher && switcher->CanRotateSpace(forward) &&
++                      std::abs(cumulative_x_) >= kArcomiumCommitDistance;
++  sidebar->EndSpaceSwipe(
++      commit, forward,
++      base::BindOnce(
++          [](std::unique_ptr<views::ViewTracker> switcher, bool forward) {
++            if (auto* view =
++                    views::AsViewClass<ArcomiumSpaceSwitcher>(switcher->view())) {
++              view->RotateSpace(forward);
++            }
++          },
++          std::make_unique<views::ViewTracker>(switcher), forward));
++}
++
+ void VerticalTabStripFocusSwipeController::ResetGesture() {
++  FinishArcomiumSwipe();
+   gesture_state_ = GestureState::kNone;
+   cumulative_x_ = 0.0f;
+   cumulative_y_ = 0.0f;
    has_triggered_in_current_gesture_ = false;
  }
  
@@ -62,3 +138,29 @@ index 087dd2230f..8b3048fa56 100644
  
    region_view_->tab_strip_model()->RotateFocusedGroup(forward);
  }
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
+index 4a91fb53f8..e227d4ec0e 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
+@@ -6,6 +6,7 @@
+ #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_FOCUS_SWIPE_CONTROLLER_H_
+ 
+ #include "base/memory/raw_ptr.h"
++#include "base/timer/timer.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+ #include "ui/events/event_handler.h"
+@@ -51,6 +52,13 @@ class VerticalTabStripFocusSwipeController : public ui::EventHandler {
+   void ProcessSwipeOffset(float x_offset, float y_offset, ui::Event* event);
+   void ResetGesture();
+   void RotateTabGroupFocus(bool forward);
++  // Arcomium: the sidebar follows the fingers, and the Space switches when
++  // they lift past kArcomiumCommitDistance. False without Arcomium's sidebar.
++  bool TrackArcomiumSwipe();
++  void FinishArcomiumSwipe();
++  static constexpr float kArcomiumCommitDistance = 60.0f;
++  bool arcomium_tracking_ = false;
++  base::OneShotTimer arcomium_end_timer_;
+ 
+   const raw_ptr<VerticalTabStripRegionView> region_view_;
+ 

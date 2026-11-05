@@ -144,8 +144,15 @@ class ArcomiumSidebarView : public views::View,
 
   // Arcomium: a horizontal swipe is about to switch Spaces, forward or back;
   // the next Space's rows slide in. CancelSpaceSlide() if it did not switch.
-  void PrepareSpaceSlide(bool forward);
+  void PrepareSpaceSlide(bool forward, int distance = 48);
   void CancelSpaceSlide();
+  // While the fingers move: the rows follow them by `dx`; with no Space that
+  // way, they give only a little.
+  void TrackSpaceSwipe(float dx, bool can_switch);
+  // The fingers lifted. Committed, the rows slide out the way they went, then
+  // `switch_space` runs and the next Space's rows slide in from the other
+  // side; otherwise they spring back.
+  void EndSpaceSwipe(bool commit, bool forward, base::OnceClosure switch_space);
 
  private:
   class Row;
@@ -193,6 +200,8 @@ class ArcomiumSidebarView : public views::View,
   // Slides the rows of a Space that a swipe just switched to in from the side
   // the swipe went to.
   void RunPendingSlide();
+  // Shows the rows again if a committed swipe switched nothing.
+  void RestoreSlide();
   void AddPinnedRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBoundTabRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBookmarkRow(const bookmarks::BookmarkNode* node, int depth);
@@ -243,6 +252,8 @@ class ArcomiumSidebarView : public views::View,
   raw_ptr<views::View> rows_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
   int pending_slide_ = 0;
+  int pending_slide_distance_ = 48;
+  base::WeakPtrFactory<ArcomiumSidebarView> slide_weak_factory_{this};
   std::string pending_slide_from_;
   base::TimeTicks pending_slide_until_;
   // Arcomium: its address bar, which opens Arc's command bar.

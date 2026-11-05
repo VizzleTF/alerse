@@ -452,6 +452,12 @@ bool ArcomiumSpaceSwitcher::RotateSpace(bool forward) {
   return true;
 }
 
+bool ArcomiumSpaceSwitcher::CanRotateSpace(bool forward) const {
+  const int next = active_space_ + (forward ? 1 : -1);
+  return active_space_ >= 0 && next >= 0 &&
+         next < static_cast<int>(space_actions_.size());
+}
+
 void ArcomiumSpaceSwitcher::Rebuild() {
   RemoveAllChildViews();
   TabGroupModel* groups = model_->group_model();

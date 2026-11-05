@@ -84,6 +84,8 @@
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/animation/animation_builder.h"
+#include "base/functional/callback_helpers.h"
+#include "ui/compositor/layer_animator.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/transform.h"
@@ -520,6 +522,10 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
   address_bar_ = AddChildView(std::make_unique<ArcomiumAddressBar>(browser_));
+  // Clips the rows while they slide between Spaces.
+  SetPaintToLayer();
+  layer()->SetFillsBoundsOpaquely(false);
+  layer()->SetMasksToBounds(true);
   auto* scroll = AddChildView(std::make_unique<views::ScrollView>());
   scroll_ = scroll;
   // A layer for the Space slide.
@@ -775,14 +781,87 @@ void ArcomiumSidebarView::ScheduleRebuild() {
                                 weak_factory_.GetWeakPtr()));
 }
 
-void ArcomiumSidebarView::PrepareSpaceSlide(bool forward) {
+void ArcomiumSidebarView::PrepareSpaceSlide(bool forward, int distance) {
   pending_slide_ = forward ? 1 : -1;
+  pending_slide_distance_ = distance;
   pending_slide_from_ = GetActiveSpace();
   pending_slide_until_ = base::TimeTicks::Now() + base::Seconds(1);
 }
 
 void ArcomiumSidebarView::CancelSpaceSlide() {
   pending_slide_ = 0;
+}
+
+void ArcomiumSidebarView::TrackSpaceSwipe(float dx, bool can_switch) {
+  if (!scroll_ || !scroll_->layer()) {
+    return;
+  }
+  ui::Layer* layer = scroll_->layer();
+  layer->GetAnimator()->StopAnimating();
+  pending_slide_ = 0;
+  const float width = std::max(1, scroll_->width());
+  float offset = can_switch ? dx : std::clamp(dx * 0.2f, -24.0f, 24.0f);
+  offset = std::clamp(offset, -width, width);
+  gfx::Transform transform;
+  transform.Translate(offset, 0);
+  layer->SetTransform(transform);
+  layer->SetOpacity(1.0f - 0.5f * std::abs(offset) / width);
+}
+
+void ArcomiumSidebarView::EndSpaceSwipe(bool commit,
+                                        bool forward,
+                                        base::OnceClosure switch_space) {
+  if (!scroll_ || !scroll_->layer()) {
+    return;
+  }
+  if (!commit) {
+    views::AnimationBuilder()
+        .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
+                                   IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
+        .Once()
+        .SetDuration(base::Milliseconds(160))
+        .SetTransform(scroll_.get(), gfx::Transform(), gfx::Tween::EASE_OUT)
+        .SetOpacity(scroll_.get(), 1.0f, gfx::Tween::EASE_OUT);
+    return;
+  }
+  const int width = scroll_->width();
+  gfx::Transform out;
+  out.Translate(forward ? -width : width, 0);
+  auto [on_ended, on_aborted] = base::SplitOnceCallback(base::BindOnce(
+      [](base::WeakPtr<ArcomiumSidebarView> sidebar, bool forward, int distance,
+         base::OnceClosure switch_space) {
+        if (!sidebar) {
+          return;
+        }
+        sidebar->PrepareSpaceSlide(forward, distance);
+        std::move(switch_space).Run();
+        base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+            FROM_HERE,
+            base::BindOnce(&ArcomiumSidebarView::RestoreSlide, sidebar),
+            base::Milliseconds(400));
+      },
+      slide_weak_factory_.GetWeakPtr(), forward, width * 2 / 5,
+      std::move(switch_space)));
+  views::AnimationBuilder()
+      .OnEnded(std::move(on_ended))
+      .OnAborted(std::move(on_aborted))
+      .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
+                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
+      .Once()
+      .SetDuration(base::Milliseconds(110))
+      .SetTransform(scroll_.get(), out, gfx::Tween::EASE_IN)
+      .SetOpacity(scroll_.get(), 0.0f, gfx::Tween::EASE_IN);
+}
+
+void ArcomiumSidebarView::RestoreSlide() {
+  if (!scroll_ || !scroll_->layer() ||
+      scroll_->layer()->GetAnimator()->is_animating() ||
+      scroll_->layer()->opacity() == 1.0f) {
+    return;
+  }
+  pending_slide_ = 0;
+  scroll_->layer()->SetTransform(gfx::Transform());
+  scroll_->layer()->SetOpacity(1.0f);
 }
 
 void ArcomiumSidebarView::RunPendingSlide() {
@@ -796,12 +875,11 @@ void ArcomiumSidebarView::RunPendingSlide() {
   if (GetActiveSpace() == pending_slide_from_) {
     return;
   }
-  // Quick, as Arc's: 48 px in from the side the fingers moved away from,
-  // fading in.
-  constexpr int kSlideDistance = 48;
+  // Quick, as Arc's: in from the side the fingers moved away from, fading
+  // in.
   constexpr base::TimeDelta kSlideDuration = base::Milliseconds(170);
   gfx::Transform start;
-  start.Translate(pending_slide_ * kSlideDistance, 0);
+  start.Translate(pending_slide_ * pending_slide_distance_, 0);
   pending_slide_ = 0;
   scroll_->layer()->SetTransform(start);
   scroll_->layer()->SetOpacity(0.0f);
