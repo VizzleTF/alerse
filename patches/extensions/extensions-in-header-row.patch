@@ -95,7 +95,7 @@ index 37abc2231b..fe04531116 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 162e19a9e1..2fa2a8f22d 100644
+index 162e19a9e1..44a74d4187 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 @@ -19,7 +19,11 @@
@@ -110,7 +110,15 @@ index 162e19a9e1..2fa2a8f22d 100644
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
  #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
-@@ -273,6 +277,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+@@ -36,6 +40,7 @@
+ #include "ui/gfx/canvas.h"
+ #include "ui/gfx/color_utils.h"
+ #include "ui/views/accessibility/view_accessibility.h"
++#include "ui/views/background.h"
+ #include "ui/views/actions/action_view_controller.h"
+ #include "ui/views/animation/ink_drop.h"
+ #include "ui/views/controls/button/image_button.h"
+@@ -273,6 +278,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
  }
  
  VerticalTabStripTopContainer::~VerticalTabStripTopContainer() {
@@ -118,7 +126,7 @@ index 162e19a9e1..2fa2a8f22d 100644
    for (int command : {IDC_BACK, IDC_FORWARD, IDC_RELOAD}) {
      chrome::RemoveCommandObserver(browser_, command, this);
    }
-@@ -300,6 +305,7 @@ void VerticalTabStripTopContainer::OnBoundsChanged(
+@@ -300,6 +306,7 @@ void VerticalTabStripTopContainer::OnBoundsChanged(
  
  void VerticalTabStripTopContainer::AddedToWidget() {
    InvalidateLayout();
@@ -126,7 +134,7 @@ index 162e19a9e1..2fa2a8f22d 100644
  }
  
  views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-@@ -452,6 +458,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -452,6 +459,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      const int row_x[2] = {grid.first_row_x, grid.second_row_x};
      const int row_center[2] = {grid.first_row_center,
                                 grid.first_row_center + kArcHeaderPitch};
@@ -145,7 +153,7 @@ index 162e19a9e1..2fa2a8f22d 100644
      for (size_t row = 0; row < 2; ++row) {
        for (size_t i = 0; i < 3; ++i) {
          if (!rows[row][i]) {
-@@ -668,7 +686,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -668,7 +687,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
    for (views::View* arc_button :
         {arc_logo_button_.get(), arc_sidebar_button_.get(),
          arc_downloads_button_.get(), arc_back_button_.get(),
@@ -155,7 +163,7 @@ index 162e19a9e1..2fa2a8f22d 100644
      if (arc_button && IsHitInView(arc_button, point)) {
        return false;
      }
-@@ -754,6 +773,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
+@@ -754,6 +774,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
      return;
    }
    toolbar_height_ = toolbar_height;
@@ -163,7 +171,7 @@ index 162e19a9e1..2fa2a8f22d 100644
    InvalidateLayout(/*avoid_propagate_during_layout=*/true);
  }
  
-@@ -834,5 +854,77 @@ int VerticalTabStripTopContainer::GetBaselineMinHeight() const {
+@@ -834,5 +855,81 @@ int VerticalTabStripTopContainer::GetBaselineMinHeight() const {
    return std::max(toolbar_height_, min_height);
  }
  
@@ -216,6 +224,9 @@ index 162e19a9e1..2fa2a8f22d 100644
 +  arc_extensions_placeholder_observation_.Observe(arc_extensions_placeholder_);
 +  arc_extensions_ = AddChildView(extensions);
 +  extensions->SetArcomiumCompact(true);
++  // In the frame's color, opaque: their labels (a site access request, say)
++  // render subpixel text, which needs an opaque background under it.
++  extensions->SetBackground(views::CreateSolidBackground(ui::kColorFrameActive));
 +  InvalidateLayout();
 +}
 +
@@ -235,6 +246,7 @@ index 162e19a9e1..2fa2a8f22d 100644
 +    return;
 +  }
 +  extensions->SetArcomiumCompact(false);
++  extensions->SetBackground(nullptr);
 +  toolbar->AddChildViewAt(extensions, *toolbar->GetIndexOf(placeholder));
 +  toolbar->RemoveChildViewT(placeholder);
 +}
