@@ -314,6 +314,9 @@ void ArcomiumSpaceSwitcher::OpenSpace(BrowserWindowInterface* browser,
   contents->GetController().LoadURL(url, content::Referrer(),
                                     ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
                                     std::string());
+  // Marked before it shows, or it takes the address bar's focus: an empty
+  // Space waits for a bookmark or for typing.
+  TabStripModel::MarkArcomiumEmptySpace(contents.get());
   model->AddWebContents(std::move(contents), -1,
                         ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
                         AddTabTypes::ADD_ACTIVE);

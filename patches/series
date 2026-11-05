@@ -40,3 +40,4 @@ defaults/mac-own-profile-dir.patch
 extensions/site-controls.patch
 spaces/space-swipe.patch
 look/sidebar-placeholder-sticks.patch
+spaces/open-space-quietly.patch
