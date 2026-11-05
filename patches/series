@@ -47,3 +47,5 @@ spaces/reopen-closed-spaces.patch
 look/command-bar-click-outside.patch
 look/sidebar-search-placeholder.patch
 look/search-engine.patch
+sync/sync-https-only.patch
+extensions/extensions-in-address-row.patch

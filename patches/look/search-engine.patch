@@ -1,13 +1,13 @@
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index f138692fea..178c10ad92 100644
+index f138692fea..c2affae46e 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -2307,6 +2307,12 @@ void AppMenuModel::Build() {
        this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
        features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
                                          : vector_icons::kLinkOldIcon);
-+  // Arcomium: ungoogled-chromium starts with no search engine, so the address
-+  // bar cannot search until one is picked; this opens where it is.
++  // Arcomium: where the address bar's search engine is picked, or one's own
++  // (a self-hosted one, say) added.
 +  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, u"Search Engine",
 +                  ui::ImageModel::FromVectorIcon(
 +                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
@@ -33,7 +33,7 @@ index 575fc18a9c..78164928bc 100644
  
  void ShowWebStore(BrowserWindowInterface* browser,
 diff --git a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-index ec10c20e31..4da6f6feab 100644
+index ec10c20e31..3e43d522e7 100644
 --- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 +++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 @@ -28,7 +28,7 @@
@@ -41,11 +41,11 @@ index ec10c20e31..4da6f6feab 100644
      // continue to be used and updates made here will not always appear.
      // Also then run tools/search_engine_choice/generate_search_engine_icons.py.
 -    "kCurrentDataVersion": 215
-+    "kCurrentDataVersion": 216
++    "kCurrentDataVersion": 217
    },
  
    // The following engines are included in country lists and are added to the
-@@ -173,11 +173,11 @@
+@@ -173,15 +173,12 @@
      },
  
      "google": {
@@ -60,5 +60,9 @@ index ec10c20e31..4da6f6feab 100644
 +      "search_url": "https://www.google.com/search?q={searchTerms}&ie={inputEncoding}",
 +      "suggest_url": "https://www.google.com/complete/search?client=chrome&q={searchTerms}",
        "type": "SEARCH_ENGINE_GOOGLE",
-       "preconnect_to_search_url" : "ALLOWED",
-       "prefetch_likely_navigations" : "ALLOWED",
+-      "preconnect_to_search_url" : "ALLOWED",
+-      "prefetch_likely_navigations" : "ALLOWED",
+-      "send_x_geo_header": true,
+       "id": 1
+     },
+ 

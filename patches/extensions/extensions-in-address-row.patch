@@ -1,0 +1,167 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+index b0497948dc..c5be55314b 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h
+@@ -55,6 +55,7 @@ class ArcomiumAddressBar : public views::View,
+   void VisibilityChanged(views::View* starting_from, bool is_visible) override;
+   void AddedToWidget() override;
+   void RemovedFromWidget() override;
++  void ChildPreferredSizeChanged(views::View* child) override;
+   void OnMouseEntered(const ui::MouseEvent& event) override;
+   void OnMouseExited(const ui::MouseEvent& event) override;
+ 
+@@ -87,6 +88,10 @@ class ArcomiumAddressBar : public views::View,
+   void UpdatePlacement();
+   void TakeLocationBar();
+   void ReturnLocationBar();
++  // The toolbar's extensions (pinned ones and the extensions button) go with
++  // the location bar, to the right of the address as in Arc.
++  void TakeExtensions(views::View* toolbar);
++  void ReturnExtensions();
+   void UpdateCopyButton();
+   void CopyAddress();
+   // Move the location bar into the floating field and back. Posted: focus
+@@ -106,6 +111,10 @@ class ArcomiumAddressBar : public views::View,
+   raw_ptr<views::View> toolbar_placeholder_ = nullptr;
+   base::ScopedObservation<views::View, views::ViewObserver>
+       placeholder_observation_{this};
++  raw_ptr<views::View> extensions_ = nullptr;
++  raw_ptr<views::View> extensions_placeholder_ = nullptr;
++  base::ScopedObservation<views::View, views::ViewObserver>
++      extensions_placeholder_observation_{this};
+   raw_ptr<views::ImageButton> copy_button_ = nullptr;
+   bool hovered_ = false;
+   // The floating field and whether the location bar is in it now.
+diff --git a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+index 1e746f0597..a48c7c0b74 100644
+--- a/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
++++ b/chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.cc
+@@ -13,6 +13,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+@@ -48,6 +49,8 @@ constexpr int kVerticalInset = 4;
+ constexpr int kCopyIconSize = 16;
+ constexpr int kCopyButtonSize = 24;
+ constexpr int kCopyButtonEndInset = 6;
++// Between the address and the extensions after it.
++constexpr int kExtensionsGap = 2;
+ // Arc's command bar: 722 px wide and centred on the window, its 318 px panel
+ // 30 px below the middle; the address row is its top 52 px.
+ constexpr int kCommandBarWidth = 722;
+@@ -124,6 +127,15 @@ void ArcomiumAddressBar::Layout(PassKey) {
+   }
+   gfx::Rect field(size());
+   field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
++  if (extensions_ && extensions_->GetVisible()) {
++    const gfx::Size preferred = extensions_->GetPreferredSize();
++    const int width = std::min(preferred.width(), field.width() / 2);
++    const int height = std::min(preferred.height(), field.height());
++    extensions_->SetBounds(field.right() - width,
++                           field.y() + (field.height() - height) / 2, width,
++                           height);
++    field.set_width(std::max(0, field.width() - width - kExtensionsGap));
++  }
+   if (!editing_) {
+     location_bar_->SetBoundsRect(field);
+   }
+@@ -154,6 +166,11 @@ void ArcomiumAddressBar::RemovedFromWidget() {
+   }
+ }
+ 
++void ArcomiumAddressBar::ChildPreferredSizeChanged(views::View* child) {
++  // Pinning or unpinning an extension changes how much room it needs.
++  InvalidateLayout();
++}
++
+ void ArcomiumAddressBar::OnMouseEntered(const ui::MouseEvent& event) {
+   hovered_ = true;
+   UpdateCopyButton();
+@@ -165,6 +182,11 @@ void ArcomiumAddressBar::OnMouseExited(const ui::MouseEvent& event) {
+ }
+ 
+ void ArcomiumAddressBar::OnViewIsDeleting(views::View* observed_view) {
++  if (observed_view == extensions_placeholder_) {
++    extensions_placeholder_observation_.Reset();
++    extensions_placeholder_ = nullptr;
++    return;
++  }
+   if (observed_view == edit_placeholder_) {
+     edit_placeholder_observation_.Reset();
+     edit_placeholder_ = nullptr;
+@@ -430,14 +452,53 @@ void ArcomiumAddressBar::TakeLocationBar() {
+   location_bar_ = AddChildViewAt(location_bar, 0);
+   location_bar_->SetArcomiumCompact(true);
+   location_bar_->SetArcomiumHovered(hovered_);
++  TakeExtensions(toolbar);
+   PreferredSizeChanged();
+ }
+ 
++void ArcomiumAddressBar::TakeExtensions(views::View* toolbar) {
++  ToolbarView* toolbar_view = static_cast<ToolbarView*>(toolbar);
++  views::View* extensions = toolbar_view->extensions_container();
++  if (extensions_ || !extensions || extensions->parent() != toolbar) {
++    return;
++  }
++  // The toolbar keeps their place while they are here.
++  auto placeholder = std::make_unique<views::View>();
++  if (const views::FlexSpecification* flex =
++          extensions->GetProperty(views::kFlexBehaviorKey)) {
++    placeholder->SetProperty(views::kFlexBehaviorKey, *flex);
++  }
++  extensions_placeholder_ = toolbar->AddChildViewAt(
++      std::move(placeholder), *toolbar->GetIndexOf(extensions));
++  extensions_placeholder_observation_.Observe(extensions_placeholder_);
++  extensions_ = AddChildView(extensions);
++}
++
++void ArcomiumAddressBar::ReturnExtensions() {
++  if (!extensions_) {
++    return;
++  }
++  views::View* extensions = extensions_;
++  extensions_ = nullptr;
++  views::View* placeholder = extensions_placeholder_;
++  views::View* toolbar = placeholder ? placeholder->parent() : nullptr;
++  extensions_placeholder_observation_.Reset();
++  extensions_placeholder_ = nullptr;
++  // Without a placeholder the toolbar is going with the window; they stay and
++  // go with it too.
++  if (!toolbar) {
++    return;
++  }
++  toolbar->AddChildViewAt(extensions, *toolbar->GetIndexOf(placeholder));
++  toolbar->RemoveChildViewT(placeholder);
++}
++
+ void ArcomiumAddressBar::ReturnLocationBar() {
+   if (!location_bar_) {
+     return;
+   }
+   StopEditing();
++  ReturnExtensions();
+   LocationBarView* location_bar = location_bar_;
+   location_bar_ = nullptr;
+   location_bar->SetArcomiumCompact(false);
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index c8dda29cd0..70941cb98f 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -559,13 +559,6 @@ void ToolbarView::Init() {
+ 
+   if (extensions_container) {
+     extensions_container_ = AddChildView(std::move(extensions_container));
+-#if !BUILDFLAG(IS_MAC)
+-    // Arcomium: Arc for Windows' top bar shows pinned extensions only.
+-    if (views::View* extensions_button =
+-            extensions_container_->GetExtensionsButton()) {
+-      extensions_button->SetVisible(false);
+-    }
+-#endif
+     extensions_toolbar_coordinator_ =
+         std::make_unique<ExtensionsToolbarCoordinator>(extensions_container_);
+   }
