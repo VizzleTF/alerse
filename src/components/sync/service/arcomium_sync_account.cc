@@ -60,6 +60,12 @@ void ArcomiumSyncAccount::RegisterProfilePrefs(PrefRegistrySimple* registry) {
 
 // static
 void ArcomiumSyncAccount::ApplyCommandLine(PrefService* prefs) {
+#if defined(OFFICIAL_BUILD)
+  // A shortcut with these switches would join a profile to someone else's
+  // sync chain; release builds take a server and a code only from the Sync
+  // page.
+  return;
+#endif
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(kServerURLSwitch)) {
@@ -119,7 +125,12 @@ std::optional<ArcomiumSyncAccount> ArcomiumSyncAccount::Load(
     const os_crypt_async::Encryptor& encryptor) {
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
-  if (command_line.HasSwitch(kSecretSwitch)) {
+#if defined(OFFICIAL_BUILD)
+  const bool secret_switch = false;
+#else
+  const bool secret_switch = command_line.HasSwitch(kSecretSwitch);
+#endif
+  if (secret_switch) {
     SyncChainSecret secret;
     if (!base::HexStringToSpan(command_line.GetSwitchValueASCII(kSecretSwitch),
                                secret)) {

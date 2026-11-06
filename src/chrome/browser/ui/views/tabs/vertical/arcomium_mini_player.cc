@@ -189,9 +189,9 @@ content::WebContents* ArcomiumMiniPlayer::GetMediaContents() const {
   }
   content::WebContents* contents =
       content::MediaSession::GetWebContentsFromRequestId(*request_id_);
-  if (!contents || Profile::FromBrowserContext(contents->GetBrowserContext())
-                           ->GetOriginalProfile() !=
-                       browser_->GetProfile()->GetOriginalProfile()) {
+  // Only this window's own profile: an incognito tab's media never shows in
+  // a regular window, nor a regular tab's in an incognito one.
+  if (!contents || contents->GetBrowserContext() != browser_->GetProfile()) {
     return nullptr;
   }
   return contents;

@@ -42,6 +42,7 @@
 #include "components/page_info/page_info.h"
 #include "components/page_info/page_info_ui.h"
 #include "components/vector_icons/vector_icons.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -172,6 +173,7 @@ class SiteControlsView : public views::View,
                          public PageInfoNavigationHandler,
                          public PermissionToggleRowViewObserver,
                          public ExtensionContextMenuController::Observer,
+                         public content::WebContentsObserver,
                          public ui::SimpleMenuModel::Delegate {
   METADATA_HEADER(SiteControlsView, views::View)
 
@@ -200,12 +202,36 @@ class SiteControlsView : public views::View,
     AddChildView(std::make_unique<views::Separator>());
     AddFooter();
 
+    // Closed when the tab goes or leaves the page: the page info presenter
+    // holds the tab and would change another site's permissions.
+    Observe(contents);
     if (contents && url_.SchemeIsHTTPOrHTTPS()) {
       ui_delegate_ =
           std::make_unique<ChromePageInfoUiDelegate>(contents, url_);
       presenter_ = std::make_unique<PageInfo>(
           std::make_unique<ChromePageInfoDelegate>(contents), contents, url_);
       presenter_->InitializeUiState(this, base::DoNothing());
+    }
+  }
+
+  // content::WebContentsObserver:
+  void WebContentsDestroyed() override {
+    // The rows point at the delegate, the presenter at the tab: all go now,
+    // the bubble with them once it closes.
+    presenter_.reset();
+    permission_rows_.clear();
+    if (permissions_) {
+      permissions_->RemoveAllChildViews();
+    }
+    ui_delegate_.reset();
+    Observe(nullptr);
+    CloseSoon();
+  }
+  void PrimaryPageChanged(content::Page& page) override { CloseSoon(); }
+
+  void CloseSoon() {
+    if (views::Widget* widget = GetWidget()) {
+      widget->Close();
     }
   }
 
