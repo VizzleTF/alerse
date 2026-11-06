@@ -45,3 +45,4 @@ look/arcomium-strings.patch
 look/arcomium-colors.patch
 spaces/synced-empty-space.patch
 spaces/empty-space-blank-focus.patch
+defaults/no-dangling-ptr-crash.patch

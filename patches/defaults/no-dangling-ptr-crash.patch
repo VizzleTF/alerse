@@ -1,0 +1,21 @@
+diff --git a/base/allocator/partition_alloc_features.cc b/base/allocator/partition_alloc_features.cc
+index 212f83f9be..b33d3dd066 100644
+--- a/base/allocator/partition_alloc_features.cc
++++ b/base/allocator/partition_alloc_features.cc
+@@ -52,13 +52,9 @@ constinit const FeatureParam<UnretainedDanglingPtrMode>
+ // `base::allocator::MakeFreeNoOp()`). No-op `free()` stands down in the
+ // presence of DPD, but hypothetically fully launching DPD should prompt
+ // a rethink of no-op `free()`.
+-BASE_FEATURE(kPartitionAllocDanglingPtr,
+-#if PA_BUILDFLAG(ENABLE_DANGLING_RAW_PTR_FEATURE_FLAG)
+-             FEATURE_ENABLED_BY_DEFAULT
+-#else
+-             FEATURE_DISABLED_BY_DEFAULT
+-#endif
+-);
++// Arcomium: off, as in an official build. Its crash mode stops the browser
++// on a pointer that BackupRefPtr already keeps safe; it is for debugging.
++BASE_FEATURE(kPartitionAllocDanglingPtr, FEATURE_DISABLED_BY_DEFAULT);
+ 
+ constexpr FeatureParam<DanglingPtrMode>::Option kDanglingPtrModeOption[] = {
+     {DanglingPtrMode::kCrash, "crash"},

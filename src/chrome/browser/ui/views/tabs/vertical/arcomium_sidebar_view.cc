@@ -1602,6 +1602,26 @@ void ArcomiumSidebarView::CheckFolderPopupHover() {
   }
 }
 
+namespace {
+
+// Deletes a bubble's widget, then its delegate, in one task: a delegate left
+// without its widget still hears its anchor widget's theme changes (a Space
+// switch), and crashes on them.
+void DeleteBubbleSoon(std::unique_ptr<views::Widget> widget,
+                      std::unique_ptr<views::BubbleDialogDelegate> delegate) {
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](std::unique_ptr<views::Widget> widget,
+             std::unique_ptr<views::BubbleDialogDelegate> delegate) {
+            widget.reset();
+            delegate.reset();
+          },
+          std::move(widget), std::move(delegate)));
+}
+
+}  // namespace
+
 void ArcomiumSidebarView::CloseFolderPopup() {
   folder_popup_timer_.Stop();
   folder_popup_id_ = 0;
@@ -1610,9 +1630,8 @@ void ArcomiumSidebarView::CloseFolderPopup() {
   }
   // Deleted later: this may run from inside the popup's own events.
   folder_popup_->Hide();
-  auto runner = base::SequencedTaskRunner::GetCurrentDefault();
-  runner->DeleteSoon(FROM_HERE, std::move(folder_popup_));
-  runner->DeleteSoon(FROM_HERE, std::move(folder_popup_delegate_));
+  DeleteBubbleSoon(std::move(folder_popup_),
+                   std::move(folder_popup_delegate_));
 }
 
 void ArcomiumSidebarView::OnFolderPopupClosed(
@@ -1912,9 +1931,8 @@ void ArcomiumSidebarView::CloseColorPicker() {
   }
   // Deleted later: this may run from inside the picker's own events.
   color_picker_->Hide();
-  auto runner = base::SequencedTaskRunner::GetCurrentDefault();
-  runner->DeleteSoon(FROM_HERE, std::move(color_picker_));
-  runner->DeleteSoon(FROM_HERE, std::move(color_picker_delegate_));
+  DeleteBubbleSoon(std::move(color_picker_),
+                   std::move(color_picker_delegate_));
 }
 
 void ArcomiumSidebarView::OnColorPickerClosed(
