@@ -19,3 +19,31 @@ index 212f83f9be..b33d3dd066 100644
  
  constexpr FeatureParam<DanglingPtrMode>::Option kDanglingPtrModeOption[] = {
      {DanglingPtrMode::kCrash, "crash"},
+diff --git a/base/allocator/partition_alloc_support.cc b/base/allocator/partition_alloc_support.cc
+index 6a17ffb0ed..af9e5902a8 100644
+--- a/base/allocator/partition_alloc_support.cc
++++ b/base/allocator/partition_alloc_support.cc
+@@ -747,6 +747,13 @@ void CheckDanglingRawPtrBufferEmpty() {
+ 
+ }  // namespace
+ 
++// Arcomium: the detector never stops the browser, as in an official build,
++// whatever turns the feature on; BackupRefPtr keeps the pointers it reports
++// safe. A function, not a constant, so the code below stays reachable.
++bool ArcomiumDanglingPtrChecks() {
++  return false;
++}
++
+ void InstallDanglingRawPtrChecks() {
+   // Multiple tests can run within the same executable's execution. This line
+   // ensures problems detected from the previous test are causing error before
+@@ -763,7 +770,8 @@ void InstallDanglingRawPtrChecks() {
+     AtExitManager::RegisterTask(base::BindOnce(CheckDanglingRawPtrBufferEmpty));
+   }
+ 
+-  if (!FeatureList::IsEnabled(features::kPartitionAllocDanglingPtr)) {
++  if (!ArcomiumDanglingPtrChecks() ||
++      !FeatureList::IsEnabled(features::kPartitionAllocDanglingPtr)) {
+     partition_alloc::SetDanglingRawPtrDetectedFn([](uintptr_t) {});
+     partition_alloc::SetDanglingRawPtrReleasedFn([](uintptr_t) {});
+     return;
