@@ -24,6 +24,7 @@
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/events/event.h"
+#include "ui/gfx/animation/tween.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/point_f.h"
@@ -451,6 +452,85 @@ void ApplySpaceColor(views::Widget* widget,
   top->SetNativeWindowProperty(kSpaceTintWindowProperty, tint);
   top->SetColorModeOverride(mode);
   top->ThemeChanged();
+}
+
+namespace {
+
+constexpr base::TimeDelta kSpaceColorTransitionDuration =
+    base::Milliseconds(200);
+
+// Sets the window's tint and theme mode, as ApplySpaceColor() does.
+void SetSpaceTint(views::Widget* top,
+                  std::optional<SkColor> tint,
+                  std::optional<ui::ColorProviderKey::ColorMode> mode) {
+  void* value = tint ? reinterpret_cast<void*>(static_cast<uintptr_t>(*tint))
+                     : nullptr;
+  if (top->GetNativeWindowProperty(kSpaceTintWindowProperty) == value &&
+      top->color_mode_override() == mode) {
+    return;
+  }
+  top->SetNativeWindowProperty(kSpaceTintWindowProperty, value);
+  top->SetColorModeOverride(mode);
+  top->ThemeChanged();
+}
+
+}  // namespace
+
+SpaceColorTransition::SpaceColorTransition()
+    : animation_(kSpaceColorTransitionDuration,
+                 gfx::LinearAnimation::kDefaultFrameRate,
+                 this) {}
+
+SpaceColorTransition::~SpaceColorTransition() = default;
+
+void SpaceColorTransition::AnimateTo(views::Widget* widget,
+                                     const std::optional<SpaceColor>& color,
+                                     bool animate) {
+  views::Widget* top = widget ? widget->GetTopLevelWidget() : nullptr;
+  if (!top || !top->GetColorProvider()) {
+    return;
+  }
+  if (has_target_ && target_ == color && widget_ == top) {
+    return;
+  }
+  const bool tinted = !!top->GetNativeWindowProperty(kSpaceTintWindowProperty);
+  const SkColor current =
+      top->GetColorProvider()->GetColor(ui::kColorFrameActive);
+  if (!tinted && !animation_.is_animating()) {
+    default_frame_ = current;
+  }
+  widget_ = top;
+  target_ = color;
+  has_target_ = true;
+  const std::optional<SkColor> to =
+      color ? std::optional<SkColor>(GetSpaceFrameColor(*color))
+            : default_frame_;
+  if (!animate || !to || !top->IsVisible() ||
+      !gfx::Animation::ShouldRenderRichAnimation()) {
+    animation_.Stop();
+    ApplySpaceColor(top, color);
+    return;
+  }
+  from_ = current;
+  to_ = *to;
+  animation_.Start();
+}
+
+void SpaceColorTransition::AnimationProgressed(
+    const gfx::Animation* animation) {
+  if (!widget_) {
+    return;
+  }
+  const double value = gfx::Tween::CalculateValue(
+      gfx::Tween::FAST_OUT_SLOW_IN, animation->GetCurrentValue());
+  SetSpaceTint(widget_, gfx::Tween::ColorValueBetween(value, from_, to_),
+               widget_->color_mode_override());
+}
+
+void SpaceColorTransition::AnimationEnded(const gfx::Animation* animation) {
+  if (widget_) {
+    ApplySpaceColor(widget_, target_);
+  }
 }
 
 SkColor SidebarInk(const views::View* view, SkColor dark_color) {

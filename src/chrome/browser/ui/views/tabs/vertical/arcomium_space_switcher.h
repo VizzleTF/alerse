@@ -35,6 +35,10 @@ class MenuRunner;
 }
 class TabStripModel;
 
+namespace arcomium {
+class SpaceColorTransition;
+}  // namespace arcomium
+
 // Arcomium: row of Spaces at the bottom of the vertical tab strip. Every Space
 // is a tab group; its dot switches the strip into focus mode for that group.
 // The "+" button creates a Space with its own storage partition. Spaces sync
@@ -198,6 +202,8 @@ class ArcomiumSpaceSwitcher : public views::View,
   // Saved Spaces OpenSavedSpacesHere() has looked at: open here already or
   // opened by it. None is opened twice.
   std::set<std::string> opened_saved_;
+  // Blends the window's color into the shown Space's.
+  std::unique_ptr<arcomium::SpaceColorTransition> color_transition_;
   base::WeakPtrFactory<ArcomiumSpaceSwitcher> weak_factory_{this};
   // For the delayed retry of MergeDuplicateSpaces(): ScheduleRebuild()
   // invalidates `weak_factory_`.

@@ -10,8 +10,11 @@
 #include <string>
 
 #include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/color/color_id.h"
+#include "ui/gfx/animation/animation_delegate.h"
+#include "ui/gfx/animation/linear_animation.h"
 
 namespace views {
 class View;
@@ -50,6 +53,38 @@ SkColor GetSpaceFrameColor(const SpaceColor& color);
 // default look.
 void ApplySpaceColor(views::Widget* widget,
                      const std::optional<SpaceColor>& color);
+
+// Moves the window's tint to a Space's color over a fifth of a second, as
+// Arc's window color follows a switch of Space. Light or dark mode changes
+// at the end: it cannot blend.
+class SpaceColorTransition : public gfx::AnimationDelegate {
+ public:
+  SpaceColorTransition();
+  SpaceColorTransition(const SpaceColorTransition&) = delete;
+  SpaceColorTransition& operator=(const SpaceColorTransition&) = delete;
+  ~SpaceColorTransition() override;
+
+  // Tints the browser window holding `widget` with `color` (none for the
+  // default look), at once when `animate` is false or the window is hidden.
+  void AnimateTo(views::Widget* widget,
+                 const std::optional<SpaceColor>& color,
+                 bool animate);
+
+ private:
+  // gfx::AnimationDelegate:
+  void AnimationProgressed(const gfx::Animation* animation) override;
+  void AnimationEnded(const gfx::Animation* animation) override;
+
+  raw_ptr<views::Widget> widget_ = nullptr;
+  std::optional<SpaceColor> target_;
+  bool has_target_ = false;
+  SkColor from_ = SK_ColorBLACK;
+  SkColor to_ = SK_ColorBLACK;
+  // The frame color without a tint, seen while none was applied: where the
+  // default look is animated to.
+  std::optional<SkColor> default_frame_;
+  gfx::LinearAnimation animation_;
+};
 
 // The sidebar's colors are drawn for a dark frame; on a light frame (a light
 // theme) they are inverted.

@@ -691,7 +691,13 @@ void ArcomiumSpaceSwitcher::ApplyActiveSpaceColor() {
       folder && folder->GetMetaInfo(arcomium::kSpaceColorMetaKey, &value)) {
     color = arcomium::ParseSpaceColor(value);
   }
-  arcomium::ApplySpaceColor(GetWidget(), color);
+  // The first color a window gets is set at once; a switch of Space after it
+  // blends into the next Space's color.
+  const bool animate = !!color_transition_;
+  if (!color_transition_) {
+    color_transition_ = std::make_unique<arcomium::SpaceColorTransition>();
+  }
+  color_transition_->AnimateTo(GetWidget(), color, animate);
 }
 
 void ArcomiumSpaceSwitcher::ShowContextMenuForViewImpl(
