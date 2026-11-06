@@ -1,7 +1,8 @@
 # Arcomium
 
-An Arc-style browser built on [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium):
-Arc's sidebar, Spaces with separate logins in one window, and sync you can host yourself.
+A sidebar browser built on [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium)
+for people moving from Arc: a vertical sidebar, Spaces with separate logins in one window,
+a command bar, and sync you can host yourself.
 
 This repository holds what all platforms share: the Chromium patches, the design notes
 and the Arc import tool. Builds come from the platform repositories below.
@@ -10,7 +11,7 @@ and the Arc import tool. Builds come from the platform repositories below.
 
 ## Features
 
-- **Arc's sidebar**: Space name, pinned items in nested folders, open tabs under
+- **The sidebar**: Space name, pinned items in nested folders, open tabs under
   collapsed folders, a popup of a folder's links on hover, New Tab, then the Space's tabs.
 - **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
   logged into different accounts side by side. Spaces survive restarts.
@@ -33,7 +34,7 @@ and the Arc import tool. Builds come from the platform repositories below.
 | Windows | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
 | macOS (Apple Silicon) | [arcomium-mac releases](https://github.com/VizzleTF/arcomium-mac/releases) |
 | iPhone | build from source: [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
-| Linux | planned |
+| Linux (x86_64, arm64) | [arcomium-linux releases](https://github.com/VizzleTF/arcomium-linux/releases) |
 
 ## Move from Arc
 
@@ -55,6 +56,7 @@ it imported before.
 | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | Windows build and releases |
 | [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) | Sync server |
 | [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | macOS build on ungoogled-chromium-macos |
+| [arcomium-linux](https://github.com/VizzleTF/arcomium-linux) | Linux build on ungoogled-chromium-portablelinux |
 | [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
 
 ## Status
@@ -62,10 +64,10 @@ it imported before.
 | Area | State |
 |---|---|
 | Spaces with separate logins | done |
-| Arc sidebar, Arc import, drag and drop | done |
+| Sidebar, import from Arc, drag and drop | done |
 | Sync | done with your own server: Windows, macOS and iOS in one chain; public server to do |
-| macOS | builds and syncs; Arc sidebar as on Windows |
-| iPhone | builds and syncs in the simulator; Spaces and the Arc sidebar not on iOS |
+| macOS | builds and syncs; the same sidebar as on Windows |
+| iPhone | builds and syncs in the simulator; Spaces and the sidebar not on iOS |
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | done |
 
@@ -75,7 +77,7 @@ Arcomium keeps ungoogled-chromium's privacy defaults, with these exceptions:
 
 | Exception | What reaches Google | Off by |
 |---|---|---|
-| Google is the default search engine | Your searches, only when you search | Picking another engine in the Arc logo menu, Search Engine |
+| Google is the default search engine | Your searches, only when you search | Picking another engine in the menu of the sidebar's logo, Search Engine |
 | Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
 | The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
 
@@ -90,5 +92,9 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 ## License
 
-BSD-3-Clause, as Chromium and ungoogled-chromium. Arc is a trademark of The Browser
-Company; Arcomium is not affiliated with it.
+BSD-3-Clause, as Chromium and ungoogled-chromium.
+
+Arcomium is an independent project. It is not affiliated with, endorsed by or sponsored by
+The Browser Company. Arc is a trademark of its owner and is named here only to say what
+Arcomium imports from and who it is meant for; Arcomium uses none of Arc's code, artwork
+or branding.

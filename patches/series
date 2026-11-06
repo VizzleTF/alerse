@@ -48,3 +48,10 @@ spaces/empty-space-blank-focus.patch
 defaults/no-dangling-ptr-crash.patch
 spaces/space-group-identity.patch
 spaces/no-focus-freezing.patch
+look/command-bar-input-and-security.patch
+look/command-bar-rows.patch
+look/bounded-tint-color-providers.patch
+spaces/space-data-lifecycle.patch
+spaces/lazy-saved-space-tabs.patch
+defaults/feature-defaults.patch
+look/sidebar-logo-menu.patch

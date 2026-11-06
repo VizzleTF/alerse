@@ -2,9 +2,13 @@
 
 How each Arcomium feature maps onto Chromium, and why it is built that way.
 
-Goals: Spaces with separate accounts in one window, Arc's sidebar, real-time sync across
-Windows, macOS, Linux and iPhone, link routing to Spaces, media controls and
-picture-in-picture. Out of scope: command bar, Split View, Peek, Little Arc.
+Goals: Spaces with separate accounts in one window, a sidebar for people moving from Arc,
+a command bar, Split View, real-time sync across Windows, macOS, Linux and iPhone, link
+routing to Spaces, media controls and picture-in-picture. Not yet: a preview window for
+links opened from other apps.
+
+Arcomium follows how Arc behaves, not how it looks in detail: its own names, icons, logo
+and texts, and none of Arc's code or artwork.
 
 ## Spaces
 
@@ -68,7 +72,7 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
   bottom.
 - `tools/arc_import.py` imports Arc's Spaces, pinned tabs, nested folders, folder icons
   and cached favicons (`arcomium.icon`) into an Arcomium profile.
-- To do: drag and drop; Arc's toolbar height (32 px) for the page header.
+- To do: Arc's toolbar height (32 px) for the page header.
 
 ## Sync
 
@@ -165,9 +169,9 @@ Releases:
 | Platform | Repository | Based on |
 |---|---|---|
 | Windows | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | ungoogled-chromium-windows |
-| macOS | arcomium-mac (planned) | ungoogled-chromium-macos |
-| Linux | planned | ungoogled-chromium-portablelinux |
-| iPhone | arcomium-ios (planned) | Chromium's iOS app (`ios/chrome`) |
+| macOS | [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | ungoogled-chromium-macos |
+| Linux | [arcomium-linux](https://github.com/VizzleTF/arcomium-linux) | ungoogled-chromium-portablelinux |
+| iPhone | [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) (experimental) | Chromium's iOS app (`ios/chrome`) |
 
 The iPhone app is a different code base (WebKit inside, its own UI); it shares the sync
 engine, so it gets bookmarks, tabs and Spaces through the same server. Spaces there are a
