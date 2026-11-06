@@ -1,0 +1,55 @@
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index 912e9fa4bc..8838aa2258 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -1373,6 +1373,14 @@ bool TabStripModel::IsArcomiumEmptySpace(content::WebContents* contents) {
+   if (ArcomiumEmptySpaceMarker::FromWebContents(contents)) {
+     return true;
+   }
++  // In a Space, a blank page or the New Tab page, which cannot load in the
++  // Space's storage partition, is its empty page: another device's empty Space
++  // syncs as the New Tab page, and sync navigates the tab there.
++  if (const tabs::TabInterface* tab =
++          tabs::TabInterface::MaybeGetFromContents(contents);
++      tab && tab->GetGroup() && !contents->HasOpener()) {
++    return true;
++  }
+   // After a restart the mark is gone: a blank page with no history that no
+   // page opened and that is not loading anything is an empty Space's.
+   content::NavigationController& controller = contents->GetController();
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.cc
+index 3bfc9c57e7..9c207909c6 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_web_contents_listener.cc
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_change_type.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "chrome/common/url_constants.h"
+ #include "components/data_sharing/public/features.h"
+ #include "components/favicon/core/favicon_service.h"
+ #include "components/favicon_base/favicon_callback.h"
+@@ -34,6 +35,7 @@
+ #include "content/public/browser/navigation_controller.h"
+ #include "content/public/browser/navigation_handle.h"
+ #include "content/public/browser/web_contents.h"
++#include "content/public/common/url_constants.h"
+ #include "ui/base/models/image_model.h"
+ #include "ui/base/page_transition_types.h"
+ #include "url/gurl.h"
+@@ -190,6 +192,15 @@ void SavedTabGroupWebContentsListener::NavigateToUrlInternal(const GURL& url) {
+     return;
+   }
+ 
++  // Arcomium: another device's empty Space syncs as the New Tab page, which
++  // cannot load in the Space's storage partition. The tab stays this Space's
++  // empty page.
++  if (url.SchemeIs(content::kChromeUIScheme) &&
++      (url.host() == chrome::kChromeUINewTabHost ||
++       url.host() == chrome::kChromeUINewTabPageHost)) {
++    return;
++  }
++
+   // If deferring remote navigations is enabled (sharing) and the tab is in the
+   // background, then dont actually perform the navigation, instead cache the
+   // URL for performing the navigation later.
