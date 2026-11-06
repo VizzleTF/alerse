@@ -12,13 +12,19 @@
 // partition of its tabs; the session keeps a group -> Space map in the window
 // extra data so restored tabs come back in their partition.
 
+#include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 
 #include "base/containers/flat_map.h"
+#include "base/containers/span.h"
+#include "base/hash/sha1.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/strings/stringprintf.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -44,6 +50,65 @@ inline constexpr char kSpacePartitionDomain[] = "arcomium";
 inline constexpr char kSpacesWindowExtraDataKey[] = "arcomium.spaces";
 // Tab extra data handed from session restore to the restored tab factory.
 inline constexpr char kSpaceTabExtraDataKey[] = "arcomium.space";
+
+// Arcomium's namespace for name-based ids (RFC 9562, UUIDv5).
+inline constexpr std::array<uint8_t, 16> kSpaceGuidNamespace = {
+    0x6b, 0x1f, 0x2e, 0x8a, 0x4c, 0x37, 0x4d, 0x0e,
+    0x9a, 0x5b, 0xc2, 0x71, 0x3e, 0x90, 0x58, 0xd4};
+
+// The saved tab group of `space`: a UUIDv5 of the Space id. Every device
+// derives the same one, so a Space has a single saved group however many
+// devices open it or restore it, as a client tag does in Chromium sync.
+inline base::Uuid SavedGroupGuidForSpace(const std::string& space) {
+  std::string data(kSpaceGuidNamespace.begin(), kSpaceGuidNamespace.end());
+  data += space;
+  base::SHA1Digest hash = base::SHA1Hash(base::as_byte_span(data));
+  hash[6] = (hash[6] & 0x0f) | 0x50;
+  hash[8] = (hash[8] & 0x3f) | 0x80;
+  return base::Uuid::ParseLowercase(base::StringPrintf(
+      "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+      hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
+      hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14],
+      hash[15]));
+}
+
+// Whether `space` names a Space with its own tab group: not home, not a
+// folder imported from Arc that no Space has adopted yet.
+inline bool IsGroupSpace(const std::string& space) {
+  return !space.empty() && space != "default" && !space.starts_with("arc:");
+}
+
+// The Space whose saved tab group `sync_id` is, read from the Spaces'
+// bookmark folders: the group derived from the Space id, or else the group a
+// folder still names in "arcomium.group" from before ids were derived.
+inline std::optional<std::string> GetSpaceOfSavedGroup(
+    content::BrowserContext* context,
+    const base::Uuid& sync_id) {
+  const bookmarks::BookmarkModel* bookmarks =
+      BookmarkModelFactory::GetForBrowserContext(context);
+  if (!bookmarks || !bookmarks->loaded()) {
+    return std::nullopt;
+  }
+  const std::string id = sync_id.AsLowercaseString();
+  std::optional<std::string> legacy;
+  for (const auto& folder : bookmarks->other_node()->children()) {
+    std::string space;
+    if (!folder->is_folder() ||
+        !folder->GetMetaInfo("arcomium.space", &space) ||
+        !IsGroupSpace(space)) {
+      continue;
+    }
+    if (SavedGroupGuidForSpace(space) == sync_id) {
+      return space;
+    }
+    std::string group;
+    if (!legacy && folder->GetMetaInfo("arcomium.group", &group) &&
+        group == id) {
+      legacy = space;
+    }
+  }
+  return legacy;
+}
 
 // Returns the Space of `contents`, or nullopt for the default partition.
 inline std::optional<std::string> GetSpaceOfContents(

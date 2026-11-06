@@ -123,6 +123,9 @@ class ArcomiumSpaceSwitcher : public views::View,
   // Rebuilds asynchronously: a change may come from a click on one of the
   // buttons being rebuilt.
   void ScheduleRebuild();
+  // ScheduleRebuild() in two seconds, for a step that waits on session
+  // restore or on the bookmark model.
+  void RetryRebuildLater();
   void Rebuild();
   // What each icon in the row does, in order, and which one is active.
   std::vector<base::RepeatingClosure> space_actions_;
@@ -131,6 +134,13 @@ class ArcomiumSpaceSwitcher : public views::View,
   void SwitchTo(const tab_groups::TabGroupId& group);
   // Opens a saved Space that has no tab group here, then switches to it.
   void OpenSavedSpace(const base::Uuid& sync_id);
+  // Opens every saved Space without a tab group here, as Arc keeps every
+  // Space open, without leaving the Space shown. True if it opened one.
+  bool OpenSavedSpacesHere();
+  // Folds the tab groups of a Space that has more than one here (one saved
+  // group per device, from before the group id derived from the Space) into
+  // the group with the derived id, once per profile. True if it merged any.
+  bool MergeDuplicateSpaces();
   // Records in each Space's bookmark folder the saved tab group it syncs as,
   // so other devices open its tabs in the Space's storage partition.
   void LinkSpaceFolders();
@@ -182,7 +192,16 @@ class ArcomiumSpaceSwitcher : public views::View,
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<ui::SimpleMenuModel> icon_menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
+  // Whether the tab group sync service has loaded its groups: before, a
+  // Space's group looks missing.
+  bool sync_initialized_ = false;
+  // Saved Spaces OpenSavedSpacesHere() has looked at: open here already or
+  // opened by it. None is opened twice.
+  std::set<std::string> opened_saved_;
   base::WeakPtrFactory<ArcomiumSpaceSwitcher> weak_factory_{this};
+  // For the delayed retry of MergeDuplicateSpaces(): ScheduleRebuild()
+  // invalidates `weak_factory_`.
+  base::WeakPtrFactory<ArcomiumSpaceSwitcher> retry_weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_

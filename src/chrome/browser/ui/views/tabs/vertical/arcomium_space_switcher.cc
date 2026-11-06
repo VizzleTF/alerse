@@ -9,11 +9,13 @@
 #include <cmath>
 #include <memory>
 #include <numbers>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -23,12 +25,14 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/arcomium_spaces.h"
+#include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -406,6 +410,7 @@ void ArcomiumSpaceSwitcher::OnTabGroupFocusChanged(
 }
 
 void ArcomiumSpaceSwitcher::OnInitialized() {
+  sync_initialized_ = true;
   ScheduleRebuild();
 }
 
@@ -438,6 +443,14 @@ void ArcomiumSpaceSwitcher::BookmarkMetaInfoChanged(
 
 void ArcomiumSpaceSwitcher::BookmarkModelBeingDeleted() {
   bookmark_observation_.Reset();
+}
+
+void ArcomiumSpaceSwitcher::RetryRebuildLater() {
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&ArcomiumSpaceSwitcher::ScheduleRebuild,
+                     retry_weak_factory_.GetWeakPtr()),
+      base::Seconds(2));
 }
 
 void ArcomiumSpaceSwitcher::ScheduleRebuild() {
@@ -474,6 +487,10 @@ std::optional<ArcomiumSpaceRef> ArcomiumSpaceSwitcher::GetNeighborSpace(
 }
 
 void ArcomiumSpaceSwitcher::Rebuild() {
+  // Opening one changes the tab strip, which schedules another rebuild.
+  if (OpenSavedSpacesHere() || MergeDuplicateSpaces()) {
+    return;
+  }
   RemoveAllChildViews();
   TabGroupModel* groups = model_->group_model();
   if (!groups) {
@@ -581,6 +598,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
           !folder->GetMetaInfo(kSpaceMetaKey, &space) || space.empty() ||
           space == kDefaultSpace || space.starts_with("arc:") ||
           open_spaces.contains(space) ||
+          shown_saved.contains(
+              arcomium::SavedGroupGuidForSpace(space).AsLowercaseString()) ||
           (folder->GetMetaInfo(kSavedGroupMetaKey, &saved) &&
            shown_saved.contains(saved))) {
         continue;
@@ -621,8 +640,13 @@ const bookmarks::BookmarkNode* ArcomiumSpaceSwitcher::FindSpaceFolder(
     if (!folder->is_folder()) {
       continue;
     }
-    if (!space.empty() && folder->GetMetaInfo(kSpaceMetaKey, &value) &&
-        value == space) {
+    if (!folder->GetMetaInfo(kSpaceMetaKey, &value)) {
+      continue;
+    }
+    if ((!space.empty() && value == space) ||
+        (!sync_id.empty() && arcomium::IsGroupSpace(value) &&
+         arcomium::SavedGroupGuidForSpace(value).AsLowercaseString() ==
+             sync_id)) {
       return folder.get();
     }
     if (!sync_id.empty() && folder->GetMetaInfo(kSavedGroupMetaKey, &value) &&
@@ -888,6 +912,186 @@ void ArcomiumSpaceSwitcher::OpenSavedSpace(const base::Uuid& sync_id) {
   }
 }
 
+bool ArcomiumSpaceSwitcher::OpenSavedSpacesHere() {
+  if (!sync_service_ || !sync_initialized_ || !model_->group_model() ||
+      model_->closing_all()) {
+    return false;
+  }
+  const bookmarks::BookmarkModel* bookmarks =
+      BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
+  if (SessionRestore::IsRestoring(browser_->GetProfile()) || !bookmarks ||
+      !bookmarks->loaded()) {
+    // Restore brings back the Spaces open before, and the Spaces' folders
+    // tell which saved groups are Spaces: asked again after both. Not left to
+    // the bookmark model's load notification, which may come first.
+    RetryRebuildLater();
+    return false;
+  }
+  // Each saved Space is looked at once: one open here already, or one this
+  // window opened, is not opened again when its group closes, as all do
+  // when the window closes. Only once its storage partition is known, as for
+  // the switcher's icons.
+  const std::set<std::string> linked = GetLinkedSavedGroups();
+  std::vector<base::Uuid> to_open;
+  for (const tab_groups::SavedTabGroup& saved : sync_service_->GetAllGroups()) {
+    const std::string sync_id = saved.saved_guid().AsLowercaseString();
+    if (saved.is_shared_tab_group() || saved.saved_tabs().empty() ||
+        !linked.contains(sync_id) || !opened_saved_.insert(sync_id).second ||
+        saved.local_group_id()) {
+      continue;
+    }
+    to_open.push_back(saved.saved_guid());
+  }
+  if (to_open.empty()) {
+    return false;
+  }
+  // Opening a saved group leaves the focused one and activates its tabs; the
+  // Space and tab shown stay as they were.
+  const std::optional<tab_groups::TabGroupId> focused =
+      model_->GetFocusedGroup();
+  tabs::TabInterface* const active = model_->GetActiveTab();
+  for (const base::Uuid& sync_id : to_open) {
+    sync_service_->OpenTabGroup(
+        sync_id, std::make_unique<tab_groups::TabGroupActionContextDesktop>(
+                     browser_, tab_groups::OpeningSource::kOpenedFromRevisitUi));
+  }
+  if (focused && model_->group_model()->ContainsTabGroup(*focused)) {
+    model_->EnterFocusMode(*focused);
+  } else if (!focused && model_->GetFocusedGroup()) {
+    model_->ExitFocusMode(TabGroupFocusExitReason::kActiveTabGroupOperation);
+  }
+  if (active) {
+    if (const int index = model_->GetIndexOfTab(active);
+        index != TabStripModel::kNoTab && index != model_->active_index()) {
+      model_->ActivateTabAt(index);
+    }
+  }
+  return true;
+}
+
+bool ArcomiumSpaceSwitcher::MergeDuplicateSpaces() {
+  // Once per profile and run, once session restore has opened every window:
+  // before that, groups still missing would look like nothing to merge, and
+  // deleting a group deletes it on every device.
+  static base::NoDestructor<std::set<const Profile*>> merged;
+  Profile* const profile = browser_->GetProfile();
+  TabGroupModel* const groups = model_->group_model();
+  bookmarks::BookmarkModel* bookmarks =
+      BookmarkModelFactory::GetForBrowserContext(profile);
+  if (!sync_service_ || !sync_initialized_ || !groups || !bookmarks ||
+      merged->contains(profile)) {
+    return false;
+  }
+  if (SessionRestore::IsRestoring(profile) || !bookmarks->loaded()) {
+    // Asked again once restore is over and the folders are known: nothing
+    // else may rebuild the row.
+    RetryRebuildLater();
+    return false;
+  }
+  merged->insert(profile);
+
+  bool changed = false;
+  for (const auto& folder : bookmarks->other_node()->children()) {
+    std::string space;
+    if (!folder->is_folder() || !folder->GetMetaInfo(kSpaceMetaKey, &space) ||
+        !arcomium::IsGroupSpace(space)) {
+      continue;
+    }
+    const base::Uuid canonical = arcomium::SavedGroupGuidForSpace(space);
+    // The Space's groups here: by their saved group's id, or by the
+    // partition of their tabs for a group no folder names.
+    std::vector<tab_groups::TabGroupId> mine;
+    for (const tab_groups::TabGroupId& id : groups->ListTabGroups()) {
+      const std::optional<tab_groups::SavedTabGroup> saved =
+          sync_service_->GetGroup(id);
+      if (!saved) {
+        continue;
+      }
+      std::optional<std::string> owner =
+          arcomium::GetSpaceOfSavedGroup(profile, saved->saved_guid());
+      if (!owner) {
+        owner = arcomium::GetSpaceOfGroup(model_, id);
+      }
+      if (owner == space) {
+        mine.push_back(id);
+      }
+    }
+    if (mine.empty() ||
+        (mine.size() == 1 &&
+         sync_service_->GetGroup(mine[0])->saved_guid() == canonical)) {
+      continue;
+    }
+    LOG(WARNING) << "Arcomium: merging " << mine.size()
+                 << " tab groups of Space " << space;
+
+    // The group that stays: the one with the derived id, or else the largest,
+    // saved again under the derived id.
+    std::optional<tab_groups::TabGroupId> kept;
+    for (const tab_groups::TabGroupId& id : mine) {
+      if (sync_service_->GetGroup(id)->saved_guid() == canonical) {
+        kept = id;
+      }
+    }
+    if (!kept) {
+      if (const std::optional<tab_groups::SavedTabGroup> derived =
+              sync_service_->GetGroup(canonical);
+          derived && !derived->saved_tabs().empty()) {
+        // Saved elsewhere with tabs but not open here: OpenSavedSpacesHere()
+        // opens such a group before this runs, unless it was closed here.
+        continue;
+      }
+      // Saved again under the derived id. If an empty group has that id
+      // already, the tabs join it (TabGroupSyncServiceImpl::AddGroup()).
+      kept = *std::ranges::max_element(
+          mine, {}, [groups](const tab_groups::TabGroupId& id) {
+            return groups->GetTabGroup(id)->tab_count();
+          });
+      sync_service_->UnsaveGroup(*kept);
+      sync_service_->SaveGroup(
+          tab_groups::SavedTabGroupUtils::CreateSavedTabGroupFromLocalId(
+              *kept));
+    }
+
+    // Tabs of the other groups move into it, but for pages it has already;
+    // their saved groups go.
+    std::set<GURL> urls;
+    const gfx::Range kept_tabs = groups->GetTabGroup(*kept)->ListTabs();
+    for (size_t i = kept_tabs.start(); i < kept_tabs.end(); ++i) {
+      urls.insert(
+          model_->GetWebContentsAt(static_cast<int>(i))->GetVisibleURL());
+    }
+    for (const tab_groups::TabGroupId& id : mine) {
+      if (id == *kept) {
+        continue;
+      }
+      const base::Uuid old_guid = sync_service_->GetGroup(id)->saved_guid();
+      std::vector<tabs::TabInterface*> tabs;
+      const gfx::Range range = groups->GetTabGroup(id)->ListTabs();
+      for (size_t i = range.start(); i < range.end(); ++i) {
+        tabs.push_back(model_->GetTabAtIndex(static_cast<int>(i)));
+      }
+      for (tabs::TabInterface* tab : tabs) {
+        const int index = model_->GetIndexOfTab(tab);
+        if (index == TabStripModel::kNoTab) {
+          continue;
+        }
+        content::WebContents* contents = tab->GetContents();
+        if (TabStripModel::IsArcomiumEmptySpace(contents) ||
+            !urls.insert(contents->GetVisibleURL()).second) {
+          model_->CloseWebContentsAt(index, TabCloseTypes::CLOSE_NONE);
+        } else {
+          model_->AddToExistingGroup({index}, *kept, /*add_to_end=*/true);
+        }
+      }
+      if (sync_service_->GetGroup(old_guid)) {
+        sync_service_->RemoveGroup(old_guid);
+      }
+    }
+    changed = true;
+  }
+  return changed;
+}
+
 std::set<std::string> ArcomiumSpaceSwitcher::GetLinkedSavedGroups() const {
   std::set<std::string> linked;
   const bookmarks::BookmarkModel* bookmarks =
@@ -895,13 +1099,17 @@ std::set<std::string> ArcomiumSpaceSwitcher::GetLinkedSavedGroups() const {
   if (!bookmarks || !bookmarks->loaded()) {
     return linked;
   }
+  // A Space's group has the id derived from it; a folder may still name an
+  // older one, until MergeDuplicateSpaces() folds it in.
   for (const auto& folder : bookmarks->other_node()->children()) {
-    std::string group;
     std::string space;
-    if (folder->is_folder() &&
-        folder->GetMetaInfo(kSavedGroupMetaKey, &group) &&
-        folder->GetMetaInfo(kSpaceMetaKey, &space) &&
-        !space.starts_with("arc:")) {
+    if (!folder->is_folder() || !folder->GetMetaInfo(kSpaceMetaKey, &space) ||
+        !arcomium::IsGroupSpace(space)) {
+      continue;
+    }
+    linked.insert(arcomium::SavedGroupGuidForSpace(space).AsLowercaseString());
+    std::string group;
+    if (folder->GetMetaInfo(kSavedGroupMetaKey, &group)) {
       linked.insert(group);
     }
   }
@@ -923,7 +1131,6 @@ void ArcomiumSpaceSwitcher::LinkSpaceFolders() {
     if (!space || !saved) {
       continue;
     }
-    const std::string sync_id = saved->saved_guid().AsLowercaseString();
     const bookmarks::BookmarkNode* folder = nullptr;
     for (const auto& child : bookmarks->other_node()->children()) {
       std::string value;
@@ -952,17 +1159,14 @@ void ArcomiumSpaceSwitcher::LinkSpaceFolders() {
     if (!folder) {
       bookmarks::BookmarkNode::MetaInfoMap meta;
       meta[kSpaceMetaKey] = *space;
-      meta[kSavedGroupMetaKey] = sync_id;
       bookmarks->AddFolder(bookmarks->other_node(),
                            bookmarks->other_node()->children().size(),
                            title.empty() ? u"Space" : title, &meta);
       continue;
     }
-    std::string linked;
-    if (!folder->GetMetaInfo(kSavedGroupMetaKey, &linked) ||
-        linked != sync_id) {
-      bookmarks->SetNodeMetaInfo(folder, kSavedGroupMetaKey, sync_id);
-    }
+    // The folder names no saved group: the group's id derives from the Space
+    // (arcomium::SavedGroupGuidForSpace()). Devices writing their own group
+    // here took the link from one another and made duplicate groups.
   }
 }
 
