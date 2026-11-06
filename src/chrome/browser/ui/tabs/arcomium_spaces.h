@@ -35,6 +35,7 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
+#include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/storage_partition.h"
@@ -196,7 +197,10 @@ inline std::string BuildSpacesExtraData(const TabStripModel* model) {
   if (model->group_model()) {
     for (const tab_groups::TabGroupId& group :
          model->group_model()->ListTabGroups()) {
-      if (std::optional<std::string> space = GetSpaceOfGroup(model, group)) {
+      // By its folder too: a Space whose tabs are all discarded has none in
+      // its partition, and would come back after a restart in the default.
+      if (std::optional<std::string> space = GetSpaceOfGroupOrFolder(
+              model->profile(), model, group)) {
         spaces.Set(group.ToString(), *space);
       }
     }

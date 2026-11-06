@@ -1,0 +1,40 @@
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+index 27c3b454b3..8a16279648 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+@@ -31,7 +31,9 @@
+ #include "components/tab_groups/tab_group_id.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "content/public/browser/navigation_entry.h"
+ #include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/restore_type.h"
+ #include "content/public/browser/web_contents.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -172,12 +174,22 @@ tabs::TabInterface* MaybeOpenTabInSpace(const SavedTabGroupTab& saved_tab,
+   content::WebContents::CreateParams create_params(browser->GetProfile(),
+                                                    site_instance);
+   create_params.initially_hidden = true;
++  // Arcomium: like a restored tab, it loads once it is shown. Opening a Space
++  // from another device then costs no renderer per tab until its tab is used.
++  create_params.desired_renderer_state =
++      content::WebContents::CreateParams::kNoRendererProcess;
+   std::unique_ptr<content::WebContents> contents =
+       content::WebContents::Create(create_params);
+   content::WebContents* const raw_contents = contents.get();
+-  contents->GetController().LoadURL(url, content::Referrer(),
+-                                    ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+-                                    std::string());
++  std::vector<std::unique_ptr<content::NavigationEntry>> entries;
++  entries.push_back(content::NavigationController::CreateNavigationEntry(
++      url, content::Referrer(), /*initiator_origin=*/std::nullopt,
++      /*initiator_base_url=*/std::nullopt, ui::PAGE_TRANSITION_AUTO_BOOKMARK,
++      /*is_renderer_initiated=*/false, /*extra_headers=*/std::string(),
++      browser->GetProfile(), /*blob_url_loader_factory=*/nullptr));
++  entries.back()->SetTitle(saved_tab.title());
++  contents->GetController().Restore(0, content::RestoreType::kRestored,
++                                    &entries);
+   browser->GetTabStripModel()->AddWebContents(
+       std::move(contents), -1, ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+       AddTabTypes::ADD_NONE);
