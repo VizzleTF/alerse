@@ -14,6 +14,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/timer/timer.h"
 #include "base/uuid.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
@@ -114,6 +115,7 @@ class ArcomiumSpaceSwitcher : public views::View,
 
   // views::View:
   void AddedToWidget() override;
+  bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
 
   // Switches to the next or the previous Space in the row, closed ones
   // included, as the trackpad's horizontal swipe asks. False at either end.
@@ -157,6 +159,8 @@ class ArcomiumSpaceSwitcher : public views::View,
   // The tab group of the Space `space` in this window, if it is open.
   std::optional<tab_groups::TabGroupId> FindGroupOfSpace(
       const std::string& space) const;
+  // The plus button's menu: a new Space, folder or tab.
+  void ShowAddMenu(const ui::Event& event);
   // Switches to the Space of the icon menu, opening it if it is closed.
   void ActivateMenuSpace();
   // Opens the sidebar's theme color picker for the Space of the icon menu.
@@ -196,18 +200,24 @@ class ArcomiumSpaceSwitcher : public views::View,
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<ui::SimpleMenuModel> icon_menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
+  // The plus button at the row's end.
+  raw_ptr<views::View> add_button_ = nullptr;
   // Whether the tab group sync service has loaded its groups: before, a
   // Space's group looks missing.
   bool sync_initialized_ = false;
   // Saved Spaces OpenSavedSpacesHere() has looked at: open here already or
   // opened by it. None is opened twice.
   std::set<std::string> opened_saved_;
+  // What the icons last showed of each saved group (OnTabGroupUpdated()).
+  std::map<base::Uuid, std::string> group_signatures_;
   // Blends the window's color into the shown Space's.
   std::unique_ptr<arcomium::SpaceColorTransition> color_transition_;
+  // The delayed retry of MergeDuplicateSpaces() and OpenSavedSpacesHere().
+  base::OneShotTimer retry_timer_;
+  // Never invalidated: the delete dialog and RestoreActiveTab() hold these.
   base::WeakPtrFactory<ArcomiumSpaceSwitcher> weak_factory_{this};
-  // For the delayed retry of MergeDuplicateSpaces(): ScheduleRebuild()
-  // invalidates `weak_factory_`.
-  base::WeakPtrFactory<ArcomiumSpaceSwitcher> retry_weak_factory_{this};
+  // Only for the pending rebuild, which ScheduleRebuild() replaces.
+  base::WeakPtrFactory<ArcomiumSpaceSwitcher> rebuild_weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SPACE_SWITCHER_H_

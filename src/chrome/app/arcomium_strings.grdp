@@ -15,6 +15,99 @@
     <message name="IDS_ARCOMIUM_DUPLICATE" desc="Sidebar menu item: open a copy of a tab or a pinned tab.">
       Duplicate
     </message>
+    <message name="IDS_ARCOMIUM_MUTE_TAB" desc="Sidebar menu item: silence the tab of a row.">
+      Mute
+    </message>
+    <message name="IDS_ARCOMIUM_UNMUTE_TAB" desc="Sidebar menu item: let the muted tab of a row play sound again.">
+      Unmute
+    </message>
+    <message name="IDS_ARCOMIUM_OPEN_IN_SPLIT_VIEW" desc="Sidebar menu item: show the row's tab side by side with the current tab.">
+      Open in Split View
+    </message>
+    <message name="IDS_ARCOMIUM_EDIT_PINNED_PAGE" desc="Sidebar submenu: changes to a pinned tab's saved page.">
+      Edit Pinned Page
+    </message>
+    <message name="IDS_ARCOMIUM_REPLACE_PINNED_URL" desc="Sidebar menu item: make the page the pinned tab now shows its saved page.">
+      Save Current Page as Pinned Page
+    </message>
+    <message name="IDS_ARCOMIUM_EDIT_PINNED_ITEM" desc="Sidebar menu item: edit a pinned tab's name and address in a dialog.">
+      Edit Name and Address...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_CHECK_UPDATES" desc="Menu of the sidebar logo: open the page of the latest release.">
+      Check for Updates
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_IMPORT" desc="Menu of the sidebar logo: import from another browser.">
+      Import Bookmarks and Settings...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEW_WINDOW" desc="Menu of the sidebar logo: open a new window.">
+      New Window
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEW_INCOGNITO" desc="Menu of the sidebar logo: open a new incognito window.">
+      New Incognito Window
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SPACES" desc="Menu of the sidebar logo: submenu of the Space commands.">
+      Spaces
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEXT_SPACE" desc="Menu of the sidebar logo: show the Space after this one.">
+      Next Space
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_PREVIOUS_SPACE" desc="Menu of the sidebar logo: show the Space before this one.">
+      Previous Space
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_TABS" desc="Menu of the sidebar logo: submenu of the tab commands.">
+      Tabs
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_COMMAND_BAR" desc="Menu of the sidebar logo: open the command bar to search or type an address.">
+      Open Command Bar
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEXT_TAB" desc="Menu of the sidebar logo: select the next tab.">
+      Next Tab
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_PREVIOUS_TAB" desc="Menu of the sidebar logo: select the previous tab.">
+      Previous Tab
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_REOPEN_TAB" desc="Menu of the sidebar logo: reopen the tab closed last.">
+      Reopen Closed Tab
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_HISTORY" desc="Menu of the sidebar logo: open the history.">
+      History
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_BOOKMARKS" desc="Menu of the sidebar logo: open the bookmark manager.">
+      Bookmarks
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_DEVELOPER" desc="Menu of the sidebar logo: submenu of the developer tools.">
+      Developer
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_VIEW_SOURCE" desc="Menu of the sidebar logo: show the page source.">
+      View Page Source
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_DEV_TOOLS" desc="Menu of the sidebar logo: open the developer tools.">
+      Developer Tools
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_INSPECT" desc="Menu of the sidebar logo: open the developer tools on the elements panel.">
+      Inspect Elements
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_CONSOLE" desc="Menu of the sidebar logo: open the developer tools on the console.">
+      JavaScript Console
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_TASK_MANAGER" desc="Menu of the sidebar logo: open the task manager.">
+      Task Manager
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SYNC" desc="Menu of the sidebar logo: open the sync settings.">
+      Sync
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SETTINGS" desc="Menu of the sidebar logo: open the settings.">
+      Settings
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_PRINT" desc="Menu of the sidebar logo: print the page.">
+      Print...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_ABOUT" desc="Menu of the sidebar logo: show the version and the about page.">
+      About Arcomium
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_CLOSE_WINDOW" desc="Menu of the sidebar logo: close this window.">
+      Close Window
+    </message>
     <message name="IDS_ARCOMIUM_RENAME" desc="Sidebar menu item: rename a folder or a pinned tab.">
       Rename…
     </message>

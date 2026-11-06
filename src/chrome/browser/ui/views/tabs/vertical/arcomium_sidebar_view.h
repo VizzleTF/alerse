@@ -87,6 +87,10 @@ class ArcomiumSidebarView : public views::View,
   // there does nothing.
   void OnThemeChanged() override;
 
+  // A new folder at the top of the active Space's pinned items, as the plus
+  // button's menu asks.
+  void NewFolder() { AddFolder(nullptr); }
+
   // Arc's theme color picker for the active Space, at `screen_point`.
   void EditSpaceColorAt(const gfx::Point& screen_point);
 
@@ -335,6 +339,7 @@ class ArcomiumSidebarView : public views::View,
   tabs::TabInterface::Handle menu_tab_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<ui::SimpleMenuModel> move_menu_model_;
+  std::unique_ptr<ui::SimpleMenuModel> pinned_menu_model_;
   // The Spaces behind the "Move to" submenu's commands.
   std::vector<SpaceTarget> menu_spaces_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
@@ -346,6 +351,8 @@ class ArcomiumSidebarView : public views::View,
   // Subfolders opened inside the popup.
   std::set<int64_t> folder_popup_open_;
   base::OneShotTimer hover_timer_;
+  // Coalesces the rebuilds a run of theme changes asks for.
+  base::OneShotTimer theme_rebuild_timer_;
   base::RepeatingTimer folder_popup_timer_;
   int folder_popup_outside_ticks_ = 0;
 

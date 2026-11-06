@@ -15,11 +15,14 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "build/build_config.h"
 #include "base/no_destructor.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/timer/timer.h"
 #include "base/token.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -27,6 +30,8 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_commands.h"
+#include "ui/events/event.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
@@ -51,7 +56,10 @@
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/mojom/menu_source_type.mojom.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/menus/simple_menu_model.h"
@@ -90,6 +98,10 @@ constexpr char kDefaultSpace[] = "default";
 constexpr int kIconCommandFirst = 100;
 constexpr int kEditColorCommand = 1;
 constexpr int kDeleteSpaceCommand = 2;
+// The plus button's menu.
+constexpr int kNewSpaceCommand = 3;
+constexpr int kNewFolderCommand = 4;
+constexpr int kNewTabCommand = 5;
 
 // Meta info of a Space's bookmark folder: its Space id, and the saved tab
 // group it syncs as.
@@ -423,12 +435,25 @@ void ArcomiumSpaceSwitcher::OnTabGroupAdded(
 void ArcomiumSpaceSwitcher::OnTabGroupUpdated(
     const tab_groups::SavedTabGroup& group,
     tab_groups::TriggerSource source) {
+  // A saved group changes on every navigation in it; the icons only show its
+  // title, color, whether it is open here and whether it is empty.
+  std::string signature = base::StrCat(
+      {base::UTF16ToUTF8(group.title()), "|",
+       base::NumberToString(static_cast<int>(group.color())), "|",
+       group.local_group_id() ? "open" : "closed", "|",
+       group.saved_tabs().empty() ? "empty" : "tabs"});
+  std::string& known = group_signatures_[group.saved_guid()];
+  if (known == signature) {
+    return;
+  }
+  known = std::move(signature);
   ScheduleRebuild();
 }
 
 void ArcomiumSpaceSwitcher::OnTabGroupRemoved(
     const base::Uuid& sync_id,
     tab_groups::TriggerSource source) {
+  group_signatures_.erase(sync_id);
   ScheduleRebuild();
 }
 
@@ -446,18 +471,21 @@ void ArcomiumSpaceSwitcher::BookmarkModelBeingDeleted() {
 }
 
 void ArcomiumSpaceSwitcher::RetryRebuildLater() {
-  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE,
-      base::BindOnce(&ArcomiumSpaceSwitcher::ScheduleRebuild,
-                     retry_weak_factory_.GetWeakPtr()),
-      base::Seconds(2));
+  // One retry at a time, however many rebuilds ask for it.
+  if (!retry_timer_.IsRunning()) {
+    retry_timer_.Start(FROM_HERE, base::Seconds(2),
+                       base::BindOnce(&ArcomiumSpaceSwitcher::ScheduleRebuild,
+                                      base::Unretained(this)));
+  }
 }
 
 void ArcomiumSpaceSwitcher::ScheduleRebuild() {
-  weak_factory_.InvalidateWeakPtrs();
+  // Coalesced into one pending rebuild. Its own factory: invalidating the one
+  // the delete dialog and RestoreActiveTab() hold would drop them.
+  rebuild_weak_factory_.InvalidateWeakPtrs();
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&ArcomiumSpaceSwitcher::Rebuild,
-                                weak_factory_.GetWeakPtr()));
+                                rebuild_weak_factory_.GetWeakPtr()));
 }
 
 bool ArcomiumSpaceSwitcher::RotateSpace(bool forward) {
@@ -491,6 +519,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   if (OpenSavedSpacesHere() || MergeDuplicateSpaces()) {
     return;
   }
+  add_button_ = nullptr;
   RemoveAllChildViews();
   TabGroupModel* groups = model_->group_model();
   if (!groups) {
@@ -616,13 +645,13 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   ApplyActiveSpaceColor();
 
   auto add = views::CreateVectorImageButtonWithNativeTheme(
-      base::BindRepeating(&ArcomiumSpaceSwitcher::CreateSpace,
-                          base::Unretained(browser_.get())),
+      base::BindRepeating(&ArcomiumSpaceSwitcher::ShowAddMenu,
+                          base::Unretained(this)),
       vector_icons::kAdd2Icon, kAddIconSize);
   add->SetPreferredSize(gfx::Size(kButtonSize, kButtonSize));
   add->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
   add->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
-  AddChildView(std::move(add));
+  add_button_ = AddChildView(std::move(add));
 
   PreferredSizeChanged();
 }
@@ -671,6 +700,29 @@ std::string ArcomiumSpaceSwitcher::GetSpaceIcon(
 
 void ArcomiumSpaceSwitcher::AddedToWidget() {
   ApplyActiveSpaceColor();
+#if !BUILDFLAG(IS_MAC)
+  // Alt+1 to Alt+9 show the Spaces in the row's order, home first, as in Arc
+  // for Windows. Not on macOS: Option with a digit types a character there.
+  for (int i = 0; i < 9; ++i) {
+    AddAccelerator(ui::Accelerator(
+        static_cast<ui::KeyboardCode>(ui::VKEY_1 + i), ui::EF_ALT_DOWN));
+  }
+#endif
+}
+
+bool ArcomiumSpaceSwitcher::AcceleratorPressed(
+    const ui::Accelerator& accelerator) {
+  const int index = accelerator.key_code() - ui::VKEY_1;
+  if (accelerator.modifiers() != ui::EF_ALT_DOWN || index < 0 || index > 8 ||
+      index >= static_cast<int>(space_actions_.size())) {
+    return false;
+  }
+  if (index != active_space_) {
+    // A copy: switching rebuilds the row and its callbacks.
+    base::RepeatingClosure action = space_actions_[index];
+    action.Run();
+  }
+  return true;
 }
 
 void ArcomiumSpaceSwitcher::ApplyActiveSpaceColor() {
@@ -745,7 +797,58 @@ void ArcomiumSpaceSwitcher::ShowContextMenuForViewImpl(
                           source_type);
 }
 
+void ArcomiumSpaceSwitcher::ShowAddMenu(const ui::Event& event) {
+  views::View* button = add_button_;
+  if (!button || !button->GetWidget()) {
+    return;
+  }
+  // Arc's plus button: a new Space, folder or tab.
+  menu_runner_.reset();
+  menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+  menu_model_->AddItem(kNewSpaceCommand,
+                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
+  menu_model_->AddItem(kNewFolderCommand,
+                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
+  menu_model_->AddItem(kNewTabCommand,
+                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB));
+  menu_runner_ = std::make_unique<views::MenuRunner>(
+      menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
+  menu_runner_->RunMenuAt(button->GetWidget(), nullptr,
+                          button->GetBoundsInScreen(),
+                          views::MenuAnchorPosition::kBubbleTopLeft,
+                          event.IsKeyEvent() ? ui::mojom::MenuSourceType::kKeyboard
+                                             : ui::mojom::MenuSourceType::kMouse);
+}
+
 void ArcomiumSpaceSwitcher::ExecuteCommand(int command_id, int event_flags) {
+  if (command_id == kNewSpaceCommand) {
+    CreateSpace(browser_);
+    return;
+  }
+  if (command_id == kNewTabCommand) {
+    chrome::ExecuteCommand(browser_, IDC_NEW_TAB);
+    return;
+  }
+  if (command_id == kNewFolderCommand) {
+    // The sidebar beside this row, in the same window.
+    views::View* root = GetWidget() ? GetWidget()->GetRootView() : nullptr;
+    std::vector<views::View*> views;
+    if (root) {
+      views.push_back(root);
+    }
+    while (!views.empty()) {
+      views::View* view = views.back();
+      views.pop_back();
+      if (auto* sidebar = views::AsViewClass<ArcomiumSidebarView>(view)) {
+        sidebar->NewFolder();
+        return;
+      }
+      for (views::View* child : view->children()) {
+        views.push_back(child);
+      }
+    }
+    return;
+  }
   if (command_id == kEditColorCommand) {
     EditMenuSpaceColor();
     return;

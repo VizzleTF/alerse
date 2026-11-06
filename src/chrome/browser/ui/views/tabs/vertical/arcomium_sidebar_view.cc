@@ -33,6 +33,9 @@
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/arcomium_spaces.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "components/split_tabs/split_tab_visual_data.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_mini_player.h"
@@ -163,6 +166,11 @@ enum Command {
   kDuplicate,
   kMoveTo,
   kEditColor,
+  kToggleMute,
+  kSplitView,
+  kEditPinnedPage,
+  kReplacePinnedUrl,
+  kEditPinnedItem,
   // "Move to" submenu: one command per Space from here.
   kMoveToFirst = 100,
 };
@@ -595,6 +603,16 @@ void ArcomiumSidebarView::OnTabStripModelChanged(
 
 void ArcomiumSidebarView::OnTabChangedAt(tabs::TabInterface* tab,
                                          TabChangeType change_type) {
+  // A tab of a Space not shown changes nothing here (its title, its loading),
+  // unless a pinned item shown is bound to it.
+  if (tab && tab->GetGroup() != GetActiveGroup()) {
+    const tabs::TabInterface::Handle handle = tab->GetHandle();
+    if (std::ranges::none_of(bound_, [&handle](const auto& entry) {
+          return entry.second == handle;
+        })) {
+      return;
+    }
+  }
   ScheduleRebuild();
 }
 
@@ -1674,6 +1692,25 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     }
   };
 
+  // A tab's own items: its sound when it plays or is muted, and a split
+  // with the current tab.
+  auto add_tab_items = [this](tabs::TabInterface* tab) {
+    content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+    if (!contents) {
+      return;
+    }
+    if (contents->IsCurrentlyAudible() || contents->IsAudioMuted()) {
+      menu_model_->AddItem(
+          kToggleMute, l10n_util::GetStringUTF16(contents->IsAudioMuted()
+                                                     ? IDS_ARCOMIUM_UNMUTE_TAB
+                                                     : IDS_ARCOMIUM_MUTE_TAB));
+    }
+    if (!tab->IsSplit()) {
+      menu_model_->AddItem(
+          kSplitView, l10n_util::GetStringUTF16(IDS_ARCOMIUM_OPEN_IN_SPLIT_VIEW));
+    }
+  };
+
   if (node && node->is_folder()) {
     menu_model_->AddItem(kPinTab,
                          l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE));
@@ -1687,6 +1724,21 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
   } else if (node) {
     menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
     menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
+    add_tab_items(tab);
+    // The pinned page: what the tab shows now, or edited by hand.
+    pinned_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
+    if (tab && tab->GetContents() &&
+        tab->GetContents()->GetLastCommittedURL().is_valid() &&
+        tab->GetContents()->GetLastCommittedURL() != node->url()) {
+      pinned_menu_model_->AddItem(
+          kReplacePinnedUrl,
+          l10n_util::GetStringUTF16(IDS_ARCOMIUM_REPLACE_PINNED_URL));
+    }
+    pinned_menu_model_->AddItem(
+        kEditPinnedItem, l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_PINNED_ITEM));
+    menu_model_->AddSubMenu(kEditPinnedPage,
+                            l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_PINNED_PAGE),
+                            pinned_menu_model_.get());
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
@@ -1696,6 +1748,7 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     }
   } else if (tab) {
     menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+    add_tab_items(tab);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     menu_model_->AddItem(kPinTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_TO_SPACE));
     add_move_to();
@@ -1882,12 +1935,60 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
     case kEditColor:
       ShowColorPicker();
       break;
+    case kToggleMute:
+      if (tab && tab->GetContents()) {
+        SetTabAudioMuted(tab->GetContents(),
+                         !tab->GetContents()->IsAudioMuted(),
+                         TabMutedReason::kAudioIndicator, std::string());
+      }
+      break;
+    case kSplitView:
+      if (tab && !tab->IsSplit()) {
+        TabStripModel* model = browser_->GetTabStripModel();
+        const int index = model->GetIndexOfTab(tab);
+        if (index == TabStripModel::kNoTab) {
+          break;
+        }
+        if (tab == model->GetActiveTab()) {
+          chrome::ExecuteCommand(browser_, IDC_NEW_SPLIT_TAB);
+        } else {
+          model->ExecuteAddToNewSplitCommand(
+              index, split_tabs::SplitTabLayout::kSideBySide);
+        }
+      }
+      break;
+    case kReplacePinnedUrl:
+      if (node && !node->is_folder() && tab && tab->GetContents()) {
+        const GURL url = tab->GetContents()->GetLastCommittedURL();
+        if (url.is_valid()) {
+          model_->SetURL(node, url,
+                         bookmarks::metrics::BookmarkEditSource::kUser);
+        }
+      }
+      break;
+    case kEditPinnedItem:
+      if (node && GetWidget()) {
+        BookmarkEditor::Show(GetWidget()->GetNativeWindow(),
+                             browser_->GetProfile(),
+                             BookmarkEditor::EditDetails::EditNode(node),
+                             BookmarkEditor::NO_TREE);
+      }
+      break;
   }
 }
 
 void ArcomiumSidebarView::OnThemeChanged() {
   views::View::OnThemeChanged();
-  ScheduleRebuild();
+  // Each step of a Space's color transition re-themes the window; the rows
+  // recolor themselves, and they are rebuilt once it settles.
+  if (rows_ && rows_->children().empty()) {
+    ScheduleRebuild();
+    return;
+  }
+  theme_rebuild_timer_.Start(
+      FROM_HERE, base::Milliseconds(250),
+      base::BindOnce(&ArcomiumSidebarView::ScheduleRebuild,
+                     base::Unretained(this)));
 }
 
 void ArcomiumSidebarView::EditSpaceColorAt(const gfx::Point& screen_point) {
