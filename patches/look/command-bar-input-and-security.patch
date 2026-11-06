@@ -1,0 +1,54 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 59a0cd6957..e8c7ee5cda 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -848,6 +848,20 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+     return;
+   }
+   arcomium_command_bar_ = command_bar;
++  // Arc for Windows' command bar sets what you type 16 px high, larger than
++  // its rows; macOS keeps the address's own face.
++#if !BUILDFLAG(IS_MAC)
++  if (command_bar) {
++    arcomium_command_bar_font_ = omnibox_view_->GetFontList();
++    const gfx::FontList base =
++        arcomium_default_font_.value_or(*arcomium_command_bar_font_);
++    omnibox_view_->SetFontList(
++        base.DeriveWithSizeDelta(16 - base.GetFontSize()));
++  } else if (arcomium_command_bar_font_) {
++    omnibox_view_->SetFontList(*arcomium_command_bar_font_);
++    arcomium_command_bar_font_.reset();
++  }
++#endif
+   RefreshBackground();
+   InvalidateLayout();
+ }
+@@ -1092,7 +1106,14 @@ void LocationBarView::Layout(PassKey) {
+         /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
+     selected_keyword_view_->SetKeyword(keyword);
+   } else if (arcomium_compact_ && !arcomium_hovered_ &&
+-             !omnibox_view_->HasFocus()) {
++             !omnibox_view_->HasFocus() &&
++             GetLocationBarModel()->GetSecurityLevel() !=
++                 security_state::WARNING &&
++             GetLocationBarModel()->GetSecurityLevel() !=
++                 security_state::DANGEROUS) {
++    // Arcomium: the compact address hides the site icon, but never a "Not
++    // secure" or dangerous-site warning: with no Safe Browsing it is the
++    // last one left.
+     location_icon_view_->SetVisible(false);
+   } else if (location_icon_view_->GetShowText() &&
+              !ShouldChipOverrideLocationIcon()) {
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 39274ec540..ffd1734b54 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -585,6 +585,8 @@ class LocationBarView
+   bool arcomium_hovered_ = false;
+   bool arcomium_centered_ = false;
+   bool arcomium_command_bar_ = false;
++  // The address's face before the command bar enlarged it.
++  std::optional<gfx::FontList> arcomium_command_bar_font_;
+   bool arcomium_new_tab_ = false;
+   // Where the centred address's pill is painted; empty unless it shows.
+   gfx::Rect arcomium_pill_bounds_;

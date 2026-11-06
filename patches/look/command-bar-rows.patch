@@ -1,0 +1,116 @@
+diff --git a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+index 5095b7853f..75c188fbf1 100644
+--- a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
++++ b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+@@ -432,6 +432,13 @@ void WebuiOmniboxHandler::OverrideIconPaths(
+             : searchbox_internal::kReplyRotated180IconResourceName;
+   }
+   SearchboxHandler::OverrideIconPaths(match, mojom_match);
++  // Arcomium: the command bar shows a site's own icon, and a plain page where
++  // it has none, never a bookmark star.
++  if (mojom_match->icon_path ==
++      "//resources/cr_components/searchbox/icons/bookmark_cr23.svg") {
++    mojom_match->icon_path =
++        "//resources/cr_components/searchbox/icons/page_cr23.svg";
++  }
+ }
+ 
+ void WebuiOmniboxHandler::OnFocusChanged(bool focused) {
+diff --git a/components/omnibox/browser/open_tab_provider.cc b/components/omnibox/browser/open_tab_provider.cc
+index d50d349c9b..1c63f8658d 100644
+--- a/components/omnibox/browser/open_tab_provider.cc
++++ b/components/omnibox/browser/open_tab_provider.cc
+@@ -143,14 +143,23 @@ double ArcomiumFuzzyFactor(const std::u16string& query,
+     last = at++;
+     ++letters;
+   }
+-  if (!letters) {
++  if (letters < 2) {
+     return 0;
+   }
+   const double tightness = double(letters) / double(last - first + 1);
++  // Letters strewn across a long title or URL are chance, not a match: the
++  // first one starts a word and they sit no looser than one in two.
++  const bool word_start = first == 0 || !base::IsAsciiAlphaNumeric(text[first - 1]);
++  if (tightness < 0.5 || (!word_start && tightness < 1.0)) {
++    return 0;
++  }
+   const double start = 1.0 / (1.0 + first / 10.0);
+   return tightness * 0.75 + start * 0.25;
+ }
+ 
++// Arcomium: at most this many fuzzy bookmarks, the best first.
++constexpr size_t kArcomiumMaxFuzzyBookmarks = 3;
++
+ // The fuzzy factor over a title and the URL's host and path.
+ double ArcomiumFuzzyFactor(const std::u16string& query,
+                            const std::u16string& title,
+@@ -242,7 +251,9 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+   if (!template_url && adjusted_input_text.size() >= 2) {
+     if (bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
+         model && model->loaded()) {
+-      for (const bookmarks::UrlAndTitle& bookmark : model->GetUniqueUrls()) {
++      // Score them all, then build matches only for the best few.
++      std::vector<std::pair<double, bookmarks::UrlAndTitle>> fuzzy_bookmarks;
++      for (bookmarks::UrlAndTitle& bookmark : model->GetUniqueUrls()) {
+         if (!bookmark.url.is_valid() ||
+             Score(input, input_query_nodes,
+                   TabMatcher::TabWrapper(bookmark.title, bookmark.url,
+@@ -251,9 +262,18 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+         }
+         const double fuzzy = ArcomiumFuzzyFactor(adjusted_input_text,
+                                                  bookmark.title, bookmark.url);
+-        if (fuzzy <= 0) {
+-          continue;
++        if (fuzzy > 0) {
++          fuzzy_bookmarks.emplace_back(fuzzy, std::move(bookmark));
+         }
++      }
++      const size_t keep =
++          std::min(fuzzy_bookmarks.size(), kArcomiumMaxFuzzyBookmarks);
++      std::partial_sort(
++          fuzzy_bookmarks.begin(), fuzzy_bookmarks.begin() + keep,
++          fuzzy_bookmarks.end(),
++          [](const auto& a, const auto& b) { return a.first > b.first; });
++      fuzzy_bookmarks.resize(keep);
++      for (const auto& [fuzzy, bookmark] : fuzzy_bookmarks) {
+         AutocompleteMatch match(
+             this, kArcomiumFuzzyRelevance - 50 +
+                       fuzzy * kArcomiumFuzzyRelevanceRange,
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+index 45246779f9..96bd12a903 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+@@ -433,3 +433,16 @@
+ :host([is-top-chrome-searchbox_]) #description:not(:empty)::before {
+   content: ' — ';
+ }
++
++/* Arcomium: the command bar's rows in a regular weight, and a remove cross
++ * at the right of every row that can be forgotten. */
++:host([is-top-chrome-searchbox_]) #contents,
++:host([is-top-chrome-searchbox_]) #description {
++  font-weight: 400;
++}
++
++:host([is-top-chrome-searchbox_]) .container #remove:not([hidden]) {
++  --cr-icon-button-fill-color: rgb(140, 140, 140);
++  display: inline-flex !important;
++  margin-inline-end: 6px;
++}
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+index 5f0b2cc55f..accf79f646 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+@@ -588,6 +588,11 @@ export class SearchboxMatchElement extends CrLitElement {
+   }
+ 
+   private getMatchDescription_(): string {
++    // Arcomium: in the command bar a search reads as just its words, without
++    // the engine's name after them.
++    if (this.isTopChromeSearchbox_ && this.match?.isSearchType) {
++      return '';
++    }
+     return this.match ? this.match.description : '';
+   }
+ 
