@@ -1,0 +1,53 @@
+diff --git a/ui/color/color_provider_manager.cc b/ui/color/color_provider_manager.cc
+index 78cdb93466..319e00ccf0 100644
+--- a/ui/color/color_provider_manager.cc
++++ b/ui/color/color_provider_manager.cc
+@@ -87,6 +87,7 @@ void ColorProviderManager::ResetColorProviderCache() {
+   if (!color_providers_.empty()) {
+     color_providers_.clear();
+   }
++  arcomium_tinted_keys_.clear();
+ }
+ 
+ void ColorProviderManager::AppendColorProviderInitializer(
+@@ -125,6 +126,17 @@ ColorProvider* ColorProviderManager::GetColorProviderFor(ColorProviderKey key) {
+       });
+     }
+ 
++    // Arcomium: a window tinted by a Space (an app background color with no
++    // web app behind it) keeps its providers bounded, oldest out first;
++    // a window still using an evicted one gets it built again.
++    if (key.app_background_color && !key.app_controller) {
++      constexpr size_t kMaxArcomiumTintedProviders = 32;
++      while (arcomium_tinted_keys_.size() >= kMaxArcomiumTintedProviders) {
++        color_providers_.erase(arcomium_tinted_keys_.front());
++        arcomium_tinted_keys_.pop_front();
++      }
++      arcomium_tinted_keys_.push_back(key);
++    }
+     iter = color_providers_.emplace(key, std::move(provider)).first;
+     RecordColorProviderCacheSize(static_cast<int>(color_providers_.size()));
+   }
+diff --git a/ui/color/color_provider_manager.h b/ui/color/color_provider_manager.h
+index 300c89806d..42ad30dc56 100644
+--- a/ui/color/color_provider_manager.h
++++ b/ui/color/color_provider_manager.h
+@@ -6,6 +6,7 @@
+ #define UI_COLOR_COLOR_PROVIDER_MANAGER_H_
+ 
+ #include <cstddef>
++#include <deque>
+ #include <memory>
+ #include <vector>
+ 
+@@ -72,6 +73,10 @@ class COMPONENT_EXPORT(COLOR) ColorProviderManager {
+   base::flat_map<ColorProviderKey, std::unique_ptr<ColorProvider>>
+       color_providers_;
+ 
++  // Arcomium: keys tinted by a Space's color, oldest first. Every step of a
++  // Space's color transition is a new key; only the latest few are kept.
++  std::deque<ColorProviderKey> arcomium_tinted_keys_;
++
+   // Tracks the number of ColorProviders constructed and initialized by the
+   // manager for metrics purposes.
+   size_t num_providers_initialized_ = 0;

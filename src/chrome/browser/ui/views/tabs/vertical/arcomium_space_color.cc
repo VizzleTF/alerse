@@ -513,6 +513,7 @@ void SpaceColorTransition::AnimateTo(views::Widget* widget,
   }
   from_ = current;
   to_ = *to;
+  last_step_ = -1;
   animation_.Start();
 }
 
@@ -521,9 +522,19 @@ void SpaceColorTransition::AnimationProgressed(
   if (!widget_) {
     return;
   }
-  const double value = gfx::Tween::CalculateValue(
-      gfx::Tween::FAST_OUT_SLOW_IN, animation->GetCurrentValue());
-  SetSpaceTint(widget_, gfx::Tween::ColorValueBetween(value, from_, to_),
+  // Each step re-themes the whole window, so a few fixed ones: the same
+  // colors every time between two Spaces, which the color providers keep.
+  constexpr int kSteps = 6;
+  const int step = static_cast<int>(
+      std::lround(gfx::Tween::CalculateValue(gfx::Tween::FAST_OUT_SLOW_IN,
+                                             animation->GetCurrentValue()) *
+                  kSteps));
+  if (step == last_step_ || step >= kSteps) {
+    return;
+  }
+  last_step_ = step;
+  SetSpaceTint(widget_,
+               gfx::Tween::ColorValueBetween(double(step) / kSteps, from_, to_),
                widget_->color_mode_override());
 }
 

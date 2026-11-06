@@ -83,6 +83,8 @@ class SpaceColorTransition : public gfx::AnimationDelegate {
   // The frame color without a tint, seen while none was applied: where the
   // default look is animated to.
   std::optional<SkColor> default_frame_;
+  // The last of the transition's fixed steps applied, -1 before the first.
+  int last_step_ = -1;
   gfx::LinearAnimation animation_;
 };
 
