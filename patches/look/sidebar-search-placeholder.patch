@@ -48,7 +48,7 @@ index 38e96a9074..c6e137496e 100644
 +  if (arcomium_compact_ && !arcomium_centered_) {
 +    // Arc's sidebar says "Search..." where there is no address, not which
 +    // search engine; Arc's command bar shows none.
-+    static constexpr char16_t kSidebarPlaceholder[] = u"Search...";
++    const std::u16string kSidebarPlaceholder = l10n_util::GetStringUTF16(IDS_ARCOMIUM_SIDEBAR_PLACEHOLDER);
 +    const std::u16string placeholder =
 +        arcomium_command_bar_ ? std::u16string() : kSidebarPlaceholder;
 +    if (omnibox_view_->GetPlaceholderText() != placeholder) {

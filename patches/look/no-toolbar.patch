@@ -452,13 +452,13 @@ index 8dc0aef718..d291b09f8a 100644
  #include "ui/views/accessibility/view_accessibility.h"
  #include "ui/views/actions/action_view_controller.h"
 @@ -140,6 +143,43 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
-   downloads->GetViewAccessibility().SetName(u"Downloads");
+   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
    arc_downloads_button_ = AddChildView(std::move(downloads));
  
 +  struct NavButton {
 +    int command;
 +    const gfx::VectorIcon& icon;
-+    const char16_t* name;
++    int name;
 +    raw_ptr<views::View>* button;
 +  };
 +  // The toolbar's icons.
@@ -467,15 +467,15 @@ index 8dc0aef718..d291b09f8a 100644
 +      {IDC_BACK,
 +       rounded ? vector_icons::kArrowBackIcon
 +               : vector_icons::kBackArrowChromeRefreshOldIcon,
-+       u"Back", &arc_back_button_},
++       IDS_ARCOMIUM_BACK, &arc_back_button_},
 +      {IDC_FORWARD,
 +       rounded ? vector_icons::kArrowForwardIcon
 +               : vector_icons::kForwardArrowChromeRefreshOldIcon,
-+       u"Forward", &arc_forward_button_},
++       IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
 +      {IDC_RELOAD,
 +       rounded ? vector_icons::kRefreshIcon
 +               : vector_icons::kReloadChromeRefreshOldIcon,
-+       u"Reload", &arc_reload_button_},
++       IDS_ARCOMIUM_RELOAD, &arc_reload_button_},
 +  };
 +  for (const NavButton& nav : nav_buttons) {
 +    auto button = views::CreateVectorImageButtonWithNativeTheme(
@@ -485,8 +485,8 @@ index 8dc0aef718..d291b09f8a 100644
 +            },
 +            base::Unretained(browser_), nav.command),
 +        nav.icon, kArcHeaderIconSize);
-+    button->SetTooltipText(nav.name);
-+    button->GetViewAccessibility().SetName(nav.name);
++    button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
++    button->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(nav.name));
 +    button->SetEnabled(chrome::IsCommandEnabled(browser_, nav.command));
 +    *nav.button = AddChildView(std::move(button));
 +    chrome::AddCommandObserver(browser_, nav.command, this);

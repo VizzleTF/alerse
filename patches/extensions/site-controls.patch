@@ -149,10 +149,10 @@ index c6e137496e..d882476843 100644
 +                            base::Unretained(this)),
          vector_icons::kArcomiumTuneIcon, 16, kColorToolbarButtonIcon,
          kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
--    site->SetTooltipText(u"Site settings");
--    site->GetViewAccessibility().SetName(u"Site settings");
-+    site->SetTooltipText(u"Site Controls");
-+    site->GetViewAccessibility().SetName(u"Site Controls");
+-    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
+-    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
++    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
++    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
      site->SetVisible(false);
      arcomium_site_button_ = AddChildView(std::move(site));
    }

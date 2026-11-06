@@ -104,7 +104,7 @@ index d505fb6448..f138692fea 100644
        features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
                                          : vector_icons::kLinkOldIcon);
 +  if (!GetWebstoreItemId(browser_).empty()) {
-+    AddItemWithIcon(kArcomiumAddFromWebstore, u"Add to Arcomium",
++    AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
 +                    ui::ImageModel::FromVectorIcon(
 +                        vector_icons::kChromeExtensionIcon, ui::kColorMenuIcon,
 +                        ui::SimpleMenuModel::kDefaultIconSize));

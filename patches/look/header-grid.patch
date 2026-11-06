@@ -95,8 +95,8 @@ index d291b09f8a..650da33459 100644
  class ArcLogoButton : public views::Button {
 @@ -64,8 +87,7 @@ class ArcLogoButton : public views::Button {
        : views::Button(std::move(callback)) {
-     SetTooltipText(u"Arcomium menu");
-     GetViewAccessibility().SetName(u"Arcomium menu");
+     SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
 -    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
 -    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
 +    StyleArcHeaderButton(this);
@@ -117,24 +117,24 @@ index d291b09f8a..650da33459 100644
            base::Unretained(state_controller_)),
        kDockToLeftIcon, kArcHeaderIconSize);
 +  StyleArcHeaderButton(sidebar.get());
-   sidebar->SetTooltipText(u"Hide sidebar");
-   sidebar->GetViewAccessibility().SetName(u"Hide sidebar");
+   sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
+   sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
    arc_sidebar_button_ = AddChildView(std::move(sidebar));
 @@ -139,6 +162,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
            },
            base::Unretained(browser_)),
        kDownloadIcon, kArcHeaderIconSize);
 +  StyleArcHeaderButton(downloads.get());
-   downloads->SetTooltipText(u"Downloads");
-   downloads->GetViewAccessibility().SetName(u"Downloads");
+   downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
+   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
    arc_downloads_button_ = AddChildView(std::move(downloads));
 @@ -173,6 +197,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
              },
              base::Unretained(browser_), nav.command),
          nav.icon, kArcHeaderIconSize);
 +    StyleArcHeaderButton(button.get());
-     button->SetTooltipText(nav.name);
-     button->GetViewAccessibility().SetName(nav.name);
+     button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
+     button->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(nav.name));
      button->SetEnabled(chrome::IsCommandEnabled(browser_, nav.command));
 @@ -207,6 +232,17 @@ void VerticalTabStripTopContainer::Layout(PassKey) {
    combo_button_->SetOrientation(combo_button_orientation_);

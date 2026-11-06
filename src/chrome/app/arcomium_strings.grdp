@@ -125,5 +125,42 @@
     <message name="IDS_ARCOMIUM_MANAGE_EXTENSIONS" desc="Site controls tile and menu item: open the extensions page.">
       Manage Extensions
     </message>
+    <!-- Arcomium's changes to Chromium's views -->
+    <message name="IDS_ARCOMIUM_ADD_TO_ARCOMIUM" desc="App menu item on a Chrome Web Store page: install its extension.">
+      Add to Arcomium
+    </message>
+    <message name="IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP" desc="Tooltip of the address bar button that opens the site's settings.">
+      Site settings
+    </message>
+    <message name="IDS_ARCOMIUM_ADDRESS_PLACEHOLDER" desc="Placeholder of the address bar when it is empty.">
+      Search or Enter URL...
+    </message>
+    <message name="IDS_ARCOMIUM_SIDEBAR_PLACEHOLDER" desc="Placeholder of the sidebar's address field when it is empty.">
+      Search...
+    </message>
+    <message name="IDS_ARCOMIUM_SPLIT_VIEW" desc="Tooltip of the button that shows two tabs side by side.">
+      Split view
+    </message>
+    <message name="IDS_ARCOMIUM_BACK" desc="Tooltip of the sidebar's back button.">
+      Back
+    </message>
+    <message name="IDS_ARCOMIUM_FORWARD" desc="Tooltip of the sidebar's forward button.">
+      Forward
+    </message>
+    <message name="IDS_ARCOMIUM_RELOAD" desc="Tooltip of the sidebar's reload button.">
+      Reload
+    </message>
+    <message name="IDS_ARCOMIUM_SEARCH_ENGINE" desc="App menu item: pick the address bar's search engine or add one.">
+      Search Engine
+    </message>
+    <message name="IDS_ARCOMIUM_MENU" desc="Tooltip of the sidebar button that opens Arcomium's menu.">
+      Arcomium menu
+    </message>
+    <message name="IDS_ARCOMIUM_HIDE_SIDEBAR" desc="Tooltip of the button that hides the sidebar.">
+      Hide sidebar
+    </message>
+    <message name="IDS_ARCOMIUM_DOWNLOADS" desc="Tooltip of the sidebar button that shows downloads.">
+      Downloads
+    </message>
   </if>
 </grit-part>

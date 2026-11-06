@@ -276,8 +276,8 @@ index d69e4dd30f..ce6ecacd24 100644
 + public:
 +  explicit ArcLogoButton(PressedCallback callback)
 +      : views::Button(std::move(callback)) {
-+    SetTooltipText(u"Arcomium menu");
-+    GetViewAccessibility().SetName(u"Arcomium menu");
++    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
++    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
 +    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
 +    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
 +  }
@@ -327,8 +327,8 @@ index d69e4dd30f..ce6ecacd24 100644
 +          },
 +          base::Unretained(state_controller_)),
 +      kDockToLeftIcon, kArcHeaderIconSize);
-+  sidebar->SetTooltipText(u"Hide sidebar");
-+  sidebar->GetViewAccessibility().SetName(u"Hide sidebar");
++  sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
++  sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
 +  arc_sidebar_button_ = AddChildView(std::move(sidebar));
 +  auto downloads = views::CreateVectorImageButtonWithNativeTheme(
 +      base::BindRepeating(
@@ -337,8 +337,8 @@ index d69e4dd30f..ce6ecacd24 100644
 +          },
 +          base::Unretained(browser_)),
 +      kDownloadIcon, kArcHeaderIconSize);
-+  downloads->SetTooltipText(u"Downloads");
-+  downloads->GetViewAccessibility().SetName(u"Downloads");
++  downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
++  downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
 +  arc_downloads_button_ = AddChildView(std::move(downloads));
 +
    combo_button_ = AddChildView(std::make_unique<TabStripComboButton>(

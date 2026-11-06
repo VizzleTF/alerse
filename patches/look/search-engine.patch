@@ -8,12 +8,12 @@ index f138692fea..c2affae46e 100644
                                          : vector_icons::kLinkOldIcon);
 +  // Arcomium: where the address bar's search engine is picked, or one's own
 +  // (a self-hosted one, say) added.
-+  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, u"Search Engine",
++  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEARCH_ENGINE),
 +                  ui::ImageModel::FromVectorIcon(
 +                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
 +                      ui::SimpleMenuModel::kDefaultIconSize));
    if (!GetWebstoreItemId(browser_).empty()) {
-     AddItemWithIcon(kArcomiumAddFromWebstore, u"Add to Arcomium",
+     AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
                      ui::ImageModel::FromVectorIcon(
 diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
 index 575fc18a9c..78164928bc 100644

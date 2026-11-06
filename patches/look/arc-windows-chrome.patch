@@ -526,8 +526,8 @@ index 7391c8bdbc..979583ee26 100644
 +                            base::Unretained(this)),
 +        vector_icons::kArcomiumLinkIcon, 16, kColorToolbarButtonIcon,
 +        kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
-+    copy->SetTooltipText(u"Copy link");
-+    copy->GetViewAccessibility().SetName(u"Copy link");
++    copy->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
++    copy->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
 +    copy->SetVisible(false);
 +    arcomium_copy_button_ = AddChildView(std::move(copy));
 +    auto site = views::CreateVectorImageButtonWithNativeTheme(
@@ -538,8 +538,8 @@ index 7391c8bdbc..979583ee26 100644
 +            base::Unretained(this)),
 +        vector_icons::kArcomiumTuneIcon, 16, kColorToolbarButtonIcon,
 +        kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
-+    site->SetTooltipText(u"Site settings");
-+    site->GetViewAccessibility().SetName(u"Site settings");
++    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
++    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
 +    site->SetVisible(false);
 +    arcomium_site_button_ = AddChildView(std::move(site));
 +  }
@@ -584,7 +584,7 @@ index 7391c8bdbc..979583ee26 100644
 +  constexpr int kPillPadding = 8;
 +  constexpr int kPillTrailingPadding = 10;
 +  constexpr int kPillHeight = 28;
-+  static constexpr char16_t kPlaceholder[] = u"Search or Enter URL...";
++  const std::u16string kPlaceholder = l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADDRESS_PLACEHOLDER);
 +  if (omnibox_view_->GetPlaceholderText() != kPlaceholder) {
 +    omnibox_view_->SetPlaceholderText(kPlaceholder);
 +  }
@@ -868,8 +868,8 @@ index 650da33459..162e19a9e1 100644
 +      std::move(toggle_sidebar), vector_icons::kArcomiumSidebarIcon);
 +#endif
    StyleArcHeaderButton(sidebar.get());
-   sidebar->SetTooltipText(u"Hide sidebar");
-   sidebar->GetViewAccessibility().SetName(u"Hide sidebar");
+   sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
+   sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
    arc_sidebar_button_ = AddChildView(std::move(sidebar));
 +  auto show_downloads = base::BindRepeating(
 +      [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
@@ -888,8 +888,8 @@ index 650da33459..162e19a9e1 100644
 +      std::move(show_downloads), vector_icons::kArcomiumDownloadIcon);
 +#endif
    StyleArcHeaderButton(downloads.get());
-   downloads->SetTooltipText(u"Downloads");
-   downloads->GetViewAccessibility().SetName(u"Downloads");
+   downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
+   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
 @@ -380,8 +439,11 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    } else if (arc_logo_button_) {
      // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
@@ -1131,8 +1131,8 @@ index bb908ae572..c8dda29cd0 100644
 +              chrome::ExecuteCommand(browser, IDC_NEW_SPLIT_TAB);
 +            },
 +            base::Unretained(browser_.get())));
-+    split_button->SetTooltipText(u"Split view");
-+    split_button->GetViewAccessibility().SetName(u"Split view");
++    split_button->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPLIT_VIEW));
++    split_button->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPLIT_VIEW));
 +    AddChildView(std::move(split_button));
 +#endif
    }
