@@ -6,6 +6,10 @@ shown outside of Spaces (meta info arcomium.space = "default"); the others are
 adopted by an Arcomium Space with the same name. Re-running replaces what an
 earlier run imported. Close Arcomium first: it rewrites the file on exit.
 
+What it adds is marked as chrome://arcomium-import marks it, with the
+profile's own key (the arcomium.import_key pref, made here when the profile
+has none), so that importing again from either one replaces it.
+
 Usage:
   python tools/arc_import.py [--arc-dir DIR] [--profile DIR]
 """
@@ -13,7 +17,9 @@ Usage:
 import argparse
 import base64
 import hashlib
+import hmac
 import json
+import secrets
 import os
 import sys
 import time
@@ -44,32 +50,68 @@ def chrome_time():
     return str(int((time.time() + 11644473600) * 1_000_000))
 
 
+def import_key(profile):
+    """The profile's key for import marks, made and saved if it has none."""
+    path = profile / 'Preferences'
+    prefs = json.loads(path.read_text('utf-8')) if path.exists() else {}
+    arcomium = prefs.setdefault('arcomium', {})
+    if not arcomium.get('import_key'):
+        arcomium['import_key'] = secrets.token_hex(32)
+        path.write_text(json.dumps(prefs, ensure_ascii=False), 'utf-8')
+    return arcomium['import_key']
+
+
+def sign(key, kind, subject, guid):
+    # As ImportMark::Sign() in arcomium_import_bookmarks.cc.
+    message = f'{kind}\n{subject}\n{guid}'.encode()
+    return hmac.new(key.encode(), message, hashlib.sha256).hexdigest()[:32]
+
+
+def is_imported(key, node):
+    mark = node.get('meta_info', {}).get('arcomium.imported')
+    return mark is not None and mark == sign(key, 'node', 'arc',
+                                             node.get('guid', '').lower())
+
+
 class Importer:
-    def __init__(self, arc_dir, next_id):
+    def __init__(self, arc_dir, next_id, key):
         self.icons = arc_dir / 'SidebarItemsFaviconCache'
         self.next_id = next_id
+        self.key = key
         self.counts = {'folders': 0, 'links': 0, 'icons': 0}
+
+    def mark(self, meta, guid):
+        meta['arcomium.imported'] = sign(self.key, 'node', 'arc', guid)
+        return meta
 
     def new_id(self):
         self.next_id += 1
         return str(self.next_id)
 
-    def folder(self, name, meta, children):
+    def folder(self, name, meta, children, arc_space=None):
         self.counts['folders'] += 1
-        return {'type': 'folder', 'id': self.new_id(), 'guid': str(uuid.uuid4()),
+        guid = str(uuid.uuid4())
+        self.mark(meta, guid)
+        if arc_space:
+            # Binds the folder to Arc's Space in this profile.
+            meta['arcomium.arc_space'] = arc_space
+            meta['arcomium.arc_space_mark'] = sign(self.key, 'arc_space',
+                                                   arc_space, guid)
+        return {'type': 'folder', 'id': self.new_id(), 'guid': guid,
                 'name': name, 'date_added': chrome_time(),
                 'date_last_used': '0', 'date_modified': '0',
                 'meta_info': meta, 'children': children}
 
     def link(self, item_id, name, url):
-        meta = {'arcomium.imported': '1'}
+        guid = str(uuid.uuid4())
+        meta = self.mark({}, guid)
         # Arc names cached favicons after the md5 of the item id.
         icon = self.icons / hashlib.md5(item_id.encode()).hexdigest()
         if icon.exists():
             meta['arcomium.icon'] = base64.b64encode(icon.read_bytes()).decode()
             self.counts['icons'] += 1
         self.counts['links'] += 1
-        return {'type': 'url', 'id': self.new_id(), 'guid': str(uuid.uuid4()),
+        return {'type': 'url', 'id': self.new_id(), 'guid': guid,
                 'name': name, 'url': url, 'date_added': chrome_time(),
                 'date_last_used': '0', 'meta_info': meta}
 
@@ -90,7 +132,7 @@ class Importer:
                 name = item.get('title') or tab.get('savedTitle') or url
                 nodes.append(self.link(child_id, name, url))
             elif 'list' in data:
-                meta = {'arcomium.imported': '1'}
+                meta = {}
                 icon = (data['list'].get('customInfo') or {}).get(
                     'iconType', {}).get('icon')
                 if icon:
@@ -130,13 +172,14 @@ def main():
             'other': empty('2', 'Other bookmarks'),
             'synced': empty('3', 'Mobile bookmarks')}}
 
+    key = import_key(args.profile)
     other = bookmarks['roots']['other']
-    other['children'] = [
-        child for child in other['children']
-        if child.get('meta_info', {}).get('arcomium.imported') != '1']
+    other['children'] = [child for child in other['children']
+                         if not is_imported(key, child)]
 
     importer = Importer(arc_dir, max(max_id(root)
-                                     for root in bookmarks['roots'].values()))
+                                     for root in bookmarks['roots'].values()),
+                        key)
     first = True
     for container in sidebar['sidebar']['containers']:
         if 'spaces' not in container:
@@ -145,17 +188,16 @@ def main():
         for space_id, space in pairs(container['spaces']).items():
             ids = space.get('containerIDs', [])
             pinned = dict(zip(ids[::2], ids[1::2])).get('pinned')
-            if not pinned or not space.get('title'):
+            if not pinned or not space.get('title') or not space_id:
                 continue
-            meta = {'arcomium.imported': '1',
-                    'arcomium.space': 'default' if first else f'arc:{space_id}'}
+            meta = {'arcomium.space': 'default' if first else f'arc:{space_id}'}
             # Arc's Space icon ("sunny", "book", ...): the Space bar shows it.
             icon = (space.get('customInfo') or {}).get('iconType', {}).get('icon')
             if icon:
                 meta['arcomium.space_icon'] = icon
             first = False
             other['children'].append(importer.folder(
-                space['title'], meta, importer.tree(items, pinned)))
+                space['title'], meta, importer.tree(items, pinned), space_id))
 
     bookmarks_path.write_text(json.dumps(bookmarks, ensure_ascii=False,
                                          indent=3), 'utf-8')
