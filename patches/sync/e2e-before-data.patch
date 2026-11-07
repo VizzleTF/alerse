@@ -1,0 +1,54 @@
+diff --git a/components/sync/service/sync_service_impl.cc b/components/sync/service/sync_service_impl.cc
+index 165393bc468..1f314ad0a17 100644
+--- a/components/sync/service/sync_service_impl.cc
++++ b/components/sync/service/sync_service_impl.cc
+@@ -1604,6 +1604,16 @@ void SyncServiceImpl::PassphraseTypeChanged(PassphraseType passphrase_type) {
+   }
+ #endif
+   sync_prefs_.SetCachedPassphraseType(passphrase_type);
++  // Arcomium: the chain's passphrase is in place; configure the data types
++  // ConfigureDataTypeManager() held back. Posted: this runs inside the
++  // engine's crypto notification.
++  if (arcomium_waiting_for_passphrase_ &&
++      passphrase_type == PassphraseType::kCustomPassphrase) {
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE,
++        base::BindOnce(&SyncServiceImpl::ReconfigureDataTypesDueToCrypto,
++                       weak_factory_.GetWeakPtr()));
++  }
+ }
+ 
+ std::optional<PassphraseType> SyncServiceImpl::GetPassphraseType() const {
+@@ -1914,7 +1924,17 @@ void SyncServiceImpl::ConfigureDataTypeManager(
+   DCHECK(!configure_context.cache_guid.empty());
+   DCHECK_NE(configure_context.reason, ConfigureReason::kUnknown);
+ 
+-  data_type_manager_->Configure(GetPreferredDataTypes(), configure_context);
++  DataTypeSet types = GetPreferredDataTypes();
++  // Arcomium: end-to-end or not at all. Until the chain's data is encrypted
++  // with its own passphrase, nothing but the device list goes to its server;
++  // PassphraseTypeChanged() configures the rest once it is.
++  arcomium_waiting_for_passphrase_ =
++      arcomium_account_ && user_settings_->GetPassphraseType() !=
++                               PassphraseType::kCustomPassphrase;
++  if (arcomium_waiting_for_passphrase_) {
++    types = Intersection(types, DataTypeSet({DEVICE_INFO}));
++  }
++  data_type_manager_->Configure(types, configure_context);
+ 
+   // Record in UMA whether we're configuring the full Sync feature or only the
+   // transport. These values are persisted to logs. Entries should not be
+diff --git a/components/sync/service/sync_service_impl.h b/components/sync/service/sync_service_impl.h
+index 75f0d9815b8..7f491eaa4ac 100644
+--- a/components/sync/service/sync_service_impl.h
++++ b/components/sync/service/sync_service_impl.h
+@@ -535,6 +535,9 @@ class SyncServiceImpl : public SyncService,
+   std::unique_ptr<ArcomiumSyncEvents> arcomium_events_;
+   bool arcomium_passphrase_set_ = false;
+   bool applying_arcomium_passphrase_ = false;
++  // Whether the last configuration held the data types back for want of the
++  // chain's passphrase.
++  bool arcomium_waiting_for_passphrase_ = false;
+ 
+   // Note: This is an Optional so that we can control its destruction - in
+   // particular, to trigger the "check_empty" test in Shutdown().
