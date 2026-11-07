@@ -36,8 +36,75 @@
     <message name="IDS_ARCOMIUM_MENU_CHECK_UPDATES" desc="Menu of the sidebar logo: open the page of the latest release.">
       Check for Updates
     </message>
-    <message name="IDS_ARCOMIUM_MENU_IMPORT" desc="Menu of the sidebar logo: import from another browser.">
-      Import Bookmarks and Settings...
+    <message name="IDS_ARCOMIUM_MENU_IMPORT" desc="Menu of the sidebar logo and the app menu: open the page that imports bookmarks and Spaces from other browsers on this computer.">
+      Import from Another Browser...
+    </message>
+    <!-- chrome://arcomium-import -->
+    <message name="IDS_ARCOMIUM_IMPORT_TITLE" desc="Title of the page that imports bookmarks and Spaces from other browsers.">
+      Import from another browser
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_LEDE" desc="Introduction of the import page.">
+      Bring over bookmarks, pinned tabs and Spaces from the browsers on this computer. Arcomium only reads their files: nothing changes in those browsers.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_SEARCHING" desc="Import page: shown while it looks for other browsers.">
+      Looking for browsers on this computer...
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_NOTHING_FOUND" desc="Import page: no browser to import from was found.">
+      No other browser with bookmarks was found on this computer. You can still import from a bookmarks file below.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_REPLACES" desc="Import page: what importing the same browser twice does.">
+      Importing a browser again replaces what came from it last time, so nothing is doubled.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_OTHER_LINK" desc="Import page: link to the standard importer for browsers this page does not read.">
+      Firefox, Safari or a bookmarks file
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_OTHER_HINT" desc="Import page: explains the link to the standard importer.">
+      Opens the standard importer, which also reads HTML bookmark files.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ARC_SUMMARY" desc="Import page: what Arc has. $1 is a number of Spaces, $2 a number of pinned tabs.">
+      Spaces: <ph name="SPACE_COUNT">$1<ex>3</ex></ph>, pinned tabs: <ph name="TAB_COUNT">$2<ex>40</ex></ph>
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ARC_HINT" desc="Import page: where Arc's Spaces go.">
+      Every Arc Space becomes a Space here, with its pinned tabs, folders and icons. The first one goes to Home.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_BOOKMARKS_SUMMARY" desc="Import page: how many bookmarks a browser profile has. $1 is the number.">
+      Bookmarks: <ph name="BOOKMARK_COUNT">$1<ex>90</ex></ph>
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_BOOKMARKS_HINT" desc="Import page: where a browser's bookmarks go.">
+      They go to a folder pinned in the current Space.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_BUTTON" desc="Import page: button that imports from one browser.">
+      Import
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_AGAIN_BUTTON" desc="Import page: button that imports from a browser once more.">
+      Import again
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_WORKING" desc="Import page: shown on the button while importing.">
+      Importing...
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ARC_DONE" desc="Import page: result of importing Arc. $1 is a number of Spaces, $2 of pinned tabs, $3 of folders.">
+      Imported. Spaces: <ph name="SPACE_COUNT">$1<ex>3</ex></ph>, pinned tabs: <ph name="TAB_COUNT">$2<ex>40</ex></ph>, folders: <ph name="FOLDER_COUNT">$3<ex>5</ex></ph>.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_SPACES_CREATED" desc="Import page: how many Spaces importing Arc added to the Space bar. $1 is the number.">
+      New Spaces in the Space bar: <ph name="SPACE_COUNT">$1<ex>2</ex></ph>.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_SPACES_PENDING" desc="Import page: Spaces of Arc that could not be opened here; the user adds them with the plus button of the Space bar. $1 is the number.">
+      Click + in the Space bar to add the other Spaces (<ph name="SPACE_COUNT">$1<ex>2</ex></ph>).
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_BOOKMARKS_DONE" desc="Import page: result of importing a browser's bookmarks. $1 is the number of bookmarks, $2 the name of the folder they went to.">
+      Imported <ph name="BOOKMARK_COUNT">$1<ex>90</ex></ph> bookmarks into the folder "<ph name="FOLDER_NAME">$2<ex>Google Chrome</ex></ph>".
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ERROR_BUSY" desc="Import page: another import has not finished yet.">
+      Another import is still running. Wait for it to finish.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ERROR_NOT_READY" desc="Import page: the bookmarks of this profile have not loaded yet.">
+      Bookmarks are still loading. Try again in a moment.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ERROR_READ" desc="Import page: the files of the other browser could not be read.">
+      Could not read this browser's data. Try again, or close that browser first.
+    </message>
+    <message name="IDS_ARCOMIUM_IMPORT_ERROR_UNKNOWN" desc="Import page: the browser to import from is gone.">
+      This browser is no longer found. Reload the page.
     </message>
     <message name="IDS_ARCOMIUM_MENU_NEW_WINDOW" desc="Menu of the sidebar logo: open a new window.">
       New Window

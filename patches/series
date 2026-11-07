@@ -57,3 +57,4 @@ defaults/feature-defaults.patch
 look/sidebar-logo-menu.patch
 defaults/own-install-identity.patch
 sync/e2e-before-data.patch
+look/import-from-browsers.patch

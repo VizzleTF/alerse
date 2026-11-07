@@ -1,0 +1,101 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 10f5fcfade5..74ed4d0d5d2 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -295,6 +295,8 @@
+ #define IDC_SHOW_TTC_MENU 40306
+ // Arcomium: opens chrome://arcomium-links.
+ #define IDC_ARCOMIUM_LINK_ROUTING 40390
++// Arcomium: opens chrome://arcomium-import.
++#define IDC_ARCOMIUM_IMPORT 40391
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 8033830e65f..7653645de3a 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -993,6 +993,10 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_ARCOMIUM_LINK_ROUTING:
+       ShowSingletonTab(browser_, GURL("chrome://arcomium-links/"));
+       break;
++    // Arcomium: imports Arc's Spaces and other browsers' bookmarks.
++    case IDC_ARCOMIUM_IMPORT:
++      ShowSingletonTab(browser_, GURL("chrome://arcomium-import/"));
++      break;
+ #if !BUILDFLAG(IS_CHROMEOS)
+     case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
+       ShowSyncPassphraseDialogAndDecryptData(*browser_);
+@@ -1946,6 +1950,8 @@ void BrowserCommandController::InitCommandState() {
+                                          !guest_session);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
+   command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_LINK_ROUTING, true);
++  command_updater_->UpdateCommandEnabled(
++      IDC_ARCOMIUM_IMPORT, !guest_session && !profile()->IsOffTheRecord());
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_PASSPHRASE_DIALOG, true);
+   command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 80bd8425eb7..519a2a99551 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2373,6 +2373,15 @@ void AppMenuModel::Build() {
+       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
+                                         : vector_icons::kLinkOldIcon);
++  // Arcomium: the importer of Arc's Spaces and other browsers' bookmarks, as
++  // the sidebar logo's own menu has it on Windows and Linux.
++  if (browser_->GetProfile()->IsRegularProfile()) {
++    AddItemWithIcon(IDC_ARCOMIUM_IMPORT,
++                    l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_IMPORT),
++                    ui::ImageModel::FromVectorIcon(
++                        vector_icons::kDownloadIcon, ui::kColorMenuIcon,
++                        ui::SimpleMenuModel::kDefaultIconSize));
++  }
+   // Arcomium: where the address bar's search engine is picked, or one's own
+   // (a self-hosted one, say) added.
+   AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEARCH_ENGINE),
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index af583dd4f80..13637b9c658 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -42,6 +42,7 @@ source_set("configs") {
+ 
+   deps = [
+     ":gcm_internals_ui",
++    "//chrome/browser/ui/webui/arcomium_import",
+     "//chrome/browser/ui/webui/arcomium_links",
+     "//chrome/browser/ui/webui/arcomium_sync",
+     ":net_export_ui",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index 0c90234fcff..6ba7f2c543c 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -9,6 +9,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
++#include "chrome/browser/ui/webui/arcomium_import/arcomium_import_ui.h"
+ #include "chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h"
+ #include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.h"
+ #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
+@@ -339,6 +340,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ArcomiumSyncUIConfig>());
+   map.AddWebUIConfig(std::make_unique<ArcomiumLinksUIConfig>());
++  map.AddWebUIConfig(std::make_unique<ArcomiumImportUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+diff --git a/chrome/test/BUILD.gn b/chrome/test/BUILD.gn
+index 56ac60dae16..0182091b1d2 100644
+--- a/chrome/test/BUILD.gn
++++ b/chrome/test/BUILD.gn
+@@ -3338,6 +3338,7 @@ test("unit_tests") {
+       "//chrome/browser/ui/webui/access_code_cast:unit_tests",
+       "//chrome/browser/ui/webui/ai_overlay_dialog:unit_tests",
+       "//chrome/browser/ui/webui/app_management:unit_tests",
++      "//chrome/browser/ui/webui/arcomium_import:unit_tests",
+       "//chrome/browser/ui/webui/bookmarks:unit_tests",
+       "//chrome/browser/ui/webui/browser_command:unit_tests",
+       "//chrome/browser/ui/webui/commerce:unit_tests",

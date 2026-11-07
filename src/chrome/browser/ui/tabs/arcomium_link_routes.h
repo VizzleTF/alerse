@@ -19,6 +19,7 @@
 
 #include "base/strings/string_util.h"
 #include "chrome/browser/ui/tabs/arcomium_spaces.h"
+#include "chrome/browser/ui/webui/arcomium_import/arcomium_import_data.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -40,6 +41,10 @@ struct LinkRoute {
 
 inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterListPref(kLinkRoutesPref);
+  // chrome://arcomium-import's prefs, local to this profile, registered here:
+  // this is the call browser_prefs.cc makes for Arcomium's profile prefs.
+  registry->RegisterDictionaryPref(arcomium_import::kImportFoldersPref);
+  registry->RegisterStringPref(arcomium_import::kImportKeyPref, std::string());
 }
 
 inline std::vector<LinkRoute> GetLinkRoutes(const PrefService& prefs) {

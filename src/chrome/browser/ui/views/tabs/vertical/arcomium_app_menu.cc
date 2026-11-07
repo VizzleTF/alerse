@@ -80,7 +80,7 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
         developer_(this) {
     root_.AddItem(kCheckForUpdates,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_CHECK_UPDATES));
-    root_.AddItem(IDC_IMPORT_SETTINGS,
+    root_.AddItem(IDC_ARCOMIUM_IMPORT,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_IMPORT));
     root_.AddSeparator(ui::NORMAL_SEPARATOR);
     root_.AddItem(IDC_NEW_TAB, l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB));
