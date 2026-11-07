@@ -18,12 +18,16 @@
 #include "build/build_config.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/uuid.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -45,6 +49,11 @@
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
+#include "components/sessions/content/session_tab_helper.h"
+#include "components/saved_tab_groups/public/saved_tab_group.h"
+#include "components/saved_tab_groups/public/saved_tab_group_tab.h"
+#include "components/saved_tab_groups/public/tab_group_sync_service.h"
+#include "components/sessions/core/session_id.h"
 #include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tab_groups/tab_group_visual_data.h"
@@ -796,6 +805,148 @@ bool ArcomiumSidebarView::IsBound(const tabs::TabInterface* tab) const {
   return false;
 }
 
+void ArcomiumSidebarView::BindTabsByUuid() {
+  if (!model_ || !model_->loaded()) {
+    return;
+  }
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  for (int i = 0; i < tabs->count(); ++i) {
+    tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+    const base::Uuid uuid = base::Uuid::ParseLowercase(
+        arcomium::GetPinnedTabUuid(tab->GetContents()));
+    if (!uuid.is_valid() || IsBound(tab)) {
+      continue;
+    }
+    // Spaces' folders are local only.
+    const bookmarks::BookmarkNode* node = model_->GetNodeByUuid(
+        uuid, bookmarks::BookmarkModel::NodeTypeForUuidLookup::
+                  kLocalOrSyncableNodes);
+    // Only in the tab's own Space: an item elsewhere has no row where the tab
+    // is shown, and the tab would be lost from the sidebar.
+    if (node && node->is_url() && !GetBoundTab(node->id()) &&
+        GetSpaceOfNode(node) == GetSpaceOfTab(tab)) {
+      bound_[node->id()] = tab->GetHandle();
+    }
+  }
+}
+
+std::string ArcomiumSidebarView::GetSpaceOfNode(
+    const bookmarks::BookmarkNode* node) const {
+  const bookmarks::BookmarkNode* folder = node;
+  while (folder->parent() && folder->parent() != model_->other_node()) {
+    folder = folder->parent();
+  }
+  std::string space;
+  if (!folder->parent() || !folder->is_folder() ||
+      !folder->GetMetaInfo(kSpaceMetaKey, &space)) {
+    return std::string();
+  }
+  return space;
+}
+
+std::string ArcomiumSidebarView::GetSpaceOfTab(
+    const tabs::TabInterface* tab) const {
+  const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
+  if (!group) {
+    return kDefaultSpace;
+  }
+  return arcomium::GetSpaceOfGroupOrFolder(browser_->GetProfile(),
+                                           browser_->GetTabStripModel(), *group)
+      .value_or(kDefaultSpace);
+}
+
+std::string ArcomiumSidebarView::GetSavedTabGuid(
+    const tabs::TabInterface* tab) const {
+  const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
+  tab_groups::TabGroupSyncService* sync =
+      tab_groups::TabGroupSyncServiceFactory::GetForProfile(
+          browser_->GetProfile());
+  if (!group || !sync) {
+    return std::string();
+  }
+  const std::optional<tab_groups::SavedTabGroup> saved = sync->GetGroup(*group);
+  const tab_groups::SavedTabGroupTab* saved_tab =
+      saved ? saved->GetTab(tab->GetHandle().raw_value()) : nullptr;
+  return saved_tab ? saved_tab->saved_tab_guid().AsLowercaseString()
+                   : std::string();
+}
+
+void ArcomiumSidebarView::WritePinnedItem(tabs::TabInterface* tab,
+                                          const std::string& uuid) {
+  content::WebContents* contents = tab->GetContents();
+  arcomium::SetPinnedTabUuid(contents, uuid);
+  SessionService* session =
+      SessionServiceFactory::GetForProfile(browser_->GetProfile());
+  const SessionID window_id =
+      sessions::SessionTabHelper::IdForWindowContainingTab(contents);
+  const SessionID tab_id = sessions::SessionTabHelper::IdForTab(contents);
+  if (session && window_id.is_valid() && tab_id.is_valid()) {
+    session->AddTabExtraData(window_id, tab_id,
+                             arcomium::kPinnedTabExtraDataKey, uuid);
+  }
+}
+
+void ArcomiumSidebarView::SaveBindings() {
+  // Before the bookmarks load, no binding is known: a restored tab's must
+  // not be cleared.
+  if (!model_ || !model_->loaded()) {
+    return;
+  }
+  std::map<const tabs::TabInterface*, const bookmarks::BookmarkNode*> pinned;
+  for (const auto& [id, handle] : bound_) {
+    const bookmarks::BookmarkNode* node = GetNode(id);
+    if (tabs::TabInterface* tab = handle.Get(); tab && node) {
+      pinned[tab] = node;
+    }
+  }
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  for (int i = 0; i < tabs->count(); ++i) {
+    tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+    content::WebContents* contents = tab->GetContents();
+    const std::string current = arcomium::GetPinnedTabUuid(contents);
+    auto it = pinned.find(tab);
+    if (it != pinned.end()) {
+      const bookmarks::BookmarkNode* node = it->second;
+      // The item names its tab in the Space's saved group too: a closed Space
+      // keeps only that. A tab not saved yet leaves it as it is.
+      if (const std::string guid = GetSavedTabGuid(tab); !guid.empty()) {
+        std::string value;
+        if (!node->GetMetaInfo(arcomium::kPinnedSavedTabMetaKey, &value) ||
+            value != guid) {
+          model_->SetNodeMetaInfo(node, arcomium::kPinnedSavedTabMetaKey,
+                                  guid);
+        }
+      }
+      // Also after a discard, whose new contents start without it, and for a
+      // tab opened from a saved group, which the session does not have yet.
+      const std::string uuid = node->uuid().AsLowercaseString();
+      if (uuid != current || !arcomium::IsPinnedTabUuidInSession(contents)) {
+        WritePinnedItem(tab, uuid);
+      }
+      continue;
+    }
+    if (current.empty()) {
+      continue;
+    }
+    // A tab whose item is in another Space, or outside the Spaces, is shown
+    // as an ordinary tab but keeps its item: it may be in the middle of a
+    // move, as while a restored tab joins its group.
+    const bookmarks::BookmarkNode* node = model_->GetNodeByUuid(
+        base::Uuid::ParseLowercase(current),
+        bookmarks::BookmarkModel::NodeTypeForUuidLookup::kLocalOrSyncableNodes);
+    if (node && node->is_url() && !GetBoundTab(node->id())) {
+      continue;
+    }
+    // Its item is gone, or has another tab now.
+    if (std::string value;
+        node && node->GetMetaInfo(arcomium::kPinnedSavedTabMetaKey, &value) &&
+        value == GetSavedTabGuid(tab)) {
+      model_->DeleteNodeMetaInfo(node, arcomium::kPinnedSavedTabMetaKey);
+    }
+    WritePinnedItem(tab, std::string());
+  }
+}
+
 void ArcomiumSidebarView::BindTabsByUrl(const bookmarks::BookmarkNode* folder) {
   TabStripModel* tabs = browser_->GetTabStripModel();
   for (const auto& child : folder->children()) {
@@ -1118,11 +1269,21 @@ void ArcomiumSidebarView::Rebuild() {
   rows_->RemoveAllChildViews();
   row_targets_.clear();
   row_pitch_offset_ = 0;
+  // A tab dragged to another window goes with its binding: that window's
+  // sidebar binds it again by uuid. An item moved out of its tab's Space
+  // lets the tab go.
   std::erase_if(bound_, [this](const auto& entry) {
-    return !entry.second.Get() || !GetNode(entry.first);
+    tabs::TabInterface* tab = entry.second.Get();
+    const bookmarks::BookmarkNode* node = GetNode(entry.first);
+    return !tab || !node ||
+           browser_->GetTabStripModel()->GetIndexOfTab(tab) ==
+               TabStripModel::kNoTab ||
+           GetSpaceOfNode(node) != GetSpaceOfTab(tab);
   });
+  BindTabsByUuid();
 
   BuildRows();
+  SaveBindings();
   if (focused_speaker.Get()) {
     for (const auto& [row, target] : row_targets_) {
       views::View* speaker = static_cast<Row*>(row)->speaker();
@@ -1952,6 +2113,9 @@ void ArcomiumSidebarView::MoveToSpace(const SpaceTarget& target) {
   tabs::TabInterface* bound = node->is_folder() ? nullptr : GetBoundTab(node->id());
   model_->Move(node, folder, folder->children().size());
   if (bound) {
+    // At once: a close its page cancels leaves an ordinary tab behind.
+    model_->DeleteNodeMetaInfo(node, arcomium::kPinnedSavedTabMetaKey);
+    WritePinnedItem(bound, std::string());
     bound_.erase(node->id());
     OnTabClosePressed(bound->GetHandle());
   }

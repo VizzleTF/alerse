@@ -112,8 +112,15 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
 - A pinned item opens as a tab bound to it. Bound tabs are not listed with the other
   tabs: they show on their item, and under a collapsed folder its bound tabs are listed
   as child rows. A bound tab that navigated away shows "/" before the item's name.
-  After a restart tabs are bound again by URL, so a bound tab that had navigated away
-  comes back among the other tabs.
+  As in Arc, a tab stays on its item across restarts, crash restore and Ctrl+Shift+T,
+  wherever it has navigated: the item's bookmark uuid is session tab extra data
+  `arcomium.pinned` (`pinned-tab-binding.patch` writes it in full session rewrites and
+  carries it onto restored tabs and through TabRestoreService), and for a tab of a
+  Space's saved group the bookmark's meta `arcomium.saved_tab` holds the saved tab's
+  guid, so a closed Space or one from another device reopens its tabs on their items.
+  A tab binds only to an item of its own Space; once its item is deleted, or moved to
+  another Space with the tab, it is an ordinary tab. Tabs with no stored binding (from
+  before 0.1.5) are bound by URL.
 - A tab that plays sound shows a speaker between its icon (and "/") and its title, as in
   Arc: while the tab strip's audio alert is on (it outlasts the gaps between tracks) or
   while the tab is muted. Clicking it mutes or unmutes the tab

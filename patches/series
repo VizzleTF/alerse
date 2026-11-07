@@ -61,3 +61,4 @@ look/import-from-browsers.patch
 defaults/upstream-web-version.patch
 look/update-notice.patch
 defaults/devtools-bundle-paths.patch
+spaces/pinned-tab-binding.patch

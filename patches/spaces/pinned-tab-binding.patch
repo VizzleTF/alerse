@@ -1,0 +1,77 @@
+diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
+index 50dff8a..690760b 100644
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -676,6 +676,15 @@ void SessionServiceBase::BuildCommandsForTab(
+         sessions::CreatePinnedStateCommand(session_id, true));
+   }
+ 
++  // Arcomium: the sidebar's pinned item the tab is bound to outlives a
++  // rewrite of the session file.
++  if (const std::string pinned = arcomium::GetPinnedTabUuid(tab);
++      !pinned.empty()) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddTabExtraDataCommand(
++            session_id, arcomium::kPinnedTabExtraDataKey, pinned));
++  }
++
+   // Record the association between the sessionStorage namespace and the tab.
+   content::SessionStorageNamespaceHandle* session_storage_namespace =
+       tab->GetController().GetDefaultSessionStorageNamespace();
+diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
+index d48ee3c..a4a74ae 100644
+--- a/chrome/browser/ui/browser_live_tab_context.cc
++++ b/chrome/browser/ui/browser_live_tab_context.cc
+@@ -33,6 +33,7 @@
+ #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
+ #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
++#include "chrome/browser/ui/tabs/arcomium_spaces.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -200,6 +201,13 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+ 
+   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
+                               &extra_data);
++  // Arcomium: a reopened tab binds to its pinned item again, unless the item
++  // has another tab by then.
++  if (std::string pinned = arcomium::GetPinnedTabUuid(
++          tab_strip_model_->GetWebContentsAt(index));
++      !pinned.empty()) {
++    extra_data[arcomium::kPinnedTabExtraDataKey] = pinned;
++  }
+ 
+   return extra_data;
+ }
+diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
+index 10ea8ad..589a914 100644
+--- a/chrome/browser/ui/browser_tabrestore.cc
++++ b/chrome/browser/ui/browser_tabrestore.cc
+@@ -101,6 +101,11 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+   glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+   send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
+       web_contents.get(), extra_data);
++  // Arcomium: the sidebar binds the tab to its pinned item again.
++  if (auto pinned = extra_data.find(arcomium::kPinnedTabExtraDataKey);
++      pinned != extra_data.end()) {
++    arcomium::SetPinnedTabUuid(web_contents.get(), pinned->second);
++  }
+ 
+   std::vector<std::unique_ptr<NavigationEntry>> entries =
+       ContentSerializedNavigationBuilder::ToNavigationEntries(
+diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+index 8a16279..f1765a1 100644
+--- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
++++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
+@@ -431,6 +431,10 @@ TabGroupSyncDelegateDesktop::OpenTabsAndMapToUuids(
+     tabs::TabInterface* const tab =
+         MaybeOpenTabInSpace(saved_tab, browser, space);
+     if (tab) {
++      // Arcomium: a tab bound to a pinned item before its Space closed binds
++      // to it again.
++      arcomium::RestorePinnedItemOfSavedTab(tab->GetContents(),
++                                            saved_tab.saved_tab_guid());
+       tab_guid_mapping.emplace(tab, saved_tab.saved_tab_guid());
+     }
+   }

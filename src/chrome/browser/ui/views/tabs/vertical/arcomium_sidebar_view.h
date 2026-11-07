@@ -193,8 +193,22 @@ class ArcomiumSidebarView : public views::View,
   // The open tab bound to a pinned item, if any.
   tabs::TabInterface* GetBoundTab(int64_t id) const;
   bool IsBound(const tabs::TabInterface* tab) const;
-  // Binds open tabs showing a pinned item's URL to it (after a restart).
+  // Binds tabs to the pinned items their contents name, in every Space: the
+  // binding a restored tab carried through the session.
+  void BindTabsByUuid();
+  // Binds open tabs showing a pinned item's URL to it, as for tabs from
+  // before bindings were saved.
   void BindTabsByUrl(const bookmarks::BookmarkNode* folder);
+  // Records each tab's binding on its contents and in the session.
+  void SaveBindings();
+  // The Space whose folder holds `node`, or "" outside the Spaces' folders.
+  std::string GetSpaceOfNode(const bookmarks::BookmarkNode* node) const;
+  // The Space `tab` is shown in, as GetActiveSpace() names it.
+  std::string GetSpaceOfTab(const tabs::TabInterface* tab) const;
+  // The guid of `tab` in its Space's saved tab group, or "".
+  std::string GetSavedTabGuid(const tabs::TabInterface* tab) const;
+  // Records on `tab` the uuid of the item it is bound to, "" for none.
+  void WritePinnedItem(tabs::TabInterface* tab, const std::string& uuid);
   bool HasBoundDescendant(const bookmarks::BookmarkNode* folder) const;
   // Which tabs under `folder` show their speaker, and muted or not.
   std::string SpeakerState(const bookmarks::BookmarkNode* folder) const;

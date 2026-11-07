@@ -14,8 +14,10 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
@@ -24,6 +26,7 @@
 #include "base/json/json_writer.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/stringprintf.h"
+#include "base/supports_user_data.h"
 #include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
@@ -51,6 +54,82 @@ inline constexpr char kSpacePartitionDomain[] = "arcomium";
 inline constexpr char kSpacesWindowExtraDataKey[] = "arcomium.spaces";
 // Tab extra data handed from session restore to the restored tab factory.
 inline constexpr char kSpaceTabExtraDataKey[] = "arcomium.space";
+// Tab extra data: uuid of the sidebar's pinned item (a bookmark) the tab is
+// bound to, "" once unbound. A uuid, unlike a node id, survives sync.
+inline constexpr char kPinnedTabExtraDataKey[] = "arcomium.pinned";
+// Pinned item meta: guid of its bound tab in the Space's saved tab group. A
+// closed Space keeps only its saved group, whose tabs open again without
+// session data.
+inline constexpr char kPinnedSavedTabMetaKey[] = "arcomium.saved_tab";
+
+// The pinned item uuid on a tab's contents, so a rewrite of the session file
+// keeps it and a restored tab binds to its item again.
+struct PinnedTabData : public base::SupportsUserData::Data {
+  PinnedTabData(std::string uuid, bool in_session)
+      : uuid(std::move(uuid)), in_session(in_session) {}
+  std::string uuid;
+  // Whether the session already has it: a tab from a saved group does not.
+  bool in_session;
+};
+
+inline std::string GetPinnedTabUuid(const content::WebContents* contents) {
+  const auto* data = static_cast<const PinnedTabData*>(
+      contents->GetUserData(kPinnedTabExtraDataKey));
+  return data ? data->uuid : std::string();
+}
+
+inline bool IsPinnedTabUuidInSession(const content::WebContents* contents) {
+  const auto* data = static_cast<const PinnedTabData*>(
+      contents->GetUserData(kPinnedTabExtraDataKey));
+  return !data || data->in_session;
+}
+
+inline void SetPinnedTabUuid(content::WebContents* contents,
+                             const std::string& uuid,
+                             bool in_session = true) {
+  if (uuid.empty()) {
+    contents->RemoveUserData(kPinnedTabExtraDataKey);
+  } else {
+    contents->SetUserData(kPinnedTabExtraDataKey,
+                          std::make_unique<PinnedTabData>(uuid, in_session));
+  }
+}
+
+// The uuid of the pinned item under `folder` bound to saved tab `guid`, or "".
+inline std::string FindPinnedItemOfSavedTab(
+    const bookmarks::BookmarkNode* folder,
+    const std::string& guid) {
+  for (const auto& child : folder->children()) {
+    std::string value;
+    if (child->is_folder()) {
+      if (std::string uuid = FindPinnedItemOfSavedTab(child.get(), guid);
+          !uuid.empty()) {
+        return uuid;
+      }
+    } else if (child->GetMetaInfo(kPinnedSavedTabMetaKey, &value) &&
+               value == guid) {
+      return child->uuid().AsLowercaseString();
+    }
+  }
+  return std::string();
+}
+
+// Binds a tab opened from a saved Space's tab `saved_tab_guid` to the pinned
+// item it was bound to before the Space closed. The sidebar saves it.
+inline void RestorePinnedItemOfSavedTab(content::WebContents* contents,
+                                        const base::Uuid& saved_tab_guid) {
+  const bookmarks::BookmarkModel* bookmarks =
+      BookmarkModelFactory::GetForBrowserContext(contents->GetBrowserContext());
+  if (!bookmarks || !bookmarks->loaded()) {
+    return;
+  }
+  // Spaces' folders are all in Other Bookmarks.
+  if (std::string uuid = FindPinnedItemOfSavedTab(
+          bookmarks->other_node(), saved_tab_guid.AsLowercaseString());
+      !uuid.empty()) {
+    SetPinnedTabUuid(contents, uuid, /*in_session=*/false);
+  }
+}
 
 // Arcomium's namespace for name-based ids (RFC 9562, UUIDv5).
 inline constexpr std::array<uint8_t, 16> kSpaceGuidNamespace = {
