@@ -70,8 +70,30 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
 - Divider, "+ New Tab", then the Space's other tabs.
 - The page is a card with 10 px corners next to the sidebar; the Space bar sits at the
   bottom.
-- `tools/arc_import.py` imports Arc's Spaces, pinned tabs, nested folders, folder icons
-  and cached favicons (`arcomium.icon`) into an Arcomium profile.
+- Move from Arc: `chrome://arcomium-import` (Import from Another Browser... in the logo
+  menu and the app menu, `IDC_ARCOMIUM_IMPORT`) reads Arc's `StorableSidebar.json` and
+  the `Bookmarks` files of Chromium-based browsers on the thread pool (shared reads,
+  64 MB limit; Arc's sidebar is read up to 100,000 items and 32 MB of text) and writes
+  the bookmark model on the UI thread. Each node an import adds is marked
+  `arcomium.imported` = HMAC-SHA256 (first 16 bytes, hex) of the source and the node's
+  uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy the user
+  made (another uuid) and what another device imported (synced, another key) are not
+  marked here, so importing again replaces only this profile's imported nodes and keeps
+  the rest. Arc's Spaces become folders under Other bookmarks: the first one is Home
+  (`default`), the others get a fresh Space id and a Space opened in the background (its
+  tab group with the hidden blank tab). Each folder is bound to Arc's Space by
+  `arcomium.arc_space` (Arc's id) and `arcomium.arc_space_mark` (the same HMAC), so an
+  import again reuses the same folders and Spaces whatever Arc's order; a folder whose
+  Space Arc no longer has loses its imported items and the binding. Cached favicons
+  (`SidebarItemsFaviconCache`, PNG, named after the MD5 of the item id) go to
+  `arcomium.icon`. A browser profile's bookmarks go to one folder in the current
+  Space's (or Home's) pinned folder, marked `arcomium.import = <browser>/<profile>` and
+  recorded by uuid in the local pref `arcomium.import_folders`; importing it again
+  replaces the folder's imported contents. Sources are found in the per-user known folders (Windows), Application
+  Support (macOS) or the XDG config directory (Linux); profiles whose Preferences have an
+  `arcomium` key are skipped. `tools/arc_import.py` is the offline fallback for the Arc
+  part: it writes the `Bookmarks` file of a closed profile, marking what it adds the
+  same way.
 - To do: Arc's toolbar height (32 px) for the page header.
 
 ## Sync

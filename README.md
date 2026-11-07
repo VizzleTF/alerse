@@ -5,7 +5,7 @@ for people moving from Arc: a vertical sidebar, Spaces with separate logins in o
 a command bar, and sync you can host yourself.
 
 This repository holds what all platforms share: the Chromium patches, the design notes
-and the Arc import tool. Builds come from the platform repositories below.
+and a fallback Arc import script. Builds come from the platform repositories below.
 
 ![Arcomium: the Personal Space with pinned items, nested folders and open tabs](docs/images/sidebar.png)
 
@@ -25,7 +25,9 @@ and the Arc import tool. Builds come from the platform repositories below.
   such as github.com in Work.
 - **Media**: a mini player at the bottom of the sidebar for media playing in another
   tab, and picture-in-picture when you leave a playing video.
-- **Import from Arc**: Spaces, pinned tabs, nested folders and icons.
+- **Import from Arc and other browsers**: Arc's Spaces, pinned tabs, nested folders and
+  icons, and the bookmarks of Chrome, Edge, Brave, Vivaldi, Opera, Yandex Browser and
+  Chromium, built in.
 
 ## Download
 
@@ -38,21 +40,31 @@ and the Arc import tool. Builds come from the platform repositories below.
 
 ## Move from Arc
 
-Close Arcomium and Arc, then run (Python 3, Windows):
+Open the Arcomium menu (the logo at the top of the sidebar; on macOS the app menu) and
+pick **Import from Another Browser...**, or go to `chrome://arcomium-import`. The page
+lists what it finds on this computer, with an **Import** button for each:
 
-```cmd
-python tools\arc_import.py
-```
+- **Arc** (Windows and macOS): every Space with its pinned tabs, nested folders, folder
+  icons and cached favicons. The first Space goes to Home; each of the others becomes a
+  Space in the Space bar.
+- **Chrome, Edge, Brave, Vivaldi, Opera, Yandex Browser, Chromium** (Windows, macOS,
+  Linux), each profile on its own: the bookmarks go to a folder named after the browser
+  (and the profile, when there are several), pinned in the current Space.
 
-The first Arc Space appears outside of Spaces. Each new Space you create with "+" takes
-the next imported Arc Space with its pinned items. Running the import again replaces what
-it imported before.
+Arcomium only reads the other browsers' files, so they can stay open. Importing a source
+again replaces what it brought in before. For Firefox, Safari or an HTML bookmarks file,
+the page links to the standard importer.
+
+Fallback, for a profile Arcomium is not running on: close Arcomium and run
+`python tools\arc_import.py` (Python 3, Windows). It writes the same Arc bookmarks
+straight into the profile's `Bookmarks` file; each new Space you then create with "+"
+takes the next imported Arc Space.
 
 ## Repositories
 
 | Repository | Contents |
 |---|---|
-| arcomium (this one) | Patches, design notes, Arc import |
+| arcomium (this one) | Patches, design notes, fallback Arc import script |
 | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | Windows build and releases |
 | [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) | Sync server |
 | [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | macOS build on ungoogled-chromium-macos |
