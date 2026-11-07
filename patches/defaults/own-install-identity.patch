@@ -1,0 +1,175 @@
+diff --git a/chrome/common/chrome_paths_linux.cc b/chrome/common/chrome_paths_linux.cc
+index 5575c049b22..30af287b1af 100644
+--- a/chrome/common/chrome_paths_linux.cc
++++ b/chrome/common/chrome_paths_linux.cc
+@@ -18,6 +18,10 @@
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_paths_internal.h"
+ 
++#include <fcntl.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
+ namespace chrome {
+ 
+ using base::nix::GetXDGDirectory;
+@@ -95,9 +99,39 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+ #elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
+   std::string data_dir_basename = "google-chrome";
+ #else
+-  std::string data_dir_basename = "chromium";
++  // Arcomium: its own directory, apart from Chromium's.
++  std::string data_dir_basename = "arcomium";
+ #endif
+   *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
++#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
++  // Arcomium: before it had its own identity, Arcomium kept its profile in
++  // ~/.config/chromium. The first start without ~/.config/arcomium moves that
++  // profile there if it is Arcomium's; if it cannot be moved, it is used
++  // where it is. Plain POSIX calls: this runs before blocking calls are
++  // checked.
++  struct stat info;
++  if (stat(result->value().c_str(), &info) != 0) {
++    const base::FilePath legacy =
++        config_dir.Append("chromium" + GetChannelSuffixForDataDir());
++    const std::string prefs =
++        legacy.Append("Default").Append("Preferences").value();
++    const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
++    if (fd >= 0) {
++      std::string text;
++      char buffer[64 * 1024];
++      ssize_t size;
++      while (text.size() < 16 * 1024 * 1024 &&
++             (size = read(fd, buffer, sizeof(buffer))) > 0) {
++        text.append(buffer, static_cast<size_t>(size));
++      }
++      close(fd);
++      if (text.find("\"arcomium\":") != std::string::npos &&
++          rename(legacy.value().c_str(), result->value().c_str()) != 0) {
++        *result = legacy;
++      }
++    }
++  }
++#endif
+   return true;
+ }
+ 
+diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
+index a6d969df56d..a6cff6e1d4d 100644
+--- a/chrome/install_static/chromium_install_modes.h
++++ b/chrome/install_static/chromium_install_modes.h
+@@ -21,7 +21,8 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
+ 
+ // The brand-specific product name to be included as a component of the install
+ // and user data directory paths.
+-inline constexpr wchar_t kProductPathName[] = L"Chromium";
++// Arcomium: its own directories and registry keys, apart from Chromium's.
++inline constexpr wchar_t kProductPathName[] = L"Arcomium";
+ 
+ // The brand-specific safe browsing client name.
+ inline constexpr char kSafeBrowsingName[] = "chromium";
+@@ -54,23 +55,23 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+         .logo_suffix = L"",  // No logo suffix for the primary install mode.
+         .app_guid =
+             L"",  // Empty app_guid since no integration with Google Update.
+-        .base_app_name = L"Chromium",              // A distinct base_app_name.
+-        .base_app_id = L"Chromium",                // A distinct base_app_id.
+-        .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Arcomium",              // A distinct base_app_name.
++        .base_app_id = L"Arcomium",                // A distinct base_app_id.
++        .browser_prog_id_prefix = L"ArcomiumHTM",  // Browser ProgID prefix.
+         .browser_prog_id_description =
+-            L"Chromium HTML Document",  // Browser ProgID description.
+-        .direct_launch_url_scheme = "chromium",
+-        .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
++            L"Arcomium HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "arcomium",
++        .pdf_prog_id_prefix = L"ArcomiumPDF",  // PDF ProgID prefix.
+         .pdf_prog_id_description =
+-            L"Chromium PDF Document",  // PDF ProgID description.
++            L"Arcomium PDF Document",  // PDF ProgID description.
+         .active_setup_guid =
+-            L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup
++            L"{4C1E8A57-3B9D-4F62-A0D4-7E52B19C6F38}",  // Active Setup
+                                                         // GUID.
+-        .toast_activator_clsid = {0x635EFA6F,
+-                                  0x08D6,
+-                                  0x4EC9,
+-                                  {0xBD, 0x14, 0x8A, 0x0F, 0xDE, 0x97, 0x51,
+-                                   0x59}},  // Toast Activator CLSID.
++        .toast_activator_clsid = {0x9B6E2C41,
++                                  0x5D7A,
++                                  0x4E83,
++                                  {0xB1, 0xF9, 0x2A, 0x0C, 0x6D, 0x84, 0xE5,
++                                   0x17}},  // Toast Activator CLSID.
+         .elevator_clsid = {0xD133B120,
+                            0x6DB4,
+                            0x4D6B,
+diff --git a/chrome/install_static/user_data_dir.cc b/chrome/install_static/user_data_dir.cc
+index 6b231841bf6..a07e01904a9 100644
+--- a/chrome/install_static/user_data_dir.cc
++++ b/chrome/install_static/user_data_dir.cc
+@@ -76,6 +76,55 @@ bool GetUserDataDirectoryUsingProcessCommandLine(
+ // TODO(ananta)
+ // http://crbug.com/604923
+ // Unify this with the Browser Distribution code.
++// Arcomium: whether `dir` holds an Arcomium profile: its default profile's
++// preferences have Arcomium's own member.
++bool IsArcomiumProfile(const std::wstring& dir) {
++  const std::wstring prefs = dir + L"\\Default\\Preferences";
++  HANDLE file = ::CreateFileW(prefs.c_str(), GENERIC_READ,
++                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
++                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
++  if (file == INVALID_HANDLE_VALUE) {
++    return false;
++  }
++  std::string text;
++  char buffer[64 * 1024];
++  DWORD read = 0;
++  while (text.size() < 16 * 1024 * 1024 &&
++         ::ReadFile(file, buffer, sizeof(buffer), &read, nullptr) && read) {
++    text.append(buffer, read);
++  }
++  ::CloseHandle(file);
++  return text.find("\"arcomium\":") != std::string::npos;
++}
++
++// Arcomium: before it had its own identity, Arcomium kept its profile in
++// "Chromium\User Data". The first start without "Arcomium\User Data" moves
++// that profile here if it is Arcomium's. If it cannot be moved (an older
++// Arcomium still has it open), it is used where it is: nothing is lost.
++void MaybeUseArcomiumLegacyUserDataDir(std::wstring* user_data_dir) {
++  if (::GetFileAttributesW(user_data_dir->c_str()) !=
++      INVALID_FILE_ATTRIBUTES) {
++    return;
++  }
++  const std::wstring suffix = L"\\Arcomium\\User Data";
++  if (user_data_dir->size() <= suffix.size() ||
++      user_data_dir->compare(user_data_dir->size() - suffix.size(),
++                             suffix.size(), suffix) != 0) {
++    return;
++  }
++  const std::wstring base =
++      user_data_dir->substr(0, user_data_dir->size() - suffix.size());
++  const std::wstring legacy = base + L"\\Chromium\\User Data";
++  if (!IsArcomiumProfile(legacy)) {
++    return;
++  }
++  ::CreateDirectoryW((base + L"\\Arcomium").c_str(), nullptr);
++  if (::MoveFileExW(legacy.c_str(), user_data_dir->c_str(), 0)) {
++    return;
++  }
++  *user_data_dir = legacy;
++}
++
+ bool GetDefaultUserDataDirectory(const InstallConstants& mode,
+                                  std::wstring* result) {
+   // This environment variable should be set on Windows Vista and later
+@@ -100,6 +149,7 @@ bool GetDefaultUserDataDirectory(const InstallConstants& mode,
+   AppendChromeInstallSubDirectory(mode, true /* include_suffix */, result);
+   result->push_back(L'\\');
+   result->append(L"User Data");
++  MaybeUseArcomiumLegacyUserDataDir(result);
+   return true;
+ }
+ 
