@@ -8,6 +8,30 @@ The version in `VERSION` is the next release's. Development is on the 0.1 line:
 each release raises the patch number. The minor number goes up only when the
 project decides on it.
 
+## Releases
+
+A release is titled "Arcomium X.Y.Z for <platform>" and its notes name the
+Chromium version it is built on. Every release carries its files: on Windows the
+x64 and arm64 installers and portable zips, on Linux the AppImages, their `.zsync`
+files and tar.xz, on macOS the arm64 dmg (pre-releases so far), and `SHA256SUMS` over
+all of them. The platform repositories' release workflows
+publish each architecture as soon as it is built (`publish.yml`, `gh release
+upload --clobber`) and rewrite `SHA256SUMS` from every file of the release, so one
+architecture never waits for the other. A Windows x64 build made locally may be
+uploaded first, so a release is downloadable before CI finishes; CI then replaces
+those files under the same names. Package names come from the tag, not from the
+stamped Chromium version.
+
+| Release | Platforms | Chromium | What it brought |
+|---|---|---|---|
+| 0.1.0 | macOS (pre-release) | 156.0.8078.79 | Not published on Windows or Linux (its build was cancelled) |
+| 0.1.1 | Windows, Linux | 156.0.8078.79 | First Windows release (local x64 build without PGO) and first Linux release |
+| 0.1.2 | Windows | 157.0.8103.38 | Chromium 157, Arcomium's own install identity, end-to-end-only sync, PGO |
+| 0.1.3 | Windows | 157.0.8103.38 | Built-in import from Arc and other browsers |
+| 0.1.4 | Windows | 157.0.8103.3804 | Per-release version numbers, the new-version notice, the tab speaker, DevTools fixed, older `arc_import.py` imports taken over |
+
+Linux and macOS get the changes of 0.1.2 to 0.1.4 with their first release on Chromium 157.
+
 ## The Chromium version inside the browser
 
 Each release gets its own Chromium version number: Windows' installer cannot
@@ -42,6 +66,15 @@ The numbers only grow when:
 - Every release raises `VERSION`, a release of one platform repository
   too: the release workflows accept only the tag `v` + `VERSION`, as the
   update check below needs.
+
+Up to 0.1.3 every release had Chromium's own number, so installing one over a
+running Arcomium failed (installer exit code 7) and rolled back.
+
+Stamping runs again safely: when `chrome/VERSION` already has UPSTREAM_PATCH, the
+script takes Chromium's PATCH from it instead of stamping twice. Linux copies the
+core's `VERSION` into its build container for this. The stamped version still shows
+outside the browser in one place: the `prodversion` of extension and component
+update checks.
 
 ## Telling about a newer release
 

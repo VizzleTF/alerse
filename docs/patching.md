@@ -40,11 +40,20 @@ Edit these files in the working tree, then copy them back into `arcomium\src\`. 
 file goes there too, never into a patch.
 
 Text the user sees goes in `src/chrome/app/arcomium_strings.grdp` as an `IDS_ARCOMIUM_*`
-message, read with `l10n_util::GetStringUTF16()`. Colors are `kColorArcomium*` ids, set in
+message, read with `l10n_util::GetStringUTF16()`; a `$1` in a message goes inside
+`<ph>`, or grit fails. A new message rebuilds every resource, so batch them. Colors are `kColorArcomium*` ids, set in
 `src/chrome/browser/ui/color/arcomium_color_mixer.cc` for dark, light and high-contrast
 frames; a view reads them from its color provider instead of holding an `SkColor`.
 
 ## Add a patch
+
+Each hunk carries a `// Arcomium: ...` comment that says why. Keep logic in Arcomium's
+own files and only the hook in the patch: a large hunk in a Chromium file is what
+conflicts on the next Chromium.
+
+Never export a patch from the tree after ungoogled-chromium's domain substitution: its
+rewritten names (`9oo91e`, `qjz9zk`, `m1cr050ft`, `ch40m1um`) must not appear in a patch.
+Check every new patch for them.
 
 1. Make the change in `src/`.
 2. Export it into the submodule:
@@ -83,10 +92,26 @@ Let git replay the series with three-way merges:
    python arcomium\tools\rebase_patches.py export --repo src --base NEW
    ```
 
-   `import` turns each patch into a commit on the old base, the rebase moves them
-   to the new one (resolve conflicts where it stops, then `git rebase --continue`),
-   and `export` writes every commit back to its patch file. rerere remembers the
-   resolutions for the next update.
+   `import` turns each patch into a commit on the old base (message
+   `arcomium-patch: <path>`), the rebase moves them to the new one (resolve conflicts
+   where it stops, then `git rebase --continue`), and `export` writes every commit back
+   to its patch file. rerere remembers the resolutions for the next update.
+
+The same branch works for everyday changes: amend the patch's commit on
+`arcomium-patches`, then `export --base NEW`. Check that the series still applies to the
+base, as in Add a patch, before committing the patch files.
+
+When Chromium already does what a hunk did, drop the hunk (157 turned the `kCtrlTabMru`
+feature on by default, so `defaults/feature-defaults.patch` lost that hunk; it still
+turns the pref of the same name on). When an
+API changed, adapt the hunk to it, not Chromium back to the old API.
+
+Arcomium follows ungoogled-chromium, so a new Chromium is possible only once
+ungoogled-chromium and the platform's port have released it. A port that is behind
+can build from the core's branch for its version (`chromium-156`). Today only
+arcomium-ios pins that branch; arcomium-linux and arcomium-mac pin `main` (0.1.4, the
+157 series) while their ports are still on 156, so they do not build until those ports
+release 157. Their releases so far were built from the 156 series.
 
 ## iOS patches
 
@@ -104,9 +129,21 @@ strings and moves the translations to the new message IDs. Neither belongs in a 
 
 ## Building through a junction
 
-A short junction to the tree (needed when Blink's generated paths pass MAX_PATH) gives
-esbuild two spellings of the same files, and DevTools' bundles then imported some
-modules from paths outside the output: DevTools opened blank in 0.1.3.
-`defaults/devtools-bundle-paths.patch` places imports of `front_end` modules from their
-path inside `front_end`. After a build, no resource in `resources.pak` should import a
-path containing the tree's directory name (`chromium-<version>/third_party`).
+Build from the tree's real path, kept short for MAX_PATH, not through a junction. A
+junction gives esbuild two spellings of the same files, and DevTools' bundles then
+imported some modules from paths outside the output (`devtools://devtools/src/chromium-.../`,
+HTTP 404): DevTools opened blank in 0.1.3. `defaults/devtools-bundle-paths.patch` places
+imports of `front_end` modules from their path inside `front_end`, whatever the path. After
+a build, no resource in `resources.pak` should import a path containing the tree's
+directory name (`chromium-<version>/third_party`).
+
+## Incremental Windows builds
+
+- Run ninja with `out\Default` on `PATH` (V8's build runs `gn` from there) and
+  `DEPOT_TOOLS_WIN_TOOLCHAIN=0`, so it uses the installed Visual Studio.
+- A change to `chrome/VERSION` (every release's stamp) rebuilds a large part of the
+  tree and re-runs `chrome/updater`'s IDL step, which fails in `midl.py` with an
+  `AssertionError` on the empty `.tlb` files the pruned tarball leaves under
+  `third_party/win_build_output/midl/`. Delete those empty files; CI does not hit this
+  (ungoogled-chromium-windows patches it out).
+- A changed `cxxbridge.exe` command line makes ninja rebuild the whole tree.

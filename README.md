@@ -16,7 +16,7 @@ and a fallback Arc import script. Builds come from the platform repositories bel
 - **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
   logged into different accounts side by side. Spaces survive restarts.
 
-  ![The Work Space, switched to with the dots at the bottom of the sidebar](docs/images/spaces.png)
+  ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
   [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
   encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
@@ -33,7 +33,7 @@ and a fallback Arc import script. Builds come from the platform repositories bel
 
 | Platform | Builds |
 |---|---|
-| Windows | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
+| Windows (x64, arm64) | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
 | macOS (Apple Silicon) | [arcomium-mac releases](https://github.com/VizzleTF/arcomium-mac/releases) |
 | iPhone | build from source: [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
 | Linux (x86_64, arm64) | [arcomium-linux releases](https://github.com/VizzleTF/arcomium-linux/releases) |
@@ -56,9 +56,12 @@ again replaces what it brought in before. For Firefox, Safari or an HTML bookmar
 the page links to the standard importer.
 
 Fallback, for a profile Arcomium is not running on: close Arcomium and run
-`python tools\arc_import.py` (Python 3, Windows). It writes the same Arc bookmarks
-straight into the profile's `Bookmarks` file; each new Space you then create with "+"
-takes the next imported Arc Space.
+`python tools\arc_import.py --profile "%LOCALAPPDATA%\Arcomium\User Data\Default"`
+(Python 3, Windows; without `--profile` it writes to Chromium's profile directory,
+where Arcomium kept its profile before 0.1.2). It writes the same Arc bookmarks
+straight into the profile's `Bookmarks` file, replacing what it or the import page
+imported before; each new Space you then create with "+" takes the next imported Arc
+Space.
 
 ## Repositories
 
@@ -75,13 +78,18 @@ takes the next imported Arc Space.
 
 | Area | State |
 |---|---|
-| Spaces with separate logins | done |
-| Sidebar, import from Arc, drag and drop | done |
-| Sync | done with your own server: Windows, macOS and iOS in one chain; public server to do |
-| macOS | builds and syncs; the same sidebar as on Windows |
+| Spaces with separate logins | done; recently closed tabs reopen without their Space's logins |
+| Sidebar, drag and drop, command bar | done |
+| Import from Arc and Chromium-based browsers | done; Windows only (0.1.3+) until Linux and macOS move to 157 |
+| Sync | done with your own server: Windows, Linux, macOS and iOS in one chain; only Windows 0.1.2+ holds data back until it is end-to-end encrypted, so start a chain there; public server to do |
+| Windows | releases on Chromium 157 |
+| Linux | releases on Chromium 156, built in CI |
+| macOS | on Chromium 156, built locally without PGO; no Arc for Windows top bar or logo menu, as Arc on macOS has neither |
 | iPhone | builds and syncs in the simulator; Spaces and the sidebar not on iOS |
 | Link routing to Spaces | done: routes by site at Link routing in the app menu |
 | Media mini player, auto picture-in-picture | done |
+| Updates | the browser tells about a newer release; you install it yourself |
+| Code signing | none yet: Windows SmartScreen warns, macOS needs the quarantine flag removed |
 
 ## Privacy
 
@@ -103,6 +111,9 @@ is downloaded by itself. To turn the check off, quit Arcomium and set
 Arcomium's user data folder (`%LOCALAPPDATA%\Arcomium\User Data` on Windows).
 Headless mode and `--disable-background-networking` turn it off too.
 
+Besides these, the sync server you set up and the Web Store, Arcomium makes no network
+requests of its own.
+
 ungoogled-chromium rewrites Google domains in the source after the patches apply. The
 Web Store's addresses in `extensions/web-store.patch` are written split
 (`"clients2.goo" "gle.com"`) so that this rewriting leaves them working.
@@ -111,6 +122,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 - [How Arcomium works](docs/design.md): Spaces, the sidebar, sync, platforms.
 - [Writing and refreshing patches](docs/patching.md).
+- [Versions and releases](docs/versioning.md).
 
 ## License
 
