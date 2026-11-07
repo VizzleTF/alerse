@@ -93,6 +93,16 @@ Arcomium keeps ungoogled-chromium's privacy defaults, with these exceptions:
 | Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
 | The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
 
+Arcomium has no updater. A few minutes after it starts, and then once a day, it
+asks GitHub's API for the platform's latest release: a plain GET of
+`api.github.com/repos/VizzleTF/arcomium-<platform>/releases/latest`, without
+cookies. When the release is newer, the menu of the sidebar's logo (on macOS, the
+app menu) shows "Update to Arcomium X.Y.Z", which opens the release's page; nothing
+is downloaded by itself. To turn the check off, quit Arcomium and set
+`"arcomium": {"update_check": {"enabled": false}}` in the `Local State` file of
+Arcomium's user data folder (`%LOCALAPPDATA%\Arcomium\User Data` on Windows).
+Headless mode and `--disable-background-networking` turn it off too.
+
 ungoogled-chromium rewrites Google domains in the source after the patches apply. The
 Web Store's addresses in `extensions/web-store.patch` are written split
 (`"clients2.goo" "gle.com"`) so that this rewriting leaves them working.

@@ -5,14 +5,17 @@
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_app_menu.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
-#include "build/build_config.h"
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -20,6 +23,7 @@
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "ui/base/models/image_model.h"
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
@@ -41,18 +45,6 @@ enum Command {
   kPreviousSpace,
   kMore,
 };
-
-// Where this platform's builds are released.
-#if BUILDFLAG(IS_WIN)
-constexpr char kReleasesUrl[] =
-    "https://github.com/VizzleTF/arcomium-win/releases/latest";
-#elif BUILDFLAG(IS_MAC)
-constexpr char kReleasesUrl[] =
-    "https://github.com/VizzleTF/arcomium-mac/releases/latest";
-#else
-constexpr char kReleasesUrl[] =
-    "https://github.com/VizzleTF/arcomium-linux/releases/latest";
-#endif
 
 ArcomiumSpaceSwitcher* FindSpaceSwitcher(views::View* view) {
   if (!view) {
@@ -78,8 +70,20 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
         tabs_(this),
         extensions_(this),
         developer_(this) {
-    root_.AddItem(kCheckForUpdates,
-                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_CHECK_UPDATES));
+    // A newer release, when the update check found one, takes the place of
+    // "Check for Updates", highlighted.
+    const std::string update =
+        GetAvailableUpdate(g_browser_process->local_state());
+    if (update.empty()) {
+      root_.AddItem(kCheckForUpdates,
+                    l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_CHECK_UPDATES));
+    } else {
+      root_.AddHighlightedItemWithIcon(
+          IDC_ARCOMIUM_UPDATE,
+          l10n_util::GetStringFUTF16(IDS_ARCOMIUM_MENU_UPDATE_TO,
+                                     base::UTF8ToUTF16(update)),
+          ui::ImageModel());
+    }
     root_.AddItem(IDC_ARCOMIUM_IMPORT,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_IMPORT));
     root_.AddSeparator(ui::NORMAL_SEPARATOR);
@@ -204,7 +208,7 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
     }
     switch (command_id) {
       case kCheckForUpdates:
-        browser->OpenGURL(GURL(kReleasesUrl),
+        browser->OpenGURL(GetLatestReleaseUrl(),
                           WindowOpenDisposition::NEW_FOREGROUND_TAB);
         return;
       case kNewSpace:

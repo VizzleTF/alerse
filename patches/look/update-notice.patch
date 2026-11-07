@@ -1,0 +1,216 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 74ed4d0..9a30ee4 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -297,6 +297,8 @@
+ #define IDC_ARCOMIUM_LINK_ROUTING 40390
+ // Arcomium: opens chrome://arcomium-import.
+ #define IDC_ARCOMIUM_IMPORT 40391
++// Arcomium: opens the page of the newer release the update check found.
++#define IDC_ARCOMIUM_UPDATE 40392
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index 9bb1d99..06380ae 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1094,6 +1094,7 @@ source_set("core") {
+     "//chrome/browser/actor:impl",
+     "//chrome/browser/ai",
+     "//chrome/browser/app_mode",
++    "//chrome/browser/arcomium_update",
+     "//chrome/browser/autocomplete:aim_eligibility_service",
+     "//chrome/browser/back_forward_cache",
+     "//chrome/browser/background",
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index 89c7179..7ccbdea 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -31,6 +31,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/active_use_util.h"
+ #include "chrome/browser/after_startup_task_utils.h"
++#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
+ #include "chrome/browser/browser_features.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browser_process_impl.h"
+@@ -851,6 +852,8 @@ std::unique_ptr<content::BrowserMainParts> ChromeBrowserMainParts::Create(
+ #if !BUILDFLAG(IS_ANDROID)
+   main_parts->AddParts(
+       std::make_unique<headless::ChromeBrowserMainExtraPartsHeadless>());
++  // Arcomium: tells about newer releases in the menus.
++  main_parts->AddParts(std::make_unique<arcomium::UpdateChecker>());
+ #endif
+ 
+ #if BUILDFLAG(CHROME_FOR_TESTING)
+diff --git a/chrome/browser/prefs/BUILD.gn b/chrome/browser/prefs/BUILD.gn
+index e7af46c..890adbc 100644
+--- a/chrome/browser/prefs/BUILD.gn
++++ b/chrome/browser/prefs/BUILD.gn
+@@ -67,6 +67,7 @@ source_set("impl") {
+     "//chrome/browser:intranet_redirect_detector",
+     "//chrome/browser/accessibility",
+     "//chrome/browser/accessibility/accessibility_prefs",
++    "//chrome/browser/arcomium_update",
+     "//chrome/browser/autocomplete:aim_eligibility_service",
+     "//chrome/browser/background/glic",
+     "//chrome/browser/component_updater",
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 4f3af38..12a7524 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -23,6 +23,7 @@
+ #include "chrome/browser/accessibility/invert_bubble_prefs.h"
+ #include "chrome/browser/accessibility/page_colors_controller.h"
+ #include "chrome/browser/accessibility/prefers_default_scrollbar_styles_prefs.h"
++#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
+ #include "chrome/browser/browser_process_impl.h"
+ #include "chrome/browser/chrome_content_browser_client.h"
+ #include "chrome/browser/component_updater/component_updater_prefs.h"
+@@ -1662,6 +1663,7 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+   accessibility::AccessibilityPrefsController::RegisterLocalStatePrefs(
+       registry);
+ #endif
++  arcomium::RegisterUpdateCheckPrefs(registry);
+   autofill::prefs::RegisterLocalStatePrefs(registry);
+   breadcrumbs::RegisterPrefs(registry);
+   browser_shutdown::RegisterPrefs(registry);
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+index 1e352a0..273d16e 100644
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -695,6 +695,7 @@ if (!is_android) {
+       "//chrome/browser:browser_process",
+       "//chrome/browser/actor/ui:actor_overlay",
+       "//chrome/browser/actor/ui:actor_overlay_web_view",
++      "//chrome/browser/arcomium_update",
+       "//chrome/browser/apps/app_service",
+       "//chrome/browser/bookmarks",
+       "//chrome/browser/browsing_data",
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 7653645..2d60c1d 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -26,6 +26,7 @@
+ #include "build/build_config.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
++#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
+@@ -997,6 +998,15 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_ARCOMIUM_IMPORT:
+       ShowSingletonTab(browser_, GURL("chrome://arcomium-import/"));
+       break;
++    // Arcomium: the page of the newer release the update check found.
++    case IDC_ARCOMIUM_UPDATE: {
++      const std::string update =
++          arcomium::GetAvailableUpdate(g_browser_process->local_state());
++      ShowSingletonTab(browser_, update.empty()
++                                     ? arcomium::GetLatestReleaseUrl()
++                                     : arcomium::GetReleaseUrl(update));
++      break;
++    }
+ #if !BUILDFLAG(IS_CHROMEOS)
+     case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
+       ShowSyncPassphraseDialogAndDecryptData(*browser_);
+@@ -1952,6 +1962,7 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_LINK_ROUTING, true);
+   command_updater_->UpdateCommandEnabled(
+       IDC_ARCOMIUM_IMPORT, !guest_session && !profile()->IsOffTheRecord());
++  command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_UPDATE, true);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_PASSPHRASE_DIALOG, true);
+   command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
+diff --git a/chrome/browser/ui/toolbar/BUILD.gn b/chrome/browser/ui/toolbar/BUILD.gn
+index e5b57dd..99c3c66 100644
+--- a/chrome/browser/ui/toolbar/BUILD.gn
++++ b/chrome/browser/ui/toolbar/BUILD.gn
+@@ -130,6 +130,7 @@ source_set("impl") {
+       "//chrome/browser:browser_process",
+       "//chrome/browser:defaults",
+       "//chrome/browser:global_features",
++      "//chrome/browser/arcomium_update",
+       "//chrome/browser/favicon",
+       "//chrome/browser/feedback",
+       "//chrome/browser/feedback:feedback_impl",
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 519a2a9..73c09d5 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -24,6 +24,7 @@
+ #include "build/build_config.h"
+ #include "chrome/app/chrome_command_ids.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
++#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
+ #include "chrome/browser/defaults.h"
+@@ -2012,6 +2013,24 @@ void AppMenuModel::Build() {
+   // Build (and, by extension, Init) should only be called once.
+   DCHECK_EQ(0u, GetItemCount());
+ 
++  // Arcomium: a newer release, when the update check found one. Arcomium has
++  // no updater; the item opens the release's page.
++  if (const std::string update =
++          arcomium::GetAvailableUpdate(g_browser_process->local_state());
++      !update.empty()) {
++    AddSeparator(ui::SPACING_SEPARATOR);
++    AddItemWithIcon(IDC_ARCOMIUM_UPDATE,
++                    l10n_util::GetStringFUTF16(IDS_ARCOMIUM_MENU_UPDATE_TO,
++                                               base::UTF8ToUTF16(update)),
++                    ui::ImageModel::FromVectorIcon(
++                        features::IsRoundedIconsEnabled()
++                            ? kRocketLaunchIcon
++                            : kBrowserToolsUpdateChromeRefreshOldIcon,
++                        ui::kColorMenuIconOnEmphasizedBackground,
++                        kDefaultIconSize));
++    AddSeparator(ui::SPACING_SEPARATOR);
++  }
++
+   if (app_menu_icon_controller_ &&
+       app_menu_icon_controller_->GetTypeAndSeverity().type ==
+           AppMenuIconController::IconType::kUpgradeNotification) {
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+index 8aa0403..7f4c3ec 100644
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -60,7 +60,9 @@ source_set("impl") {
+ 
+   deps = [
+     "//chrome/app:generated_resources",
++    "//chrome/browser:browser_process",
+     "//chrome/browser:primitives",
++    "//chrome/browser/arcomium_update",
+     "//components/favicon/content",
+     "//components/vector_icons",
+     "//services/media_session/public/cpp",
+diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
+index 3921435..a667f79 100644
+--- a/chrome/browser/ui/views/toolbar/app_menu.cc
++++ b/chrome/browser/ui/views/toolbar/app_menu.cc
+@@ -1576,7 +1576,9 @@ void AppMenu::PopulateMenu(MenuItemView* parent, MenuModel* model) {
+         }
+         break;
+       }
+-      case IDC_WEB_APP_UPGRADE_DIALOG: {
++      case IDC_WEB_APP_UPGRADE_DIALOG:
++      // Arcomium: the newer release the update check found.
++      case IDC_ARCOMIUM_UPDATE: {
+         add_menu_row_background(12, ui::kColorAppMenuUpgradeRowBackground);
+         break;
+       }
+diff --git a/chrome/test/BUILD.gn b/chrome/test/BUILD.gn
+index 0182091..30bb8b5 100644
+--- a/chrome/test/BUILD.gn
++++ b/chrome/test/BUILD.gn
+@@ -2744,6 +2744,7 @@ test("unit_tests") {
+     "//chrome/browser/actor:unit_tests",
+     "//chrome/browser/actor/ui:unit_tests",
+     "//chrome/browser/apps:unit_tests",
++    "//chrome/browser/arcomium_update:unit_tests",
+     "//chrome/browser/autocomplete:unit_tests",
+     "//chrome/browser/autofill:unit_tests",
+     "//chrome/browser/background/glic:unit_tests",

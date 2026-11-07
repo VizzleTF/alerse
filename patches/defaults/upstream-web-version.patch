@@ -1,0 +1,129 @@
+diff --git a/base/version_info/BUILD.gn b/base/version_info/BUILD.gn
+index 96937eddc05..3b53d92d845 100644
+--- a/base/version_info/BUILD.gn
++++ b/base/version_info/BUILD.gn
+@@ -45,4 +45,10 @@ process_version("generate_version_info") {
+     lastchange_file,
+   ]
+   output = "$target_gen_dir/version_info_values.h"
++
++  # chrome/VERSION has UPSTREAM_PATCH only when PATCH is not Chromium's own.
++  extra_args = [
++    "-e",
++    "UPSTREAM_PATCH=locals().get('UPSTREAM_PATCH', PATCH)",
++  ]
+ }
+diff --git a/base/version_info/version_info_values.h.version b/base/version_info/version_info_values.h.version
+index e7a14529a99..d6afdc93fee 100644
+--- a/base/version_info/version_info_values.h.version
++++ b/base/version_info/version_info_values.h.version
+@@ -10,6 +10,10 @@
+ #define PRODUCT_NAME "@PRODUCT_FULLNAME@"
+ #if !BUILDFLAG(IS_ANDROID)
+ #define PRODUCT_VERSION "@MAJOR@.@MINOR@.@BUILD@.@PATCH@"
++// The Chromium version the product is built on, which websites see. It
++// differs from PRODUCT_VERSION when the build numbers its own releases in
++// PATCH and keeps Chromium's in chrome/VERSION's UPSTREAM_PATCH.
++#define UPSTREAM_PRODUCT_VERSION "@MAJOR@.@MINOR@.@BUILD@.@UPSTREAM_PATCH@"
+ #endif
+ #define LAST_CHANGE "@LASTCHANGE@"
+ #define IS_OFFICIAL_BUILD @OFFICIAL_BUILD@
+diff --git a/components/embedder_support/user_agent_utils.cc b/components/embedder_support/user_agent_utils.cc
+index 091ced45e57..9a9894acb62 100644
+--- a/components/embedder_support/user_agent_utils.cc
++++ b/components/embedder_support/user_agent_utils.cc
+@@ -179,10 +179,11 @@ const blink::UserAgentBrandList GetUserAgentBrandList(
+ // GetVersionNumber()
+ const blink::UserAgentBrandList GetUserAgentBrandMajorVersionListInternal(
+     std::optional<blink::UserAgentBrandVersion> additional_brand_version) {
+-  return GetUserAgentBrandList(version_info::GetMajorVersionNumber(),
+-                               std::string(version_info::GetVersionNumber()),
+-                               blink::UserAgentBrandVersionType::kMajorVersion,
+-                               additional_brand_version);
++  return GetUserAgentBrandList(
++      version_info::GetMajorVersionNumber(),
++      std::string(version_info::GetVersionNumberForUserAgent()),
++      blink::UserAgentBrandVersionType::kMajorVersion,
++      additional_brand_version);
+ }
+ 
+ // For desktop and android:
+@@ -203,10 +204,10 @@ bool ShouldSendUserAgentUnifiedPlatform() {
+ // GetVersionNumber()
+ const blink::UserAgentBrandList GetUserAgentBrandFullVersionListInternal(
+     std::optional<blink::UserAgentBrandVersion> additional_brand_version) {
+-  return GetUserAgentBrandList(version_info::GetMajorVersionNumber(),
+-                               std::string(version_info::GetVersionNumber()),
+-                               blink::UserAgentBrandVersionType::kFullVersion,
+-                               additional_brand_version);
++  return GetUserAgentBrandList(
++      version_info::GetMajorVersionNumber(),
++      std::string(version_info::GetVersionNumberForUserAgent()),
++      blink::UserAgentBrandVersionType::kFullVersion, additional_brand_version);
+ }
+ 
+ // Generate random order list based on the input size and seed.
+@@ -665,7 +666,8 @@ blink::UserAgentMetadata GetUserAgentMetadata(bool only_low_entropy_ch) {
+   // High entropy client hints.
+   metadata.brand_full_version_list =
+       GetUserAgentBrandFullVersionListInternal(std::nullopt);
+-  metadata.full_version = std::string(version_info::GetVersionNumber());
++  metadata.full_version =
++      std::string(version_info::GetVersionNumberForUserAgent());
+   metadata.architecture = GetCpuArchitecture();
+   metadata.model = BuildModelInfo();
+   metadata.form_factors = GetFormFactorsClientHint(metadata, metadata.mobile);
+diff --git a/components/version_info/version_info_with_user_agent.cc b/components/version_info/version_info_with_user_agent.cc
+index 49bdf4acbde..add37544481 100644
+--- a/components/version_info/version_info_with_user_agent.cc
++++ b/components/version_info/version_info_with_user_agent.cc
+@@ -6,6 +6,8 @@
+ 
+ #include "base/strings/strcat.h"
+ #include "base/version_info/version_info.h"
++#include "base/version_info/version_info_values.h"
++#include "build/build_config.h"
+ 
+ namespace version_info {
+ 
+@@ -14,7 +16,15 @@ std::string GetProductNameAndVersionForReducedUserAgent() {
+ }
+ 
+ std::string GetProductNameAndVersionForUserAgent() {
+-  return base::StrCat({"Chrome/", GetVersionNumber()});
++  return base::StrCat({"Chrome/", GetVersionNumberForUserAgent()});
++}
++
++std::string_view GetVersionNumberForUserAgent() {
++#if BUILDFLAG(IS_ANDROID)
++  return GetVersionNumber();
++#else
++  return UPSTREAM_PRODUCT_VERSION;
++#endif
+ }
+ 
+ }  // namespace version_info
+diff --git a/components/version_info/version_info_with_user_agent.h b/components/version_info/version_info_with_user_agent.h
+index 4759f41ae17..5c458faf471 100644
+--- a/components/version_info/version_info_with_user_agent.h
++++ b/components/version_info/version_info_with_user_agent.h
+@@ -6,6 +6,7 @@
+ #define COMPONENTS_VERSION_INFO_VERSION_INFO_WITH_USER_AGENT_H_
+ 
+ #include <string>
++#include <string_view>
+ 
+ namespace version_info {
+ 
+@@ -17,6 +18,11 @@ std::string GetProductNameAndVersionForReducedUserAgent();
+ // in the format: Chrome/<major_version>.<minor_version>.<build>.<patch>.
+ std::string GetProductNameAndVersionForUserAgent();
+ 
++// Returns the version number websites see in the User-Agent and its client
++// hints: the version of the Chromium the product is built on, which may differ
++// from GetVersionNumber() in the patch number.
++std::string_view GetVersionNumberForUserAgent();
++
+ }  // namespace version_info
+ 
+ #endif  // COMPONENTS_VERSION_INFO_VERSION_INFO_WITH_USER_AGENT_H_

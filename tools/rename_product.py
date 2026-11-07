@@ -9,7 +9,8 @@ again changes nothing.
 
 It also sets the product name in BRANDING and gives Arcomium its own macOS
 bundle ID and profile directory, so it shares neither with Chromium nor
-ungoogled-chromium installed beside it.
+ungoogled-chromium installed beside it, and gives each Arcomium release its own
+Chromium version number (see docs/versioning.md).
 
 Usage:
   python tools/rename_product.py SRC_DIR
@@ -122,9 +123,54 @@ def set_branding(src):
         plist.write_text(text, encoding='utf-8', newline='\n')
 
 
+# The Arcomium release, MAJOR.MINOR.PATCH.
+CORE_VERSION = Path(__file__).resolve().parent.parent / 'VERSION'
+VERSION_LINE = re.compile(r'^(\w+)=(.*)$', re.M)
+
+
+def stamp_version(src):
+    """Numbers the release in chrome/VERSION's PATCH, Chromium's x 100 + ours.
+
+    Windows' installer cannot install a version over itself while the browser
+    runs, so no two releases may share a version: Arcomium 0.1.4 on Chromium
+    157.0.8103.38 is 157.0.8103.3804. Chromium's patch number is kept as
+    UPSTREAM_PATCH, which the User-Agent and its client hints report, and
+    the release itself as ARCOMIUM_VERSION, which the update check compares
+    with the latest release (chrome/browser/arcomium_update). The platform
+    repositories' release workflows check that a release's tag is VERSION and
+    its stamp above the latest release's (.github/scripts/release-version.sh).
+    """
+    chrome_version = src / 'chrome/VERSION'
+    if not chrome_version.exists():
+        return
+    release = CORE_VERSION.read_text(encoding='utf-8').strip()
+    match = re.fullmatch(r'\d+\.\d+\.(\d+)', release)
+    if not match:
+        sys.exit(f'{CORE_VERSION} is {release!r}, not MAJOR.MINOR.PATCH')
+    ours = int(match.group(1))
+    if ours >= 100:
+        sys.exit(f'Arcomium {release}: its patch number must be below 100 to fit '
+                 "in the last two digits of Chromium's")
+    values = dict(VERSION_LINE.findall(chrome_version.read_text(encoding='utf-8')))
+    upstream = int(values.get('UPSTREAM_PATCH', values['PATCH']))
+    patch = upstream * 100 + ours
+    # Windows file versions hold each number in 16 bits.
+    if patch > 0xFFFF:
+        sys.exit(f'chrome/VERSION: PATCH {patch} for Arcomium {release} on Chromium '
+                 f'patch {upstream} does not fit in 16 bits')
+    values['PATCH'] = str(patch)
+    values['UPSTREAM_PATCH'] = str(upstream)
+    values['ARCOMIUM_VERSION'] = release
+    chrome_version.write_text(''.join(f'{k}={v}\n' for k, v in values.items()),
+                              encoding='utf-8', newline='\n')
+    print(f'chrome/VERSION: Arcomium {release} is '
+          f'{values["MAJOR"]}.{values["MINOR"]}.{values["BUILD"]}.{patch}')
+
+
 def main():
     src = Path(sys.argv[1]).resolve()
     set_branding(src)
+    stamp_version(src)
     sys.path.insert(0, str(src / 'tools' / 'grit'))
     for path in GRDS:
         grd = src / path

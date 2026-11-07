@@ -36,6 +36,9 @@
     <message name="IDS_ARCOMIUM_MENU_CHECK_UPDATES" desc="Menu of the sidebar logo: open the page of the latest release.">
       Check for Updates
     </message>
+    <message name="IDS_ARCOMIUM_MENU_UPDATE_TO" desc="Top item of the sidebar logo's menu and the app menu when a newer Arcomium release is out: open that release's page to download it. $1 is its version.">
+      Update to Arcomium <ph name="VERSION">$1<ex>0.1.5</ex></ph>
+    </message>
     <message name="IDS_ARCOMIUM_MENU_IMPORT" desc="Menu of the sidebar logo and the app menu: open the page that imports bookmarks and Spaces from other browsers on this computer.">
       Import from Another Browser...
     </message>

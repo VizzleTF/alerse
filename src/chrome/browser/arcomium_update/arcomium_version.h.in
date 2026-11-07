@@ -1,0 +1,15 @@
+// Copyright 2026 The Arcomium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Generated from chrome/VERSION by
+// //chrome/browser/arcomium_update:version_header.
+
+#ifndef CHROME_BROWSER_ARCOMIUM_UPDATE_ARCOMIUM_VERSION_H_
+#define CHROME_BROWSER_ARCOMIUM_UPDATE_ARCOMIUM_VERSION_H_
+
+// The Arcomium release this build is, as MAJOR.MINOR.PATCH; empty when
+// chrome/VERSION does not say.
+#define ARCOMIUM_VERSION "@ARCOMIUM_VERSION@"
+
+#endif  // CHROME_BROWSER_ARCOMIUM_UPDATE_ARCOMIUM_VERSION_H_
