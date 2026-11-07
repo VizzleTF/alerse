@@ -68,8 +68,25 @@ frames; a view reads them from its color provider instead of holding an `SkColor
 
 ## Refresh after a Chromium update
 
-Set up the working tree on the new tag, then for each patch in series order run
-`git apply --3way`, resolve conflicts, and export it again as in "Add a patch".
+Let git replay the series with three-way merges:
+
+1. Set up the working tree on the new tag as above, without Arcomium's patches, and
+   commit it (the new base).
+2. Fetch the old base (the previous working tree's base commit) into the same
+   repository.
+3. Run:
+
+   ```cmd
+   python arcomium\tools\rebase_patches.py import --repo src --base OLD
+   git -C src config rerere.enabled true
+   git -C src rebase --onto NEW OLD arcomium-patches
+   python arcomium\tools\rebase_patches.py export --repo src --base NEW
+   ```
+
+   `import` turns each patch into a commit on the old base, the rebase moves them
+   to the new one (resolve conflicts where it stops, then `git rebase --continue`),
+   and `export` writes every commit back to its patch file. rerere remembers the
+   resolutions for the next update.
 
 ## iOS patches
 
