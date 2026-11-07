@@ -196,6 +196,8 @@ class ArcomiumSidebarView : public views::View,
   // Binds open tabs showing a pinned item's URL to it (after a restart).
   void BindTabsByUrl(const bookmarks::BookmarkNode* folder);
   bool HasBoundDescendant(const bookmarks::BookmarkNode* folder) const;
+  // Which tabs under `folder` show their speaker, and muted or not.
+  std::string SpeakerState(const bookmarks::BookmarkNode* folder) const;
 
   ui::ImageModel GetBookmarkIcon(const bookmarks::BookmarkNode* node);
   bool HasOwnIcon(const bookmarks::BookmarkNode* node);
@@ -219,6 +221,8 @@ class ArcomiumSidebarView : public views::View,
   void AddBoundTabRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBookmarkRow(const bookmarks::BookmarkNode* node, int depth);
   void AddTabRow(tabs::TabInterface* tab);
+  // The speaker of `tab` on its row, if it plays or is muted.
+  void AddSpeaker(Row* row, tabs::TabInterface* tab);
   Row* AddRow(std::unique_ptr<Row> row,
               int64_t node = 0,
               tabs::TabInterface::Handle tab = tabs::TabInterface::Handle());
@@ -234,6 +238,8 @@ class ArcomiumSidebarView : public views::View,
   void ResetFolderAnimation();
   void OnTabPressed(tabs::TabInterface::Handle handle);
   void OnTabClosePressed(tabs::TabInterface::Handle handle);
+  // Mutes or unmutes the tab.
+  void OnTabMutePressed(tabs::TabInterface::Handle handle);
   void OpenBookmark(const bookmarks::BookmarkNode* node);
   void PinTab(tabs::TabInterface* tab, const bookmarks::BookmarkNode* folder);
   void AddFolder(const bookmarks::BookmarkNode* parent);
@@ -350,6 +356,8 @@ class ArcomiumSidebarView : public views::View,
   int64_t folder_popup_id_ = 0;
   // Subfolders opened inside the popup.
   std::set<int64_t> folder_popup_open_;
+  // SpeakerState() of the popup's folder when it was filled.
+  std::string folder_popup_speakers_;
   base::OneShotTimer hover_timer_;
   // Coalesces the rebuilds a run of theme changes asks for.
   base::OneShotTimer theme_rebuild_timer_;

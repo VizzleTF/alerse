@@ -31,6 +31,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/arcomium_spaces.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "components/split_tabs/split_tab_visual_data.h"
@@ -44,6 +45,7 @@
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
+#include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/vector_icons/vector_icons.h"
@@ -52,6 +54,7 @@
 #include "content/public/browser/web_contents.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPathBuilder.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
@@ -95,6 +98,7 @@
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "ui/compositor/layer.h"
 #include "ui/gfx/geometry/transform.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view_class_properties.h"
@@ -130,6 +134,9 @@ constexpr int kLabelFontSize = 12;
 constexpr int kRowBackgroundInsetX = 8;
 constexpr int kRowBackgroundInsetY = 4;
 constexpr float kRowBackgroundRadius = 8;
+// The speaker of a tab playing sound, and the gap after it.
+constexpr int kSpeakerSize = 16;
+constexpr int kSpeakerGap = 6;
 
 // The colors (chrome/browser/ui/color/arcomium_color_mixer.cc).
 constexpr ui::ColorId kItemColor = kColorArcomiumSidebarItem;
@@ -336,10 +343,25 @@ bool IsOpen(const bookmarks::BookmarkNode* folder) {
   return folder->GetMetaInfo(kOpenMetaKey, &value) && value == "1";
 }
 
+// As in Arc, a tab shows its speaker while it plays and as long as it is
+// muted. "Plays" is the tab strip's audio alert, which outlasts the short
+// silences between tracks.
+bool ShowsSpeaker(tabs::TabInterface* tab) {
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return false;
+  }
+  if (contents->IsAudioMuted()) {
+    return true;
+  }
+  const tabs::TabAlertController* alerts = tabs::TabAlertController::From(tab);
+  return alerts && alerts->IsAlertActive(tabs::TabAlert::kAudioPlaying);
+}
+
 }  // namespace
 
-// One line of the sidebar: icon, optional "/", title and, for tabs, a close
-// button shown on hover.
+// One line of the sidebar: icon, optional "/", for a tab with sound its
+// speaker, title and, for tabs, a close button shown on hover.
 class ArcomiumSidebarView::Row : public views::Button {
   METADATA_HEADER(Row, views::Button)
 
@@ -381,6 +403,29 @@ class ArcomiumSidebarView::Row : public views::Button {
     // Hovering the close button keeps the row hovered.
     SetNotifyEnterExitOnChild(true);
   }
+
+  // The speaker of a tab that plays or is muted, crossed out while muted. It
+  // takes its own clicks, so pressing it never activates or drags the row.
+  void SetSpeaker(PressedCallback callback, bool muted) {
+    auto speaker = std::make_unique<views::ImageButton>(std::move(callback));
+    speaker_muted_ = muted;
+    speaker->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
+    speaker->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
+    speaker->SetPreferredSize(gfx::Size(kSpeakerSize, kSpeakerSize));
+    // Names what a click does.
+    const std::u16string name = l10n_util::GetStringUTF16(
+        muted ? IDS_ARCOMIUM_UNMUTE_TAB : IDS_ARCOMIUM_MUTE_TAB);
+    speaker->SetTooltipText(name);
+    speaker->GetViewAccessibility().SetName(name);
+    speaker->SetInstallFocusRingOnFocus(false);
+    // The button takes every press, so a right click on it would otherwise
+    // open no menu; it opens the row's.
+    speaker->set_context_menu_controller(context_menu_controller());
+    speaker_ = AddChildView(std::move(speaker));
+    UpdateSpeakerImage();
+  }
+
+  views::View* speaker() const { return speaker_; }
 
   void SetHoverCallback(base::RepeatingCallback<void(bool)> callback) {
     hover_callback_ = std::move(callback);
@@ -456,6 +501,11 @@ class ArcomiumSidebarView::Row : public views::Button {
       slash_->SetBounds(x, 0, w, height_);
       x += w + 5;
     }
+    if (speaker_) {
+      speaker_->SetBounds(x, center_y - kSpeakerSize / 2, kSpeakerSize,
+                          kSpeakerSize);
+      x += kSpeakerSize + kSpeakerGap;
+    }
     label_->SetBounds(x, 0, std::max(0, right - x), height_);
   }
 
@@ -470,6 +520,7 @@ class ArcomiumSidebarView::Row : public views::Button {
     if (slash_) {
       slash_->SetEnabledColor(arcomium::SidebarInk(this, kSubtleColor));
     }
+    UpdateSpeakerImage();
   }
 
   void OnMouseExited(const ui::MouseEvent& event) override {
@@ -498,6 +549,19 @@ class ArcomiumSidebarView::Row : public views::Button {
   }
 
  private:
+  // In the ink of the "/", which follows the Space's tint.
+  void UpdateSpeakerImage() {
+    if (!speaker_ || !GetWidget()) {
+      return;
+    }
+    speaker_->SetImageModel(
+        views::Button::STATE_NORMAL,
+        ui::ImageModel::FromVectorIcon(
+            speaker_muted_ ? vector_icons::kVolumeOffIcon
+                           : vector_icons::kVolumeUpIcon,
+            arcomium::SidebarInk(this, kSubtleColor), kSpeakerSize));
+  }
+
   void UpdateHover(bool hovered) {
     if (close_) {
       close_->SetVisible(hovered);
@@ -517,6 +581,8 @@ class ArcomiumSidebarView::Row : public views::Button {
   raw_ptr<views::Label> slash_ = nullptr;
   raw_ptr<views::Label> label_ = nullptr;
   raw_ptr<views::ImageButton> close_ = nullptr;
+  raw_ptr<views::ImageButton> speaker_ = nullptr;
+  bool speaker_muted_ = false;
   bool adopt_hover_ = false;
   bool polled_hover_ = false;
   base::RepeatingCallback<void(bool)> hover_callback_;
@@ -761,6 +827,21 @@ bool ArcomiumSidebarView::HasBoundDescendant(
     }
   }
   return false;
+}
+
+std::string ArcomiumSidebarView::SpeakerState(
+    const bookmarks::BookmarkNode* folder) const {
+  std::string state;
+  for (const auto& child : folder->children()) {
+    if (child->is_folder()) {
+      state += SpeakerState(child.get());
+    } else if (tabs::TabInterface* tab = GetBoundTab(child->id());
+               tab && ShowsSpeaker(tab)) {
+      state += base::NumberToString(child->id()) +
+               (tab->GetContents()->IsAudioMuted() ? "m;" : "p;");
+    }
+  }
+  return state;
 }
 
 ui::ImageModel ArcomiumSidebarView::GetBookmarkIcon(
@@ -1023,6 +1104,17 @@ void ArcomiumSidebarView::Rebuild() {
   hover_timer_.Stop();
   FinishFolderAnimation();
   folder_anim_.reset();
+  // A speaker pressed from the keyboard keeps the focus across the rebuild
+  // its own press causes, so a second press unmutes.
+  tabs::TabInterface::Handle focused_speaker;
+  if (const views::FocusManager* focus = GetFocusManager()) {
+    for (const auto& [row, target] : row_targets_) {
+      const views::View* speaker = static_cast<Row*>(row)->speaker();
+      if (speaker && speaker == focus->GetFocusedView()) {
+        focused_speaker = target.tab;
+      }
+    }
+  }
   rows_->RemoveAllChildViews();
   row_targets_.clear();
   row_pitch_offset_ = 0;
@@ -1031,6 +1123,15 @@ void ArcomiumSidebarView::Rebuild() {
   });
 
   BuildRows();
+  if (focused_speaker.Get()) {
+    for (const auto& [row, target] : row_targets_) {
+      views::View* speaker = static_cast<Row*>(row)->speaker();
+      if (speaker && target.tab == focused_speaker) {
+        speaker->RequestFocus();
+        break;
+      }
+    }
+  }
   TabStripModel* tabs = browser_->GetTabStripModel();
   // It goes once its Space has a tab again and it is not shown.
   for (int i = 0; i < tabs->count(); ++i) {
@@ -1074,6 +1175,12 @@ void ArcomiumSidebarView::Rebuild() {
     }
     if (anchor) {
       folder_popup_delegate_->SetAnchorView(anchor);
+      // Its rows with a live tab show that tab's speaker: refilled when one
+      // changed. This runs as its own task, never inside a popup row's press.
+      if (const bookmarks::BookmarkNode* folder = GetNode(folder_popup_id_);
+          folder && SpeakerState(folder) != folder_popup_speakers_) {
+        RefreshFolderPopup();
+      }
     } else {
       CloseFolderPopup();
     }
@@ -1220,6 +1327,7 @@ void ArcomiumSidebarView::AddBookmarkRow(const bookmarks::BookmarkNode* node,
                  kItemColor, slash, tab && tab->IsActivated()),
              node->id(), tab ? tab->GetHandle() : tabs::TabInterface::Handle());
   if (tab) {
+    AddSpeaker(row, tab);
     row->SetCloseCallback(
         base::BindRepeating(&ArcomiumSidebarView::OnTabClosePressed,
                             base::Unretained(this), tab->GetHandle()));
@@ -1243,8 +1351,20 @@ void ArcomiumSidebarView::AddTabRow(tabs::TabInterface* tab) {
           MakeImageIcon(GetTabIcon(tab)), TabUIHelper::From(tab)->GetTitle(), 0,
           ItemFont(false), kItemColor, /*slash=*/false, tab->IsActivated()),
       0, handle);
+  AddSpeaker(row, tab);
   row->SetCloseCallback(base::BindRepeating(
       &ArcomiumSidebarView::OnTabClosePressed, base::Unretained(this), handle));
+}
+
+void ArcomiumSidebarView::AddSpeaker(Row* row, tabs::TabInterface* tab) {
+  // Rows are rebuilt when a tab's sound starts, stops or is muted (the tab
+  // strip reports it through OnTabChangedAt), so the state is read once here.
+  if (ShowsSpeaker(tab)) {
+    row->SetSpeaker(
+        base::BindRepeating(&ArcomiumSidebarView::OnTabMutePressed,
+                            base::Unretained(this), tab->GetHandle()),
+        tab->GetContents()->IsAudioMuted());
+  }
 }
 
 void ArcomiumSidebarView::OnBookmarkPressed(int64_t id) {
@@ -1415,6 +1535,15 @@ void ArcomiumSidebarView::OnTabClosePressed(tabs::TabInterface::Handle handle) {
   }
 }
 
+void ArcomiumSidebarView::OnTabMutePressed(tabs::TabInterface::Handle handle) {
+  tabs::TabInterface* tab = handle.Get();
+  if (content::WebContents* contents = tab ? tab->GetContents() : nullptr) {
+    // As the tab strip's speaker does.
+    SetTabAudioMuted(contents, !contents->IsAudioMuted(),
+                     TabMutedReason::kAudioIndicator, std::string());
+  }
+}
+
 void ArcomiumSidebarView::OpenBookmark(const bookmarks::BookmarkNode* node) {
   if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
     OnTabPressed(tab->GetHandle());
@@ -1537,6 +1666,7 @@ void ArcomiumSidebarView::FillFolderPopup(
     const bookmarks::BookmarkNode* folder) {
   contents->RemoveAllChildViews();
   AddFolderPopupRows(contents, folder, 0);
+  folder_popup_speakers_ = SpeakerState(folder);
   int height = 0;
   for (const views::View* child : contents->children()) {
     height += child->GetPreferredSize().height();
@@ -1581,7 +1711,7 @@ void ArcomiumSidebarView::AddFolderPopupRows(
       }
       continue;
     }
-    container->AddChildView(std::make_unique<Row>(
+    Row* row = container->AddChildView(std::make_unique<Row>(
         base::BindRepeating(
             [](ArcomiumSidebarView* sidebar, int64_t id) {
               sidebar->OnBookmarkPressed(id);
@@ -1590,6 +1720,9 @@ void ArcomiumSidebarView::AddFolderPopupRows(
             base::Unretained(this), node->id()),
         MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
         ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
+    if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
+      AddSpeaker(row, tab);
+    }
   }
 }
 
@@ -1670,7 +1803,11 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
   menu_runner_.reset();
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
 
-  const auto it = row_targets_.find(source);
+  // A row's speaker opens the row's menu.
+  auto it = row_targets_.find(source);
+  if (it == row_targets_.end() && source->parent()) {
+    it = row_targets_.find(source->parent());
+  }
   if (it != row_targets_.end()) {
     menu_node_ = it->second.node;
     menu_tab_ = it->second.tab;
@@ -1699,7 +1836,8 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     if (!contents) {
       return;
     }
-    if (contents->IsCurrentlyAudible() || contents->IsAudioMuted()) {
+    // The same rule as the row's speaker.
+    if (ShowsSpeaker(tab)) {
       menu_model_->AddItem(
           kToggleMute, l10n_util::GetStringUTF16(contents->IsAudioMuted()
                                                      ? IDS_ARCOMIUM_UNMUTE_TAB
