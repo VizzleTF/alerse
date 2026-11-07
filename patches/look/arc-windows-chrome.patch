@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 8432f49468..e5e4b1943e 100644
+index 8432f494683..e5e4b1943ec 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
 @@ -10,6 +10,7 @@
@@ -50,10 +50,10 @@ index 8432f49468..e5e4b1943e 100644
      key.custom_theme->AddColorMixers(provider, key);
    }
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
-index 458189b275..ae77ed5f23 100644
+index 317d9e20594..f606c5222e5 100644
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -122,6 +122,12 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -132,6 +132,12 @@ int GetLayoutConstant(LayoutConstant constant) {
      case LayoutConstant::kToolbarButtonHeight:
        return touch_ui ? 48 : 28;
      case LayoutConstant::kToolbarButtonIconSize:
@@ -67,7 +67,7 @@ index 458189b275..ae77ed5f23 100644
                        : kDefaultIconSizeChromeRefresh;
      case LayoutConstant::kToolbarDividerCornerRadius:
 diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
-index 60c102eea6..02ce91b434 100644
+index 60c102eea67..02ce91b4347 100644
 --- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 @@ -791,8 +791,13 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
@@ -93,10 +93,10 @@ index 60c102eea6..02ce91b434 100644
           !GetBrowserView()->IsWindowControlsOverlayEnabled();
  }
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
-index dc26ceab64..0b33489baa 100644
+index e8c70df7d3c..44d99535490 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -3102,9 +3102,13 @@ bool BrowserView::IsToolbarVisible() const {
+@@ -3099,9 +3099,13 @@ bool BrowserView::IsToolbarVisible() const {
    }
  #endif
  
@@ -111,7 +111,7 @@ index dc26ceab64..0b33489baa 100644
    // It's possible to reach here before we've been notified of being added to a
    // widget, so |toolbar_| is still null.  Return false in this case so callers
 diff --git a/chrome/browser/ui/views/frame/browser_view.h b/chrome/browser/ui/views/frame/browser_view.h
-index 990b8724a3..8b8a0e2eea 100644
+index c95a5452e9e..1edf1e018f6 100644
 --- a/chrome/browser/ui/views/frame/browser_view.h
 +++ b/chrome/browser/ui/views/frame/browser_view.h
 @@ -348,8 +348,8 @@ class BrowserView : public BrowserWindow,
@@ -126,7 +126,7 @@ index 990b8724a3..8b8a0e2eea 100644
    // Arcomium: the Arc sidebar's stand-ins for the hidden toolbar's app menu
    // and downloads buttons, for bubbles to anchor to; null unless drawn.
 diff --git a/chrome/browser/ui/views/frame/contents_container_view.cc b/chrome/browser/ui/views/frame/contents_container_view.cc
-index febd158b3d..6e786336dc 100644
+index 5407bd717cc..f95a865c8db 100644
 --- a/chrome/browser/ui/views/frame/contents_container_view.cc
 +++ b/chrome/browser/ui/views/frame/contents_container_view.cc
 @@ -4,6 +4,16 @@
@@ -170,7 +170,7 @@ index febd158b3d..6e786336dc 100644
      }
  
      container_outline_->UpdateState(is_active, is_highlighted);
-@@ -446,6 +464,18 @@ void ContentsContainerView::SetRoundedCorners(
+@@ -447,6 +465,18 @@ void ContentsContainerView::SetRoundedCorners(
  
    rounded_corner_radii_ = corner_radii;
    UpdateBorderRoundedCorners();
@@ -190,7 +190,7 @@ index febd158b3d..6e786336dc 100644
  
  void ContentsContainerView::UpdateContentsClip() {
 diff --git a/chrome/browser/ui/views/frame/contents_container_view.h b/chrome/browser/ui/views/frame/contents_container_view.h
-index e3ae9d104d..0b5a307845 100644
+index e3ae9d104db..0b5a3078455 100644
 --- a/chrome/browser/ui/views/frame/contents_container_view.h
 +++ b/chrome/browser/ui/views/frame/contents_container_view.h
 @@ -140,6 +140,9 @@ class ContentsContainerView : public views::View,
@@ -204,10 +204,10 @@ index e3ae9d104d..0b5a307845 100644
    views::View* GetToastAnchorView() { return toast_anchor_view_; }
  
 diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 2465092e63..9eb04c6230 100644
+index c9b00641a5b..27ca1ead474 100644
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-@@ -67,6 +67,13 @@ namespace {
+@@ -68,6 +68,13 @@ namespace {
  // Minimum area next to caption buttons to use as a grab handle.
  constexpr int kVerticalTabsGrabHandleSize = 40;
  
@@ -221,7 +221,7 @@ index 2465092e63..9eb04c6230 100644
  // Maximum portion of the window a "size-restricted" contents-height side panel
  // can take up. This is not the only limit on side panel size.
  constexpr float kMaxContentsHeightSidePanelFraction = 2.f / 3.f;
-@@ -267,6 +274,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
+@@ -313,6 +320,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
            info.shadow_box && would_have_separator;
        break;
    }
@@ -237,7 +237,7 @@ index 2465092e63..9eb04c6230 100644
  
    return info;
  }
-@@ -633,6 +649,11 @@ BrowserViewTabbedLayoutImpl::CalculateVerticalTabStripAnimation() {
+@@ -693,6 +709,11 @@ BrowserViewTabbedLayoutImpl::CalculateVerticalTabStripAnimation() {
  }
  
  int BrowserViewTabbedLayoutImpl::GetMinimumGrabHandlePadding() const {
@@ -249,29 +249,28 @@ index 2465092e63..9eb04c6230 100644
    return kVerticalTabsGrabHandleSize -
           GetLayoutInsets(LayoutInset::TOOLBAR_INTERIOR_MARGIN).right();
  }
-@@ -916,7 +937,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
-     gfx::Rect corner_bounds;
+@@ -996,7 +1017,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     const double top_corner = layout_data_->vertical_tabs_top_corner();
      const bool top_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
--        vertical_tab_strip_animation.top_corner > 0.0;
-+        vertical_tab_strip_animation.top_corner > 0.0 &&
+-        top_corner > 0.0;
++        top_corner > 0.0 &&
 +        // Arcomium: Arc for Windows has no curve where its sidebar meets the
 +        // top bar; the page card is the only rounded shape.
 +        !kArcomiumFlatSidebarEdges;
  
      // The top corner is drawn when the tabstrip goes all the way to the top.
      if (top_corner_visible) {
-@@ -939,7 +963,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
-     gfx::Rect corner_bounds;
+@@ -1019,7 +1043,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     const double bottom_corner = layout_data_->vertical_tabs_bottom_corner();
      const bool bottom_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
--        vertical_tab_strip_animation.bottom_corner > 0.0;
-+        vertical_tab_strip_animation.bottom_corner > 0.0 &&
-+        !kArcomiumFlatSidebarEdges;
+-        bottom_corner > 0.0;
++        bottom_corner > 0.0 && !kArcomiumFlatSidebarEdges;
      if (bottom_corner_visible) {
        auto preferred =
            views().vertical_tab_strip_bottom_corner->GetPreferredSize();
-@@ -1457,6 +1482,13 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+@@ -1517,6 +1541,13 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
    } else {
      background->SetPrimaryColor(CustomCornersBackground::ToolbarTheme());
    }
@@ -285,12 +284,12 @@ index 2465092e63..9eb04c6230 100644
  
    // By default, this is just a flat background.
    CustomCornersBackground::Corners corners;
-@@ -1576,7 +1608,13 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
- 
+@@ -1661,7 +1692,13 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      // When the vertical tabs are below the toolbar but next to the bookmarks
      // bar, draw a curved corner.
--    if (animation.top_corner < 0.0) {
-+    if (animation.top_corner < 0.0
+     const double top_corner = layout_data_->vertical_tabs_top_corner();
+-    if (top_corner < 0.0) {
++    if (top_corner < 0.0
 +#if !BUILDFLAG(IS_MAC)
 +        // Arcomium: Arc for Windows' top bar is frame, not a card, so the
 +        // sidebar meets it without a curve, unless expanded over the page.
@@ -300,7 +299,7 @@ index 2465092e63..9eb04c6230 100644
        vertical_tabs_corners[CornerOrientation::kTopTrailing].type =
            views().vertical_tab_strip_region_view->is_expanded_on_hover()
                ? CustomCornersBackground::CornerType::kRounded
-@@ -1627,6 +1665,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1713,6 +1750,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      };
      // Vertical tab strip always draws trailing edge.
      vertical_tabs_outline.trailing = true;
@@ -311,8 +310,8 @@ index 2465092e63..9eb04c6230 100644
 +#endif
      // Top edge is drawn when the tabstrip is not flush with the edge of the
      // screen, or with a visual element that provides a natural border.
-     if (animation.expand_on_hover_width > 0.0 || animation.top_corner < 0.0 ||
-@@ -1636,6 +1679,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+     if (animation.expand_on_hover_width > 0.0 || top_corner < 0.0 ||
+@@ -1722,6 +1764,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      if (animation.expand_on_hover_width > 0.0) {
        vertical_tabs_outline.bottom = true;
      }
@@ -325,7 +324,7 @@ index 2465092e63..9eb04c6230 100644
  
      // Cut the vertical tab strip out of the top container.
 diff --git a/chrome/browser/ui/views/frame/multi_contents_background_view.cc b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
-index 56e57faa10..0abf1a4f42 100644
+index 56e57faa101..0abf1a4f426 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_background_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
 @@ -4,8 +4,18 @@
@@ -405,7 +404,7 @@ index 56e57faa10..0abf1a4f42 100644
      layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(*color));
    }
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 5e8ccde047..01b4f4cb16 100644
+index 5e8ccde047f..01b4f4cb16c 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
 @@ -70,7 +70,13 @@ MultiContentsView::MultiContentsView(
@@ -442,7 +441,7 @@ index 5e8ccde047..01b4f4cb16 100644
  
    gfx::Rect start_rect, resize_rect, end_rect;
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
-index 431ee6f1f1..493419b734 100644
+index 431ee6f1f18..493419b734f 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -8,6 +8,7 @@
@@ -479,7 +478,7 @@ index 431ee6f1f1..493419b734 100644
    MultiContentsView(BrowserView* browser_view,
                      std::unique_ptr<MultiContentsViewDelegate> delegate);
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 7391c8bdbc..979583ee26 100644
+index d917d5886dc..ed22ee0745b 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -4,6 +4,18 @@
@@ -501,7 +500,7 @@ index 7391c8bdbc..979583ee26 100644
  #include <algorithm>
  #include <memory>
  #include <ranges>
-@@ -777,10 +789,136 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+@@ -792,10 +804,136 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
      return;
    }
    arcomium_compact_ = compact;
@@ -638,7 +637,7 @@ index 7391c8bdbc..979583ee26 100644
  void LocationBarView::UpdateArcomiumAlignment() {
    if (omnibox_view_) {
      omnibox_view_->SetHorizontalAlignment(
-@@ -924,7 +1062,10 @@ void LocationBarView::Layout(PassKey) {
+@@ -940,7 +1078,10 @@ void LocationBarView::Layout(PassKey) {
  
    if (arcomium_compact_) {
      if (page_action_container_) {
@@ -650,7 +649,7 @@ index 7391c8bdbc..979583ee26 100644
      }
    } else if (features::IsPageActionsElevatedToolbarEnabled()) {
      if (page_action_container_ && page_action_container_->GetVisible()) {
-@@ -1062,6 +1203,15 @@ void LocationBarView::Layout(PassKey) {
+@@ -1079,6 +1220,15 @@ void LocationBarView::Layout(PassKey) {
      position_view(omnibox_additional_text_view_, omnibox_additional_text_width);
    }
  
@@ -666,7 +665,7 @@ index 7391c8bdbc..979583ee26 100644
    LayoutSuperclass<View>(this);
  }
  
-@@ -1464,7 +1614,11 @@ void LocationBarView::RefreshBackground() {
+@@ -1495,7 +1645,11 @@ void LocationBarView::RefreshBackground() {
      border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
    }
  
@@ -679,7 +678,7 @@ index 7391c8bdbc..979583ee26 100644
      SetBackground(views::CreateSolidBackground(background_color_));
    } else {
      SetBackground(CreateRoundRectBackground(
-@@ -1476,6 +1630,10 @@ void LocationBarView::RefreshBackground() {
+@@ -1507,6 +1661,10 @@ void LocationBarView::RefreshBackground() {
    // Keep the views::Textfield in sync. It needs an opaque background to
    // correctly enable subpixel AA.
    omnibox_view_->SetBackgroundColor(background_color_);
@@ -690,7 +689,7 @@ index 7391c8bdbc..979583ee26 100644
  
    // The divider between indicators and request chips should have the same color
    // as the omnibox.
-@@ -2091,6 +2249,10 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
+@@ -2200,6 +2358,10 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
  
  void LocationBarView::OnOmniboxFocused() {
    UpdateArcomiumAlignment();
@@ -701,7 +700,7 @@ index 7391c8bdbc..979583ee26 100644
    if (views::FocusRing::Get(this)) {
      views::FocusRing::Get(this)->Refresh();
    }
-@@ -2115,6 +2277,10 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+@@ -2225,6 +2387,10 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
  
  void LocationBarView::OnOmniboxBlurred() {
    UpdateArcomiumAlignment();
@@ -713,7 +712,7 @@ index 7391c8bdbc..979583ee26 100644
      views::FocusRing::Get(this)->Refresh();
    }
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index 8fba97363c..ab419c54c5 100644
+index 7ff706606df..c8535ce284a 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -329,6 +329,10 @@ class LocationBarView
@@ -727,15 +726,15 @@ index 8fba97363c..ab419c54c5 100644
  
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
-@@ -434,6 +438,7 @@ class LocationBarView
-   void OnVisibleBoundsChanged() override;
+@@ -453,6 +457,7 @@ class LocationBarView
+   void VisibilityChanged(views::View* starting_from, bool is_visible) override;
    void OnFocus() override;
    void OnPaintBorder(gfx::Canvas* canvas) override;
 +  void OnPaintBackground(gfx::Canvas* canvas) override;
    // LocationBarView directs mouse button events from
    // |omnibox_additional_text_view_| to |omnibox_view_| so that e.g., clicking
    // the former will focus the latter.
-@@ -572,6 +577,16 @@ class LocationBarView
+@@ -596,6 +601,16 @@ class LocationBarView
    raw_ptr<LocationIconView> location_icon_view_ = nullptr;
    bool arcomium_compact_ = false;
    bool arcomium_hovered_ = false;
@@ -753,10 +752,10 @@ index 8fba97363c..ab419c54c5 100644
    // Views to show inline autocompletion when an IME is active.  In this case,
    // we shouldn't change the text or selection inside the OmniboxView itself,
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 650da33459..162e19a9e1 100644
+index 9ea8c905b28..10738007cdc 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -34,6 +34,7 @@
+@@ -39,6 +39,7 @@
  #include "ui/base/ui_base_features.h"
  #include "ui/color/color_id.h"
  #include "ui/gfx/canvas.h"
@@ -764,7 +763,7 @@ index 650da33459..162e19a9e1 100644
  #include "ui/views/accessibility/view_accessibility.h"
  #include "ui/views/actions/action_view_controller.h"
  #include "ui/views/animation/ink_drop.h"
-@@ -59,15 +60,33 @@ namespace {
+@@ -64,15 +65,33 @@ namespace {
  // icons, the gap after the window controls, and the hover corner radius.
  constexpr int kArcHeaderHeight = 32;
  constexpr int kArcHeaderButtonSize = 28;
@@ -798,7 +797,7 @@ index 650da33459..162e19a9e1 100644
  // One look for every Arc header button: hover and press show as a rounded
  // square tinted with the icon color.
  void StyleArcHeaderButton(views::Button* button) {
-@@ -108,7 +127,11 @@ class ArcLogoButton : public views::Button {
+@@ -113,7 +132,11 @@ class ArcLogoButton : public views::Button {
      flags.setStyle(cc::PaintFlags::kStroke_Style);
      flags.setStrokeWidth(1.4f);
      flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
@@ -810,7 +809,7 @@ index 650da33459..162e19a9e1 100644
      canvas->DrawPath(arch.detach(), flags);
      canvas->DrawPath(swoosh.detach(), flags);
    }
-@@ -117,6 +140,34 @@ class ArcLogoButton : public views::Button {
+@@ -122,6 +145,34 @@ class ArcLogoButton : public views::Button {
  BEGIN_METADATA(ArcLogoButton)
  END_METADATA
  
@@ -845,7 +844,7 @@ index 650da33459..162e19a9e1 100644
  }  // namespace
  
  VerticalTabStripTopContainer::VerticalTabStripTopContainer(
-@@ -144,24 +195,32 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+@@ -148,24 +199,32 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
  
    arc_logo_button_ = AddChildView(std::make_unique<ArcLogoButton>(
        base::BindRepeating(&chrome::ShowAppMenu, base::Unretained(browser_))));
@@ -890,7 +889,7 @@ index 650da33459..162e19a9e1 100644
    StyleArcHeaderButton(downloads.get());
    downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
    downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
-@@ -380,8 +439,11 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -433,8 +492,11 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    } else if (arc_logo_button_) {
      // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
      combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
@@ -903,7 +902,7 @@ index 650da33459..162e19a9e1 100644
      views::View* const rows[2][3] = {
          {arc_logo_button_.get(), arc_sidebar_button_.get(),
           arc_downloads_button_.get()},
-@@ -396,13 +458,17 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -449,13 +511,17 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
            continue;
          }
          layout.child_layouts.emplace_back(
@@ -923,7 +922,7 @@ index 650da33459..162e19a9e1 100644
      for (views::View* chromium_button :
           {static_cast<views::View*>(unfocus_button_.get()),
            static_cast<views::View*>(collapse_button_.get()),
-@@ -510,6 +576,11 @@ VerticalTabStripTopContainer::GetArcHeaderGrid() const {
+@@ -588,6 +654,11 @@ VerticalTabStripTopContainer::GetArcHeaderGrid() const {
        grid.first_row_x = grid.second_row_x = std::max(0, edge.x());
        grid.first_row_center = std::max(kArcHeaderButtonSize / 2, edge.y());
      }
@@ -936,7 +935,7 @@ index 650da33459..162e19a9e1 100644
    }
    grid.first_row_x = caption_button_width_ + kArcHeaderCaptionGap;
 diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
-index acff22c8eb..312eea5909 100644
+index 647a3e14df8..39214352ae7 100644
 --- a/chrome/browser/ui/views/toolbar/app_menu.cc
 +++ b/chrome/browser/ui/views/toolbar/app_menu.cc
 @@ -1034,9 +1034,21 @@ void AppMenu::RunMenu(views::MenuButtonController* host,
@@ -965,7 +964,7 @@ index acff22c8eb..312eea5909 100644
                            /*corners=*/std::nullopt,
                            "Chrome.AppMenu.MenuHostInitToNextFramePresented");
 diff --git a/chrome/browser/ui/views/toolbar/back_forward_button.cc b/chrome/browser/ui/views/toolbar/back_forward_button.cc
-index 5fd525293c..cfef256cb6 100644
+index 95bb878cdd7..94dfeaf3b70 100644
 --- a/chrome/browser/ui/views/toolbar/back_forward_button.cc
 +++ b/chrome/browser/ui/views/toolbar/back_forward_button.cc
 @@ -46,12 +46,18 @@ BackForwardButton::BackForwardButton(Direction direction,
@@ -1006,12 +1005,12 @@ index 5fd525293c..cfef256cb6 100644
      GetViewAccessibility().SetName(
          l10n_util::GetStringUTF16(IDS_ACCNAME_FORWARD));
 diff --git a/chrome/browser/ui/views/toolbar/reload_button.cc b/chrome/browser/ui/views/toolbar/reload_button.cc
-index 5696f67551..88125a8827 100644
+index 4951c92468c..ca65caa8e3a 100644
 --- a/chrome/browser/ui/views/toolbar/reload_button.cc
 +++ b/chrome/browser/ui/views/toolbar/reload_button.cc
-@@ -65,12 +65,18 @@ ReloadButton::ReloadButton(
-                     nullptr),
-       metrics_recorder_(std::make_unique<WaapUIMetricsRecorder>(profile)),
+@@ -66,12 +66,18 @@ ReloadButton::ReloadButton(
+       metrics_recorder_(
+           profile ? std::make_unique<WaapUIMetricsRecorder>(profile) : nullptr),
        command_updater_(command_updater),
 +#if BUILDFLAG(IS_MAC)
        reload_icon_(features::IsRoundedIconsEnabled()
@@ -1029,7 +1028,7 @@ index 5696f67551..88125a8827 100644
                       ? kCloseIcon
                       : kNavigateStopChromeRefreshOldIcon),
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index bb908ae572..c8dda29cd0 100644
+index ca1824fdc02..c2a9113673c 100644
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -217,6 +217,44 @@ auto& GetViewCommandMap() {
@@ -1077,7 +1076,7 @@ index bb908ae572..c8dda29cd0 100644
  constexpr int kInsideBorderAroundGlicButtons = 2;
  constexpr int kGlicButtonMargin = 5;
  
-@@ -365,7 +403,12 @@ void ToolbarView::Init() {
+@@ -362,7 +400,12 @@ void ToolbarView::Init() {
    if (display_mode_ == DisplayMode::kNormal) {
      SetBackground(std::make_unique<CustomCornersBackground>(
          *this, *browser_view_,
@@ -1090,7 +1089,7 @@ index bb908ae572..c8dda29cd0 100644
          /*corner_color=*/CustomCornersBackground::FrameTheme()));
    } else if (display_mode_ == DisplayMode::kCustomTab) {
      custom_tab_bar_ =
-@@ -516,6 +559,13 @@ void ToolbarView::Init() {
+@@ -506,6 +549,13 @@ void ToolbarView::Init() {
  
    if (extensions_container) {
      extensions_container_ = AddChildView(std::move(extensions_container));
@@ -1104,7 +1103,7 @@ index bb908ae572..c8dda29cd0 100644
      extensions_toolbar_coordinator_ =
          std::make_unique<ExtensionsToolbarCoordinator>(extensions_container_);
    }
-@@ -623,6 +673,12 @@ void ToolbarView::Init() {
+@@ -613,6 +663,12 @@ void ToolbarView::Init() {
                                     browser_->GetProfile()->IsGuestSession();
      else if (sab_value == "never")
        show_avatar_toolbar_button = false;
@@ -1117,7 +1116,7 @@ index bb908ae572..c8dda29cd0 100644
  
      avatar_->SetVisible(show_avatar_toolbar_button);
    }
-@@ -646,6 +702,20 @@ void ToolbarView::Init() {
+@@ -636,6 +692,20 @@ void ToolbarView::Init() {
          l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP));
      app_menu_button->SetID(VIEW_ID_APP_MENU);
      app_menu_button_ = AddChildView(std::move(app_menu_button));
@@ -1138,7 +1137,7 @@ index bb908ae572..c8dda29cd0 100644
    }
  
    if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks) &&
-@@ -1435,6 +1505,12 @@ gfx::Size ToolbarView::CalculatePreferredSize(
+@@ -1431,6 +1501,12 @@ gfx::Size ToolbarView::CalculatePreferredSize(
          size.SetToMin({size.width(), max_height});
        }
    }
@@ -1151,7 +1150,7 @@ index bb908ae572..c8dda29cd0 100644
    size.set_height(size.height() * size_animation_.GetCurrentValue());
    return size;
  }
-@@ -1474,6 +1550,11 @@ gfx::Size ToolbarView::GetMinimumSize() const {
+@@ -1470,6 +1546,11 @@ gfx::Size ToolbarView::GetMinimumSize() const {
        }
    }
    size.set_height(size.height() * size_animation_.GetCurrentValue());
@@ -1163,7 +1162,7 @@ index bb908ae572..c8dda29cd0 100644
    return size;
  }
  
-@@ -1601,6 +1682,23 @@ void ToolbarView::InitLayout() {
+@@ -1597,6 +1678,23 @@ void ToolbarView::InitLayout() {
        .SetCollapseMargins(true)
        .SetDefault(views::kMarginsKey, gfx::Insets::VH(0, default_margin));
  
@@ -1187,7 +1186,7 @@ index bb908ae572..c8dda29cd0 100644
    // If the Views location bar is in use, set its properties here.
    if (location_bar_view_) {
      location_bar_view_->SetProperty(views::kFlexBehaviorKey,
-@@ -1786,6 +1884,14 @@ void ToolbarView::LayoutCommon() {
+@@ -1782,6 +1880,14 @@ void ToolbarView::LayoutCommon() {
        interior_margin.set_right(0);
      }
    }
@@ -1203,7 +1202,7 @@ index bb908ae572..c8dda29cd0 100644
  
    // Extend buttons to the window edge if we're either in a maximized or
 diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
-index d31061cafc..c50b4e2c97 100644
+index 5a3a0432691..227c57e0a55 100644
 --- a/components/vector_icons/BUILD.gn
 +++ b/components/vector_icons/BUILD.gn
 @@ -15,6 +15,13 @@ if (current_toolchain == default_toolchain) {

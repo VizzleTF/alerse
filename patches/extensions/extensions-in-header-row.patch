@@ -1,104 +1,80 @@
-diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index c8dda29cd0..70941cb98f 100644
---- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
-+++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -559,13 +559,6 @@ void ToolbarView::Init() {
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+index a36455069d3..bc17a2395ab 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
+@@ -187,6 +187,10 @@ bool ExtensionsToolbarButton::GetExtensionsMenuShowing() const {
+ }
  
-   if (extensions_container) {
-     extensions_container_ = AddChildView(std::move(extensions_container));
--#if !BUILDFLAG(IS_MAC)
--    // Arcomium: Arc for Windows' top bar shows pinned extensions only.
--    if (views::View* extensions_button =
--            extensions_container_->GetExtensionsButton()) {
--      extensions_button->SetVisible(false);
--    }
--#endif
-     extensions_toolbar_coordinator_ =
-         std::make_unique<ExtensionsToolbarCoordinator>(extensions_container_);
+ int ExtensionsToolbarButton::GetIconSize() const {
++  // Arcomium: as the sidebar header's icons.
++  if (extensions_toolbar_->arcomium_compact()) {
++    return 16;
++  }
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
+   if (touch_ui && !web_app::AppBrowserController::IsWebApp(browser_)) {
+     return kDefaultTouchableIconSize;
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
+index b554db63414..445920959f7 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
+@@ -709,8 +709,27 @@ views::LabelButton* ExtensionsToolbarDesktop::GetOverflowReferenceView() const {
+   return GetExtensionsButton();
+ }
+ 
++void ExtensionsToolbarDesktop::SetArcomiumCompact(bool compact) {
++  if (arcomium_compact_ == compact) {
++    return;
++  }
++  arcomium_compact_ = compact;
++  UpdateAllIcons();
++  if (extensions_button_) {
++    extensions_button_->UpdateIcon();
++    extensions_button_->InvalidateLayout();
++  }
++  for (views::View* child : children()) {
++    child->InvalidateLayout();
++  }
++  PreferredSizeChanged();
++}
++
+ gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
+   constexpr gfx::Size kDefaultSize(28, 28);
++  if (arcomium_compact_) {
++    return kDefaultSize;
++  }
+   BrowserView* const browser_view =
+       BrowserView::GetBrowserViewForBrowser(browser_);
+   return browser_view
+diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
+index b6de9f344dc..3cf1975bf09 100644
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
+@@ -125,6 +125,11 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
+     return toolbar_view_model_.get();
    }
-diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-index 37abc2231b..fe04531116 100644
---- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-+++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-@@ -5,12 +5,15 @@
- #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
- #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
  
-+#include "base/memory/weak_ptr.h"
-+#include "base/scoped_observation.h"
- #include "chrome/browser/command_observer.h"
- #include "ui/menus/simple_menu_model.h"
- #include "ui/views/context_menu_controller.h"
- #include "ui/views/layout/delegating_layout_manager.h"
- #include "ui/views/layout/layout_types.h"
- #include "ui/views/view.h"
-+#include "ui/views/view_observer.h"
- 
- class TabStripComboButton;
- class TabStripFlatEdgeButton;
-@@ -37,7 +40,8 @@ class VerticalTabStripTopContainer : public views::View,
-                                      public views::LayoutDelegate,
-                                      public views::ContextMenuController,
-                                      public ui::SimpleMenuModel::Delegate,
--                                     public CommandObserver {
-+                                     public CommandObserver,
-+                                     public views::ViewObserver {
-   METADATA_HEADER(VerticalTabStripTopContainer, views::View)
- 
-  public:
-@@ -55,6 +59,13 @@ class VerticalTabStripTopContainer : public views::View,
-   // this view moves the buttons within it.
-   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
-   void AddedToWidget() override;
-+  void RemovedFromWidget() override;
-+  void VisibilityChanged(views::View* starting_from, bool is_visible) override;
-+  void ChildPreferredSizeChanged(views::View* child) override;
++  // Arcomium: in the sidebar's header rows its buttons are as large as the
++  // header's own, 28 px with 16 px icons.
++  void SetArcomiumCompact(bool compact);
++  bool arcomium_compact() const { return arcomium_compact_; }
 +
-+  // views::ViewObserver: the extensions' placeholder goes with the toolbar
-+  // when the window closes; they then stay here and go with it.
-+  void OnViewIsDeleting(views::View* observed_view) override;
- 
-   // Arcomium: the Arc header's app menu and downloads buttons, which stand in
-   // for the toolbar's while it hides.
-@@ -114,6 +125,14 @@ class VerticalTabStripTopContainer : public views::View,
+   // Gets the extension menu button for the toolbar.
+   ExtensionsToolbarButton* GetExtensionsButton() const {
+     return extensions_button_;
+@@ -250,6 +255,8 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
   private:
-   void OnCollapseButtonContextMenuClosed();
+   friend class ToolbarActionHoverCardBubbleViewUITest;
  
-+  // Arcomium: while no toolbar is beside the sidebar (macOS), the toolbar's
-+  // extensions, pinned ones and the extensions button, end the navigation
-+  // row, as in Arc; they go back with the toolbar. Posted: visibility changes
-+  // arrive mid-layout.
-+  void ScheduleUpdateExtensions();
-+  void UpdateExtensions();
-+  void ReturnExtensions();
++  bool arcomium_compact_ = false;
 +
-   // Calculates the width of the visible buttons and returns the sum along with
-   // the padding between them.
-   int GetPreferredWidth() const;
-@@ -137,6 +156,10 @@ class VerticalTabStripTopContainer : public views::View,
-   raw_ptr<views::View> arc_back_button_ = nullptr;
-   raw_ptr<views::View> arc_forward_button_ = nullptr;
-   raw_ptr<views::View> arc_reload_button_ = nullptr;
-+  raw_ptr<views::View> arc_extensions_ = nullptr;
-+  raw_ptr<views::View> arc_extensions_placeholder_ = nullptr;
-+  base::ScopedObservation<views::View, views::ViewObserver>
-+      arc_extensions_placeholder_observation_{this};
+   // A struct representing the position and action being dragged.
+   struct DropInfo;
  
-   std::unique_ptr<views::ActionViewController> action_view_controller_;
- 
-@@ -160,6 +183,7 @@ class VerticalTabStripTopContainer : public views::View,
-   // This is updated during layout calculation and then applied during layout.
-   mutable views::LayoutOrientation combo_button_orientation_ =
-       views::LayoutOrientation::kHorizontal;
-+  base::WeakPtrFactory<VerticalTabStripTopContainer> arc_weak_factory_{this};
- };
- 
- #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 162e19a9e1..44a74d4187 100644
+index 10738007cdc..ddc5bc9eec3 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -19,7 +19,11 @@
+@@ -21,7 +21,11 @@
  #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
  #include "base/numerics/safe_conversions.h"
  #include "chrome/browser/ui/views/frame/browser_frame_view.h"
@@ -108,9 +84,9 @@ index 162e19a9e1..44a74d4187 100644
  #include "chrome/browser/ui/views/frame/browser_view.h"
 +#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
- #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_host.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
-@@ -36,6 +40,7 @@
+@@ -41,6 +45,7 @@
  #include "ui/gfx/canvas.h"
  #include "ui/gfx/color_utils.h"
  #include "ui/views/accessibility/view_accessibility.h"
@@ -118,7 +94,7 @@ index 162e19a9e1..44a74d4187 100644
  #include "ui/views/actions/action_view_controller.h"
  #include "ui/views/animation/ink_drop.h"
  #include "ui/views/controls/button/image_button.h"
-@@ -273,6 +278,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+@@ -310,6 +315,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
  }
  
  VerticalTabStripTopContainer::~VerticalTabStripTopContainer() {
@@ -126,7 +102,7 @@ index 162e19a9e1..44a74d4187 100644
    for (int command : {IDC_BACK, IDC_FORWARD, IDC_RELOAD}) {
      chrome::RemoveCommandObserver(browser_, command, this);
    }
-@@ -300,6 +306,7 @@ void VerticalTabStripTopContainer::OnBoundsChanged(
+@@ -337,6 +343,7 @@ void VerticalTabStripTopContainer::OnBoundsChanged(
  
  void VerticalTabStripTopContainer::AddedToWidget() {
    InvalidateLayout();
@@ -134,7 +110,7 @@ index 162e19a9e1..44a74d4187 100644
  }
  
  views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-@@ -452,6 +459,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -505,6 +512,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      const int row_x[2] = {grid.first_row_x, grid.second_row_x};
      const int row_center[2] = {grid.first_row_center,
                                 grid.first_row_center + kArcHeaderPitch};
@@ -153,7 +129,7 @@ index 162e19a9e1..44a74d4187 100644
      for (size_t row = 0; row < 2; ++row) {
        for (size_t i = 0; i < 3; ++i) {
          if (!rows[row][i]) {
-@@ -668,7 +687,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -755,7 +774,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
    for (views::View* arc_button :
         {arc_logo_button_.get(), arc_sidebar_button_.get(),
          arc_downloads_button_.get(), arc_back_button_.get(),
@@ -163,7 +139,7 @@ index 162e19a9e1..44a74d4187 100644
      if (arc_button && IsHitInView(arc_button, point)) {
        return false;
      }
-@@ -754,6 +774,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
+@@ -840,6 +860,7 @@ void VerticalTabStripTopContainer::SetToolbarHeightForLayout(
      return;
    }
    toolbar_height_ = toolbar_height;
@@ -171,11 +147,10 @@ index 162e19a9e1..44a74d4187 100644
    InvalidateLayout(/*avoid_propagate_during_layout=*/true);
  }
  
-@@ -834,5 +855,81 @@ int VerticalTabStripTopContainer::GetBaselineMinHeight() const {
-   return std::max(toolbar_height_, min_height);
+@@ -961,5 +982,80 @@ void VerticalTabStripTopContainer::UpdateControlsVisibility() {
+   }
  }
  
-+
 +void VerticalTabStripTopContainer::RemovedFromWidget() {
 +  ReturnExtensions();
 +}
@@ -253,75 +228,116 @@ index 162e19a9e1..44a74d4187 100644
 +
  BEGIN_METADATA(VerticalTabStripTopContainer)
  END_METADATA
-diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
-index b6de9f344d..3cf1975bf0 100644
---- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
-+++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h
-@@ -125,6 +125,11 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
-     return toolbar_view_model_.get();
-   }
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+index 0f80e8ca76d..fd6d8346a17 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+@@ -6,6 +6,8 @@
+ #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
  
-+  // Arcomium: in the sidebar's header rows its buttons are as large as the
-+  // header's own, 28 px with 16 px icons.
-+  void SetArcomiumCompact(bool compact);
-+  bool arcomium_compact() const { return arcomium_compact_; }
+ #include "base/callback_list.h"
++#include "base/memory/weak_ptr.h"
++#include "base/scoped_observation.h"
+ #include "chrome/browser/command_observer.h"
+ #include "components/prefs/pref_change_registrar.h"
+ #include "ui/menus/simple_menu_model.h"
+@@ -13,6 +15,7 @@
+ #include "ui/views/layout/delegating_layout_manager.h"
+ #include "ui/views/layout/layout_types.h"
+ #include "ui/views/view.h"
++#include "ui/views/view_observer.h"
+ 
+ class TabStripComboButton;
+ class TabStripFlatEdgeButton;
+@@ -40,7 +43,8 @@ class VerticalTabStripTopContainer : public views::View,
+                                      public views::LayoutDelegate,
+                                      public views::ContextMenuController,
+                                      public ui::SimpleMenuModel::Delegate,
+-                                     public CommandObserver {
++                                     public CommandObserver,
++                                     public views::ViewObserver {
+   METADATA_HEADER(VerticalTabStripTopContainer, views::View)
+ 
+  public:
+@@ -58,6 +62,13 @@ class VerticalTabStripTopContainer : public views::View,
+   // this view moves the buttons within it.
+   void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
+   void AddedToWidget() override;
++  void RemovedFromWidget() override;
++  void VisibilityChanged(views::View* starting_from, bool is_visible) override;
++  void ChildPreferredSizeChanged(views::View* child) override;
 +
-   // Gets the extension menu button for the toolbar.
-   ExtensionsToolbarButton* GetExtensionsButton() const {
-     return extensions_button_;
-@@ -250,6 +255,8 @@ class ExtensionsToolbarDesktop : public ToolbarIconContainerView,
++  // views::ViewObserver: the extensions' placeholder goes with the toolbar
++  // when the window closes; they then stay here and go with it.
++  void OnViewIsDeleting(views::View* observed_view) override;
+ 
+   // Arcomium: the Arc header's app menu and downloads buttons, which stand in
+   // for the toolbar's while it hides.
+@@ -119,6 +130,14 @@ class VerticalTabStripTopContainer : public views::View,
   private:
-   friend class ToolbarActionHoverCardBubbleViewUITest;
+   void OnCollapseButtonContextMenuClosed();
  
-+  bool arcomium_compact_ = false;
++  // Arcomium: while no toolbar is beside the sidebar (macOS), the toolbar's
++  // extensions, pinned ones and the extensions button, end the navigation
++  // row, as in Arc; they go back with the toolbar. Posted: visibility changes
++  // arrive mid-layout.
++  void ScheduleUpdateExtensions();
++  void UpdateExtensions();
++  void ReturnExtensions();
 +
-   // A struct representing the position and action being dragged.
-   struct DropInfo;
+   // Calculates the width of the visible buttons and returns the sum along with
+   // the padding between them.
+   int GetPreferredWidth() const;
+@@ -143,6 +162,10 @@ class VerticalTabStripTopContainer : public views::View,
+   raw_ptr<views::View> arc_back_button_ = nullptr;
+   raw_ptr<views::View> arc_forward_button_ = nullptr;
+   raw_ptr<views::View> arc_reload_button_ = nullptr;
++  raw_ptr<views::View> arc_extensions_ = nullptr;
++  raw_ptr<views::View> arc_extensions_placeholder_ = nullptr;
++  base::ScopedObservation<views::View, views::ViewObserver>
++      arc_extensions_placeholder_observation_{this};
  
-diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
-index 6afaf6b68e..53ade5e0f1 100644
---- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
-+++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
-@@ -707,8 +707,27 @@ views::LabelButton* ExtensionsToolbarDesktop::GetOverflowReferenceView() const {
-   return GetExtensionsButton();
- }
+   PrefChangeRegistrar pref_registrar_;
+   base::CallbackListSubscription collapse_subscription_;
+@@ -171,6 +194,7 @@ class VerticalTabStripTopContainer : public views::View,
+   // This is updated during layout calculation and then applied during layout.
+   mutable views::LayoutOrientation combo_button_orientation_ =
+       views::LayoutOrientation::kHorizontal;
++  base::WeakPtrFactory<VerticalTabStripTopContainer> arc_weak_factory_{this};
+ };
  
-+void ExtensionsToolbarDesktop::SetArcomiumCompact(bool compact) {
-+  if (arcomium_compact_ == compact) {
-+    return;
-+  }
-+  arcomium_compact_ = compact;
-+  UpdateAllIcons();
-+  if (extensions_button_) {
-+    extensions_button_->UpdateIcon();
-+    extensions_button_->InvalidateLayout();
-+  }
-+  for (views::View* child : children()) {
-+    child->InvalidateLayout();
-+  }
-+  PreferredSizeChanged();
-+}
-+
- gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
-   constexpr gfx::Size kDefaultSize(28, 28);
-+  if (arcomium_compact_) {
-+    return kDefaultSize;
-+  }
-   BrowserView* const browser_view =
-       BrowserView::GetBrowserViewForBrowser(browser_);
-   return browser_view
-diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
-index a36455069d..bc17a2395a 100644
---- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
-+++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
-@@ -187,6 +187,10 @@ bool ExtensionsToolbarButton::GetExtensionsMenuShowing() const {
- }
+ #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index c2a9113673c..104716b65b1 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -549,13 +549,6 @@ void ToolbarView::Init() {
  
- int ExtensionsToolbarButton::GetIconSize() const {
-+  // Arcomium: as the sidebar header's icons.
-+  if (extensions_toolbar_->arcomium_compact()) {
-+    return 16;
+   if (extensions_container) {
+     extensions_container_ = AddChildView(std::move(extensions_container));
+-#if !BUILDFLAG(IS_MAC)
+-    // Arcomium: Arc for Windows' top bar shows pinned extensions only.
+-    if (views::View* extensions_button =
+-            extensions_container_->GetExtensionsButton()) {
+-      extensions_button->SetVisible(false);
+-    }
+-#endif
+     extensions_toolbar_coordinator_ =
+         std::make_unique<ExtensionsToolbarCoordinator>(extensions_container_);
+   }
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
+index e10dc91a671..0e951a95b03 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -180,6 +180,11 @@ class ToolbarView : public views::AccessiblePaneView,
+   ExtensionsToolbarDesktop* extensions_container_for_testing() const {
+     return extensions_container_;
+   }
++  // Arcomium: the Arc header row borrows the extensions while the toolbar
++  // hides (157 renamed Chromium's accessor to the _for_testing one above).
++  ExtensionsToolbarDesktop* extensions_container() const {
++    return extensions_container_;
 +  }
-   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
-   if (touch_ui && !web_app::AppBrowserController::IsWebApp(browser_)) {
-     return kDefaultTouchableIconSize;
+   ToolbarButton* contextual_tasks_button() const {
+     return contextual_tasks_button_;
+   }

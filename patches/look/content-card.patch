@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
-index a756f076ff..a2d28ee3ae 100644
+index a756f076ffc..a2d28ee3ae7 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
 @@ -68,8 +68,9 @@ MultiContentsView::MultiContentsView(
@@ -60,7 +60,7 @@ index a756f076ff..a2d28ee3ae 100644
          is_in_split, is_active, is_active && active_contents_view_highlighted_);
    }
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
-index e39f000c2a..13dd500826 100644
+index e39f000c2a9..13dd5008268 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -65,7 +65,8 @@ class MultiContentsView

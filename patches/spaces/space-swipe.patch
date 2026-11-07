@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
-index 087dd2230f..59a76a1e91 100644
+index 087dd2230f0..59a76a1e91f 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.cc
 @@ -12,7 +12,15 @@
@@ -140,7 +140,7 @@ index 087dd2230f..59a76a1e91 100644
    region_view_->tab_strip_model()->RotateFocusedGroup(forward);
  }
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
-index 4a91fb53f8..e227d4ec0e 100644
+index 4a91fb53f8f..e227d4ec0e8 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h
 @@ -6,6 +6,7 @@

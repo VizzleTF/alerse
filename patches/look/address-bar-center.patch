@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 857c74456e..7391c8bdbc 100644
+index 0f8b4e2686b..d917d5886dc 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -777,9 +777,18 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+@@ -792,9 +792,18 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
      return;
    }
    arcomium_compact_ = compact;
@@ -21,7 +21,7 @@ index 857c74456e..7391c8bdbc 100644
  void LocationBarView::SetArcomiumHovered(bool hovered) {
    if (arcomium_hovered_ == hovered) {
      return;
-@@ -2081,6 +2090,7 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
+@@ -2190,6 +2199,7 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
  }
  
  void LocationBarView::OnOmniboxFocused() {
@@ -29,7 +29,7 @@ index 857c74456e..7391c8bdbc 100644
    if (views::FocusRing::Get(this)) {
      views::FocusRing::Get(this)->Refresh();
    }
-@@ -2104,6 +2114,7 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+@@ -2214,6 +2224,7 @@ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
  }
  
  void LocationBarView::OnOmniboxBlurred() {
@@ -38,7 +38,7 @@ index 857c74456e..7391c8bdbc 100644
      views::FocusRing::Get(this)->Refresh();
    }
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index 889d453a11..8fba97363c 100644
+index c3868a045d7..7ff706606df 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -327,6 +327,8 @@ class LocationBarView

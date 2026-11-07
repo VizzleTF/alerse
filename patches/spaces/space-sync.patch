@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
-index 2700309804..b9318b7504 100644
+index 3a6b19a0032..32a6abff203 100644
 --- a/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
 +++ b/chrome/browser/ui/tabs/saved_tab_groups/local_tab_group_listener.cc
 @@ -31,6 +31,7 @@
@@ -10,20 +10,20 @@ index 2700309804..b9318b7504 100644
  
  namespace tab_groups {
  
-@@ -365,8 +366,10 @@ void LocalTabGroupListener::OpenWebContentsFromSync(
+@@ -364,8 +365,10 @@ void LocalTabGroupListener::OpenWebContentsFromSync(
+     BrowserWindowInterface* browser,
      int index_in_tabstrip) {
    GURL url_to_open = tab.url();
-   // Open the NTP if the URL is not valid for local tabs.
 +  // Arcomium: every tab group is a Space, whose tabs live in the Space's
 +  // storage partition; the New Tab page cannot, about:blank can.
    if (!IsURLValidForLocalTab(url_to_open)) {
--    url_to_open = GURL(chrome::kChromeUINewTabURL);
+-    url_to_open = chrome::ChromeUINewTabURLAsGURL();
 +    url_to_open = GURL(url::kAboutBlankURL);
    }
  
    content::NavigationHandle* navigation_handle =
 diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-index 629d76ab24..cb0d4796ed 100644
+index 629d76ab242..cb0d4796ed4 100644
 --- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 +++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 @@ -6,12 +6,15 @@

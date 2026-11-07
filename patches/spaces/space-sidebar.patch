@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-index b46ad7ecdf..cf2f353792 100644
+index 62ea6d7c9b3..07baf214e6c 100644
 --- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 @@ -7,7 +7,8 @@
@@ -9,22 +9,22 @@ index b46ad7ecdf..cf2f353792 100644
 -inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
 +// Arcomium: Arc's sidebar width.
 +inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 198;
- 
- // Per-window state for the vertical tab strip.
- struct VerticalTabStripState {
+ // TODO(crbug.com/465833741): Replace constant with derived value based on
+ // caption buttons.
+ inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
 diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index fdfdd93f07..a3b46b4e66 100644
+index f3ab4f166bc..34fbf4e7266 100644
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -52,6 +52,7 @@
+ #include "chrome/browser/ui/views/tabs/common/tab_view.h"
  #include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
- #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_utils.h"
  #include "chrome/browser/ui/views/tabs/shared/drop_arrow.h"
 +#include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
  #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
-@@ -153,6 +154,8 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+@@ -171,6 +172,8 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
    top_button_separator->SetColorId(kColorTabDividerFrameActive);
    top_button_separator->SetInactiveColorId(kColorTabDividerFrameInactive);
    top_button_separator_ = top_button_separator;
@@ -33,7 +33,7 @@ index fdfdd93f07..a3b46b4e66 100644
  
    bottom_button_container_ = content_area_view_->AddChildView(
        std::make_unique<VerticalTabStripBottomContainer>(
-@@ -839,6 +842,11 @@ void VerticalTabStripRegionView::ClickEventHandler::OnMouseEvent(
+@@ -850,6 +853,11 @@ void VerticalTabStripRegionView::RegionViewFocusListener::OnDidChangeFocus(
  
  void VerticalTabStripRegionView::AddTabStripView(
      std::unique_ptr<views::View> view) {
@@ -46,10 +46,10 @@ index fdfdd93f07..a3b46b4e66 100644
        views::kFlexBehaviorKey,
        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToMinimum,
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
-index ca13348753..a6a1bd9fcf 100644
+index a6ac0cc24ef..d16ac4b9c1e 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
-@@ -463,6 +463,15 @@ PinnedTabContainerView* TabStripView::GetPinnedTabsContainer() const {
+@@ -449,6 +449,15 @@ PinnedTabContainerView* TabStripView::GetPinnedTabsContainer() const {
    return pinned_tabs_container_view_;
  }
  
@@ -66,10 +66,10 @@ index ca13348753..a6a1bd9fcf 100644
    return unpinned_tabs_container_view_;
  }
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.h b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
-index 69194f20b3..c42fc89b81 100644
+index 145dbff4073..b9f0e94453d 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
-@@ -60,6 +60,13 @@ class TabStripView final : public views::View,
+@@ -61,6 +61,13 @@ class TabStripView final : public views::View,
    void SetCollapsedState(bool is_collapsed);
    void SetIsAnimatingSize(bool is_animating);
  
@@ -83,7 +83,7 @@ index 69194f20b3..c42fc89b81 100644
    bool IsPositionInWindowCaption(const gfx::Point& point);
  
    // views::View:
-@@ -148,6 +155,7 @@ class TabStripView final : public views::View,
+@@ -151,6 +158,7 @@ class TabStripView final : public views::View,
    raw_ptr<UnpinnedTabContainerView> unpinned_tabs_container_view_ = nullptr;
    raw_ptr<TabScrollButtonContainer> tab_scroll_button_container_ = nullptr;
    bool is_collapsed_ = false;
@@ -92,10 +92,10 @@ index 69194f20b3..c42fc89b81 100644
    // Used for seek time metrics from the time the mouse enters the tabstrip.
    std::optional<base::TimeTicks> mouse_entered_tabstrip_time_;
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-index 57255b2e3d..a05c9e0e9e 100644
+index d588f4350df..98977da436f 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-@@ -233,6 +233,31 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -237,6 +237,31 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
      return layouts;
    }
  
@@ -128,7 +128,7 @@ index 57255b2e3d..a05c9e0e9e 100644
        GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
  
 diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-index cb471907a5..098e4a5204 100644
+index c924c0c4418..be7df7af074 100644
 --- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 @@ -7,6 +7,8 @@ import("//chrome/common/features.gni")
@@ -140,7 +140,7 @@ index cb471907a5..098e4a5204 100644
      "top_container_button.h",
      "vertical_tab_strip_bottom_container.h",
      "vertical_tab_strip_expand_on_hover_lock.h",
-@@ -36,6 +38,8 @@ source_set("vertical") {
+@@ -37,6 +39,8 @@ source_set("vertical") {
  
  source_set("impl") {
    sources = [
@@ -149,7 +149,7 @@ index cb471907a5..098e4a5204 100644
      "top_container_button.cc",
      "vertical_tab_strip_bottom_container.cc",
      "vertical_tab_strip_expand_on_hover_lock.cc",
-@@ -78,6 +82,13 @@ source_set("impl") {
+@@ -82,6 +86,13 @@ source_set("impl") {
      "//components/performance_manager",
      "//components/tab_groups",
      "//components/tabs:impl",
@@ -164,18 +164,18 @@ index cb471907a5..098e4a5204 100644
      "//skia",
      "//third_party/abseil-cpp:absl",
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-index bc3b0459ed..8c42106133 100644
+index 64150f80cfe..d8dbe5b2d68 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-@@ -12,6 +12,7 @@
- #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+@@ -11,6 +11,7 @@
+ #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/tabs/shared/new_tab_button.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
 +#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
  #include "ui/actions/actions.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/views/view_class_properties.h"
-@@ -25,6 +26,10 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+@@ -24,6 +25,10 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
    SetProperty(views::kElementIdentifierKey,
                kVerticalTabStripBottomContainerElementId);
  
@@ -186,7 +186,7 @@ index bc3b0459ed..8c42106133 100644
    auto new_tab_button = std::make_unique<shared::NewTabButton>(
        browser_,
        GetLayoutConstant(LayoutConstant::kVerticalTabStripNewTabButtonSize),
-@@ -92,8 +97,14 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
+@@ -91,8 +96,14 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
  
    // Setting button's layout based on collapsed state
    SetOrientation(orientation);
@@ -203,7 +203,7 @@ index bc3b0459ed..8c42106133 100644
    new_tab_button_->SetProperty(
        views::kFlexBehaviorKey,
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
-index b3583ec76a..8627b112d8 100644
+index b3583ec76aa..8627b112d88 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
 @@ -11,6 +11,7 @@
@@ -223,26 +223,27 @@ index b3583ec76a..8627b112d8 100644
    base::CallbackListSubscription collapsed_state_change_subscription_;
    base::CallbackListSubscription new_tab_button_pressed_subscription_;
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index d69e4dd30f..ce6ecacd24 100644
+index fc3337bf30a..5261e556464 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -4,9 +4,12 @@
+@@ -4,10 +4,13 @@
  
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
  
 +#include "cc/paint/paint_flags.h"
 +#include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/ui/actions/chrome_action_id.h"
  #include "chrome/browser/ui/browser_commands.h"
  #include "chrome/browser/ui/browser_element_identifiers.h"
 +#include "chrome/browser/ui/chrome_pages.h"
  #include "chrome/browser/ui/layout_constants.h"
- #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
-@@ -20,10 +23,17 @@
- #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
+@@ -25,10 +28,17 @@
  #include "chrome/grit/generated_resources.h"
  #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/prefs/pref_service.h"
 +#include "third_party/skia/include/core/SkPathBuilder.h"
  #include "ui/base/l10n/l10n_util.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
@@ -257,7 +258,7 @@ index d69e4dd30f..ce6ecacd24 100644
  #include "ui/views/controls/menu/menu_runner.h"
  #include "ui/views/layout/delegating_layout_manager.h"
  #include "ui/views/layout/layout_types.h"
-@@ -34,6 +44,56 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+@@ -39,6 +49,56 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
      VerticalTabStripTopContainer,
      kToggleVerticalTabsExpandOnHoverElementId);
  
@@ -314,8 +315,8 @@ index d69e4dd30f..ce6ecacd24 100644
  VerticalTabStripTopContainer::VerticalTabStripTopContainer(
      tabs::VerticalTabStripStateController* state_controller,
      actions::ActionItem* root_action_item,
-@@ -57,6 +117,29 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
-                                  kUnfocusTabGroupButtonElementId);
+@@ -61,6 +121,29 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+     unfocus_button_->SetVisible(false);
    }
  
 +  arc_logo_button_ = AddChildView(std::make_unique<ArcLogoButton>(
@@ -344,8 +345,8 @@ index d69e4dd30f..ce6ecacd24 100644
    combo_button_ = AddChildView(std::make_unique<TabStripComboButton>(
        browser_, TabStripComboButton::Context::kVerticalTabStrip));
    combo_button_->SetOrientation(
-@@ -99,6 +182,14 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-       is_collapsed) {
+@@ -152,6 +235,14 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+        is_collapsed_with_combo)) {
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
      int current_y = 0;
 +    // Arcomium: the Arc header row only exists while expanded.
@@ -359,7 +360,7 @@ index d69e4dd30f..ce6ecacd24 100644
  
      // Find height of the first visible button to calculate the matching
      // baseline offset.
-@@ -191,6 +282,33 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -244,6 +335,34 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      }
  
      host_size.SetToMax(gfx::Size(0, current_y));
@@ -385,7 +386,8 @@ index d69e4dd30f..ce6ecacd24 100644
 +    for (views::View* chromium_button :
 +         {static_cast<views::View*>(unfocus_button_.get()),
 +          static_cast<views::View*>(collapse_button_.get()),
-+          static_cast<views::View*>(combo_button_.get())}) {
++          static_cast<views::View*>(combo_button_.get()),
++          static_cast<views::View*>(segmented_control_.get())}) {
 +      if (chromium_button) {
 +        layout.child_layouts.emplace_back(chromium_button, false, gfx::Rect());
 +      }
@@ -394,11 +396,11 @@ index d69e4dd30f..ce6ecacd24 100644
      // If the vertical tab strip is uncollapsed, then lay out the buttons
      // horizontally. The exact y-level of the buttons depends on if they can lay
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-index 27763751c7..8c1ade923a 100644
+index c03539ffa6f..c95adf5ef12 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-@@ -102,6 +102,10 @@ class VerticalTabStripTopContainer : public views::View,
-   raw_ptr<TabStripComboButton> combo_button_ = nullptr;
+@@ -108,6 +108,10 @@ class VerticalTabStripTopContainer : public views::View,
+   raw_ptr<VerticalTabStripSegmentedControl> segmented_control_ = nullptr;
    raw_ptr<views::LabelButton> collapse_button_ = nullptr;
    raw_ptr<views::LabelButton> unfocus_button_ = nullptr;
 +  // Arcomium: Arc's header row (menu logo, sidebar toggle, downloads).
@@ -406,5 +408,5 @@ index 27763751c7..8c1ade923a 100644
 +  raw_ptr<views::View> arc_sidebar_button_ = nullptr;
 +  raw_ptr<views::View> arc_downloads_button_ = nullptr;
  
-   std::unique_ptr<views::ActionViewController> action_view_controller_;
- 
+   PrefChangeRegistrar pref_registrar_;
+   base::CallbackListSubscription collapse_subscription_;

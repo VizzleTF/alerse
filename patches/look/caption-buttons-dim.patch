@@ -1,29 +1,5 @@
-diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.h b/chrome/browser/ui/views/frame/browser_frame_view_win.h
-index f6cf7f029a..ee1ce3f6a6 100644
---- a/chrome/browser/ui/views/frame/browser_frame_view_win.h
-+++ b/chrome/browser/ui/views/frame/browser_frame_view_win.h
-@@ -172,8 +172,8 @@ class BrowserFrameViewWin : public BrowserFrameView,
-   void OnEvent(const ui::Event& event) override;
- 
-   // Arcomium: while the Arc sidebar hides the toolbar, the caption buttons
--  // float over the page's top right corner and show only while the pointer
--  // is near them, as in Arc.
-+  // float over the page's top right corner, dimmed until the pointer is near
-+  // them.
-   bool IsArcomiumCaptionOverlay() const;
-   void UpdateArcomiumCaptionReveal();
- 
-@@ -193,7 +193,7 @@ class BrowserFrameViewWin : public BrowserFrameView,
-   raw_ptr<BrowserCaptionButtonContainer> caption_button_container_;
- 
-   // Arcomium: watches the pointer for the floating caption buttons, and
--  // whether they show now.
-+  // whether they are bright now.
-   std::unique_ptr<views::EventMonitor> arcomium_caption_monitor_;
-   base::RepeatingTimer arcomium_caption_timer_;
-   bool arcomium_caption_overlay_ = false;
 diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
-index 1c2b3c6ca3..60c102eea6 100644
+index 1c2b3c6ca3c..60c102eea67 100644
 --- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 @@ -48,6 +48,7 @@
@@ -86,3 +62,27 @@ index 1c2b3c6ca3..60c102eea6 100644
    if (reveal && !arcomium_caption_timer_.IsRunning()) {
      arcomium_caption_timer_.Start(
          FROM_HERE, base::Milliseconds(100), this,
+diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.h b/chrome/browser/ui/views/frame/browser_frame_view_win.h
+index f6cf7f029a8..ee1ce3f6a66 100644
+--- a/chrome/browser/ui/views/frame/browser_frame_view_win.h
++++ b/chrome/browser/ui/views/frame/browser_frame_view_win.h
+@@ -172,8 +172,8 @@ class BrowserFrameViewWin : public BrowserFrameView,
+   void OnEvent(const ui::Event& event) override;
+ 
+   // Arcomium: while the Arc sidebar hides the toolbar, the caption buttons
+-  // float over the page's top right corner and show only while the pointer
+-  // is near them, as in Arc.
++  // float over the page's top right corner, dimmed until the pointer is near
++  // them.
+   bool IsArcomiumCaptionOverlay() const;
+   void UpdateArcomiumCaptionReveal();
+ 
+@@ -193,7 +193,7 @@ class BrowserFrameViewWin : public BrowserFrameView,
+   raw_ptr<BrowserCaptionButtonContainer> caption_button_container_;
+ 
+   // Arcomium: watches the pointer for the floating caption buttons, and
+-  // whether they show now.
++  // whether they are bright now.
+   std::unique_ptr<views::EventMonitor> arcomium_caption_monitor_;
+   base::RepeatingTimer arcomium_caption_timer_;
+   bool arcomium_caption_overlay_ = false;

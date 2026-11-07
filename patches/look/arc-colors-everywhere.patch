@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 42803f46b4..60fb253fb7 100644
+index 42803f46b49..60fb253fb7e 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
 @@ -106,13 +106,22 @@ void AddChromeColorMixers(ui::ColorProvider* provider,

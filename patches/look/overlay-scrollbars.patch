@@ -1,5 +1,5 @@
 diff --git a/ui/native_theme/features/native_theme_features.cc b/ui/native_theme/features/native_theme_features.cc
-index 0d10948be2..f15af4cf15 100644
+index 13c7661b421..bfccb23a0d4 100644
 --- a/ui/native_theme/features/native_theme_features.cc
 +++ b/ui/native_theme/features/native_theme_features.cc
 @@ -16,8 +16,11 @@ constexpr base::FeatureParam<ScrollbarMode>::Option kScrollbarModeOptions[] = {
@@ -15,8 +15,8 @@ index 0d10948be2..f15af4cf15 100644
  constexpr base::FeatureState kOverlayScrollbarFeatureState =
      base::FEATURE_ENABLED_BY_DEFAULT;
  #else
-@@ -54,8 +57,14 @@ BASE_FEATURE(kOverlayScrollbarFlashOnlyOnceVisibleOnViewport,
-              base::FEATURE_ENABLED_BY_DEFAULT);
+@@ -49,8 +52,14 @@ constinit const base::FeatureParam<ScrollbarMode> kScrollbarMode{
+ BASE_FEATURE(kScrollbarAnimations, base::FEATURE_ENABLED_BY_DEFAULT);
  
  // Enables will flash scrollbar when user move mouse enter a scrollable area.
 +// Arcomium: not on Windows, where scrollbars show only while scrolling.

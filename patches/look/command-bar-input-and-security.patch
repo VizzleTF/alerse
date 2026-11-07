@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 59a0cd6957..e8c7ee5cda 100644
+index 36e753bdc4f..b42353057cb 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -848,6 +848,20 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+@@ -864,6 +864,20 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
      return;
    }
    arcomium_command_bar_ = command_bar;
@@ -23,7 +23,7 @@ index 59a0cd6957..e8c7ee5cda 100644
    RefreshBackground();
    InvalidateLayout();
  }
-@@ -1092,7 +1106,14 @@ void LocationBarView::Layout(PassKey) {
+@@ -1109,7 +1123,14 @@ void LocationBarView::Layout(PassKey) {
          /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
      selected_keyword_view_->SetKeyword(keyword);
    } else if (arcomium_compact_ && !arcomium_hovered_ &&
@@ -40,10 +40,10 @@ index 59a0cd6957..e8c7ee5cda 100644
    } else if (location_icon_view_->GetShowText() &&
               !ShouldChipOverrideLocationIcon()) {
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index 39274ec540..ffd1734b54 100644
+index df8ae097985..8f0b1531859 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -585,6 +585,8 @@ class LocationBarView
+@@ -609,6 +609,8 @@ class LocationBarView
    bool arcomium_hovered_ = false;
    bool arcomium_centered_ = false;
    bool arcomium_command_bar_ = false;

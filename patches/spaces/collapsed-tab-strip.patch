@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-index 263376c68d..7ec82b083f 100644
+index 8dd53826fcf..c441761e18f 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-@@ -265,6 +265,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -269,6 +269,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
    const int region_vertical_padding = GetLayoutConstant(
        LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
  
@@ -13,7 +13,7 @@ index 263376c68d..7ec82b083f 100644
    int y = 0;
  
    // Determine container preferred heights.
-@@ -314,9 +318,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -318,9 +322,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
        region_horizontal_padding, y,
        pinned_tab_container_size_bounds.width().value(),
        pinned_container_height);
@@ -27,7 +27,7 @@ index 263376c68d..7ec82b083f 100644
  
    if (pinned_container_bounds.height()) {
      y += pinned_container_bounds.height();
-@@ -355,9 +360,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -359,9 +364,10 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
          std::max(std::min(unpinned_container_bounds.height(), remaining_height),
                   min_unpinned_height));
    }
@@ -42,12 +42,12 @@ index 263376c68d..7ec82b083f 100644
    layouts.host_size = gfx::Size(size_bounds.width().value(),
                                  unpinned_container_bounds.bottom());
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index ce6ecacd24..052478368a 100644
+index 5261e556464..1f503af6099 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -181,6 +181,12 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-       available_width < VerticalTabStripRegionView::kCollapseSnapWidth ||
-       is_collapsed) {
+@@ -234,6 +234,12 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+        available_width < tabs::kVerticalTabStripCollapseSnapWidth ||
+        is_collapsed_with_combo)) {
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
 +    // Arcomium: the Arc header row hides Chromium's buttons while expanded,
 +    // so their own visibility says nothing here; their actions do.
@@ -58,7 +58,7 @@ index ce6ecacd24..052478368a 100644
      int current_y = 0;
      // Arcomium: the Arc header row only exists while expanded.
      for (views::View* arc_button :
-@@ -194,9 +200,9 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -247,9 +253,9 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      // Find height of the first visible button to calculate the matching
      // baseline offset.
      int first_button_height = 0;
@@ -70,7 +70,7 @@ index ce6ecacd24..052478368a 100644
        first_button_height = collapse_button_->GetPreferredSize().height();
      }
  
-@@ -212,27 +218,27 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -265,27 +271,27 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
        current_y = std::max(current_y, toolbar_height_);
      }
  
@@ -102,7 +102,7 @@ index ce6ecacd24..052478368a 100644
        host_size.SetToMax(gfx::Size(bounds.right(), 0));
  
        current_y += pref_size.height();
-@@ -268,7 +274,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -321,7 +327,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
                            : std::max(0, (host_size.width() - width) / 2);
          gfx::Rect bounds(padding, current_y, width, pref_size.height());
          layout.child_layouts.emplace_back(combo_button_.get(),
@@ -111,7 +111,7 @@ index ce6ecacd24..052478368a 100644
          host_size.SetToMax(gfx::Size(bounds.right(), 0));
  
          current_y +=
-@@ -393,6 +399,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -471,6 +477,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    return layout;
  }
  
@@ -126,10 +126,10 @@ index ce6ecacd24..052478368a 100644
      actions::ActionId action_id) {
    std::unique_ptr<TopContainerButton> container_button =
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-index 8c1ade923a..526330a68e 100644
+index c95adf5ef12..9b039c0bd72 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-@@ -55,6 +55,8 @@ class VerticalTabStripTopContainer : public views::View,
+@@ -58,6 +58,8 @@ class VerticalTabStripTopContainer : public views::View,
        const views::SizeBounds& size_bounds) const override;
  
    // Creates a TopContainerButton (Collapse Button).

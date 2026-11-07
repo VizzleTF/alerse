@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/resources/omnibox_popup/app.css b/chrome/browser/resources/omnibox_popup/app.css
-index 48ae23bb48..f2bb905993 100644
+index 48ae23bb48b..f2bb9059930 100644
 --- a/chrome/browser/resources/omnibox_popup/app.css
 +++ b/chrome/browser/resources/omnibox_popup/app.css
 @@ -24,8 +24,9 @@
@@ -25,7 +25,7 @@ index 48ae23bb48..f2bb905993 100644
 +  padding-top: 4px;
 +}
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index e5e4b1943e..a71c593f71 100644
+index e5e4b1943ec..a71c593f719 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
 @@ -107,8 +107,18 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
@@ -49,10 +49,10 @@ index e5e4b1943e..a71c593f71 100644
      mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x27, 0x27, 0x27)};
    }
 diff --git a/chrome/browser/ui/location_bar/location_bar.cc b/chrome/browser/ui/location_bar/location_bar.cc
-index 4251e591ff..87c504f7ce 100644
+index 643f9e1489f..f76aaf5b634 100644
 --- a/chrome/browser/ui/location_bar/location_bar.cc
 +++ b/chrome/browser/ui/location_bar/location_bar.cc
-@@ -38,6 +38,10 @@ void LocationBar::NotifyFocusChanged() {
+@@ -42,6 +42,10 @@ void LocationBar::NotifyFocusChanged() {
    observers_.Notify(&Observer::OnLocationBarFocusChanged);
  }
  
@@ -64,10 +64,10 @@ index 4251e591ff..87c504f7ce 100644
    return false;
  }
 diff --git a/chrome/browser/ui/location_bar/location_bar.h b/chrome/browser/ui/location_bar/location_bar.h
-index f357b9b1a4..808c6d85c7 100644
+index a61556c523f..7609e3546ae 100644
 --- a/chrome/browser/ui/location_bar/location_bar.h
 +++ b/chrome/browser/ui/location_bar/location_bar.h
-@@ -176,6 +176,10 @@ class LocationBar {
+@@ -181,6 +181,10 @@ class LocationBar {
    // Returns the profile this is for.
    virtual Profile* GetProfile() = 0;
  
@@ -79,10 +79,10 @@ index f357b9b1a4..808c6d85c7 100644
    // the UI and has the subobjects all created.
    virtual bool IsInitialized() const = 0;
 diff --git a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
-index f808a0b719..21040f262c 100644
+index bbe8d3efc79..bf8685d262a 100644
 --- a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
 +++ b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
-@@ -965,6 +965,12 @@ void ChromeOmniboxClient::OnAutocompleteAccept(
+@@ -964,6 +964,12 @@ void ChromeOmniboxClient::OnAutocompleteAccept(
                      {header.first, ": ", header.second, "\r\n"});
    }
  
@@ -96,7 +96,7 @@ index f808a0b719..21040f262c 100644
    location_bar_->set_navigation_params(LocationBar::NavigationParams(
        destination_url, disposition, transition, match_selection_timestamp,
 diff --git a/chrome/browser/ui/omnibox/omnibox_controller.cc b/chrome/browser/ui/omnibox/omnibox_controller.cc
-index e0018a3bb6..b999df3e65 100644
+index e0018a3bb6f..b999df3e65a 100644
 --- a/chrome/browser/ui/omnibox/omnibox_controller.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_controller.cc
 @@ -44,6 +44,8 @@ OmniboxController::OmniboxController(
@@ -109,10 +109,10 @@ index e0018a3bb6..b999df3e65 100644
      autocomplete_controller_config.stop_timer_duration =
          autocomplete_stop_timer_duration.value();
 diff --git a/chrome/browser/ui/omnibox/omnibox_edit_model.cc b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
-index e1d5a40954..664e27e148 100644
+index 7c03135dc2f..9b928beeeb7 100644
 --- a/chrome/browser/ui/omnibox/omnibox_edit_model.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
-@@ -2604,8 +2604,8 @@ void OmniboxEditModel::OpenMatch(
+@@ -2613,8 +2613,8 @@ void OmniboxEditModel::OpenMatch(
    // originated while in keyword mode.  This is to support the keyword mode
    // starter pack's tab search (@tabs) feature, which should open all
    // suggestions in the existing open tab.
@@ -123,7 +123,7 @@ index e1d5a40954..664e27e148 100644
    // Also switch the window disposition for tab switch actions. The action
    // itself will already open with SWITCH_TO_TAB disposition, but the change
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 979583ee26..38e96a9074 100644
+index ed22ee0745b..0666e2dee87 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -4,6 +4,8 @@
@@ -135,19 +135,20 @@ index 979583ee26..38e96a9074 100644
  #include "cc/paint/paint_flags.h"
  
  #include "base/strings/utf_string_conversions.h"
-@@ -263,8 +265,9 @@ LocationBarView::LocationBarView(BrowserWindowInterface* browser,
-           }
+@@ -266,8 +268,10 @@ LocationBarView::LocationBarView(BrowserWindowInterface* browser,
  
-           // Show focus ring when the Omnibox is visibly focused and the popup
--          // is closed.
+           // Show focus ring when the Omnibox is visibly focused and either the
+           // popup is closed or it's the full WebUI popup, which keeps the
+-          // focused look (see `ShouldUsePopupOpenAppearance()`).
 -          return v->GetOmniboxController()->edit_model()->is_caret_visible() &&
-+          // is closed. Arcomium: not in Arc's command bar, whose panel shows.
++          // focused look (see `ShouldUsePopupOpenAppearance()`). Arcomium: not
++          // in Arc's command bar, whose panel shows.
 +          return !v->arcomium_command_bar_ &&
 +                 v->GetOmniboxController()->edit_model()->is_caret_visible() &&
-                  !v->GetOmniboxController()->IsPopupOpen();
+                  !v->ShouldUsePopupOpenAppearance();
          }));
      views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
-@@ -841,6 +844,19 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+@@ -856,6 +860,19 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
    InvalidateLayout();
  }
  
@@ -167,7 +168,7 @@ index 979583ee26..38e96a9074 100644
  bool LocationBarView::IsArcomiumCenteredIdle() const {
    return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
  }
-@@ -907,6 +923,13 @@ void LocationBarView::LayoutArcomiumCentered() {
+@@ -922,6 +939,13 @@ void LocationBarView::LayoutArcomiumCentered() {
  
  void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
    views::View::OnPaintBackground(canvas);
@@ -181,7 +182,7 @@ index 979583ee26..38e96a9074 100644
    if (arcomium_pill_bounds_.IsEmpty()) {
      return;
    }
-@@ -1210,6 +1233,15 @@ void LocationBarView::Layout(PassKey) {
+@@ -1227,6 +1251,15 @@ void LocationBarView::Layout(PassKey) {
    arcomium_pill_bounds_ = gfx::Rect();
    if (IsArcomiumCenteredIdle()) {
      LayoutArcomiumCentered();
@@ -197,7 +198,7 @@ index 979583ee26..38e96a9074 100644
    }
  
    LayoutSuperclass<View>(this);
-@@ -1618,6 +1650,10 @@ void LocationBarView::RefreshBackground() {
+@@ -1649,6 +1682,10 @@ void LocationBarView::RefreshBackground() {
      // Only the pill behind the address is painted (OnPaintBackground).
      background_color_ = GetArcomiumPillColor();
      SetBackground(nullptr);
@@ -208,7 +209,7 @@ index 979583ee26..38e96a9074 100644
    } else if (is_popup_mode_) {
      SetBackground(views::CreateSolidBackground(background_color_));
    } else {
-@@ -1630,10 +1666,19 @@ void LocationBarView::RefreshBackground() {
+@@ -1661,10 +1698,19 @@ void LocationBarView::RefreshBackground() {
    // Keep the views::Textfield in sync. It needs an opaque background to
    // correctly enable subpixel AA.
    omnibox_view_->SetBackgroundColor(background_color_);
@@ -230,7 +231,7 @@ index 979583ee26..38e96a9074 100644
    // The divider between indicators and request chips should have the same color
    // as the omnibox.
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index ab419c54c5..a2ee826eed 100644
+index c8535ce284a..16840cd9eb2 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -333,6 +333,12 @@ class LocationBarView
@@ -246,7 +247,7 @@ index ab419c54c5..a2ee826eed 100644
  
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
-@@ -578,6 +584,8 @@ class LocationBarView
+@@ -602,6 +608,8 @@ class LocationBarView
    bool arcomium_compact_ = false;
    bool arcomium_hovered_ = false;
    bool arcomium_centered_ = false;
@@ -256,7 +257,7 @@ index ab419c54c5..a2ee826eed 100644
    gfx::Rect arcomium_pill_bounds_;
    raw_ptr<views::ImageButton> arcomium_copy_button_ = nullptr;
 diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
-index c54974b200..f58a47d064 100644
+index c0187113de1..7e028269ed6 100644
 --- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
 +++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
 @@ -4,6 +4,12 @@
@@ -272,7 +273,7 @@ index c54974b200..f58a47d064 100644
  #include <memory>
  #include <utility>
  
-@@ -41,6 +47,9 @@
+@@ -42,6 +48,9 @@
  
  namespace {
  
@@ -282,13 +283,13 @@ index c54974b200..f58a47d064 100644
  #if !defined(USE_AURA)
  
  struct WidgetEventPair {
-@@ -233,9 +242,10 @@ RoundedOmniboxResultsFrame::RoundedOmniboxResultsFrame(
+@@ -234,9 +243,10 @@ RoundedOmniboxResultsFrame::RoundedOmniboxResultsFrame(
      views::View* contents,
      LocationBar* location_bar,
      bool forward_mouse_events)
 -    : contents_(contents), forward_mouse_events_(forward_mouse_events) {
 -  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
--      views::ShapeContextTokens::kOmniboxExpandedRadius);
+-      ChromeShapeContextTokens::kOmniboxExpandedRadius);
 +    : location_bar_(location_bar),
 +      contents_(contents),
 +      forward_mouse_events_(forward_mouse_events) {
@@ -296,17 +297,17 @@ index c54974b200..f58a47d064 100644
    auto* webui_content = GetOmniboxPopupWebUIBaseContent();
    // When the page paints the popup's shadow, this frame must not paint a
    // background, rounded corners or a shadow: the renderer draws all of them,
-@@ -362,8 +372,7 @@ void RoundedOmniboxResultsFrame::SetCutoutVisibility(bool visible) {
+@@ -363,8 +373,7 @@ void RoundedOmniboxResultsFrame::SetCutoutVisibility(bool visible) {
  }
  
  void RoundedOmniboxResultsFrame::SetElevation(int elevation) {
 -  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
--      views::ShapeContextTokens::kOmniboxExpandedRadius);
+-      ChromeShapeContextTokens::kOmniboxExpandedRadius);
 +  const int corner_radius = kArcomiumCommandBarRadius;
    auto border = std::make_unique<views::BubbleBorder>(
        views::BubbleBorder::Arrow::NONE,
        elevation == 0 ? views::BubbleBorder::Shadow::NO_SHADOW
-@@ -385,7 +394,7 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+@@ -386,7 +395,7 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
  
    if (top_background_->GetVisible()) {
      gfx::Rect top_bounds(contents_host_->GetContentsBounds());
@@ -315,7 +316,7 @@ index c54974b200..f58a47d064 100644
      top_bounds.Inset(GetLocationBarAlignmentInsets());
      top_background_->SetBoundsRect(top_bounds);
    }
-@@ -408,7 +417,8 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+@@ -409,7 +418,8 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
    results_bounds.Inset(GetContentInsets());
  
    // Align webview horizontal bounds and positioning with the outer view.
@@ -325,7 +326,7 @@ index c54974b200..f58a47d064 100644
    results_bounds.set_width(contents_host_->GetContentsBounds().width());
  
    auto* webui_content = GetOmniboxPopupWebUIBaseContent();
-@@ -434,6 +444,17 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+@@ -435,6 +445,17 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
    contents_->SetBoundsRect(results_bounds);
  }
  
@@ -343,7 +344,7 @@ index c54974b200..f58a47d064 100644
  void RoundedOmniboxResultsFrame::AddedToWidget() {
  #if defined(USE_AURA)
    if (!forward_mouse_events_) {
-@@ -476,7 +497,18 @@ void RoundedOmniboxResultsFrame::OnMouseEvent(ui::MouseEvent* event) {
+@@ -477,7 +498,18 @@ void RoundedOmniboxResultsFrame::OnMouseEvent(ui::MouseEvent* event) {
  // Insets used to position |contents_| within |contents_host_|.
  gfx::Insets RoundedOmniboxResultsFrame::GetContentInsets() {
    return gfx::Insets::TLBR(
@@ -364,7 +365,7 @@ index c54974b200..f58a47d064 100644
  
  BEGIN_METADATA(RoundedOmniboxResultsFrame)
 diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
-index 5e581378f2..01e937968b 100644
+index 5e581378f2b..01e937968b5 100644
 --- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
 +++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h
 @@ -67,6 +67,8 @@ class RoundedOmniboxResultsFrame : public views::View {
@@ -388,7 +389,7 @@ index 5e581378f2..01e937968b 100644
    raw_ptr<views::View> top_background_ = nullptr;
    raw_ptr<views::View> contents_host_ = nullptr;
 diff --git a/components/omnibox/browser/open_tab_provider.cc b/components/omnibox/browser/open_tab_provider.cc
-index 7a2c444d9f..d50d349c9b 100644
+index 7a2c444d9f2..d50d349c9b8 100644
 --- a/components/omnibox/browser/open_tab_provider.cc
 +++ b/components/omnibox/browser/open_tab_provider.cc
 @@ -7,8 +7,11 @@
@@ -522,7 +523,7 @@ index 7a2c444d9f..d50d349c9b 100644
    }
  
 diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
-index c50b4e2c97..abdd18ffff 100644
+index 227c57e0a55..5821503d9ea 100644
 --- a/components/vector_icons/BUILD.gn
 +++ b/components/vector_icons/BUILD.gn
 @@ -20,6 +20,7 @@ if (current_toolchain == default_toolchain) {
@@ -534,10 +535,10 @@ index c50b4e2c97..abdd18ffff 100644
        "arcomium_tune.icon",
        "${branding_path_component}/product.icon",
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-index 0420bd5f0b..45246779f9 100644
+index 2344ea9e80a..4985bad3fb3 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -389,3 +389,47 @@
+@@ -420,3 +420,47 @@
    font-size: 12px;
    line-height: 16px;
  }
@@ -569,7 +570,7 @@ index 0420bd5f0b..45246779f9 100644
 +  padding-inline-start: 4px;
 +}
 +
-+:host([is-top-chrome-searchbox_]) #contents {
++:host([is-top-chrome-searchbox_]) #primaryText {
 +  color: rgb(255, 255, 255);
 +}
 +
@@ -577,11 +578,11 @@ index 0420bd5f0b..45246779f9 100644
 +  font-weight: inherit;
 +}
 +
-+:host([is-top-chrome-searchbox_]) #description,
-+:host([is-top-chrome-searchbox_]) #description .url {
++:host([is-top-chrome-searchbox_]) #secondaryText,
++:host([is-top-chrome-searchbox_]) #secondaryText .url {
 +  color: rgb(199, 199, 199);
 +}
 +
-+:host([is-top-chrome-searchbox_]) #description:not(:empty)::before {
++:host([is-top-chrome-searchbox_]) #secondaryText:not(:empty)::before {
 +  content: ' — ';
 +}

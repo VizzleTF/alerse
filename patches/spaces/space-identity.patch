@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index 31656a73ef..e86ad33854 100644
+index 0013fe141c1..3425b09117d 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -549,7 +549,9 @@ std::optional<std::string> GetSpaceForNewTab(

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
-index ef66f5ce50..575fc18a9c 100644
+index 9f616639b50..5b6a5ad42ae 100644
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -490,6 +490,14 @@ void ShowSettingsSubPageInTabbedBrowser(BrowserWindowInterface* browser,
+@@ -487,6 +487,14 @@ void ShowSettingsSubPageInTabbedBrowser(BrowserWindowInterface* browser,
                                          std::string_view sub_page) {
    base::RecordAction(UserMetricsAction("ShowOptions"));
  
@@ -18,10 +18,10 @@ index ef66f5ce50..575fc18a9c 100644
    // a menu, ensure the web contents (and therefore the settings page that is
    // about to be shown) is focused. (See crbug.com/41438063 for motivation.)
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index 1a6eec656a..09f826b368 100644
+index 4d155299d24..0e71d492421 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2256,6 +2256,13 @@ void AppMenuModel::Build() {
+@@ -2322,6 +2322,13 @@ void AppMenuModel::Build() {
  #endif
  #endif
  
@@ -36,10 +36,10 @@ index 1a6eec656a..09f826b368 100644
        this, IDC_OPTIONS, IDS_SETTINGS,
        features::IsRoundedIconsEnabled() ? kSettingsIcon : kSettingsMenuOldIcon);
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
-index efb8fba86c..7f5aa7c3ea 100644
+index e63e1e07419..726b5a9c842 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -48,6 +48,7 @@ source_set("configs") {
+@@ -42,6 +42,7 @@ source_set("configs") {
  
    deps = [
      ":gcm_internals_ui",
@@ -48,7 +48,7 @@ index efb8fba86c..7f5aa7c3ea 100644
      ":ntp_tiles_internals_ui",
      ":signin_internals_ui",
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index eacc9e15f7..9e5671606b 100644
+index 9baf1c83dce..f7d1b75fb76 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -9,6 +9,7 @@
@@ -59,7 +59,7 @@ index eacc9e15f7..9e5671606b 100644
  #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
  #include "chrome/browser/glic/host/glic_ui.h"
  #include "chrome/browser/optimization_guide/optimization_guide_internals_ui.h"
-@@ -329,6 +330,7 @@ void RegisterChromeWebUIConfigs() {
+@@ -335,6 +336,7 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());

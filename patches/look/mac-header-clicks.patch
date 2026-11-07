@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 9b0858c3e9..8dc0aef718 100644
+index 30b234212f9..c655d9c8396 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -448,6 +448,16 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -535,6 +535,16 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
      return false;
    }
  

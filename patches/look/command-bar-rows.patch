@@ -1,9 +1,9 @@
 diff --git a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
-index 5095b7853f..75c188fbf1 100644
+index 15214db0807..7101d4049b8 100644
 --- a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
 +++ b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
-@@ -432,6 +432,13 @@ void WebuiOmniboxHandler::OverrideIconPaths(
-             : searchbox_internal::kReplyRotated180IconResourceName;
+@@ -469,6 +469,13 @@ void WebuiOmniboxHandler::OverrideIconPaths(
+         searchbox_internal::kDockToRightIconResourceName;
    }
    SearchboxHandler::OverrideIconPaths(match, mojom_match);
 +  // Arcomium: the command bar shows a site's own icon, and a plain page where
@@ -17,7 +17,7 @@ index 5095b7853f..75c188fbf1 100644
  
  void WebuiOmniboxHandler::OnFocusChanged(bool focused) {
 diff --git a/components/omnibox/browser/open_tab_provider.cc b/components/omnibox/browser/open_tab_provider.cc
-index d50d349c9b..1c63f8658d 100644
+index d50d349c9b8..1c63f8658df 100644
 --- a/components/omnibox/browser/open_tab_provider.cc
 +++ b/components/omnibox/browser/open_tab_provider.cc
 @@ -143,14 +143,23 @@ double ArcomiumFuzzyFactor(const std::u16string& query,
@@ -78,18 +78,18 @@ index d50d349c9b..1c63f8658d 100644
              this, kArcomiumFuzzyRelevance - 50 +
                        fuzzy * kArcomiumFuzzyRelevanceRange,
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-index 45246779f9..96bd12a903 100644
+index 4985bad3fb3..410ce3c0345 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -433,3 +433,16 @@
- :host([is-top-chrome-searchbox_]) #description:not(:empty)::before {
+@@ -464,3 +464,16 @@
+ :host([is-top-chrome-searchbox_]) #secondaryText:not(:empty)::before {
    content: ' — ';
  }
 +
 +/* Arcomium: the command bar's rows in a regular weight, and a remove cross
 + * at the right of every row that can be forgotten. */
-+:host([is-top-chrome-searchbox_]) #contents,
-+:host([is-top-chrome-searchbox_]) #description {
++:host([is-top-chrome-searchbox_]) #primaryText,
++:host([is-top-chrome-searchbox_]) #secondaryText {
 +  font-weight: 400;
 +}
 +
@@ -99,18 +99,34 @@ index 45246779f9..96bd12a903 100644
 +  margin-inline-end: 6px;
 +}
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
-index 5f0b2cc55f..accf79f646 100644
+index 27ac410c2a3..5008461d8d5 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
-@@ -588,6 +588,11 @@ export class SearchboxMatchElement extends CrLitElement {
+@@ -403,7 +403,7 @@ export class SearchboxMatchElement extends CrLitElement {
    }
  
-   private getMatchDescription_(): string {
-+    // Arcomium: in the command bar a search reads as just its words, without
-+    // the engine's name after them.
-+    if (this.isTopChromeSearchbox_ && this.match?.isSearchType) {
+   private computeSecondaryTextHtml_(): TrustedHTML {
+-    if (!this.match) {
++    if (!this.match || this.hidesSecondaryText_()) {
+       return window.trustedTypes!.emptyHTML;
+     }
+     return this.sanitizeInnerHtml_(
+@@ -542,9 +542,18 @@ export class SearchboxMatchElement extends CrLitElement {
+   }
+ 
+   private getMatchSecondaryText_(): string {
++    if (this.hidesSecondaryText_()) {
 +      return '';
 +    }
-     return this.match ? this.match.description : '';
+     return this.match ? this.match.suggestTemplate.secondaryText.text : '';
    }
  
++  // Arcomium: in the command bar a search reads as just its words, without
++  // the engine's name after them.
++  private hidesSecondaryText_(): boolean {
++    return this.isTopChromeSearchbox_ && this.match?.isSearchType === true;
++  }
++
+   protected getFocusIndicatorCssClass_(): string {
+     return this.selection.line === this.matchIndex &&
+             this.selection.state !== SelectionLineState.kNormal &&

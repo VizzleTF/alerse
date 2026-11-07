@@ -1,5 +1,18 @@
+diff --git a/chrome/browser/ui/color/BUILD.gn b/chrome/browser/ui/color/BUILD.gn
+index a73bb082108..fe4198922a1 100644
+--- a/chrome/browser/ui/color/BUILD.gn
++++ b/chrome/browser/ui/color/BUILD.gn
+@@ -18,6 +18,8 @@ source_set("color_headers") {
+ 
+ source_set("mixers") {
+   sources = [
++    "arcomium_color_mixer.cc",
++    "arcomium_color_mixer.h",
+     "chrome_color_mixer.cc",
+     "chrome_color_mixer.h",
+     "chrome_color_mixers.cc",
 diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
-index 7d82223c05..b771281cba 100644
+index c79d9496b31..1e666aaf95f 100644
 --- a/chrome/browser/ui/color/chrome_color_id.h
 +++ b/chrome/browser/ui/color/chrome_color_id.h
 @@ -57,6 +57,24 @@
@@ -28,7 +41,7 @@ index 7d82223c05..b771281cba 100644
    E_CPONLY(kColorAvatarButtonHighlightGuest) \
    E_CPONLY(kColorAvatarButtonHighlightSyncError) \
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 60fb253fb7..9851cfa6d0 100644
+index 60fb253fb7e..9851cfa6d0b 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
 @@ -12,6 +12,7 @@
@@ -49,16 +62,3 @@ index 60fb253fb7..9851cfa6d0 100644
    // Arcomium: Arc's command bar and blank page, on every platform.
    if (!key.custom_theme &&
        key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
-diff --git a/chrome/browser/ui/color/BUILD.gn b/chrome/browser/ui/color/BUILD.gn
-index 42f66c6cce..afa038f0f1 100644
---- a/chrome/browser/ui/color/BUILD.gn
-+++ b/chrome/browser/ui/color/BUILD.gn
-@@ -18,6 +18,8 @@ source_set("color_headers") {
- 
- source_set("mixers") {
-   sources = [
-+    "arcomium_color_mixer.cc",
-+    "arcomium_color_mixer.h",
-     "chrome_color_mixer.cc",
-     "chrome_color_mixer.h",
-     "chrome_color_mixers.cc",

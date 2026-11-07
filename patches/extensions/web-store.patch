@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/extensions/external_provider_impl.cc b/chrome/browser/extensions/external_provider_impl.cc
-index 1cf32e1b81..eafae95629 100644
+index 81dd40bc0fd..570d1f15f74 100644
 --- a/chrome/browser/extensions/external_provider_impl.cc
 +++ b/chrome/browser/extensions/external_provider_impl.cc
-@@ -885,12 +885,9 @@ void ExternalProviderImpl::CreateExternalProviders(
+@@ -893,12 +893,9 @@ void ExternalProviderImpl::CreateExternalProviders(
          bundled_extension_creation_flags));
  #endif
  #if BUILDFLAG(IS_WIN)
@@ -19,10 +19,10 @@ index 1cf32e1b81..eafae95629 100644
      provider_list->push_back(std::make_unique<ExternalProviderImpl>(
          service,
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index d505fb6448..f138692fea 100644
+index 3fef161944a..289d3f19e6a 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -29,6 +29,7 @@
+@@ -30,6 +30,7 @@
  #include "chrome/browser/enterprise/isolated_mode/isolated_mode_settings_service_factory.h"
  #include "chrome/browser/enterprise/util/managed_browser_utils.h"
  #include "chrome/browser/extensions/extension_ui_util.h"
@@ -30,7 +30,7 @@ index d505fb6448..f138692fea 100644
  #include "chrome/browser/feedback/report_unsafe_site_dialog.h"
  #include "chrome/browser/feedback/show_feedback_page.h"
  #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
-@@ -149,7 +150,9 @@
+@@ -153,7 +154,9 @@
  #include "content/public/browser/web_contents.h"
  #include "content/public/common/profiling.h"
  #include "content/public/common/url_constants.h"
@@ -38,9 +38,9 @@ index d505fb6448..f138692fea 100644
  #include "extensions/common/extension_features.h"
 +#include "extensions/common/extension_urls.h"
  #include "media/base/media_switches.h"
+ #include "ui/actions/actions.h"
  #include "ui/base/accelerators/menu_label_accelerator_util.h"
- #include "ui/base/l10n/l10n_util.h"
-@@ -228,6 +231,30 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(HelpMenuModel, kReportUnsafeSiteMenuItem);
+@@ -238,6 +241,30 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(HelpMenuModel, kReportUnsafeSiteMenuItem);
  
  namespace {
  
@@ -71,7 +71,7 @@ index d505fb6448..f138692fea 100644
  ////////////////////////////////////////////////////////////////////////////////
  // AddItemWithStringIdAndVectorIcon
  void AddItemWithStringIdAndVectorIcon(ui::SimpleMenuModel* model,
-@@ -1148,6 +1175,18 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
+@@ -1139,6 +1166,18 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
      return;
    }
  
@@ -90,7 +90,7 @@ index d505fb6448..f138692fea 100644
    if (command_id == IDC_VIEW_PASSWORDS) {
      browser()->GetProfile()->GetPrefs()->SetBoolean(
          password_manager::prefs::kPasswordsPrefWithNewLabelUsed, true);
-@@ -1887,6 +1926,8 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
+@@ -1907,6 +1946,8 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
    }
  
    switch (command_id) {
@@ -99,7 +99,7 @@ index d505fb6448..f138692fea 100644
      case IDC_NEW_INCOGNITO_WINDOW:
        return IncognitoModePrefs::IsIncognitoTypeAllowed(
            browser_->GetProfile(),
-@@ -2266,6 +2307,12 @@ void AppMenuModel::Build() {
+@@ -2332,6 +2373,12 @@ void AppMenuModel::Build() {
        this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
        features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
                                          : vector_icons::kLinkOldIcon);
@@ -113,7 +113,7 @@ index d505fb6448..f138692fea 100644
    AddItemWithStringIdAndVectorIcon(
        this, IDC_OPTIONS, IDS_SETTINGS,
 diff --git a/extensions/browser/updater/extension_downloader.cc b/extensions/browser/updater/extension_downloader.cc
-index 4f8ae20316..5454cc35bc 100644
+index 4f8ae203163..5454cc35bc3 100644
 --- a/extensions/browser/updater/extension_downloader.cc
 +++ b/extensions/browser/updater/extension_downloader.cc
 @@ -158,7 +158,8 @@ std::optional<GURL> SanitizeUpdateURL(const ExtensionId& extension_id,
@@ -152,7 +152,7 @@ index 4f8ae20316..5454cc35bc 100644
  
  void ExtensionDownloader::SetIdentityManager(
 diff --git a/extensions/browser/updater/safe_manifest_parser.cc b/extensions/browser/updater/safe_manifest_parser.cc
-index 7148e294a4..604dbc5889 100644
+index 7148e294a4e..604dbc58891 100644
 --- a/extensions/browser/updater/safe_manifest_parser.cc
 +++ b/extensions/browser/updater/safe_manifest_parser.cc
 @@ -29,7 +29,9 @@ namespace {
@@ -167,7 +167,7 @@ index 7148e294a4..604dbc5889 100644
  // Helper function that reads in values for a single <app> tag. It returns a
  // boolean indicating success or failure. On failure, it writes a error message
 diff --git a/extensions/browser/webstore_installer.cc b/extensions/browser/webstore_installer.cc
-index 3f49bc9571..a1a80062d3 100644
+index 3f49bc95712..a1a80062d34 100644
 --- a/extensions/browser/webstore_installer.cc
 +++ b/extensions/browser/webstore_installer.cc
 @@ -98,9 +98,15 @@ const char kAuthUserQueryKey[] = "authuser";
@@ -235,10 +235,10 @@ index 3f49bc9571..a1a80062d3 100644
  
  void WebstoreInstaller::ReportFailure(const std::string& error,
 diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_api_features.json
-index 0721762e56..2b3c8c1ac3 100644
+index bff2cbf3d54..8e5f2d528f8 100644
 --- a/extensions/common/api/_api_features.json
 +++ b/extensions/common/api/_api_features.json
-@@ -331,6 +331,7 @@
+@@ -355,6 +355,7 @@
    }, {
      "channel": "stable",
      "contexts": ["web_page"],
@@ -246,7 +246,7 @@ index 0721762e56..2b3c8c1ac3 100644
      "matches": ["https://chromewebstore.google.com/*"]
    }, {
      // Used for webstore testing. See comment in
-@@ -967,6 +968,7 @@
+@@ -991,6 +992,7 @@
    "webstorePrivate": [{
      "channel": "stable",
      "contexts": ["web_page"],
@@ -255,7 +255,7 @@ index 0721762e56..2b3c8c1ac3 100644
    }, {
      // Used for webstore testing. See comment in
 diff --git a/extensions/common/extension_urls.cc b/extensions/common/extension_urls.cc
-index d833569232..b46828b172 100644
+index d8335692327..b46828b1723 100644
 --- a/extensions/common/extension_urls.cc
 +++ b/extensions/common/extension_urls.cc
 @@ -38,14 +38,17 @@ const GURL* g_item_snippet_url_for_test_ = nullptr;

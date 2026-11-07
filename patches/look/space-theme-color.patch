@@ -1,55 +1,5 @@
-diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-index 18dfc21afc..c3203a59fb 100644
---- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-+++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-@@ -10,6 +10,7 @@ source_set("vertical") {
-     "arcomium_mini_player.h",
-     "arcomium_address_bar.h",
-     "arcomium_sidebar_view.h",
-+    "arcomium_space_color.h",
-     "arcomium_space_switcher.h",
-     "top_container_button.h",
-     "vertical_tab_strip_bottom_container.h",
-@@ -43,6 +44,7 @@ source_set("impl") {
-     "arcomium_mini_player.cc",
-     "arcomium_address_bar.cc",
-     "arcomium_sidebar_view.cc",
-+    "arcomium_space_color.cc",
-     "arcomium_space_switcher.cc",
-     "top_container_button.cc",
-     "vertical_tab_strip_bottom_container.cc",
-diff --git a/chrome/browser/ui/views/frame/browser_widget.cc b/chrome/browser/ui/views/frame/browser_widget.cc
-index 2d6560315b..b9f2ec98a0 100644
---- a/chrome/browser/ui/views/frame/browser_widget.cc
-+++ b/chrome/browser/ui/views/frame/browser_widget.cc
-@@ -484,6 +484,13 @@ void BrowserWidget::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
-   UserChangedTheme(BrowserThemeChangeType::kNativeTheme);
- }
- 
-+namespace arcomium {
-+// The active Space's theme color, set by arcomium_space_color.cc: native window
-+// properties are keyed by this very pointer.
-+extern const char kSpaceTintWindowProperty[];
-+const char kSpaceTintWindowProperty[] = "arcomium.space_tint";
-+}  // namespace arcomium
-+
- ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
-   auto key = Widget::GetColorProviderKey();
- 
-@@ -509,6 +516,11 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
-           web_app::AppBrowserController::From(browser_view_->browser())) {
-     key.app_controller = app_controller;
-     key.app_background_color = app_controller->GetBackgroundColor();
-+  } else if (void* tint =
-+                 GetNativeWindowProperty(arcomium::kSpaceTintWindowProperty)) {
-+    // Arcomium: the active Space's theme color (arcomium_space_color.cc).
-+    key.app_background_color =
-+        static_cast<SkColor>(reinterpret_cast<uintptr_t>(tint));
-   }
- 
- #if BUILDFLAG(IS_CHROMEOS)
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index a71c593f71..42803f46b4 100644
+index a71c593f719..42803f46b49 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
 @@ -124,6 +124,14 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
@@ -67,3 +17,53 @@ index a71c593f71..42803f46b4 100644
    if (key.custom_theme) {
      key.custom_theme->AddColorMixers(provider, key);
    }
+diff --git a/chrome/browser/ui/views/frame/browser_widget.cc b/chrome/browser/ui/views/frame/browser_widget.cc
+index 4de6ce6bd14..4793ec687d7 100644
+--- a/chrome/browser/ui/views/frame/browser_widget.cc
++++ b/chrome/browser/ui/views/frame/browser_widget.cc
+@@ -476,6 +476,13 @@ void BrowserWidget::OnNativeThemeUpdated(ui::NativeTheme* observed_theme) {
+   UserChangedTheme(BrowserThemeChangeType::kNativeTheme);
+ }
+ 
++namespace arcomium {
++// The active Space's theme color, set by arcomium_space_color.cc: native window
++// properties are keyed by this very pointer.
++extern const char kSpaceTintWindowProperty[];
++const char kSpaceTintWindowProperty[] = "arcomium.space_tint";
++}  // namespace arcomium
++
+ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
+   auto key = Widget::GetColorProviderKey();
+ 
+@@ -501,6 +508,11 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
+           web_app::AppBrowserController::From(browser_view_->browser())) {
+     key.app_controller = app_controller;
+     key.app_background_color = app_controller->GetBackgroundColor();
++  } else if (void* tint =
++                 GetNativeWindowProperty(arcomium::kSpaceTintWindowProperty)) {
++    // Arcomium: the active Space's theme color (arcomium_space_color.cc).
++    key.app_background_color =
++        static_cast<SkColor>(reinterpret_cast<uintptr_t>(tint));
+   }
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+index 6cbc12b1d14..3215b315472 100644
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -10,6 +10,7 @@ source_set("vertical") {
+     "arcomium_mini_player.h",
+     "arcomium_address_bar.h",
+     "arcomium_sidebar_view.h",
++    "arcomium_space_color.h",
+     "arcomium_space_switcher.h",
+     "top_container_button.h",
+     "vertical_tab_strip_bottom_container.h",
+@@ -44,6 +45,7 @@ source_set("impl") {
+     "arcomium_mini_player.cc",
+     "arcomium_address_bar.cc",
+     "arcomium_sidebar_view.cc",
++    "arcomium_space_color.cc",
+     "arcomium_space_switcher.cc",
+     "top_container_button.cc",
+     "vertical_tab_strip_bottom_container.cc",

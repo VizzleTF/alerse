@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
-index ae9ac2dcd9..0d8dc0dc3d 100644
+index 88517af5a16..6fd5afe5f6a 100644
 --- a/chrome/browser/ui/ui_features.cc
 +++ b/chrome/browser/ui/ui_features.cc
-@@ -554,7 +554,9 @@ BASE_FEATURE(kAiOverlayDisableNavigationContext,
+@@ -550,7 +550,9 @@ BASE_FEATURE(kAiOverlayDisableNavigationContext,
  // Arcomium: focus mode is how a Space shows only its own tabs.
  BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_ENABLED_BY_DEFAULT);
  

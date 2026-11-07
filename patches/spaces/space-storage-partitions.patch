@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/sessions/session_restore.cc b/chrome/browser/sessions/session_restore.cc
-index e21bf8de37..99f1d32c10 100644
+index 816c2a017bd..84efc7ef659 100644
 --- a/chrome/browser/sessions/session_restore.cc
 +++ b/chrome/browser/sessions/session_restore.cc
-@@ -73,6 +73,7 @@
+@@ -74,6 +74,7 @@
  #include "chrome/browser/ui/startup/startup_browser_creator.h"
  #include "chrome/browser/ui/startup/startup_tab.h"
  #include "chrome/browser/ui/startup/startup_types.h"
@@ -10,7 +10,7 @@ index e21bf8de37..99f1d32c10 100644
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
-@@ -1025,6 +1026,13 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+@@ -1063,6 +1064,13 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
      // why some browsers don't have an active tab on startup.
      CHECK(!window.tabs.empty());
  
@@ -24,7 +24,7 @@ index e21bf8de37..99f1d32c10 100644
      // TODO(crbug.com/41440719): Check that tab groups are contiguous in
      // |window| to ensure tabs will not be reordered when restoring. This is not
      // possible yet due the ordering of TabStripModelObserver notifications in
-@@ -1144,13 +1152,22 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+@@ -1182,13 +1190,22 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
        new_group = it->second;
      }
  
@@ -49,7 +49,7 @@ index e21bf8de37..99f1d32c10 100644
      DCHECK(web_contents);
  
      RestoredTab restored_tab(web_contents, is_selected_tab,
-@@ -1473,6 +1490,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+@@ -1511,6 +1528,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
    // The profile to create the sessions for.
    raw_ptr<Profile> profile_;
  
@@ -60,7 +60,7 @@ index e21bf8de37..99f1d32c10 100644
    raw_ptr<BrowserWindowInterface, DanglingUntriaged> browser_;
  
 diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
-index 2e2a9d24d7..b8808fe214 100644
+index ee887add6af..8cb95783216 100644
 --- a/chrome/browser/sessions/session_service_base.cc
 +++ b/chrome/browser/sessions/session_service_base.cc
 @@ -32,6 +32,7 @@
@@ -71,8 +71,8 @@ index 2e2a9d24d7..b8808fe214 100644
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
-@@ -773,6 +774,14 @@ void SessionServiceBase::BuildCommandsForBrowser(
-     }
+@@ -790,6 +791,14 @@ void SessionServiceBase::BuildCommandsForBrowser(
+             base::NumberToString(controller->GetUncollapsedWidth())));
    }
  
 +  // Arcomium: remember which tab groups are Spaces.
@@ -87,10 +87,10 @@ index 2e2a9d24d7..b8808fe214 100644
    for (const tabs::TabInterface* tab_interface : *tab_strip) {
      WebContents* tab = tab_interface->GetContents();
 diff --git a/chrome/browser/ui/browser.cc b/chrome/browser/ui/browser.cc
-index 07de580deb..ccbbac17b0 100644
+index 99041fad5cb..15b42ce3d9e 100644
 --- a/chrome/browser/ui/browser.cc
 +++ b/chrome/browser/ui/browser.cc
-@@ -100,6 +100,7 @@
+@@ -99,6 +99,7 @@
  #include "chrome/browser/ui/tab_dialogs.h"
  #include "chrome/browser/ui/tab_helpers.h"
  #include "chrome/browser/ui/tab_ui_helper.h"
@@ -98,7 +98,7 @@ index 07de580deb..ccbbac17b0 100644
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_change_type.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
-@@ -642,6 +643,10 @@ void Browser::OnTabGroupFocusChanged(
+@@ -641,6 +642,10 @@ void Browser::OnTabGroupFocusChanged(
          session_id_, tabs::TabStripModelSelectionState::kFocusedTabGroupIdKey,
          new_focused_group.has_value() ? new_focused_group->ToString()
                                        : std::string());
@@ -110,7 +110,7 @@ index 07de580deb..ccbbac17b0 100644
  }
  
 diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
-index 6aca93a450..10ea8ad5af 100644
+index 6aca93a4507..10ea8ad5af8 100644
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
 @@ -20,6 +20,7 @@
@@ -150,7 +150,7 @@ index 6aca93a450..10ea8ad5af 100644
                                 extension_app_id);
  
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index b95a279fab..1c0988f4db 100644
+index 1e98a3d7cba..c2f3d996b85 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -11,6 +11,7 @@
@@ -242,7 +242,7 @@ index b95a279fab..1c0988f4db 100644
  
    WebContents::CreateParams create_params(
        params.browser->GetProfile(), initial_site_instance_for_new_contents);
-@@ -902,6 +946,13 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -921,6 +965,13 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
    if (!contents_to_navigate_or_insert) {
      DCHECK(!params->url.is_empty());
      if (params->disposition != WindowOpenDisposition::CURRENT_TAB) {

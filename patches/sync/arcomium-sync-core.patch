@@ -1,8 +1,8 @@
 diff --git a/components/sync/BUILD.gn b/components/sync/BUILD.gn
-index 5903df9f42..2be1d7577c 100644
+index 1458d9d387b..69be325082d 100644
 --- a/components/sync/BUILD.gn
 +++ b/components/sync/BUILD.gn
-@@ -276,6 +276,7 @@ source_set("unit_tests") {
+@@ -277,6 +277,7 @@ source_set("unit_tests") {
      "service/sync_error_unittest.cc",
      "service/sync_feature_status_for_migrations_recorder_unittest.cc",
      "service/sync_internals_util_unittest.cc",
@@ -11,7 +11,7 @@ index 5903df9f42..2be1d7577c 100644
      "service/sync_service_crypto_unittest.cc",
      "service/sync_service_impl_startup_unittest.cc",
 diff --git a/components/sync/service/BUILD.gn b/components/sync/service/BUILD.gn
-index 60d8dc0f7d..4e7bf97b3d 100644
+index 60d8dc0f7d6..4e7bf97b3dc 100644
 --- a/components/sync/service/BUILD.gn
 +++ b/components/sync/service/BUILD.gn
 @@ -4,6 +4,12 @@
@@ -36,7 +36,7 @@ index 60d8dc0f7d..4e7bf97b3d 100644
    ]
  
 diff --git a/components/sync/service/sync_prefs.cc b/components/sync/service/sync_prefs.cc
-index b51a7b1de0..86d81dbbb5 100644
+index bb41a4f21d0..8c5d6fd8c5f 100644
 --- a/components/sync/service/sync_prefs.cc
 +++ b/components/sync/service/sync_prefs.cc
 @@ -32,6 +32,7 @@
@@ -68,7 +68,7 @@ index b51a7b1de0..86d81dbbb5 100644
  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
    registry->RegisterBooleanPref(kAutofillPerAccountPrefMigrationDone, false);
 diff --git a/components/sync/service/sync_service_impl.cc b/components/sync/service/sync_service_impl.cc
-index d37ce22f7d..f5e3531b9e 100644
+index 1f03761e186..165393bc468 100644
 --- a/components/sync/service/sync_service_impl.cc
 +++ b/components/sync/service/sync_service_impl.cc
 @@ -7,6 +7,7 @@
@@ -242,7 +242,7 @@ index d37ce22f7d..f5e3531b9e 100644
    tasks.swap(tasks_waiting_for_engine_initialization_);
    for (base::OnceClosure& task : tasks) {
 diff --git a/components/sync/service/sync_service_impl.h b/components/sync/service/sync_service_impl.h
-index ba56598bb0..75f0d9815b 100644
+index ba56598bb08..75f0d9815b8 100644
 --- a/components/sync/service/sync_service_impl.h
 +++ b/components/sync/service/sync_service_impl.h
 @@ -23,6 +23,8 @@

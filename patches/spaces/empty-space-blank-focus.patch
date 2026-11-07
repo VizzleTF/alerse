@@ -1,52 +1,8 @@
-diff --git a/content/public/browser/web_contents_delegate.h b/content/public/browser/web_contents_delegate.h
-index cd03383472..9c69e6541b 100644
---- a/content/public/browser/web_contents_delegate.h
-+++ b/content/public/browser/web_contents_delegate.h
-@@ -294,6 +294,12 @@ class CONTENT_EXPORT WebContentsDelegate {
-   // complete check, you should use WebContents::FocusLocationBarByDefault().
-   virtual bool ShouldFocusLocationBarByDefault(WebContents* source);
- 
-+  // Arcomium: false keeps the startup navigation of a blank page from focusing
-+  // the location bar, as it does by default.
-+  virtual bool FocusLocationBarForInitialBlankPage(WebContents* source) {
-+    return true;
-+  }
-+
-   // Sets focus to the location bar or some other place that is appropriate.
-   // This is called when the tab wants to encourage user input, like for the
-   // new tab page.
-diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
-index f038e08ea0..6d49f7cec1 100644
---- a/content/browser/web_contents/web_contents_impl.cc
-+++ b/content/browser/web_contents/web_contents_impl.cc
-@@ -8042,7 +8042,8 @@ void WebContentsImpl::ResumeLoadingCreatedWebContents() {
- bool WebContentsImpl::FocusLocationBarByDefault() {
-   OPTIONAL_TRACE_EVENT0("content",
-                         "WebContentsImpl::FocusLocationBarByDefault");
--  if (should_focus_location_bar_by_default_) {
-+  if (should_focus_location_bar_by_default_ &&
-+      (!delegate_ || delegate_->FocusLocationBarForInitialBlankPage(this))) {
-     return true;
-   }
- 
-diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
-index 360d1abf0b..5f1b66b0de 100644
---- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
-+++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
-@@ -147,6 +147,8 @@ class BrowserWebContentsDelegate : public content::WebContentsDelegate {
-                          bool proceed,
-                          bool* proceed_to_fire_unload) override;
-   bool ShouldFocusLocationBarByDefault(content::WebContents* source) override;
-+  bool FocusLocationBarForInitialBlankPage(
-+      content::WebContents* source) override;
-   bool ShouldFocusPageAfterCrash(content::WebContents* source) override;
-   void ShowRepostFormWarningDialog(content::WebContents* source) override;
-   std::unique_ptr<content::EyeDropper> OpenEyeDropper(
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index baee294121..03c4745fb8 100644
+index ffa698bc775..609eb121194 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -918,6 +918,13 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
+@@ -910,6 +910,13 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
    return search::NavEntryIsInstantNTP(source, entry);
  }
  
@@ -60,3 +16,47 @@ index baee294121..03c4745fb8 100644
  bool BrowserWebContentsDelegate::ShouldFocusPageAfterCrash(
      content::WebContents* source) {
    // Focus only the active page when reloading after a crash, otherwise
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
+index 040961e3b6b..7e026972ef0 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
+@@ -145,6 +145,8 @@ class BrowserWebContentsDelegate : public content::WebContentsDelegate {
+                          bool proceed,
+                          bool* proceed_to_fire_unload) override;
+   bool ShouldFocusLocationBarByDefault(content::WebContents* source) override;
++  bool FocusLocationBarForInitialBlankPage(
++      content::WebContents* source) override;
+   bool ShouldFocusPageAfterCrash(content::WebContents* source) override;
+   void ShowRepostFormWarningDialog(content::WebContents* source) override;
+   std::unique_ptr<content::EyeDropper> OpenEyeDropper(
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+index a2704216f1c..04736adb1d7 100644
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -8088,7 +8088,8 @@ void WebContentsImpl::ResumeLoadingCreatedWebContents() {
+ bool WebContentsImpl::FocusLocationBarByDefault() {
+   OPTIONAL_TRACE_EVENT0("content",
+                         "WebContentsImpl::FocusLocationBarByDefault");
+-  if (should_focus_location_bar_by_default_) {
++  if (should_focus_location_bar_by_default_ &&
++      (!delegate_ || delegate_->FocusLocationBarForInitialBlankPage(this))) {
+     return true;
+   }
+ 
+diff --git a/content/public/browser/web_contents_delegate.h b/content/public/browser/web_contents_delegate.h
+index 38efabfe5d4..22a2374aed3 100644
+--- a/content/public/browser/web_contents_delegate.h
++++ b/content/public/browser/web_contents_delegate.h
+@@ -295,6 +295,12 @@ class CONTENT_EXPORT WebContentsDelegate {
+   // complete check, you should use WebContents::FocusLocationBarByDefault().
+   virtual bool ShouldFocusLocationBarByDefault(WebContents* source);
+ 
++  // Arcomium: false keeps the startup navigation of a blank page from focusing
++  // the location bar, as it does by default.
++  virtual bool FocusLocationBarForInitialBlankPage(WebContents* source) {
++    return true;
++  }
++
+   // Sets focus to the location bar or some other place that is appropriate.
+   // This is called when the tab wants to encourage user input, like for the
+   // new tab page.

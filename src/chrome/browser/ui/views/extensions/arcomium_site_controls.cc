@@ -399,7 +399,7 @@ class SiteControlsView : public views::View,
         {IDC_FIND, raw_ref(kFindInPageIcon), IDS_ARCOMIUM_FIND_IN_PAGE},
         {IDC_SHARING_HUB_SCREENSHOT, raw_ref(kScreenshotRegionIcon),
          IDS_ARCOMIUM_SCREENSHOT},
-        {IDC_SHOW_READING_MODE_SIDE_PANEL, raw_ref(kMenuBookIcon),
+        {IDC_SHOW_READING_MODE, raw_ref(kMenuBookIcon),
          IDS_ARCOMIUM_READING_MODE},
     };
     views::View* row = AddChildView(MakeRow());

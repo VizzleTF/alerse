@@ -1,9 +1,9 @@
 diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
-index 6a2532ef56..783d598903 100644
+index 9991a320976..10f5fcfade5 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -293,6 +293,8 @@
- #define IDC_SHOW_TABS_FROM_OTHER_DEVICES_SIDE_PANEL 40304
+ #define IDC_SHOW_READING_MODE_KEYBOARD 40303
  #define IDC_CHROME_ENTERPRISE_RELEASE_NOTES 40305
  #define IDC_SHOW_TTC_MENU 40306
 +// Arcomium: opens chrome://arcomium-links.
@@ -12,10 +12,10 @@ index 6a2532ef56..783d598903 100644
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index 21e5fd0d92..9751f725cb 100644
+index f8535695034..793eb8042bb 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
-@@ -1930,6 +1930,9 @@ are declared in tools/grit/grit_args.gni.
+@@ -1933,6 +1933,9 @@ are declared in tools/grit/grit_args.gni.
          <message name="IDS_SETTINGS" desc="The text label of the Settings menu item">
            Settin&amp;gs
          </message>
@@ -25,7 +25,7 @@ index 21e5fd0d92..9751f725cb 100644
          <message name="IDS_OPTIONS" desc="The text label of the Options menu item">
            &amp;Options
          </message>
-@@ -1982,6 +1985,9 @@ are declared in tools/grit/grit_args.gni.
+@@ -1985,6 +1988,9 @@ are declared in tools/grit/grit_args.gni.
          <message name="IDS_SETTINGS" desc="In Title Case: The text label of the Settings menu item">
            &amp;Settings
          </message>
@@ -36,10 +36,10 @@ index 21e5fd0d92..9751f725cb 100644
            &amp;Options
          </message>
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 5571500f70..276c599c3a 100644
+index 0476350e565..a521657655a 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -92,6 +92,7 @@
+@@ -91,6 +91,7 @@
  #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
  #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
  #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
@@ -47,7 +47,7 @@ index 5571500f70..276c599c3a 100644
  #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
  #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
  #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
-@@ -1852,6 +1853,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -1991,6 +1992,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
@@ -56,10 +56,10 @@ index 5571500f70..276c599c3a 100644
    ttc::AiOverlayDialogController::RegisterProfilePrefs(registry);
  #endif
 diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
-index 24b48bb7f1..9da23be399 100644
+index 77745e436d5..8033830e65f 100644
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
-@@ -978,6 +978,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+@@ -990,6 +990,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
      case IDC_SHOW_SYNC_SETTINGS:
        chrome::ShowSettingsSubPage(browser_, chrome::kSyncSetupSubPage);
        break;
@@ -69,7 +69,7 @@ index 24b48bb7f1..9da23be399 100644
  #if !BUILDFLAG(IS_CHROMEOS)
      case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
        ShowSyncPassphraseDialogAndDecryptData(*browser_);
-@@ -1884,6 +1887,7 @@ void BrowserCommandController::InitCommandState() {
+@@ -1942,6 +1945,7 @@ void BrowserCommandController::InitCommandState() {
    command_updater_->UpdateCommandEnabled(IDC_SHOW_PAYMENT_METHODS,
                                           !guest_session);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
@@ -78,7 +78,7 @@ index 24b48bb7f1..9da23be399 100644
    command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index 1c0988f4db..31656a73ef 100644
+index c2f3d996b85..0013fe141c1 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -42,7 +42,9 @@
@@ -162,7 +162,7 @@ index 1c0988f4db..31656a73ef 100644
        GURL effective_url = url;
        content::BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(
            &effective_url, params.browser->GetProfile());
-@@ -754,6 +787,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -773,6 +806,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
    // target browser. This must happen before GetBrowserAndTabForDisposition()
    // has a chance to replace |params->browser| with another one, but after the
    // above check that relies on the original source_contents value.
@@ -170,7 +170,7 @@ index 1c0988f4db..31656a73ef 100644
    if (!params->source_contents && params->browser) {
      params->source_contents =
          params->browser->GetTabStripModel()->GetActiveWebContents();
-@@ -950,11 +984,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -969,11 +1003,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
        // partition, so a new tab of a Space starts blank.
        if (params->url.SchemeIs(content::kChromeUIScheme) &&
            params->url.host() == chrome::kChromeUINewTabHost &&
@@ -185,7 +185,7 @@ index 1c0988f4db..31656a73ef 100644
            params->browser->GetTabStripModel());
        if (params->source_contents &&
            ((params->tabstrip_add_types & AddTabTypes::ADD_INHERIT_OPENER) ||
-@@ -1042,16 +1077,47 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -1061,16 +1096,47 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
      }
  
      DCHECK(tab_to_insert);
@@ -239,10 +239,10 @@ index 1c0988f4db..31656a73ef 100644
      // For NEW_SPLIT_VIEW, pair the new tab with the active tab. The
      // "already split" case is handled in
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index 09f826b368..d505fb6448 100644
+index 0e71d492421..3fef161944a 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2262,6 +2262,10 @@ void AppMenuModel::Build() {
+@@ -2328,6 +2328,10 @@ void AppMenuModel::Build() {
        this, IDC_SHOW_SYNC_SETTINGS, IDS_SETTINGS_SYNC,
        features::IsRoundedIconsEnabled() ? vector_icons::kSyncIcon
                                          : kSyncRefreshOldIcon);
@@ -254,10 +254,10 @@ index 09f826b368..d505fb6448 100644
    AddItemWithStringIdAndVectorIcon(
        this, IDC_OPTIONS, IDS_SETTINGS,
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
-index 7f5aa7c3ea..ab43e6a21f 100644
+index 726b5a9c842..af583dd4f80 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
-@@ -48,6 +48,7 @@ source_set("configs") {
+@@ -42,6 +42,7 @@ source_set("configs") {
  
    deps = [
      ":gcm_internals_ui",
@@ -266,7 +266,7 @@ index 7f5aa7c3ea..ab43e6a21f 100644
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index 9e5671606b..95da8e23d1 100644
+index f7d1b75fb76..0c90234fcff 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -9,6 +9,7 @@
@@ -277,7 +277,7 @@ index 9e5671606b..95da8e23d1 100644
  #include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.h"
  #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
  #include "chrome/browser/glic/host/glic_ui.h"
-@@ -331,6 +332,7 @@ void RegisterChromeWebUIConfigs() {
+@@ -337,6 +338,7 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
    map.AddWebUIConfig(std::make_unique<ArcomiumSyncUIConfig>());

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-index 634a68e5b5..5d1277a747 100644
+index a3038fa051d..e9105014095 100644
 --- a/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 +++ b/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-@@ -1455,6 +1455,54 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
+@@ -1519,6 +1519,54 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
    }
  #endif  // !BUILDFLAG(IS_ANDROID)
  
@@ -58,7 +58,7 @@ index 634a68e5b5..5d1277a747 100644
    // DATA_TYPE_TABS
    if (remove_mask & constants::DATA_TYPE_TABS) {
 diff --git a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
-index 6f872ee5a8..655069d89f 100644
+index 6f872ee5a8d..655069d89fb 100644
 --- a/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
 +++ b/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
 @@ -42,6 +42,10 @@
@@ -93,7 +93,7 @@ index 6f872ee5a8..655069d89f 100644
    // OCCLUDED. Will require checking that the tab reload correctly when it
    // becomes VISIBLE.
 diff --git a/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc b/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
-index ecb3123778..43177de242 100644
+index ecb3123778d..43177de2428 100644
 --- a/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
 +++ b/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
 @@ -74,6 +74,14 @@ void GarbageCollectStoragePartitionsCommand::DoGarbageCollection() {

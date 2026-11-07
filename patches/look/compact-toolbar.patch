@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
-index 5b86765bfa..458189b275 100644
+index b8206dc188b..317d9e20594 100644
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -74,7 +74,8 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -84,7 +84,8 @@ int GetLayoutConstant(LayoutConstant constant) {
      case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
        return touch_ui ? 3 : 8;
      case LayoutConstant::kLocationBarHeight:
@@ -12,7 +12,7 @@ index 5b86765bfa..458189b275 100644
      // LINT.IfChange(LocationBarIconSize)
      case LayoutConstant::kLocationBarIconSize:
        return touch_ui ? 20 : 16;
-@@ -119,7 +120,7 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -129,7 +130,7 @@ int GetLayoutConstant(LayoutConstant constant) {
      case LayoutConstant::kTabstripToolbarOverlap:
        return 1;
      case LayoutConstant::kToolbarButtonHeight:
@@ -21,7 +21,7 @@ index 5b86765bfa..458189b275 100644
      case LayoutConstant::kToolbarButtonIconSize:
        return touch_ui ? kDefaultTouchableIconSize
                        : kDefaultIconSizeChromeRefresh;
-@@ -236,7 +237,7 @@ gfx::Insets GetLayoutInsets(LayoutInset inset) {
+@@ -246,7 +247,7 @@ gfx::Insets GetLayoutInsets(LayoutInset inset) {
        }
  
      case TOOLBAR_INTERIOR_MARGIN:

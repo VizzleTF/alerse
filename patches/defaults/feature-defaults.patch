@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 276c599c3a..7a11f81b6f 100644
+index a521657655a..4f3af38c002 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
-@@ -1877,7 +1877,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2016,7 +2016,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    contextual_search::ContextualSearchService::RegisterProfilePrefs(registry);
    contextual_tasks::RegisterProfilePrefs(registry);
    registry->RegisterIntegerPref(prefs::kContextualTasksNextPanelOpenCount, 0);
@@ -13,10 +13,10 @@ index 276c599c3a..7a11f81b6f 100644
    device_signals::RegisterProfilePrefs(registry);
    enterprise::RegisterIdentifiersProfilePrefs(registry);
 diff --git a/chrome/browser/ui/tabs/features.cc b/chrome/browser/ui/tabs/features.cc
-index 6aac05299c..9da07b02c2 100644
+index 018bddda69d..d01b92087bc 100644
 --- a/chrome/browser/ui/tabs/features.cc
 +++ b/chrome/browser/ui/tabs/features.cc
-@@ -94,7 +94,8 @@ BASE_FEATURE(kNewHorizontalPinnedTabStyling, base::FEATURE_DISABLED_BY_DEFAULT);
+@@ -40,7 +40,8 @@ BASE_FEATURE(kNewHorizontalPinnedTabStyling, base::FEATURE_DISABLED_BY_DEFAULT);
  
  // Enables Back-to-Opener behavior, allowing users to press the back button in a
  // newly opened tab to close that tab and return focus to the opener tab.
@@ -26,22 +26,8 @@ index 6aac05299c..9da07b02c2 100644
  
  bool IsSplitViewHorizontalIndirectAccessEnabled() {
    return base::FeatureList::IsEnabled(kSplitViewHorizontal) &&
-diff --git a/chrome/browser/ui/ui_features.cc b/chrome/browser/ui/ui_features.cc
-index 0d8dc0dc3d..5a69316ec0 100644
---- a/chrome/browser/ui/ui_features.cc
-+++ b/chrome/browser/ui/ui_features.cc
-@@ -42,7 +42,8 @@ BASE_FEATURE(kAllowEyeDropperWGCScreenCapture,
- #endif  // BUILDFLAG(IS_WIN)
- );
- 
--BASE_FEATURE(kCtrlTabMru, base::FEATURE_DISABLED_BY_DEFAULT);
-+// Arcomium: Ctrl+Tab goes to the tab used last, as in Arc.
-+BASE_FEATURE(kCtrlTabMru, base::FEATURE_ENABLED_BY_DEFAULT);
- 
- BASE_FEATURE(kImportExportFlags, base::FEATURE_DISABLED_BY_DEFAULT);
- 
 diff --git a/components/download/public/common/download_features.cc b/components/download/public/common/download_features.cc
-index c3d158eab2..07a1fb131e 100644
+index c3d158eab25..07a1fb131ee 100644
 --- a/components/download/public/common/download_features.cc
 +++ b/components/download/public/common/download_features.cc
 @@ -10,13 +10,8 @@
@@ -61,10 +47,10 @@ index c3d158eab2..07a1fb131e 100644
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
  BASE_FEATURE(kBackoffInDownloading, base::FEATURE_DISABLED_BY_DEFAULT);
 diff --git a/components/performance_manager/features.cc b/components/performance_manager/features.cc
-index 283284c8a1..c3456f81ce 100644
+index 5667f9107ac..430ab9dc27a 100644
 --- a/components/performance_manager/features.cc
 +++ b/components/performance_manager/features.cc
-@@ -147,7 +147,7 @@ BASE_FEATURE(kLevelDBSiteDataStoreBestEffort,
+@@ -168,7 +168,7 @@ BASE_FEATURE(kLevelDBSiteDataStoreBestEffort,
               base::FEATURE_DISABLED_BY_DEFAULT);
  
  BASE_FEATURE(kEnableBestEffortTaskInhibitingPolicy,
@@ -73,16 +59,16 @@ index 283284c8a1..c3456f81ce 100644
  BASE_FEATURE_PARAM(base::TimeDelta,
                     kBestEffortTaskInhibitingPeriod,
                     &kEnableBestEffortTaskInhibitingPolicy,
-@@ -171,7 +171,7 @@ const base::FeatureParam<bool> kRenderedOutOfViewIsNotVisible{
+@@ -192,7 +192,7 @@ const base::FeatureParam<bool> kRenderedOutOfViewIsNotVisible{
  const base::FeatureParam<bool> kRendererHighInitialPriority{
      &kPMProcessPriorityPolicy, "renderer_high_initial_priority", false};
  
 -BASE_FEATURE(kPMLoadingPageVoter, base::FEATURE_DISABLED_BY_DEFAULT);
 +BASE_FEATURE(kPMLoadingPageVoter, base::FEATURE_ENABLED_BY_DEFAULT);
  
- BASE_FEATURE(kUrgentPageDiscarding, base::FEATURE_ENABLED_BY_DEFAULT);
+ BASE_FEATURE(kPMLoadingPageVoterV2, base::FEATURE_DISABLED_BY_DEFAULT);
  
-@@ -279,7 +279,8 @@ BASE_FEATURE(kForceForegroundPriorityForAllTabs,
+@@ -302,7 +302,8 @@ BASE_FEATURE(kForceForegroundPriorityForAllTabs,
               base::FEATURE_DISABLED_BY_DEFAULT);
  
  // Defines the feature to enable this policy.
@@ -93,7 +79,7 @@ index 283284c8a1..c3456f81ce 100644
  // Defines the Finch parameter for the keep-alive duration.
  // Default is 23 seconds, which represents the threshold at which approximately
 diff --git a/components/performance_manager/user_tuning/prefs.cc b/components/performance_manager/user_tuning/prefs.cc
-index 8effd2c5e0..9c69965a22 100644
+index 8effd2c5e03..9c69965a225 100644
 --- a/components/performance_manager/user_tuning/prefs.cc
 +++ b/components/performance_manager/user_tuning/prefs.cc
 @@ -31,8 +31,9 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
@@ -108,10 +94,10 @@ index 8effd2c5e0..9c69965a22 100644
        kMemorySaverModeAggressiveness,
        static_cast<int>(MemorySaverModeAggressiveness::kMedium));
 diff --git a/services/network/public/cpp/features.cc b/services/network/public/cpp/features.cc
-index 95d0a1e530..0a094764d2 100644
+index d12921a1eff..5024e0257dc 100644
 --- a/services/network/public/cpp/features.cc
 +++ b/services/network/public/cpp/features.cc
-@@ -188,7 +188,8 @@ BASE_FEATURE(kOmitCorsClientCert, base::FEATURE_DISABLED_BY_DEFAULT);
+@@ -193,7 +193,8 @@ BASE_FEATURE(kOmitCorsClientCert, base::FEATURE_DISABLED_BY_DEFAULT);
  
  // Enables support for the `Variants` response header and reduce
  // accept-language. https://github.com/Tanych/accept-language
@@ -121,7 +107,7 @@ index 95d0a1e530..0a094764d2 100644
  
  BASE_FEATURE_PARAM(base::TimeDelta,
                     kReduceAcceptLanguageCacheDuration,
-@@ -408,7 +409,8 @@ BASE_FEATURE(kAvoidCorsURLLoaderRestartOnRedirect,
+@@ -416,7 +417,8 @@ BASE_FEATURE(kAllowSameOriginCredentialsWithDisableWebSecurity,
  
  // https://github.com/patcg-individual-drafts/topics
  // Kill switch for the Topics API.

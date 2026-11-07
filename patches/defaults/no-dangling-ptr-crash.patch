@@ -1,5 +1,5 @@
 diff --git a/base/allocator/partition_alloc_features.cc b/base/allocator/partition_alloc_features.cc
-index 212f83f9be..b33d3dd066 100644
+index 28809964805..90318f97a8d 100644
 --- a/base/allocator/partition_alloc_features.cc
 +++ b/base/allocator/partition_alloc_features.cc
 @@ -52,13 +52,9 @@ constinit const FeatureParam<UnretainedDanglingPtrMode>
@@ -20,10 +20,10 @@ index 212f83f9be..b33d3dd066 100644
  constexpr FeatureParam<DanglingPtrMode>::Option kDanglingPtrModeOption[] = {
      {DanglingPtrMode::kCrash, "crash"},
 diff --git a/base/allocator/partition_alloc_support.cc b/base/allocator/partition_alloc_support.cc
-index 6a17ffb0ed..af9e5902a8 100644
+index 48cb9f77dfd..6d2a8d3be7f 100644
 --- a/base/allocator/partition_alloc_support.cc
 +++ b/base/allocator/partition_alloc_support.cc
-@@ -747,6 +747,13 @@ void CheckDanglingRawPtrBufferEmpty() {
+@@ -748,6 +748,13 @@ void CheckDanglingRawPtrBufferEmpty() {
  
  }  // namespace
  
@@ -37,7 +37,7 @@ index 6a17ffb0ed..af9e5902a8 100644
  void InstallDanglingRawPtrChecks() {
    // Multiple tests can run within the same executable's execution. This line
    // ensures problems detected from the previous test are causing error before
-@@ -763,7 +770,8 @@ void InstallDanglingRawPtrChecks() {
+@@ -764,7 +771,8 @@ void InstallDanglingRawPtrChecks() {
      AtExitManager::RegisterTask(base::BindOnce(CheckDanglingRawPtrBufferEmpty));
    }
  

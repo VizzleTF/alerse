@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/sync/chrome_sync_controller_builder.cc b/chrome/browser/sync/chrome_sync_controller_builder.cc
-index 7be90bc493..41ff38c946 100644
+index 4cecd74fdcc..bc958a8df10 100644
 --- a/chrome/browser/sync/chrome_sync_controller_builder.cc
 +++ b/chrome/browser/sync/chrome_sync_controller_builder.cc
 @@ -195,18 +195,21 @@ ChromeSyncControllerBuilder::Build(syncer::SyncService* sync_service) {
@@ -37,7 +37,7 @@ index 7be90bc493..41ff38c946 100644
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
      if (extension_sync_service_.value()) {
 diff --git a/chrome/browser/sync/sync_service_factory.cc b/chrome/browser/sync/sync_service_factory.cc
-index 417f64dda1..65b53ca64d 100644
+index 417f64dda11..65b53ca64d4 100644
 --- a/chrome/browser/sync/sync_service_factory.cc
 +++ b/chrome/browser/sync/sync_service_factory.cc
 @@ -83,6 +83,7 @@

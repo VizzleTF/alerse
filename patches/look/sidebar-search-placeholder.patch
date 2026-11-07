@@ -1,22 +1,8 @@
-diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index a2ee826eed..d8462ab7c9 100644
---- a/chrome/browser/ui/views/location_bar/location_bar_view.h
-+++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -592,6 +592,9 @@ class LocationBarView
-   raw_ptr<views::ImageButton> arcomium_site_button_ = nullptr;
-   std::optional<gfx::FontList> arcomium_default_font_;
-   bool IsArcomiumCenteredIdle() const;
-+  // In the sidebar (macOS) with no address, as on a new tab: Arc's magnifier
-+  // and "Search...".
-+  bool IsArcomiumSidebarSearch() const;
-   void LayoutArcomiumCentered();
-   void CopyArcomiumAddress();
-   SkColor GetArcomiumPillColor() const;
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 38e96a9074..c6e137496e 100644
+index 0666e2dee87..b8f608da259 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -861,6 +861,11 @@ bool LocationBarView::IsArcomiumCenteredIdle() const {
+@@ -877,6 +877,11 @@ bool LocationBarView::IsArcomiumCenteredIdle() const {
    return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
  }
  
@@ -28,7 +14,7 @@ index 38e96a9074..c6e137496e 100644
  SkColor LocationBarView::GetArcomiumPillColor() const {
    // A shade off the frame, as Arc for Windows' pill is.
    return color_utils::BlendTowardMaxContrast(
-@@ -929,6 +934,12 @@ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
+@@ -945,6 +950,12 @@ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
          vector_icons::kArcomiumSearchIcon, 16,
          GetColorProvider()->GetColor(kColorOmniboxText));
      canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
@@ -41,7 +27,7 @@ index 38e96a9074..c6e137496e 100644
    }
    if (arcomium_pill_bounds_.IsEmpty()) {
      return;
-@@ -1231,8 +1242,26 @@ void LocationBarView::Layout(PassKey) {
+@@ -1249,8 +1260,26 @@ void LocationBarView::Layout(PassKey) {
      arcomium_site_button_->SetVisible(false);
    }
    arcomium_pill_bounds_ = gfx::Rect();
@@ -68,3 +54,17 @@ index 38e96a9074..c6e137496e 100644
    } else if (arcomium_command_bar_) {
      // Arc's command bar: a magnifier 20 px into the panel (OnPaintBackground)
      // and the address 51 px in; this row sits 6 px into the panel.
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 16840cd9eb2..7791daccbe7 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -616,6 +616,9 @@ class LocationBarView
+   raw_ptr<views::ImageButton> arcomium_site_button_ = nullptr;
+   std::optional<gfx::FontList> arcomium_default_font_;
+   bool IsArcomiumCenteredIdle() const;
++  // In the sidebar (macOS) with no address, as on a new tab: Arc's magnifier
++  // and "Search...".
++  bool IsArcomiumSidebarSearch() const;
+   void LayoutArcomiumCentered();
+   void CopyArcomiumAddress();
+   SkColor GetArcomiumPillColor() const;

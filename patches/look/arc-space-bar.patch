@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-index 8c42106133..7403899990 100644
+index d8dbe5b2d68..a5610620089 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-@@ -100,6 +100,11 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
+@@ -99,6 +99,11 @@ void VerticalTabStripBottomContainer::UpdateButtonStyles(bool collapsed) {
    // The Spaces row needs the width of the expanded strip. While expanded, the
    // sidebar's own "New Tab" row replaces the new tab button.
    space_switcher_->SetVisible(!collapsed);

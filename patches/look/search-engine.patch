@@ -1,25 +1,8 @@
-diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index f138692fea..c2affae46e 100644
---- a/chrome/browser/ui/toolbar/app_menu_model.cc
-+++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2307,6 +2307,12 @@ void AppMenuModel::Build() {
-       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
-       features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
-                                         : vector_icons::kLinkOldIcon);
-+  // Arcomium: where the address bar's search engine is picked, or one's own
-+  // (a self-hosted one, say) added.
-+  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEARCH_ENGINE),
-+                  ui::ImageModel::FromVectorIcon(
-+                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
-+                      ui::SimpleMenuModel::kDefaultIconSize));
-   if (!GetWebstoreItemId(browser_).empty()) {
-     AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
-                     ui::ImageModel::FromVectorIcon(
 diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
-index 575fc18a9c..78164928bc 100644
+index 5b6a5ad42ae..be0a3fa7bc7 100644
 --- a/chrome/browser/ui/chrome_pages.cc
 +++ b/chrome/browser/ui/chrome_pages.cc
-@@ -632,10 +632,8 @@ void ShowAboutChrome(BrowserWindowInterface* browser) {
+@@ -629,10 +629,8 @@ void ShowAboutChrome(BrowserWindowInterface* browser) {
  
  void ShowSearchEngineSettings(BrowserWindowInterface* browser) {
    base::RecordAction(UserMetricsAction("EditSearchEngines"));
@@ -32,8 +15,25 @@ index 575fc18a9c..78164928bc 100644
  }
  
  void ShowWebStore(BrowserWindowInterface* browser,
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index 289d3f19e6a..80bd8425eb7 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2373,6 +2373,12 @@ void AppMenuModel::Build() {
+       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
+                                         : vector_icons::kLinkOldIcon);
++  // Arcomium: where the address bar's search engine is picked, or one's own
++  // (a self-hosted one, say) added.
++  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEARCH_ENGINE),
++                  ui::ImageModel::FromVectorIcon(
++                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
+   if (!GetWebstoreItemId(browser_).empty()) {
+     AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
+                     ui::ImageModel::FromVectorIcon(
 diff --git a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
-index ec10c20e31..3e43d522e7 100644
+index ec10c20e316..3e43d522e75 100644
 --- a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 +++ b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 @@ -28,7 +28,7 @@

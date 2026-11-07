@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index a3b46b4e66..70313b52be 100644
+index 34fbf4e7266..7681bbc1ec8 100644
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-@@ -163,10 +163,13 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+@@ -181,10 +181,13 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
            base::BindRepeating(
                &VerticalTabStripRegionView::RecordNewTabButtonPressed,
                base::Unretained(this))));
@@ -17,7 +17,7 @@ index a3b46b4e66..70313b52be 100644
    bottom_button_container_->SetProperty(
        views::kMarginsKey,
        gfx::Insets::TLBR(
-@@ -850,7 +853,7 @@ void VerticalTabStripRegionView::AddTabStripView(
+@@ -861,7 +864,7 @@ void VerticalTabStripRegionView::AddTabStripView(
    view->SetProperty(
        views::kFlexBehaviorKey,
        views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToMinimum,
@@ -27,10 +27,10 @@ index a3b46b4e66..70313b52be 100644
        views::kMarginsKey,
        gfx::Insets::VH(
 diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-index a05c9e0e9e..263376c68d 100644
+index 98977da436f..8dd53826fcf 100644
 --- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-@@ -239,10 +239,11 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -243,10 +243,11 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
      gfx::Rect accessory_bounds;
      if (show_accessory) {
        const int width = size_bounds.width().value();
@@ -47,7 +47,7 @@ index a05c9e0e9e..263376c68d 100644
      }
      layouts.child_layouts.emplace_back(accessory, show_accessory,
 diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-index 098e4a5204..55d2bceec2 100644
+index be7df7af074..e0a7d8442b9 100644
 --- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 @@ -7,6 +7,7 @@ import("//chrome/common/features.gni")
@@ -58,7 +58,7 @@ index 098e4a5204..55d2bceec2 100644
      "arcomium_sidebar_view.h",
      "arcomium_space_switcher.h",
      "top_container_button.h",
-@@ -38,6 +39,7 @@ source_set("vertical") {
+@@ -39,6 +40,7 @@ source_set("vertical") {
  
  source_set("impl") {
    sources = [
@@ -66,7 +66,7 @@ index 098e4a5204..55d2bceec2 100644
      "arcomium_sidebar_view.cc",
      "arcomium_space_switcher.cc",
      "top_container_button.cc",
-@@ -50,6 +52,10 @@ source_set("impl") {
+@@ -52,6 +54,10 @@ source_set("impl") {
  
    deps = [
      "//chrome/browser:primitives",
@@ -78,7 +78,7 @@ index 098e4a5204..55d2bceec2 100644
      "//chrome/browser/glic/browser_ui:glow",
      "//chrome/browser/glic/browser_ui:glow_controller",
 diff --git a/components/content_settings/core/browser/content_settings_registry.cc b/components/content_settings/core/browser/content_settings_registry.cc
-index 53b0e2ca55..01ea7a7b9e 100644
+index 53b0e2ca558..01ea7a7b9e7 100644
 --- a/components/content_settings/core/browser/content_settings_registry.cc
 +++ b/components/content_settings/core/browser/content_settings_registry.cc
 @@ -639,8 +639,10 @@ void ContentSettingsRegistry::Init() {
@@ -94,10 +94,10 @@ index 53b0e2ca55..01ea7a7b9e 100644
             /*valid_settings=*/
             {CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK, CONTENT_SETTING_ASK},
 diff --git a/third_party/blink/renderer/platform/runtime_enabled_features.json5 b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-index c4ac7d298b..d173da72bc 100644
+index 0f5c0064729..b4c38410d9a 100644
 --- a/third_party/blink/renderer/platform/runtime_enabled_features.json5
 +++ b/third_party/blink/renderer/platform/runtime_enabled_features.json5
-@@ -990,6 +990,9 @@
+@@ -1022,6 +1022,9 @@
        name: "BrowserInitiatedAutomaticPictureInPicture",
        public: true,
        status: "experimental",

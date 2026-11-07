@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc b/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
-index b54115d798..bd3c331a4f 100644
+index 272d8c4ed00..50d339c288f 100644
 --- a/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
 +++ b/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
-@@ -994,8 +994,13 @@ void DownloadToolbarUIController::OnBubbleAnchorAssembled(
+@@ -643,8 +643,13 @@ void DownloadToolbarUIController::OnBubbleAnchorAssembled(
            ImmersiveModeController::ANIMATE_REVEAL_YES);
      }
    }
@@ -18,10 +18,10 @@ index b54115d798..bd3c331a4f 100644
        /*autosize=*/true);
    bubble_delegate->SetOwnedByWidget(
 diff --git a/chrome/browser/ui/views/frame/app_menu_button.cc b/chrome/browser/ui/views/frame/app_menu_button.cc
-index 919a1e094e..3b6563c202 100644
+index edf4150731b..3b1941cae4d 100644
 --- a/chrome/browser/ui/views/frame/app_menu_button.cc
 +++ b/chrome/browser/ui/views/frame/app_menu_button.cc
-@@ -19,6 +19,7 @@
+@@ -20,6 +20,7 @@
  #include "chrome/browser/ui/views/app_menu/action_app_menu.h"
  #include "chrome/browser/ui/views/chrome_typography.h"
  #include "chrome/browser/ui/views/frame/app_menu_button_observer.h"
@@ -29,7 +29,7 @@ index 919a1e094e..3b6563c202 100644
  #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
  #include "chrome/browser/ui/views/toolbar/app_menu.h"
  #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
-@@ -51,6 +52,16 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
+@@ -52,6 +53,16 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
    if (IsDrawn()) {
      return views::BubbleAnchor(this);
    }
@@ -47,7 +47,7 @@ index 919a1e094e..3b6563c202 100644
    // in certain cases (e.g. content-fullscreen). In this case, use the fallback
    // anchor instead.
 diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
-index 5bafaddaac..1c2b3c6ca3 100644
+index 5bafaddaaca..1c2b3c6ca3c 100644
 --- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 @@ -47,6 +47,8 @@
@@ -205,7 +205,7 @@ index 5bafaddaac..1c2b3c6ca3 100644
    client_view_bounds_ = GetLocalBounds();
    int top_inset = GetTopInset(false);
 diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.h b/chrome/browser/ui/views/frame/browser_frame_view_win.h
-index e731b2c4c1..f6cf7f029a 100644
+index e731b2c4c16..f6cf7f029a8 100644
 --- a/chrome/browser/ui/views/frame/browser_frame_view_win.h
 +++ b/chrome/browser/ui/views/frame/browser_frame_view_win.h
 @@ -6,14 +6,18 @@
@@ -274,10 +274,10 @@ index e731b2c4c1..f6cf7f029a 100644
    bool throbber_running_ = false;
  
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
-index 35416d5e97..dc26ceab64 100644
+index 928a723e2e2..e8c70df7d3c 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -167,6 +167,7 @@
+@@ -168,6 +168,7 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/frame/custom_floating_corner.h"
  #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
@@ -314,7 +314,7 @@ index 35416d5e97..dc26ceab64 100644
  bool BrowserView::IsVerticalTabStripCollapsed() const {
    if (auto* const controller =
            tabs::VerticalTabStripStateController::From(browser_)) {
-@@ -3079,6 +3102,10 @@ bool BrowserView::IsToolbarVisible() const {
+@@ -3076,6 +3099,10 @@ bool BrowserView::IsToolbarVisible() const {
    }
  #endif
  
@@ -325,7 +325,7 @@ index 35416d5e97..dc26ceab64 100644
    // It's possible to reach here before we've been notified of being added to a
    // widget, so |toolbar_| is still null.  Return false in this case so callers
    // don't assume they can access the toolbar yet.
-@@ -4891,7 +4918,9 @@ void BrowserView::Layout(PassKey) {
+@@ -4888,7 +4915,9 @@ void BrowserView::Layout(PassKey) {
    LayoutSuperclass<views::View>(this);
  
    // TODO(jamescook): Why was this in the middle of layout code?
@@ -337,7 +337,7 @@ index 35416d5e97..dc26ceab64 100644
  
    if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
 diff --git a/chrome/browser/ui/views/frame/browser_view.h b/chrome/browser/ui/views/frame/browser_view.h
-index 6c4807bbaa..990b8724a3 100644
+index e7bfac16bd3..c95a5452e9e 100644
 --- a/chrome/browser/ui/views/frame/browser_view.h
 +++ b/chrome/browser/ui/views/frame/browser_view.h
 @@ -348,6 +348,13 @@ class BrowserView : public BrowserWindow,
@@ -355,10 +355,10 @@ index 6c4807bbaa..990b8724a3 100644
    // Returns true if the profile associated with this Browser window is
    // incognito.
 diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 389c6f8c6e..2465092e63 100644
+index 7764d4a4728..c9b00641a5b 100644
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-@@ -1275,7 +1275,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1335,7 +1335,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      int caption_button_width = 0;
  
      // If the toolbar is not in the browser, then the exclusion isn't either.
@@ -374,7 +374,7 @@ index 389c6f8c6e..2465092e63 100644
        // zero if the toolbar is in e.g. an immersive mode overlay, or is not
        // aligned with the tabstrip (which can happen in collapsed mode with
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
-index a2d28ee3ae..5e8ccde047 100644
+index a2d28ee3ae7..5e8ccde047f 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
 @@ -230,7 +230,7 @@ void MultiContentsView::SetBackgroundRadii(const gfx::RoundedCornersF& radii) {
@@ -413,7 +413,7 @@ index a2d28ee3ae..5e8ccde047 100644
          is_in_split, is_active, is_active && active_contents_view_highlighted_);
    }
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
-index 13dd500826..431ee6f1f1 100644
+index 13dd5008268..431ee6f1f18 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -69,6 +69,10 @@ class MultiContentsView
@@ -428,7 +428,7 @@ index 13dd500826..431ee6f1f1 100644
    MultiContentsView(BrowserView* browser_view,
                      std::unique_ptr<MultiContentsViewDelegate> delegate);
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 8dc0aef718..d291b09f8a 100644
+index c655d9c8396..cbeee5c9105 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 @@ -5,6 +5,7 @@
@@ -437,12 +437,12 @@ index 8dc0aef718..d291b09f8a 100644
  #include "cc/paint/paint_flags.h"
 +#include "chrome/app/chrome_command_ids.h"
  #include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/ui/actions/chrome_action_id.h"
- #include "chrome/browser/ui/browser_commands.h"
-@@ -23,9 +24,11 @@
- #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
+@@ -28,9 +29,11 @@
  #include "chrome/grit/generated_resources.h"
  #include "components/feature_engagement/public/feature_constants.h"
+ #include "components/prefs/pref_service.h"
 +#include "components/vector_icons/vector_icons.h"
  #include "third_party/skia/include/core/SkPathBuilder.h"
  #include "ui/base/l10n/l10n_util.h"
@@ -451,7 +451,7 @@ index 8dc0aef718..d291b09f8a 100644
  #include "ui/gfx/canvas.h"
  #include "ui/views/accessibility/view_accessibility.h"
  #include "ui/views/actions/action_view_controller.h"
-@@ -140,6 +143,43 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+@@ -144,6 +147,43 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
    downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
    arc_downloads_button_ = AddChildView(std::move(downloads));
  
@@ -495,8 +495,8 @@ index 8dc0aef718..d291b09f8a 100644
    combo_button_ = AddChildView(std::make_unique<TabStripComboButton>(
        browser_, TabStripComboButton::Context::kVerticalTabStrip));
    combo_button_->SetOrientation(
-@@ -148,7 +188,19 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
-                                       : views::LayoutOrientation::kHorizontal);
+@@ -185,7 +225,19 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+   }
  }
  
 -VerticalTabStripTopContainer::~VerticalTabStripTopContainer() = default;
@@ -516,7 +516,7 @@ index 8dc0aef718..d291b09f8a 100644
  
  void VerticalTabStripTopContainer::Layout(PassKey) {
    LayoutSuperclass<views::View>(this);
-@@ -191,7 +243,8 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -244,7 +296,8 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      // Arcomium: the Arc header row only exists while expanded.
      for (views::View* arc_button :
           {arc_logo_button_.get(), arc_sidebar_button_.get(),
@@ -526,7 +526,7 @@ index 8dc0aef718..d291b09f8a 100644
        if (arc_button) {
          layout.child_layouts.emplace_back(arc_button, false, gfx::Rect());
        }
-@@ -291,7 +344,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -344,7 +397,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    } else if (arc_logo_button_) {
      // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
      combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
@@ -535,7 +535,7 @@ index 8dc0aef718..d291b09f8a 100644
      // The container starts 12 px into the strip; Arc's icons sit at x = 23,
      // 58 and 93 of the window.
      // On macOS the window controls lead the row, as in Arc, and the buttons
-@@ -310,6 +363,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -363,6 +416,18 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
                      (kArcHeaderHeight - kArcHeaderButtonSize) / 2 + 1,
                      kArcHeaderButtonSize, kArcHeaderButtonSize));
      }
@@ -554,7 +554,7 @@ index 8dc0aef718..d291b09f8a 100644
      for (views::View* chromium_button :
           {static_cast<views::View*>(unfocus_button_.get()),
            static_cast<views::View*>(collapse_button_.get()),
-@@ -452,7 +517,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -539,7 +604,8 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
    // window caption would otherwise start a window drag instead.
    for (views::View* arc_button :
         {arc_logo_button_.get(), arc_sidebar_button_.get(),
@@ -565,18 +565,18 @@ index 8dc0aef718..d291b09f8a 100644
        return false;
      }
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-index 526330a68e..edd763fdbd 100644
+index 9b039c0bd72..30579df22b9 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-@@ -5,6 +5,7 @@
- #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
+@@ -6,6 +6,7 @@
  #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_VERTICAL_TAB_STRIP_TOP_CONTAINER_H_
  
+ #include "base/callback_list.h"
 +#include "chrome/browser/command_observer.h"
+ #include "components/prefs/pref_change_registrar.h"
  #include "ui/menus/simple_menu_model.h"
  #include "ui/views/context_menu_controller.h"
- #include "ui/views/layout/delegating_layout_manager.h"
-@@ -35,7 +36,8 @@ class MenuRunner;
+@@ -38,7 +39,8 @@ class MenuRunner;
  class VerticalTabStripTopContainer : public views::View,
                                       public views::LayoutDelegate,
                                       public views::ContextMenuController,
@@ -586,7 +586,7 @@ index 526330a68e..edd763fdbd 100644
    METADATA_HEADER(VerticalTabStripTopContainer, views::View)
  
   public:
-@@ -50,6 +52,14 @@ class VerticalTabStripTopContainer : public views::View,
+@@ -53,6 +55,14 @@ class VerticalTabStripTopContainer : public views::View,
    // View:
    void Layout(PassKey) override;
  
@@ -601,7 +601,7 @@ index 526330a68e..edd763fdbd 100644
    // LayoutDelegate:
    views::ProposedLayout CalculateProposedLayout(
        const views::SizeBounds& size_bounds) const override;
-@@ -108,6 +118,11 @@ class VerticalTabStripTopContainer : public views::View,
+@@ -114,6 +124,11 @@ class VerticalTabStripTopContainer : public views::View,
    raw_ptr<views::View> arc_logo_button_ = nullptr;
    raw_ptr<views::View> arc_sidebar_button_ = nullptr;
    raw_ptr<views::View> arc_downloads_button_ = nullptr;
@@ -611,13 +611,13 @@ index 526330a68e..edd763fdbd 100644
 +  raw_ptr<views::View> arc_forward_button_ = nullptr;
 +  raw_ptr<views::View> arc_reload_button_ = nullptr;
  
-   std::unique_ptr<views::ActionViewController> action_view_controller_;
- 
+   PrefChangeRegistrar pref_registrar_;
+   base::CallbackListSubscription collapse_subscription_;
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index b947e7579a..bb908ae572 100644
+index 86228a66ba0..ca1824fdc02 100644
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -2024,7 +2024,8 @@ views::AccessiblePaneView* ToolbarView::GetAsAccessiblePaneView() {
+@@ -2020,7 +2020,8 @@ views::AccessiblePaneView* ToolbarView::GetAsAccessiblePaneView() {
  views::BubbleAnchor ToolbarView::GetBubbleAnchor(
      std::optional<actions::ActionId> action_id) {
    // If a pinned toolbar actions button exists for the action_id, return that.

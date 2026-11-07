@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index 052478368a..9b0858c3e9 100644
+index 1f503af6099..30b234212f9 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -294,7 +294,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -347,7 +347,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      host_size.set_height(kArcHeaderHeight);
      // The container starts 12 px into the strip; Arc's icons sit at x = 23,
      // 58 and 93 of the window.

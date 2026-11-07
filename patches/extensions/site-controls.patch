@@ -1,5 +1,36 @@
+diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
+index b35075073d2..58a2bae9c74 100644
+--- a/chrome/browser/ui/views/extensions/BUILD.gn
++++ b/chrome/browser/ui/views/extensions/BUILD.gn
+@@ -812,9 +812,24 @@ source_set("extensions_toolbar_button") {
+ }
+ 
+ source_set("extensions_toolbar_button_impl") {
+-  sources = [ "extensions_toolbar_button.cc" ]
+-  public_deps = [ ":extensions_toolbar_button" ]
++  sources = [
++    "arcomium_site_controls.cc",
++    "arcomium_site_controls.h",
++    "extensions_toolbar_button.cc",
++  ]
++  public_deps = [
++    ":extensions_toolbar_button",
++    # Arcomium: arcomium_site_controls.cc reaches into //chrome/browser.
++    "//chrome/browser:browser_public_dependencies",
++  ]
+   deps = [
++    ":extensions_views_utils",
++    "//chrome/app/vector_icons",
++    "//chrome/browser/ui:chrome_pages",
++    "//chrome/browser/ui/page_info",
++    "//chrome/browser/ui/views/page_info",
++    "//components/page_info/core",
++    "//components/vector_icons",
+     ":extensions_menu_coordinator",
+     ":extensions_menu_view",
+     ":extensions_request_access_button",
 diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
-index bc17a2395a..902f4441cc 100644
+index bc17a2395ab..902f4441ccd 100644
 --- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
 +++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.cc
 @@ -11,12 +11,14 @@
@@ -80,7 +111,7 @@ index bc17a2395a..902f4441cc 100644
    return pressed_lock_.get();
  }
 diff --git a/chrome/browser/ui/views/extensions/extensions_toolbar_button.h b/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
-index 668a4ffa01..436e43632f 100644
+index 668a4ffa010..436e43632fe 100644
 --- a/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
 +++ b/chrome/browser/ui/views/extensions/extensions_toolbar_button.h
 @@ -38,6 +38,10 @@ class ExtensionsToolbarButton : public ToolbarChipButton,
@@ -94,40 +125,11 @@ index 668a4ffa01..436e43632f 100644
  
    bool GetExtensionsMenuShowing() const;
  
-diff --git a/chrome/browser/ui/views/extensions/BUILD.gn b/chrome/browser/ui/views/extensions/BUILD.gn
-index 25a796c035..7dba46b117 100644
---- a/chrome/browser/ui/views/extensions/BUILD.gn
-+++ b/chrome/browser/ui/views/extensions/BUILD.gn
-@@ -830,12 +830,23 @@ source_set("extensions_toolbar_button") {
- }
- 
- source_set("extensions_toolbar_button_impl") {
--  sources = [ "extensions_toolbar_button.cc" ]
-+  sources = [
-+    "arcomium_site_controls.cc",
-+    "arcomium_site_controls.h",
-+    "extensions_toolbar_button.cc",
-+  ]
-   public_deps = [
-     ":extensions_toolbar_button",
-     "//chrome/browser:browser_public_dependencies",
-   ]
-   deps = [
-+    ":extensions_views_utils",
-+    "//chrome/app/vector_icons",
-+    "//chrome/browser/ui:chrome_pages",
-+    "//chrome/browser/ui/page_info",
-+    "//chrome/browser/ui/views/page_info",
-+    "//components/page_info/core",
-+    "//components/vector_icons",
-     ":extensions_menu_coordinator",
-     ":extensions_menu_view",
-     ":extensions_request_access_button",
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index c6e137496e..d882476843 100644
+index b8f608da259..691bb4c6581 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -73,6 +73,8 @@
+@@ -74,6 +74,8 @@
  #include "chrome/browser/ui/views/bubble_anchor_util_views.h"
  #include "chrome/browser/ui/views/chrome_layout_provider.h"
  #include "chrome/browser/ui/views/chrome_typography.h"
@@ -136,7 +138,7 @@ index c6e137496e..d882476843 100644
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
  #include "chrome/browser/ui/views/location_bar/location_bar_actions.h"
-@@ -818,15 +820,12 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+@@ -834,15 +836,12 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
      copy->SetVisible(false);
      arcomium_copy_button_ = AddChildView(std::move(copy));
      auto site = views::CreateVectorImageButtonWithNativeTheme(
@@ -156,7 +158,7 @@ index c6e137496e..d882476843 100644
      site->SetVisible(false);
      arcomium_site_button_ = AddChildView(std::move(site));
    }
-@@ -857,6 +856,22 @@ bool LocationBarView::ArcomiumOpensNewTab() const {
+@@ -873,6 +872,22 @@ bool LocationBarView::ArcomiumOpensNewTab() const {
    return arcomium_command_bar_ && arcomium_new_tab_;
  }
  
@@ -180,10 +182,10 @@ index c6e137496e..d882476843 100644
    return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
  }
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index d8462ab7c9..cb6b7e925f 100644
+index 7791daccbe7..e741553ba85 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -597,6 +597,7 @@ class LocationBarView
+@@ -621,6 +621,7 @@ class LocationBarView
    bool IsArcomiumSidebarSearch() const;
    void LayoutArcomiumCentered();
    void CopyArcomiumAddress();

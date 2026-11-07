@@ -1,25 +1,39 @@
-diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
-index 6aa0e2168f..864380680b 100644
---- a/chrome/browser/ui/tabs/tab_strip_model.h
-+++ b/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -331,6 +331,15 @@ class TabStripModel {
-   // CloseWebContentsAt() when a WebContents* is already available.
-   void CloseWebContents(content::WebContents* contents, uint32_t close_types);
+diff --git a/chrome/browser/ui/browser_tab_strip_model_delegate.cc b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+index 874a5f3550b..9a3664369cf 100644
+--- a/chrome/browser/ui/browser_tab_strip_model_delegate.cc
++++ b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+@@ -464,6 +464,13 @@ void BrowserTabStripModelDelegate::CloseTab(
+     }
+   }
  
-+  // Arcomium: as in Arc, a Space (a tab group, or the ungrouped tabs) and the
-+  // window stay when the Space's last tab goes: an empty Space shows a blank
-+  // page and no tab. Adds a hidden New Tab to every Space that closing or
-+  // moving away `tabs` would empty; it shows if the Space's last tab was
-+  // active.
-+  void ArcomiumKeepSpaces(base::span<tabs::TabInterface* const> tabs);
-+  // Whether `contents` is such a hidden tab, still on its New Tab page.
-+  static bool IsArcomiumEmptySpace(content::WebContents* contents);
++  // Arcomium: the Space and the window stay (TabStripModel::
++  // ArcomiumKeepSpaces()).
++  {
++    tabs::TabInterface* const closing[] = {model->GetTabAtIndex(tab_index)};
++    model->ArcomiumKeepSpaces(closing);
++  }
 +
-   // Closes the WebContents at the specified index. This causes the
-   // WebContents to be destroyed, but it may not happen immediately.
-   // `close_types` is a bitmask of CloseTypes.
+   if (model->count() == 1 && IsNormalWindow() &&
+       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+           "close-window-with-last-tab") == "never") {
+diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+index 2e02cc461e5..ffa698bc775 100644
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -873,6 +873,11 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
+   if (source != browser_->GetTabStripModel()->GetActiveWebContents()) {
+     return false;
+   }
++  // Arcomium: an empty Space shows nothing; the command bar opens only when
++  // asked for.
++  if (TabStripModel::IsArcomiumEmptySpace(source)) {
++    return false;
++  }
+ 
+   // This should be based on the pending entry if there is one, so that
+   // back/forward navigations to the NTP are handled.  The visible entry can't
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
-index f2f3415e6f..7fbe882378 100644
+index 49011a92d85..15f854970de 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -105,7 +105,9 @@
@@ -138,7 +152,7 @@ index f2f3415e6f..7fbe882378 100644
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
    CHECK(ContainsIndex(index));
    CloseWebContents(GetWebContentsAt(index), close_types);
-@@ -3412,6 +3510,7 @@ void TabStripModel::ExecuteCloseTabs(
+@@ -3430,6 +3528,7 @@ void TabStripModel::ExecuteCloseTabs(
    ReentrancyCheck::ValidateNotReentrant(&reentrancy_guard_);
    const std::vector<tabs::TabInterface*> tabs_to_close =
        std::move(get_tabs_to_close).Run();
@@ -146,42 +160,28 @@ index f2f3415e6f..7fbe882378 100644
    if (!tabs_to_close.empty() && !closing_all_ &&
        static_cast<int>(tabs_to_close.size()) == count() &&
        delegate()->IsNormalWindow() &&
-diff --git a/chrome/browser/ui/browser_tab_strip_model_delegate.cc b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
-index 874a5f3550..9a3664369c 100644
---- a/chrome/browser/ui/browser_tab_strip_model_delegate.cc
-+++ b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
-@@ -464,6 +464,13 @@ void BrowserTabStripModelDelegate::CloseTab(
-     }
-   }
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
+index 479fe42eb67..bd0f88b0c71 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.h
++++ b/chrome/browser/ui/tabs/tab_strip_model.h
+@@ -331,6 +331,15 @@ class TabStripModel {
+   // CloseWebContentsAt() when a WebContents* is already available.
+   void CloseWebContents(content::WebContents* contents, uint32_t close_types);
  
-+  // Arcomium: the Space and the window stay (TabStripModel::
-+  // ArcomiumKeepSpaces()).
-+  {
-+    tabs::TabInterface* const closing[] = {model->GetTabAtIndex(tab_index)};
-+    model->ArcomiumKeepSpaces(closing);
-+  }
++  // Arcomium: as in Arc, a Space (a tab group, or the ungrouped tabs) and the
++  // window stay when the Space's last tab goes: an empty Space shows a blank
++  // page and no tab. Adds a hidden New Tab to every Space that closing or
++  // moving away `tabs` would empty; it shows if the Space's last tab was
++  // active.
++  void ArcomiumKeepSpaces(base::span<tabs::TabInterface* const> tabs);
++  // Whether `contents` is such a hidden tab, still on its New Tab page.
++  static bool IsArcomiumEmptySpace(content::WebContents* contents);
 +
-   if (model->count() == 1 && IsNormalWindow() &&
-       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-           "close-window-with-last-tab") == "never") {
-diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index 3bc40bcc91..baee294121 100644
---- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-+++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -881,6 +881,11 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
-   if (source != browser_->GetTabStripModel()->GetActiveWebContents()) {
-     return false;
-   }
-+  // Arcomium: an empty Space shows nothing; the command bar opens only when
-+  // asked for.
-+  if (TabStripModel::IsArcomiumEmptySpace(source)) {
-+    return false;
-+  }
- 
-   // This should be based on the pending entry if there is one, so that
-   // back/forward navigations to the NTP are handled.  The visible entry can't
+   // Closes the WebContents at the specified index. This causes the
+   // WebContents to be destroyed, but it may not happen immediately.
+   // `close_types` is a bitmask of CloseTypes.
 diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
-index acd93730d4..2c9318f827 100644
+index acd93730d47..2c9318f827a 100644
 --- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 +++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 @@ -16,6 +16,7 @@

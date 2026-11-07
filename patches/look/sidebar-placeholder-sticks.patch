@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index d882476843..f6df3fe057 100644
+index 691bb4c6581..36e753bdc4f 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -876,6 +876,15 @@ bool LocationBarView::IsArcomiumCenteredIdle() const {
+@@ -892,6 +892,15 @@ bool LocationBarView::IsArcomiumCenteredIdle() const {
    return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
  }
  
@@ -18,7 +18,7 @@ index d882476843..f6df3fe057 100644
  bool LocationBarView::IsArcomiumSidebarSearch() const {
    return arcomium_compact_ && !arcomium_centered_ && !arcomium_command_bar_ &&
           !omnibox_view_->HasFocus() && omnibox_view_->GetText().empty();
-@@ -1257,15 +1266,9 @@ void LocationBarView::Layout(PassKey) {
+@@ -1275,15 +1284,9 @@ void LocationBarView::Layout(PassKey) {
      arcomium_site_button_->SetVisible(false);
    }
    arcomium_pill_bounds_ = gfx::Rect();
@@ -38,10 +38,10 @@ index d882476843..f6df3fe057 100644
    if (IsArcomiumCenteredIdle()) {
      LayoutArcomiumCentered();
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index cb6b7e925f..39274ec540 100644
+index e741553ba85..df8ae097985 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -598,6 +598,13 @@ class LocationBarView
+@@ -622,6 +622,13 @@ class LocationBarView
    void LayoutArcomiumCentered();
    void CopyArcomiumAddress();
    void ShowArcomiumSiteControls();
@@ -56,10 +56,10 @@ index cb6b7e925f..39274ec540 100644
  
    // Views to show inline autocompletion when an IME is active.  In this case,
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-index 6ac205d996..d0122eaaca 100644
+index 5fe6c355457..0bbdfde807c 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-@@ -437,6 +437,13 @@ void OmniboxViewViews::InstallPlaceholderText() {
+@@ -438,6 +438,13 @@ void OmniboxViewViews::InstallPlaceholderText() {
    std::optional<std::u16string> maybe_a11y_placeholder_text;
    omnibox::ComputePlaceholderText(location_bar_view_, placeholder_text,
                                    maybe_a11y_placeholder_text);
