@@ -112,7 +112,9 @@ struct ArcResult {
 // new folder for a Space to adopt. A folder keeps its place, id, title, meta
 // info and what the user put in it; only its imported items are replaced. A
 // folder bound to a Space Arc no longer has loses its imported items and the
-// binding.
+// binding. What tools/arc_import.py imported here before marks existed
+// (marked "1") is taken as an earlier import into this profile, its Spaces'
+// folders bound as that import left them.
 ArcResult ImportArcSpaces(bookmarks::BookmarkModel* model,
                           const ImportMark& mark,
                           const std::vector<ArcSpace>& spaces);

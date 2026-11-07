@@ -93,7 +93,14 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
   Support (macOS) or the XDG config directory (Linux); profiles whose Preferences have an
   `arcomium` key are skipped. `tools/arc_import.py` is the offline fallback for the Arc
   part: it writes the `Bookmarks` file of a closed profile, marking what it adds the
-  same way.
+  same way and replacing an earlier import the same way (the same folders, the user's
+  own bookmarks in them kept). Its earlier versions marked every node `arcomium.imported = "1"`
+  and the folder of a Space no Space had adopted `arcomium.space = "arc:<id>"`; an
+  Arc import takes such Space folders under Other bookmarks, and the nodes in them
+  marked "1", as this profile's earlier import (re-marked, `arc:<id>` folders bound to
+  that Space; their Space icons stay, as the user may have picked them). "1" tells
+  neither a copy the user made nor what the old tool imported on another device (synced
+  here) from this profile's own import, so such nodes in those folders are replaced too.
 - To do: Arc's toolbar height (32 px) for the page header.
 
 ## Sync

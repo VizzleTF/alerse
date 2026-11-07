@@ -90,6 +90,41 @@ void Unbind(BookmarkModel* model, const BookmarkNode* folder) {
   model->DeleteNodeMetaInfo(folder, kArcIconMetaKey);
 }
 
+// kImportedMetaKey of what tools/arc_import.py imported before ImportMark.
+constexpr char kLegacyImportedMark[] = "1";
+
+// Takes what tools/arc_import.py imported into this profile before ImportMark
+// existed as `mark`'s, Arc's import here. The tool marked each node it added
+// "1" and made a folder under Other bookmarks for each Arc Space: each such
+// folder and each node in it marked "1" gets `mark`. A folder no Space has
+// adopted yet ("arc:<Arc's id>") is bound to its Arc Space. The Space's icon
+// is not recorded as Arc's: the user may have picked it since, so it stays.
+// "1" tells neither a copy the user made nor what the tool imported on
+// another device (synced here) from what it imported here, so such nodes in
+// these folders are taken as imported here too.
+void AdoptLegacyArcImport(BookmarkModel* model, const ImportMark& mark) {
+  for (const auto& child : model->other_node()->children()) {
+    const BookmarkNode* folder = child.get();
+    const std::string space = GetMeta(folder, kSpaceMetaKey);
+    if (!folder->is_folder() || space.empty() ||
+        GetMeta(folder, kImportedMetaKey) != kLegacyImportedMark) {
+      continue;
+    }
+    model->SetNodeMetaInfo(folder, kImportedMetaKey, mark.Of(folder->uuid()));
+    if (space.starts_with("arc:") && space.size() > 4 &&
+        mark.ArcSpaceOf(folder).empty()) {
+      Bind(model, mark, folder, space.substr(4));
+    }
+    ui::TreeNodeIterator<const BookmarkNode> nodes(folder);
+    while (nodes.has_next()) {
+      const BookmarkNode* node = nodes.Next();
+      if (GetMeta(node, kImportedMetaKey) == kLegacyImportedMark) {
+        model->SetNodeMetaInfo(node, kImportedMetaKey, mark.Of(node->uuid()));
+      }
+    }
+  }
+}
+
 int CountIcons(const std::vector<Node>& nodes) {
   int count = 0;
   for (const Node& node : nodes) {
@@ -224,6 +259,9 @@ size_t RemoveMarkedChildren(BookmarkModel* model,
 ArcResult ImportArcSpaces(BookmarkModel* model,
                           const ImportMark& mark,
                           const std::vector<ArcSpace>& spaces) {
+  model->BeginExtensiveChanges();
+  AdoptLegacyArcImport(model, mark);
+
   const BookmarkNode* other = model->other_node();
   std::vector<const BookmarkNode*> folders;
   // The Arc Space each folder is bound to in this profile, if any.
@@ -304,7 +342,6 @@ ArcResult ImportArcSpaces(BookmarkModel* model,
   ArcResult result;
   // The folder of each Space now.
   std::map<std::string, const BookmarkNode*> folder_by_space;
-  model->BeginExtensiveChanges();
   for (size_t i = 0; i < spaces.size(); ++i) {
     const ArcSpace& space = spaces[i];
     result.links += CountLinks(space.pinned);

@@ -455,6 +455,77 @@ TEST_F(ArcomiumImportBookmarksTest, LeavesCopiesOfImportedNodes) {
   }
 }
 
+TEST_F(ArcomiumImportBookmarksTest, ReplacesWhatTheOldToolImported) {
+  // As tools/arc_import.py wrote it before marks: Home, and "Work" left for a
+  // Space to adopt, each node marked "1".
+  const BookmarkNode::MetaInfoMap home_meta = {{kImportedMetaKey, "1"},
+                                               {kSpaceMetaKey, kHomeSpace}};
+  const BookmarkNode::MetaInfoMap work_meta = {{kImportedMetaKey, "1"},
+                                               {kSpaceMetaKey, "arc:work-id"},
+                                               {kSpaceIconMetaKey, "book"}};
+  const BookmarkNode::MetaInfoMap legacy = {{kImportedMetaKey, "1"}};
+  const BookmarkNode* mine = AddUserURL(other(), "https://mine.example/");
+  const BookmarkNode* home = model_->AddFolder(other(), 1, u"Home", &home_meta);
+  model_->AddURL(home, 0, u"link", GURL("https://home.example/"), &legacy);
+  const BookmarkNode* in_home = AddUserURL(home, "https://in-home.example/");
+  const BookmarkNode* work = model_->AddFolder(other(), 2, u"Work", &work_meta);
+  model_->AddURL(work, 0, u"link", GURL("https://work.example/"), &legacy);
+  const BookmarkNode* docs = model_->AddFolder(work, 1, u"Docs", &legacy);
+  model_->AddURL(docs, 0, u"link", GURL("https://docs.example/a"), &legacy);
+  model_->AddURL(docs, 1, u"link", GURL("https://docs.example/b"), &legacy);
+  const BookmarkNode* in_docs = AddUserURL(docs, "https://in-docs.example/");
+
+  for (int i = 0; i < 2; ++i) {
+    ArcResult result = ImportArcSpaces(model_.get(), arc_, ArcSpaces("sunny"));
+    // The same folders, Arc's items once, the user's kept.
+    ASSERT_EQ(other()->children().size(), 3u);
+    EXPECT_EQ(other()->children()[0].get(), mine);
+    EXPECT_EQ(other()->children()[1].get(), home);
+    EXPECT_EQ(other()->children()[2].get(), work);
+    EXPECT_EQ(CountUrls(home), 2);
+    EXPECT_EQ(in_home->parent(), home);
+    EXPECT_EQ(CountUrls(work), 4);
+    EXPECT_EQ(in_docs->parent(), work);
+    EXPECT_TRUE(arc_.IsOn(home));
+    EXPECT_TRUE(arc_.IsOn(work));
+    EXPECT_EQ(arc_.ArcSpaceOf(home), "home-id");
+    EXPECT_EQ(arc_.ArcSpaceOf(work), "work-id");
+    EXPECT_EQ(Meta(work, kSpaceMetaKey), "arc:work-id");
+    // The icon the old tool set may be one the user picked since: it stays.
+    EXPECT_EQ(Meta(work, kSpaceIconMetaKey), "book");
+    EXPECT_EQ(Meta(work, kArcIconMetaKey), "sunny");
+    ASSERT_EQ(result.unadopted.size(), 1u);
+    EXPECT_EQ(result.unadopted[0].first, work);
+  }
+}
+
+TEST_F(ArcomiumImportBookmarksTest, ReplacesWhatTheOldToolImportedIntoASpace) {
+  // The old tool's "Work", adopted by a Space, which dropped Arc's id. A
+  // folder of the user's that is not the old tool's keeps its "1" items.
+  const BookmarkNode::MetaInfoMap work_meta = {{kImportedMetaKey, "1"},
+                                               {kSpaceMetaKey, "space-token"}};
+  const BookmarkNode::MetaInfoMap legacy = {{kImportedMetaKey, "1"}};
+  const BookmarkNode* work = model_->AddFolder(other(), 0, u"Work", &work_meta);
+  model_->AddURL(work, 0, u"link", GURL("https://work.example/"), &legacy);
+  AddUserURL(work, "https://in-space.example/");
+  const BookmarkNode* mine = model_->AddFolder(other(), 1, u"Mine");
+  const BookmarkNode* kept =
+      model_->AddURL(mine, 0, u"link", GURL("https://kept.example/"), &legacy);
+
+  ImportArcSpaces(model_.get(), arc_, ArcSpaces());
+  ArcResult result = ImportArcSpaces(model_.get(), arc_, ArcSpaces());
+
+  EXPECT_TRUE(result.unadopted.empty());
+  ASSERT_EQ(other()->children().size(), 3u);
+  EXPECT_EQ(other()->children()[0].get(), work);
+  EXPECT_EQ(Meta(work, kSpaceMetaKey), "space-token");
+  EXPECT_EQ(arc_.ArcSpaceOf(work), "work-id");
+  EXPECT_EQ(CountUrls(work), 4);
+  EXPECT_TRUE(HasUrl(work, "https://in-space.example/"));
+  EXPECT_EQ(kept->parent(), mine);
+  EXPECT_EQ(Meta(kept, kImportedMetaKey), "1");
+}
+
 TEST_F(ArcomiumImportBookmarksTest, AnArcSpaceWithoutAnIdTakesNoFolder) {
   const BookmarkNode::MetaInfoMap work_meta = {{kSpaceMetaKey, "user-space"}};
   const BookmarkNode* work = model_->AddFolder(other(), 0, u"Work", &work_meta);
