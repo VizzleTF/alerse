@@ -101,3 +101,12 @@ Binary files, such as the app icons from `tools/make_icons.py`, live in `brandin
 their paths in the Chromium tree; each platform's build copies them over the source tree
 after patching. `tools/rename_product.py` then renames Chromium to Arcomium in the
 strings and moves the translations to the new message IDs. Neither belongs in a patch.
+
+## Building through a junction
+
+A short junction to the tree (needed when Blink's generated paths pass MAX_PATH) gives
+esbuild two spellings of the same files, and DevTools' bundles then imported some
+modules from paths outside the output: DevTools opened blank in 0.1.3.
+`defaults/devtools-bundle-paths.patch` places imports of `front_end` modules from their
+path inside `front_end`. After a build, no resource in `resources.pak` should import a
+path containing the tree's directory name (`chromium-<version>/third_party`).

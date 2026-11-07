@@ -45,8 +45,9 @@ Known gaps:
 - a Space disappears when its last tab closes, and its partition stays on disk;
 - a tab dragged into a Space's group keeps its old partition;
 - recently closed tabs (Ctrl+Shift+T) reopen in the default partition;
-- not yet checked: extensions, password manager, downloads, DevTools and PDF viewer in a
-  Space tab.
+- not yet checked: downloads and the PDF viewer in a Space tab. Extensions load in Space
+  tabs as in others (their content scripts run there; Space tabs are not guest
+  processes); Bitwarden's passkeys work in 0.1.4, DevTools too.
 
 ## Sidebar look
 
@@ -65,6 +66,13 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
   tabs: they show on their item, and under a collapsed folder its bound tabs are listed
   as child rows. A bound tab that navigated away shows "/" before the item's name.
   After a restart tabs are bound again by URL.
+- A tab that plays sound shows a speaker between its icon (and "/") and its title, as in
+  Arc: while the tab strip's audio alert is on (it outlasts the gaps between tracks) or
+  while the tab is muted. Clicking it mutes or unmutes the tab
+  (`TabMutedReason::kAudioIndicator`); muted, it is crossed out. Its own press never
+  activates or drags the row; a right click opens the row's menu, whose Mute item follows
+  the same rule. Rows in a folder popup show it too; the popup is refilled only when one
+  of its speakers changes.
 - Hovering a collapsed folder pops up its links (nested folders as submenus); picking
   one opens it as a bound tab without expanding the folder.
 - Divider, "+ New Tab", then the Space's other tabs.
