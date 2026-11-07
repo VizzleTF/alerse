@@ -1,0 +1,37 @@
+diff --git a/third_party/devtools-frontend/src/scripts/build/devtools_plugin.js b/third_party/devtools-frontend/src/scripts/build/devtools_plugin.js
+index 740572e382..1729c138b3 100644
+--- a/third_party/devtools-frontend/src/scripts/build/devtools_plugin.js
++++ b/third_party/devtools-frontend/src/scripts/build/devtools_plugin.js
+@@ -109,6 +109,12 @@ export function esbuildPlugin(outdir, genRoot, rootDir, externalFiles, bundleAll
+   const normGenRoot = path.resolve(genRoot);
+   const root = path.resolve(rootDir);
+   const normOutdir = path.resolve(outdir);
++  // Where front_end sits under the root: inside Chromium or in a standalone
++  // DevTools checkout.
++  const frontEndParent =
++      fs.existsSync(path.join(root, 'third_party', 'devtools-frontend', 'src', 'front_end')) ?
++      path.join('third_party', 'devtools-frontend', 'src') :
++      '';
+ 
+   return args => {
+     // args.importer is absolute path in esbuild.
+@@ -125,7 +131,18 @@ export function esbuildPlugin(outdir, genRoot, rootDir, externalFiles, bundleAll
+       // builtin module (e.g. 'fs', 'path'), and only relativize the path in
+       // former case.
+       if (path.isAbsolute(res.id)) {
+-        const targetInGen = isUnderGenRoot ? res.id : path.join(normGenRoot, path.relative(root, res.id));
++        let targetInGen = isUnderGenRoot ? res.id : path.join(normGenRoot, path.relative(root, res.id));
++        // An importer esbuild reports by another spelling of the tree (a
++        // junction, a renamed or differently cased directory) puts res.id
++        // under neither root, and the path above climbs out of the output
++        // into a directory that does not exist. Every front_end module is
++        // emitted at the same place under the gen root, so place it from its
++        // path inside front_end.
++        const id = res.id.replaceAll('\\', '/');
++        const frontEnd = id.indexOf('/front_end/');
++        if (!isUnderGenRoot && frontEnd !== -1) {
++          targetInGen = path.join(normGenRoot, frontEndParent, id.slice(frontEnd + 1));
++        }
+         let rel = path.relative(normOutdir, targetInGen);
+         if (!/^\.\.?($|\/|\\)/.test(rel)) {
+           rel = './' + rel;
