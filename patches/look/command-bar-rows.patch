@@ -1,8 +1,24 @@
 diff --git a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
-index 15214db0807..7101d4049b8 100644
+index 15214db..a68f14d 100644
 --- a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
 +++ b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
-@@ -469,6 +469,13 @@ void WebuiOmniboxHandler::OverrideIconPaths(
+@@ -201,6 +201,15 @@ WebuiOmniboxHandler::WebuiOmniboxHandler(
+   if (base::FeatureList::IsEnabled(
+           omnibox::kOmniboxWebUIPopupStabilizeStartupShow)) {
+     OnResultChanged(controller_->autocomplete_controller(), false);
++    // Arcomium: and the row selected meanwhile, as Arc's command bar in a
++    // new window has its first row selected.
++    const OmniboxPopupSelection selection =
++        edit_model() ? edit_model()->GetPopupSelection()
++                     : OmniboxPopupSelection(OmniboxPopupSelection::kNoMatch);
++    if (selection.line != OmniboxPopupSelection::kNoMatch) {
++      OnSelectionChanged(
++          OmniboxPopupSelection(OmniboxPopupSelection::kNoMatch), selection);
++    }
+   }
+ }
+ 
+@@ -469,6 +478,13 @@ void WebuiOmniboxHandler::OverrideIconPaths(
          searchbox_internal::kDockToRightIconResourceName;
    }
    SearchboxHandler::OverrideIconPaths(match, mojom_match);
@@ -17,10 +33,34 @@ index 15214db0807..7101d4049b8 100644
  
  void WebuiOmniboxHandler::OnFocusChanged(bool focused) {
 diff --git a/components/omnibox/browser/open_tab_provider.cc b/components/omnibox/browser/open_tab_provider.cc
-index d50d349c9b8..1c63f8658df 100644
+index d50d349..bde68ea 100644
 --- a/components/omnibox/browser/open_tab_provider.cc
 +++ b/components/omnibox/browser/open_tab_provider.cc
-@@ -143,14 +143,23 @@ double ArcomiumFuzzyFactor(const std::u16string& query,
+@@ -5,12 +5,15 @@
+ #include "components/omnibox/browser/open_tab_provider.h"
+ 
+ #include <algorithm>
++#include <set>
++#include <vector>
+ 
+ #include "base/i18n/case_conversion.h"
+ #include "base/strings/strcat.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "components/bookmarks/browser/bookmark_model.h"
++#include "components/bookmarks/browser/bookmark_node.h"
+ #include "components/bookmarks/browser/url_and_title.h"
+ #include "components/omnibox/browser/suggestion_group_util.h"
+ #if BUILDFLAG(IS_ANDROID)
+@@ -34,6 +37,7 @@
+ #include "content/public/common/url_constants.h"
+ #include "third_party/omnibox_proto/groups.pb.h"
+ #include "ui/base/l10n/l10n_util.h"
++#include "ui/base/models/tree_node_iterator.h"
+ #include "url/gurl.h"
+ 
+ namespace {
+@@ -143,14 +147,23 @@ double ArcomiumFuzzyFactor(const std::u16string& query,
      last = at++;
      ++letters;
    }
@@ -45,7 +85,82 @@ index d50d349c9b8..1c63f8658df 100644
  // The fuzzy factor over a title and the URL's host and path.
  double ArcomiumFuzzyFactor(const std::u16string& query,
                             const std::u16string& title,
-@@ -242,7 +251,9 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+@@ -197,6 +210,74 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+   const auto [adjusted_input, template_url] =
+       AdjustInputForStarterPackKeyword(input, client_->GetTemplateURLService());
+ 
++  // Arcomium: as in Arc, an empty command bar lists the open tabs to switch
++  // to, the most recently shown first; empty Spaces' blank pages are not tabs.
++  if (!is_android && !template_url && adjusted_input.text().empty()) {
++    std::vector<TabMatcher::TabWrapper> open_tabs =
++        client_->GetTabMatcher().GetOpenTabs(&input);
++    std::ranges::sort(open_tabs, std::ranges::greater(),
++                      &TabMatcher::TabWrapper::last_shown_time);
++    constexpr size_t kArcomiumEmptyInputTabs = 5;
++    int relevance = kArcomiumFuzzyRelevance;
++    for (const TabMatcher::TabWrapper& open_tab : open_tabs) {
++      if (matches_.size() == kArcomiumEmptyInputTabs) {
++        break;
++      }
++      if (!open_tab.url.is_valid() || open_tab.url.IsAboutBlank()) {
++        continue;
++      }
++      AutocompleteMatch match = CreateOpenTabMatch(
++          adjusted_input, open_tab.title, open_tab.url, relevance--, nullptr);
++      match.allowed_to_be_default_match = false;
++      // As in Arc: the tab's title alone, before its Switch to Tab button
++      // (the edit model selects the first); arrowing onto a row leaves the
++      // field empty.
++      match.contents.clear();
++      match.contents_class.clear();
++      match.fill_into_edit.clear();
++      matches_.push_back(std::move(match));
++    }
++    // As in Arc, the sidebar's items fill the rest, the most recently used
++    // first: a pinned item lists even without its tab.
++    bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
++    if (matches_.size() < kArcomiumEmptyInputTabs && model &&
++        model->loaded()) {
++      std::set<GURL> listed;
++      for (const AutocompleteMatch& listed_match : matches_) {
++        listed.insert(listed_match.destination_url);
++      }
++      std::vector<const bookmarks::BookmarkNode*> items;
++      // The Spaces' folders are under Other Bookmarks.
++      ui::TreeNodeIterator<const bookmarks::BookmarkNode> it(
++          model->root_node());
++      while (it.has_next()) {
++        const bookmarks::BookmarkNode* node = it.Next();
++        if (node->is_url() && node->url().is_valid() &&
++            !node->url().IsAboutBlank() && !node->GetTitle().empty()) {
++          items.push_back(node);
++        }
++      }
++      std::ranges::stable_sort(items, std::ranges::greater(),
++                               &bookmarks::BookmarkNode::date_last_used);
++      for (const bookmarks::BookmarkNode* node : items) {
++        if (matches_.size() == kArcomiumEmptyInputTabs) {
++          break;
++        }
++        if (!listed.insert(node->url()).second) {
++          continue;
++        }
++        AutocompleteMatch match(this, relevance--, /*deletable=*/false,
++                                omnibox::AutocompleteMatchType::kBookmarkTitle);
++        match.destination_url = node->url();
++        match.description = node->GetTitle();
++        match.description_class = {
++            ACMatchClassification(0, ACMatchClassification::NONE)};
++        matches_.push_back(std::move(match));
++      }
++    }
++    return;
++  }
++
+   if (!ShouldRunProvider(client_, input)) {
+     return;
+   }
+@@ -242,7 +323,9 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
    if (!template_url && adjusted_input_text.size() >= 2) {
      if (bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
          model && model->loaded()) {
@@ -56,7 +171,7 @@ index d50d349c9b8..1c63f8658df 100644
          if (!bookmark.url.is_valid() ||
              Score(input, input_query_nodes,
                    TabMatcher::TabWrapper(bookmark.title, bookmark.url,
-@@ -251,9 +262,18 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
+@@ -251,9 +334,18 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
          }
          const double fuzzy = ArcomiumFuzzyFactor(adjusted_input_text,
                                                   bookmark.title, bookmark.url);
@@ -78,10 +193,10 @@ index d50d349c9b8..1c63f8658df 100644
              this, kArcomiumFuzzyRelevance - 50 +
                        fuzzy * kArcomiumFuzzyRelevanceRange,
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-index 4985bad3fb3..410ce3c0345 100644
+index 4985bad..43e42e9 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -464,3 +464,16 @@
+@@ -464,3 +464,104 @@
  :host([is-top-chrome-searchbox_]) #secondaryText:not(:empty)::before {
    content: ' — ';
  }
@@ -98,6 +213,94 @@ index 4985bad3fb3..410ce3c0345 100644
 +  display: inline-flex !important;
 +  margin-inline-end: 6px;
 +}
++
++/* Arcomium: as in Arc, an open tab's row ends in Switch to Tab, dim, white
++ * on the selected row; no keyword chip. */
++:host([is-top-chrome-searchbox_]) #keyword {
++  display: none !important;
++}
++
++:host([is-top-chrome-searchbox_])
++    #actions-container:has(cr-searchbox-action:is([icon-path*='tab'],
++                                                  [icon-path*='switch'])) {
++  display: flex !important;
++  justify-content: flex-end;
++  margin-inline-end: 12px;
++  margin-inline-start: auto;
++}
++
++:host([is-top-chrome-searchbox_])
++    .container:has(cr-searchbox-action:is([icon-path*='tab'],
++                                          [icon-path*='switch']))
++    .aria-hidden-container {
++  flex: 1;
++  min-width: 0;
++}
++
++:host([is-top-chrome-searchbox_]) cr-searchbox-action:is([icon-path*='tab'],
++                                                         [icon-path*='switch']) {
++  --color-searchbox-results-action-chip-icon: rgb(101, 101, 101);
++  background: none;
++  border: none;
++  color: rgb(101, 101, 101);
++  font-size: 13px;
++  font-weight: 500;
++}
++
++:host([is-top-chrome-searchbox_][selected])
++    cr-searchbox-action:is([icon-path*='tab'], [icon-path*='switch']) {
++  --color-searchbox-results-action-chip-icon: rgb(255, 255, 255);
++  color: rgb(255, 255, 255);
++}
++
++<if expr="is_macosx">
++/* Arcomium: Arc for macOS' command bar rows: 46 px high and 50 apart, 8 px in
++ * from the panel; the title 13 px medium, grey, white on the selected row;
++ * Switch to Tab 13 px from the row's end before Arc's arrow square.
++ * (In a media block of their own: they restate selectors above.) */
++@media all {
++  :host([is-top-chrome-searchbox_]) .container:not(.actions) {
++    height: 46px;
++    margin: 0 11px 4px 8px;
++    padding-inline-start: 8px;
++  }
++
++  :host([is-top-chrome-searchbox_]) #text-container {
++    font-size: 13px;
++    margin-top: 0;
++    padding-inline-start: 5.5px;
++  }
++
++  :host([is-top-chrome-searchbox_]) #primaryText {
++    color: rgb(209, 209, 209);
++    font-weight: 500;
++  }
++
++  :host([is-top-chrome-searchbox_][selected]) #primaryText {
++    color: rgb(255, 255, 255);
++  }
++
++  /* The empty bar's rule colors the title's text itself white. */
++  :host([is-top-chrome-searchbox_]) #primaryText span,
++  :host([is-top-chrome-searchbox_]) #contents span {
++    color: inherit;
++  }
++
++  :host([is-top-chrome-searchbox_])
++      #actions-container:has(cr-searchbox-action:is([icon-path*='tab'],
++                                                    [icon-path*='switch'])) {
++    margin-inline-end: 13px;
++    padding-inline-end: 0;
++  }
++
++  :host([is-top-chrome-searchbox_]) cr-searchbox-action:is([icon-path*='tab'],
++                                                           [icon-path*='switch']) {
++    height: 24px;
++    margin: 0;
++    padding: 0;
++  }
++}
++</if>
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
 index 27ac410c2a3..5008461d8d5 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
@@ -130,3 +333,71 @@ index 27ac410c2a3..5008461d8d5 100644
    protected getFocusIndicatorCssClass_(): string {
      return this.selection.line === this.matchIndex &&
              this.selection.state !== SelectionLineState.kNormal &&
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_action.css b/ui/webui/resources/cr_components/searchbox/searchbox_action.css
+index 70ca871..66322ab 100644
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_action.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_action.css
+@@ -86,3 +86,44 @@
+   text-overflow: ellipsis;
+   white-space: nowrap;
+ }
++
++<if expr="is_macosx">
++/* Arcomium: Arc for macOS' Switch to Tab in the command bar: the words, then
++ * an arrow on a 24 px square, dark, white on the selected row. */
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) .contents {
++  flex-direction: row-reverse;
++}
++
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) #text {
++  padding-inline-end: 8.5px;
++  padding-inline-start: 0;
++}
++
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) #action-icon {
++  -webkit-mask-image: none !important;
++  background-color: rgb(37, 37, 37);
++  border-radius: 5px;
++  height: 24px;
++  position: relative;
++  width: 24px;
++}
++
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) #action-icon::after {
++  -webkit-mask: url(//resources/images/icon_arrow_forward.svg) center / 22px
++      no-repeat;
++  background-color: rgb(181, 181, 181);
++  content: '';
++  inset: 0;
++  position: absolute;
++}
++
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_][selected])
++    #action-icon {
++  background-color: rgb(255, 255, 255);
++}
++
++:host-context(cr-searchbox-match[is-top-chrome-searchbox_][selected])
++    #action-icon::after {
++  background-color: rgb(93, 93, 93);
++}
++</if>
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+index d817230..1a6e040 100644
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -1056,8 +1056,13 @@ SearchboxHandler::CreateAutocompleteMatch(
+       }
+       const OmniboxAction::LabelStrings& label_strings =
+           action->GetLabelStrings();
++      // Arcomium: Arc's open tab rows end in "Switch to Tab".
++      const std::u16string hint =
++          action->ActionId() == OmniboxActionId::TAB_SWITCH
++              ? l10n_util::GetStringUTF16(IDS_ARCOMIUM_SWITCH_TO_TAB)
++              : label_strings.hint;
+       mojom_match->actions.emplace_back(searchbox::mojom::Action::New(
+-          base::UTF16ToUTF8(label_strings.hint),
++          base::UTF16ToUTF8(hint),
+           base::UTF16ToUTF8(label_strings.suggestion_contents), icon_path,
+           base::UTF16ToUTF8(label_strings.accessibility_hint)));
+     }

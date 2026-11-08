@@ -16,6 +16,7 @@
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
 #include "base/time/time.h"
@@ -26,6 +27,8 @@
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/events/keycodes/keyboard_codes.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/menus/simple_menu_model.h"
@@ -52,12 +55,17 @@ class OSExchangeData;
 
 namespace views {
 class ScrollView;
+class Textfield;
+class TextfieldController;
 class BubbleDialogDelegate;
 class MenuRunner;
 }  // namespace views
 
 // Arcomium: the Arc sidebar of the active Space, drawn as one list:
 //
+//   favorites     tiles shared by every Space: the bookmarks of a folder
+//                 beside the Spaces' (meta info "arcomium.favorites"); one
+//                 opens as a pinned tab outside the Spaces, bound to it
 //   Space name
 //   pinned tree   bookmarks and nested folders of the Space's bookmark folder
 //                 (meta info "arcomium.space" = Space id). A pinned item opens
@@ -91,12 +99,24 @@ class ArcomiumSidebarView : public views::View,
   // button's menu asks.
   void NewFolder() { AddFolder(nullptr); }
 
+  // The macOS menu bar's sidebar commands: IDC_ARCOMIUM_PIN_TAB,
+  // IDC_ARCOMIUM_NEW_FOLDER and IDC_ARCOMIUM_CLEAR_TODAY.
+  void RunMenuBarCommand(int command_id);
+
   // Arc's theme color picker for the active Space, at `screen_point`.
   void EditSpaceColorAt(const gfx::Point& screen_point);
+
+  // The command bar opened or closed; `new_tab` while it starts a new tab,
+  // which Arc for macOS shows on the New Tab row.
+  void OnCommandBarChanged(bool open, bool new_tab);
 
   ArcomiumSidebarView(const ArcomiumSidebarView&) = delete;
   ArcomiumSidebarView& operator=(const ArcomiumSidebarView&) = delete;
   ~ArcomiumSidebarView() override;
+
+  // The browser's New Tab command (arcomium_command_bar_hook.h): opens the
+  // command bar of `browser`'s sidebar, if one is drawn, for a new tab.
+  static bool OpenNewTabCommandBar(BrowserWindowInterface* browser);
 
   // bookmarks::BaseBookmarkModelObserver:
   void BookmarkModelChanged() override;
@@ -262,12 +282,65 @@ class ArcomiumSidebarView : public views::View,
   // the mouse to the sidebar, so hovering another folder switches it.
   void OnFolderHovered(int64_t id, views::View* row, bool hovered);
   void ShowFolderPopup(int64_t id, views::View* row);
+  // Favorites: their folder (created on demand), whether `node` is one, and
+  // the tiles above the rows.
+  const bookmarks::BookmarkNode* GetFavoritesFolder(bool create);
+  bool IsFavorite(const bookmarks::BookmarkNode* node) const;
+  void BuildFavorites();
+  // Binds pinned tabs outside the Spaces showing a favorite's URL to it.
+  void BindFavoritesByUrl(const bookmarks::BookmarkNode* folder);
+  // Opens a favorite in its pinned tab, outside the Spaces.
+  void OpenFavorite(const bookmarks::BookmarkNode* node);
+  // Makes a favorite of `tab` and/or the pinned item `node` at `index` of
+  // the favorites (the end if past it); the tab becomes the favorite's.
+  void AddFavorite(tabs::TabInterface* tab,
+                   const bookmarks::BookmarkNode* node,
+                   size_t index);
+  // The favorite's tab stays open, as an ordinary tab of home.
+  void RemoveFavorite(const bookmarks::BookmarkNode* node);
+  // `tab` as a pinned tab outside the Spaces (in their default storage), or
+  // its replacement opened there.
+  tabs::TabInterface* PinAsFavoriteTab(tabs::TabInterface* tab);
+  void CopyAllLinks(const bookmarks::BookmarkNode* folder);
+  // Makes `folder` a new Space of its own, its items the Space's pinned ones,
+  // and switches to it, as Arc's Turn into Space.
+  void TurnIntoSpace(const bookmarks::BookmarkNode* folder);
+  // Edits the name (and address) of a pinned item or folder.
+  void RenameNode(int64_t id);
+  // Arc for macOS' Change Icon...: a glyph picker where the menu was.
+  void ShowIconPicker(const bookmarks::BookmarkNode* node);
+  // Sets the meta info `key` of node `id` to the glyph `name`, "" for none.
+  void SetNodeIcon(int64_t id, const std::string& key, const std::string& name);
+  void DuplicateFolder(const bookmarks::BookmarkNode* folder);
+  // Arc's Space menu (the Space bar's), at `screen_point`.
+  void ShowSpaceMenu(const gfx::Point& screen_point,
+                     ui::mojom::MenuSourceType source_type);
+#if BUILDFLAG(IS_MAC)
+  // Collapses or expands the active Space's pinned tabs under its name.
+  void ToggleCollapsedPinned();
+  bool IsPinnedCollapsed(const bookmarks::BookmarkNode* folder) const;
+#endif
+
   // Fills the popup with `folder`'s items, subfolders opened in place.
   void FillFolderPopup(views::View* contents,
                        const bookmarks::BookmarkNode* folder);
   void AddFolderPopupRows(views::View* container,
                           const bookmarks::BookmarkNode* folder,
                           int depth);
+  void AddFolderPopupLink(views::View* container,
+                          const bookmarks::BookmarkNode* node,
+                          int depth);
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' popup: a search field over the rows, which it filters;
+  // Up, Down and Return pick a row.
+  void BuildFolderPopup(views::View* contents);
+  void OnFolderPopupQuery(const std::u16string& query);
+  bool OnFolderPopupKey(ui::KeyboardCode key);
+  void SelectFolderPopupRow(int index);
+  // The links under `folder`, at any depth, that match the query.
+  void AddFilteredPopupRows(views::View* container,
+                            const bookmarks::BookmarkNode* folder);
+#endif
   void ToggleFolderPopupFolder(int64_t id);
   void RefreshFolderPopup();
   // Closes the popup once the pointer has left the folder row and the popup.
@@ -296,6 +369,11 @@ class ArcomiumSidebarView : public views::View,
   base::TimeTicks pending_slide_until_;
   // Arcomium: its address bar, which opens Arc's command bar.
   raw_ptr<ArcomiumAddressBar> address_bar_ = nullptr;
+  // The favorites' tiles, between the address bar and the rows; they stay
+  // while Spaces slide.
+  raw_ptr<views::View> favorites_ = nullptr;
+  // The command bar is open to start a new tab.
+  bool command_bar_new_tab_ = false;
 
   // What each row stands for, for the context menu.
   struct RowTarget {
@@ -315,6 +393,8 @@ class ArcomiumSidebarView : public views::View,
     // or the folder row a drop goes into.
     gfx::Rect indicator;
     bool into_folder = false;
+    // Into the favorites instead, at `index`.
+    bool favorite = false;
   };
   std::optional<DropTarget> GetDropTarget(const gfx::Point& point);
   void ShowDropIndicator(const std::optional<DropTarget>& target);
@@ -377,6 +457,17 @@ class ArcomiumSidebarView : public views::View,
   base::OneShotTimer theme_rebuild_timer_;
   base::RepeatingTimer folder_popup_timer_;
   int folder_popup_outside_ticks_ = 0;
+#if BUILDFLAG(IS_MAC)
+  class PopupSearchController;
+  std::unique_ptr<PopupSearchController> folder_popup_search_;
+  raw_ptr<views::Textfield> folder_popup_field_ = nullptr;
+  raw_ptr<views::View> folder_popup_rows_ = nullptr;
+  std::u16string folder_popup_query_;
+  // The popup's rows' items, in order, and the selected one.
+  std::vector<int64_t> folder_popup_items_;
+  int folder_popup_selected_ = -1;
+  gfx::Point folder_popup_last_point_;
+#endif
 
   // The theme color picker.
   std::unique_ptr<views::BubbleDialogDelegate> color_picker_delegate_;

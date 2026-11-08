@@ -117,3 +117,18 @@ index d12921a1eff..5024e0257dc 100644
  
  
  BASE_FEATURE(kIncreaseCookieAccessCacheSize, base::FEATURE_ENABLED_BY_DEFAULT);
+diff --git a/components/omnibox/common/omnibox_features.cc b/components/omnibox/common/omnibox_features.cc
+index 6251529..b024433 100644
+--- a/components/omnibox/common/omnibox_features.cc
++++ b/components/omnibox/common/omnibox_features.cc
+@@ -248,7 +248,9 @@ BASE_FEATURE(kOmniboxWebUIPopupDeferCreation, DISABLED);
+ // When enabled, the Omnibox WebUI popup will defer showing until the WebUI has
+ // painted a clean frame, avoiding the issue of the popup being shown with a
+ // stale frame.
+-BASE_FEATURE(kOmniboxWebUIDeferShowUntilVisualStateReady, DISABLED);
++// Arcomium: on, so a popup shown again with rows of the same height never
++// stays transparent waiting for a resize (the command bar's first open).
++BASE_FEATURE(kOmniboxWebUIDeferShowUntilVisualStateReady, ENABLED);
+ // When enabled, the Omnibox Full WebUI popup will defer showing until the
+ // WebUI has painted a clean frame, avoiding the issue of the popup being shown
+ // with a stale frame.

@@ -1,0 +1,549 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 493bf20..3558a63 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -45,10 +45,13 @@
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_id.h"
+ #include "ui/gfx/canvas.h"
++#include "ui/gfx/geometry/rect_f.h"
++#include "ui/gfx/geometry/vector2d_f.h"
+ #include "ui/gfx/color_utils.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/background.h"
+ #include "ui/views/actions/action_view_controller.h"
++#include "ui/base/accelerators/accelerator.h"
+ #include "ui/views/animation/ink_drop.h"
+ #include "ui/views/controls/button/image_button.h"
+ #include "ui/views/controls/button/image_button_factory.h"
+@@ -90,6 +93,43 @@ constexpr int kArcHeaderEdge = 12;
+ constexpr int kArcHeaderEdge = 18;
+ #endif
+ constexpr int kArcHeaderCenter = 20;
++#if BUILDFLAG(IS_MAC)
++// Arc for macOS' header is one row after the window controls: back, forward
++// and "...", 28 pt apart, the first centred 88 pt into the window; the
++// address field starts 46 pt down, 4 pt below this container.
++constexpr int kArcMacRowPitch = 28;
++constexpr int kArcMacFirstCenterX = 88;
++constexpr int kArcMacRowCenterY = 24;
++constexpr int kArcMacHeaderHeight = 34;
++// Arc for macOS' arrows are 13 pt wide: 22 pt icons.
++constexpr int kArcMacIconSize = 22;
++
++// Arc for macOS' "..." button: three 3 pt dots 5 pt apart. It opens the
++// header menu (arcomium_app_menu.h).
++class ArcMoreButton : public views::Button {
++  METADATA_HEADER(ArcMoreButton, views::Button)
++
++ public:
++  explicit ArcMoreButton(PressedCallback callback)
++      : views::Button(std::move(callback)) {
++    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
++    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
++  }
++
++  void PaintButtonContents(gfx::Canvas* canvas) override {
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    flags.setColor(SkColorSetRGB(0xA1, 0xA1, 0xA1));
++    const gfx::PointF center = gfx::RectF(GetLocalBounds()).CenterPoint();
++    for (int i = -1; i <= 1; ++i) {
++      canvas->DrawCircle(center + gfx::Vector2dF(i * 5.0f, 0), 1.5f, flags);
++    }
++  }
++};
++
++BEGIN_METADATA(ArcMoreButton)
++END_METADATA
++#endif
+ 
+ #if !BUILDFLAG(IS_MAC)
+ // Arc for Windows' header icons: thin glyphs a shade off white.
+@@ -277,15 +317,64 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+               chrome::ExecuteCommand(browser, command);
+             },
+             base::Unretained(browser_), nav.command),
+-        nav.icon, kArcHeaderIconSize);
++        nav.icon,
++#if BUILDFLAG(IS_MAC)
++        // Arc for macOS' arrows are larger than its other header icons.
++        kArcMacIconSize
++#else
++        kArcHeaderIconSize
++#endif
++    );
+     StyleArcHeaderButton(button.get());
++#if BUILDFLAG(IS_MAC)
++    // Arc for macOS names the shortcut, as the menu bar's: Cmd+[ and Cmd+].
++    std::u16string tooltip = l10n_util::GetStringUTF16(nav.name);
++    if (nav.command != IDC_RELOAD) {
++      tooltip += u"  " + ui::Accelerator(nav.command == IDC_BACK
++                                             ? ui::VKEY_OEM_4
++                                             : ui::VKEY_OEM_6,
++                                         ui::EF_COMMAND_DOWN)
++                             .GetShortcutText();
++    }
++    button->SetTooltipText(tooltip);
++#else
+     button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
++#endif
+     button->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(nav.name));
+     button->SetEnabled(chrome::IsCommandEnabled(browser_, nav.command));
++#if BUILDFLAG(IS_MAC)
++    // Arc shows no plate on a dimmed arrow.
++    views::InkDrop::Get(button.get())
++        ->SetMode(button->GetEnabled() ? views::InkDropHost::InkDropMode::ON
++                                       : views::InkDropHost::InkDropMode::OFF);
++#endif
+     *nav.button = AddChildView(std::move(button));
+     chrome::AddCommandObserver(browser_, nav.command, this);
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  arc_more_button_ = AddChildView(std::make_unique<ArcMoreButton>(
++      base::BindRepeating(
++          [](VerticalTabStripTopContainer* container) {
++            arcomium::ShowHeaderMenu(
++                container->browser_, container->arc_more_button_,
++                base::BindRepeating(
++                    [](tabs::VerticalTabStripStateController* controller) {
++                      controller->RequestCollapse(!controller->IsCollapsed());
++                    },
++                    base::Unretained(container->state_controller_.get())));
++          },
++          base::Unretained(this))));
++  StyleArcHeaderButton(static_cast<views::Button*>(arc_more_button_.get()));
++  // Arc for macOS keeps only back and forward in its header; the rest is in
++  // the "..." menu and the menu bar.
++  for (views::View* button :
++       {arc_logo_button_.get(), arc_sidebar_button_.get(),
++        arc_downloads_button_.get(), arc_reload_button_.get()}) {
++    button->SetVisible(false);
++  }
++#endif
++
+   combo_button_ = AddChildView(std::make_unique<TabStripComboButton>(
+       browser_, TabStripComboButton::Context::kVerticalTabStrip));
+   combo_button_->SetOrientation(
+@@ -340,6 +429,11 @@ void VerticalTabStripTopContainer::EnabledStateChangedForCommand(int id,
+                         : id == IDC_FORWARD ? arc_forward_button_.get()
+                                             : arc_reload_button_.get();
+   button->SetEnabled(enabled);
++#if BUILDFLAG(IS_MAC)
++  views::InkDrop::Get(button)->SetMode(
++      enabled ? views::InkDropHost::InkDropMode::ON
++              : views::InkDropHost::InkDropMode::OFF);
++#endif
+ }
+ 
+ void VerticalTabStripTopContainer::Layout(PassKey) {
+@@ -412,7 +506,8 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+     for (views::View* arc_button :
+          {arc_logo_button_.get(), arc_sidebar_button_.get(),
+           arc_downloads_button_.get(), arc_back_button_.get(),
+-          arc_forward_button_.get(), arc_reload_button_.get()}) {
++          arc_forward_button_.get(), arc_reload_button_.get(),
++          arc_more_button_.get()}) {
+       if (arc_button) {
+         layout.child_layouts.emplace_back(arc_button, false, gfx::Rect());
+       }
+@@ -516,6 +611,44 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+     // toolbar (Windows) the row lines up with it and the toolbar has the
+     // navigation buttons.
+     const ArcHeaderGrid grid = GetArcHeaderGrid();
++#if BUILDFLAG(IS_MAC)
++    {
++      int first_x = grid.second_row_x + kArcMacFirstCenterX;
++      int center_y = grid.first_row_center;
++      if (const views::Widget* window =
++              GetWidget() ? GetWidget()->GetTopLevelWidget() : nullptr) {
++        gfx::Point edge =
++            window->GetWindowBoundsInScreen().origin() +
++            gfx::Vector2d(kArcMacFirstCenterX, kArcMacRowCenterY);
++        views::View::ConvertPointFromScreen(this, &edge);
++        first_x = edge.x();
++        center_y = edge.y();
++      }
++      views::View* const row[] = {arc_back_button_.get(),
++                                  arc_forward_button_.get(),
++                                  arc_more_button_.get()};
++      for (size_t i = 0; i < std::size(row); ++i) {
++        layout.child_layouts.emplace_back(
++            row[i], true,
++            gfx::Rect(first_x + static_cast<int>(i) * kArcMacRowPitch -
++                          kArcHeaderButtonSize / 2,
++                      center_y - kArcHeaderButtonSize / 2,
++                      kArcHeaderButtonSize, kArcHeaderButtonSize));
++      }
++      for (views::View* hidden :
++           {arc_logo_button_.get(), arc_sidebar_button_.get(),
++            arc_downloads_button_.get(), arc_reload_button_.get(),
++            arc_extensions_.get(),
++            static_cast<views::View*>(unfocus_button_.get()),
++            static_cast<views::View*>(collapse_button_.get()),
++            static_cast<views::View*>(combo_button_.get())}) {
++        if (hidden) {
++          layout.child_layouts.emplace_back(hidden, false, gfx::Rect());
++        }
++      }
++      host_size.set_height(kArcMacHeaderHeight);
++    }
++#else
+     const size_t row_count = toolbar_height_ > 0 ? 1 : 2;
+     views::View* const rows[2][3] = {
+         {arc_logo_button_.get(), arc_sidebar_button_.get(),
+@@ -563,6 +696,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+         layout.child_layouts.emplace_back(chromium_button, false, gfx::Rect());
+       }
+     }
++#endif
+   } else {
+     // If the vertical tab strip is uncollapsed, then lay out the buttons
+     // horizontally. The exact y-level of the buttons depends on if they can lay
+@@ -788,7 +922,7 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+        {arc_logo_button_.get(), arc_sidebar_button_.get(),
+         arc_downloads_button_.get(), arc_back_button_.get(),
+         arc_forward_button_.get(), arc_reload_button_.get(),
+-        arc_extensions_.get()}) {
++        arc_extensions_.get(), arc_more_button_.get()}) {
+     if (arc_button && IsHitInView(arc_button, point)) {
+       return false;
+     }
+@@ -1026,8 +1160,13 @@ void VerticalTabStripTopContainer::ScheduleUpdateExtensions() {
+ void VerticalTabStripTopContainer::UpdateExtensions() {
+   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+   ToolbarView* toolbar = browser_view ? browser_view->toolbar() : nullptr;
+-  const bool take = arc_logo_button_ && GetWidget() && IsDrawn() && toolbar &&
+-                    !browser_view->IsToolbarVisible();
++  bool take = arc_logo_button_ && GetWidget() && IsDrawn() && toolbar &&
++              !browser_view->IsToolbarVisible();
++#if BUILDFLAG(IS_MAC)
++  // Arc for macOS' header has no room for them: Site Controls in the "..."
++  // menu shows every extension.
++  take = false;
++#endif
+   if (!take) {
+     ReturnExtensions();
+     return;
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+index fd6d834..02abaaa 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
+@@ -162,6 +162,8 @@ class VerticalTabStripTopContainer : public views::View,
+   raw_ptr<views::View> arc_back_button_ = nullptr;
+   raw_ptr<views::View> arc_forward_button_ = nullptr;
+   raw_ptr<views::View> arc_reload_button_ = nullptr;
++  // Arcomium: Arc for macOS' "..." button, after back and forward.
++  raw_ptr<views::View> arc_more_button_ = nullptr;
+   raw_ptr<views::View> arc_extensions_ = nullptr;
+   raw_ptr<views::View> arc_extensions_placeholder_ = nullptr;
+   base::ScopedObservation<views::View, views::ViewObserver>
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index b423530..3f7b71a 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -818,6 +818,12 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+   }
+   UpdateArcomiumAlignment();
+   InvalidateLayout();
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: the sidebar field has its own background on macOS.
++  if (GetWidget()) {
++    RefreshBackground();
++  }
++#endif
+ }
+ 
+ void LocationBarView::SetArcomiumCentered(bool centered) {
+@@ -865,19 +871,22 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+   }
+   arcomium_command_bar_ = command_bar;
+   // Arc for Windows' command bar sets what you type 16 px high, larger than
+-  // its rows; macOS keeps the address's own face.
+-#if !BUILDFLAG(IS_MAC)
++  // its rows; Arc for macOS' 18 pt.
++#if BUILDFLAG(IS_MAC)
++  constexpr int kArcomiumCommandBarFontSize = 18;
++#else
++  constexpr int kArcomiumCommandBarFontSize = 16;
++#endif
+   if (command_bar) {
+     arcomium_command_bar_font_ = omnibox_view_->GetFontList();
+     const gfx::FontList base =
+         arcomium_default_font_.value_or(*arcomium_command_bar_font_);
+-    omnibox_view_->SetFontList(
+-        base.DeriveWithSizeDelta(16 - base.GetFontSize()));
++    omnibox_view_->SetFontList(base.DeriveWithSizeDelta(
++        kArcomiumCommandBarFontSize - base.GetFontSize()));
+   } else if (arcomium_command_bar_font_) {
+     omnibox_view_->SetFontList(*arcomium_command_bar_font_);
+     arcomium_command_bar_font_.reset();
+   }
+-#endif
+   RefreshBackground();
+   InvalidateLayout();
+ }
+@@ -912,6 +921,12 @@ std::optional<std::u16string> LocationBarView::GetArcomiumPlaceholder() const {
+   }
+   // Arc's sidebar says "Search..." where there is no address, not which
+   // search engine; Arc's command bar shows none.
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS' command bar says "Search or Enter URL...".
++  if (arcomium_command_bar_) {
++    return l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADDRESS_PLACEHOLDER);
++  }
++#endif
+   return arcomium_command_bar_ ? std::u16string() : l10n_util::GetStringUTF16(IDS_ARCOMIUM_SIDEBAR_PLACEHOLDER);
+ }
+ 
+@@ -987,13 +1002,27 @@ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
+     const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
+         vector_icons::kArcomiumSearchIcon, 16,
+         GetColorProvider()->GetColor(kColorOmniboxText));
++#if BUILDFLAG(IS_MAC)
++    // Arcomium: Arc for macOS' sits 24 pt into the panel, a point below the
++    // middle.
++    canvas->DrawImageInt(magnifier, 24 - 6, (height() - 16) / 2 + 1);
++#else
+     canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
++#endif
+   } else if (IsArcomiumSidebarSearch()) {
+     // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
++#if BUILDFLAG(IS_MAC)
++    // Arcomium: on macOS 10 pt in and a shade brighter than the text.
++    const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
++        vector_icons::kArcomiumSearchIcon, 16,
++        GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab));
++    canvas->DrawImageInt(magnifier, 10, (height() - 16) / 2);
++#else
+     const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
+         vector_icons::kArcomiumSearchIcon, 16,
+         GetColorProvider()->GetColor(kColorOmniboxTextDimmed));
+     canvas->DrawImageInt(magnifier, 12, (height() - 16) / 2);
++#endif
+   }
+   if (arcomium_pill_bounds_.IsEmpty()) {
+     return;
+@@ -1021,6 +1050,12 @@ void LocationBarView::SetArcomiumHovered(bool hovered) {
+   }
+   arcomium_hovered_ = hovered;
+   InvalidateLayout();
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS' field lightens under the pointer.
++  if (GetWidget()) {
++    RefreshBackground();
++  }
++#endif
+ }
+ 
+ void LocationBarView::Layout(PassKey) {
+@@ -1313,7 +1348,18 @@ void LocationBarView::Layout(PassKey) {
+     LayoutArcomiumCentered();
+   } else if (IsArcomiumSidebarSearch()) {
+     // The text 36 px in, after the magnifier (OnPaintBackground).
++#if BUILDFLAG(IS_MAC)
++    // Arcomium: Arc for macOS' "Search..." starts 34 pt into the field, a
++    // point smaller than the address and grey.
++    constexpr int kTextInset = 34;
++    omnibox_view_->SetPlaceholderTextColorId(kColorOmniboxTextDimmed);
++    // Arc's is medium weight.
++    omnibox_view_->set_placeholder_font_list(
++        omnibox_view_->GetFontList().DeriveWithSizeDelta(-1).DeriveWithWeight(
++            gfx::Font::Weight::MEDIUM));
++#else
+     constexpr int kTextInset = 36;
++#endif
+     location_icon_view_->SetVisible(false);
+     omnibox_view_->SetBounds(kTextInset, omnibox_view_->y(),
+                              std::max(0, omnibox_view_->bounds().right() -
+@@ -1323,6 +1369,10 @@ void LocationBarView::Layout(PassKey) {
+     // Arc's command bar: a magnifier 20 px into the panel (OnPaintBackground)
+     // and the address 51 px in; this row sits 6 px into the panel.
+     constexpr int kTextInset = 51 - 6;
++#if BUILDFLAG(IS_MAC)
++    omnibox_view_->SetPlaceholderTextColorId(kColorOmniboxForegroundDisabled);
++    omnibox_view_->set_placeholder_font_list(omnibox_view_->GetFontList());
++#endif
+     location_icon_view_->SetVisible(false);
+     omnibox_view_->SetBounds(kTextInset, omnibox_view_->y(),
+                              std::max(0, omnibox_view_->bounds().right() -
+@@ -1754,6 +1804,16 @@ void LocationBarView::RefreshBackground() {
+     // In Arc's command bar the panel behind paints the row.
+     background_color_ = color_provider->GetColor(kColorOmniboxResultsBackground);
+     SetBackground(nullptr);
++#if BUILDFLAG(IS_MAC)
++  } else if (arcomium_compact_ && !arcomium_centered_) {
++    // Arcomium: Arc for macOS' sidebar field, a shade off the frame with
++    // 12 pt corners (#2F2F2F on #161616), #39393A under the pointer.
++    background_color_ = color_utils::BlendTowardMaxContrast(
++        color_provider->GetColor(ui::kColorFrameActive),
++        arcomium_hovered_ ? 0x26 : 0x1B);
++    SetBackground(
++        views::CreateRoundedRectBackground(background_color_, 12));
++#endif
+   } else if (is_popup_mode_) {
+     SetBackground(views::CreateSolidBackground(background_color_));
+   } else {
+diff --git a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+index 73a8db2..40247ca 100644
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -287,6 +287,11 @@ void BrowserNativeWidgetMac::GetWindowFrameTitlebarHeight(
+     if (!browser_view_->ShouldDrawTabStrip()) {
+       *titlebar_height += kWebAppMenuMargin * 2;
+     }
++    // Arcomium: Arc for macOS centres its window controls 24 pt down, in line
++    // with the sidebar's header row.
++    if (browser_view_->IsArcomiumSidebarShown()) {
++      *titlebar_height = 48;
++    }
+   } else {
+     *override_titlebar_height = false;
+     *titlebar_height = 0;
+diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+index 7e02826..ab11e27 100644
+--- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
++++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+@@ -31,6 +31,10 @@
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/base/pointer/touch_ui_controller.h"
+ #include "ui/compositor/layer.h"
++#include "ui/gfx/canvas.h"
++#include "ui/gfx/geometry/rect_conversions.h"
++#include "ui/gfx/scoped_canvas.h"
++#include "cc/paint/paint_flags.h"
+ #include "ui/gfx/geometry/rounded_corners_f.h"
+ #include "ui/views/bubble/bubble_border.h"
+ #include "ui/views/layout/layout_provider.h"
+@@ -49,7 +53,54 @@
+ namespace {
+ 
+ // Arcomium: the corner radius of Arc's command bar panel.
++#if BUILDFLAG(IS_MAC)
++// Arc for macOS' panel has 12 pt corners and a dimmer rim.
++constexpr int kArcomiumCommandBarRadius = 12;
++constexpr SkAlpha kArcomiumCommandBarRim = 0x3B;
++#else
+ constexpr int kArcomiumCommandBarRadius = 9;
++constexpr SkAlpha kArcomiumCommandBarRim = 0x56;
++#endif
++
++#if BUILDFLAG(IS_MAC)
++// Arc for macOS' panel edge: a one-pixel near-black ring outside its 1 pt rim.
++// The host reaches a point further out at the sides and bottom (Layout()), so
++// the rows keep their places.
++class ArcomiumRimBorder : public views::Border {
++ public:
++  explicit ArcomiumRimBorder(SkColor rim) : rim_(rim) {}
++
++  void Paint(const views::View& view, gfx::Canvas* canvas) override {
++    gfx::ScopedCanvas scoped(canvas);
++    const float scale = canvas->UndoDeviceScaleFactor();
++    const gfx::RectF bounds =
++        gfx::ScaleRect(gfx::RectF(view.GetLocalBounds()), scale);
++    const float radius = kArcomiumCommandBarRadius * scale;
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    flags.setStyle(cc::PaintFlags::kStroke_Style);
++    flags.setStrokeWidth(1);
++    flags.setColor(SkColorSetRGB(0x03, 0x03, 0x03));
++    gfx::RectF ring = bounds;
++    ring.Inset(0.5f);
++    canvas->DrawRoundRect(ring, radius - 0.5f, flags);
++    flags.setStrokeWidth(scale);
++    flags.setColor(rim_);
++    gfx::RectF rim = bounds;
++    rim.Inset(1 + scale / 2);
++    canvas->DrawRoundRect(rim, radius - 1 - scale / 2, flags);
++  }
++
++  gfx::Insets GetInsets() const override {
++    return gfx::Insets::TLBR(1, 2, 2, 2);
++  }
++
++  gfx::Size GetMinimumSize() const override { return gfx::Size(4, 3); }
++
++ private:
++  const SkColor rim_;
++};
++#endif
+ 
+ #if !defined(USE_AURA)
+ 
+@@ -391,6 +442,12 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+   // animated smoothly.
+   // TODO(tapted): Investigate using a static Widget size.
+   gfx::Rect bounds = GetContentsBounds();
++#if BUILDFLAG(IS_MAC)
++  // Room for Arc's dark ring outside the rim (ArcomiumRimBorder).
++  if (!draw_shadow_in_webui_) {
++    bounds.Outset(gfx::Outsets::TLBR(0, 1, 1, 1));
++  }
++#endif
+   contents_host_->SetBoundsRect(bounds);
+ 
+   if (top_background_->GetVisible()) {
+@@ -450,10 +507,15 @@ void RoundedOmniboxResultsFrame::OnThemeChanged() {
+   if (draw_shadow_in_webui_) {
+     return;
+   }
+-  contents_host_->SetBorder(views::CreateRoundedRectBorder(
+-      1, kArcomiumCommandBarRadius,
+-      color_utils::BlendTowardMaxContrast(
+-          GetColorProvider()->GetColor(kColorOmniboxResultsBackground), 0x56)));
++  const SkColor rim = color_utils::BlendTowardMaxContrast(
++      GetColorProvider()->GetColor(kColorOmniboxResultsBackground),
++      kArcomiumCommandBarRim);
++#if BUILDFLAG(IS_MAC)
++  contents_host_->SetBorder(std::make_unique<ArcomiumRimBorder>(rim));
++#else
++  contents_host_->SetBorder(
++      views::CreateRoundedRectBorder(1, kArcomiumCommandBarRadius, rim));
++#endif
+ }
+ 
+ void RoundedOmniboxResultsFrame::AddedToWidget() {
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+index f606c52..263a877 100644
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -175,7 +175,13 @@ int GetLayoutConstant(LayoutConstant constant) {
+     case LayoutConstant::kVerticalTabStripHorizontalPadding:
+       return 12;
+     case LayoutConstant::kVerticalTabStripUncollapsedVerticalPadding:
++#if BUILDFLAG(IS_MAC)
++      // Arcomium: Arc for macOS' Space bar plates end 9 pt above the
++      // window's bottom.
++      return 9;
++#else
+       return 12;
++#endif
+     case LayoutConstant::kVerticalTabStripCollapsedVerticalPadding:
+       return 8;
+     case LayoutConstant::kVerticalTabStripComboButtonIconSize:
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index bda23d2..fb01980 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -188,12 +188,19 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+       views::kFlexBehaviorKey,
+       views::FlexSpecification(views::MinimumFlexSizeRule::kPreferred,
+                                views::MaximumFlexSizeRule::kPreferred));
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS' Space bar plates reach 8 pt from the sidebar's
++  // sides.
++  constexpr int kBottomHorizontalPadding = 8;
++#else
++  const int kBottomHorizontalPadding = region_horizontal_padding;
++#endif
+   bottom_button_container_->SetProperty(
+       views::kMarginsKey,
+       gfx::Insets::TLBR(
+           GetLayoutConstant(
+               LayoutConstant::kVerticalTabStripCollapsedVerticalPadding),
+-          region_horizontal_padding, 0, region_horizontal_padding));
++          kBottomHorizontalPadding, 0, kBottomHorizontalPadding));
+ 
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());

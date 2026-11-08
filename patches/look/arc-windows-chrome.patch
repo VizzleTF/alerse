@@ -204,40 +204,34 @@ index e3ae9d104db..0b5a3078455 100644
    views::View* GetToastAnchorView() { return toast_anchor_view_; }
  
 diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index c9b00641a5b..27ca1ead474 100644
+index c9b0064..ac06020 100644
 --- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-@@ -68,6 +68,13 @@ namespace {
+@@ -68,6 +68,9 @@ namespace {
  // Minimum area next to caption buttons to use as a grab handle.
  constexpr int kVerticalTabsGrabHandleSize = 40;
  
-+// Arcomium: Arc for Windows' sidebar has no floating corners at its ends.
-+#if BUILDFLAG(IS_MAC)
-+constexpr bool kArcomiumFlatSidebarEdges = false;
-+#else
++// Arcomium: Arc's sidebar has no floating corners at its ends.
 +constexpr bool kArcomiumFlatSidebarEdges = true;
-+#endif
 +
  // Maximum portion of the window a "size-restricted" contents-height side panel
  // can take up. This is not the only limit on side panel size.
  constexpr float kMaxContentsHeightSidePanelFraction = 2.f / 3.f;
-@@ -313,6 +320,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
+@@ -313,6 +316,13 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
            info.shadow_box && would_have_separator;
        break;
    }
-+#if !BUILDFLAG(IS_MAC)
-+  // Arcomium: Arc for Windows has no line under its top bar; the page card
-+  // sets itself apart.
++  // Arcomium: Arc has no line under its top bar (on macOS, along the
++  // window's top edge); the page card sets itself apart.
 +  if (layout_data_->tab_strip_type == TabStripType::kVertical) {
 +    info.multi_contents_separator = false;
 +    info.top_container_separator = false;
 +    info.adjust_for_missing_separator = false;
 +  }
-+#endif
  
    return info;
  }
-@@ -693,6 +709,11 @@ BrowserViewTabbedLayoutImpl::CalculateVerticalTabStripAnimation() {
+@@ -693,6 +703,11 @@ BrowserViewTabbedLayoutImpl::CalculateVerticalTabStripAnimation() {
  }
  
  int BrowserViewTabbedLayoutImpl::GetMinimumGrabHandlePadding() const {
@@ -249,7 +243,7 @@ index c9b00641a5b..27ca1ead474 100644
    return kVerticalTabsGrabHandleSize -
           GetLayoutInsets(LayoutInset::TOOLBAR_INTERIOR_MARGIN).right();
  }
-@@ -996,7 +1017,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -996,7 +1011,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      const double top_corner = layout_data_->vertical_tabs_top_corner();
      const bool top_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
@@ -261,7 +255,7 @@ index c9b00641a5b..27ca1ead474 100644
  
      // The top corner is drawn when the tabstrip goes all the way to the top.
      if (top_corner_visible) {
-@@ -1019,7 +1043,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1019,7 +1037,7 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      const double bottom_corner = layout_data_->vertical_tabs_bottom_corner();
      const bool bottom_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
@@ -270,7 +264,7 @@ index c9b00641a5b..27ca1ead474 100644
      if (bottom_corner_visible) {
        auto preferred =
            views().vertical_tab_strip_bottom_corner->GetPreferredSize();
-@@ -1517,6 +1541,13 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+@@ -1517,6 +1535,13 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
    } else {
      background->SetPrimaryColor(CustomCornersBackground::ToolbarTheme());
    }
@@ -284,7 +278,7 @@ index c9b00641a5b..27ca1ead474 100644
  
    // By default, this is just a flat background.
    CustomCornersBackground::Corners corners;
-@@ -1661,7 +1692,13 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1661,7 +1686,13 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      // When the vertical tabs are below the toolbar but next to the bookmarks
      // bar, draw a curved corner.
      const double top_corner = layout_data_->vertical_tabs_top_corner();
@@ -299,35 +293,32 @@ index c9b00641a5b..27ca1ead474 100644
        vertical_tabs_corners[CornerOrientation::kTopTrailing].type =
            views().vertical_tab_strip_region_view->is_expanded_on_hover()
                ? CustomCornersBackground::CornerType::kRounded
-@@ -1713,6 +1750,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1713,6 +1744,9 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      };
      // Vertical tab strip always draws trailing edge.
      vertical_tabs_outline.trailing = true;
-+#if !BUILDFLAG(IS_MAC)
-+    // Arcomium: Arc for Windows' sidebar has no edge line; the page card sets
-+    // itself apart. It shows only over the page, expanded on hover.
++    // Arcomium: Arc's sidebar has no edge line; the page card sets itself
++    // apart. It shows only over the page, expanded on hover.
 +    vertical_tabs_outline.trailing = animation.expand_on_hover_width > 0.0;
-+#endif
      // Top edge is drawn when the tabstrip is not flush with the edge of the
      // screen, or with a visual element that provides a natural border.
      if (animation.expand_on_hover_width > 0.0 || top_corner < 0.0 ||
-@@ -1722,6 +1764,11 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1722,6 +1756,10 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
      if (animation.expand_on_hover_width > 0.0) {
        vertical_tabs_outline.bottom = true;
      }
-+#if !BUILDFLAG(IS_MAC)
-+    // Arcomium: nor a top edge where it meets Arc for Windows' top bar.
++    // Arcomium: nor a top edge where it meets Arc for Windows' top bar or,
++    // on macOS, the window's edge.
 +    vertical_tabs_outline.top =
 +        vertical_tabs_outline.top && animation.expand_on_hover_width > 0.0;
-+#endif
      vertical_tabs_background->SetOutline(vertical_tabs_outline);
  
      // Cut the vertical tab strip out of the top container.
 diff --git a/chrome/browser/ui/views/frame/multi_contents_background_view.cc b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
-index 56e57faa101..0abf1a4f426 100644
+index 56e57fa..67f15dc 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_background_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
-@@ -4,8 +4,18 @@
+@@ -4,8 +4,19 @@
  
  #include "chrome/browser/ui/views/frame/multi_contents_background_view.h"
  
@@ -343,14 +334,15 @@ index 56e57faa101..0abf1a4f426 100644
  #include "ui/base/metadata/metadata_impl_macros.h"
 +#include "ui/color/color_id.h"
 +#include "ui/color/color_provider.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
  #include "ui/compositor/layer_solid_color.h"
  #include "ui/gfx/geometry/rounded_corners_f.h"
  
-@@ -43,10 +53,42 @@ void MultiContentsBackgroundView::OnThemeChanged() {
+@@ -43,10 +54,52 @@ void MultiContentsBackgroundView::OnThemeChanged() {
  
  void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
    CHECK(layer()->AsTextured());
-+#if !BUILDFLAG(IS_MAC)
++  // Arcomium: the frame, and the page card where MultiContentsView insets it.
 +  const ui::ColorProvider* color_provider = GetColorProvider();
 +  if (!color_provider) {
 +    return;
@@ -363,85 +355,91 @@ index 56e57faa101..0abf1a4f426 100644
 +  }
 +  // The single page card, where MultiContentsView insets it.
 +  gfx::Rect card = GetLocalBounds();
-+  card.Inset(gfx::Insets::TLBR(0, MultiContentsView::kArcomiumPageLeadingInset,
-+                               MultiContentsView::kSplitViewContentInset,
-+                               MultiContentsView::kSplitViewContentInset));
++  card.Inset(gfx::Insets::TLBR(MultiContentsView::kArcomiumPageTopInset,
++                               MultiContentsView::kArcomiumPageLeadingInset,
++                               MultiContentsView::kArcomiumPageInset,
++                               MultiContentsView::kArcomiumPageInset));
++#if BUILDFLAG(IS_MAC)
++  // Arc for macOS' card has no rim and only a faint shadow at its edges.
++  const gfx::ShadowValues shadows = {
++      gfx::ShadowValue(gfx::Vector2d(0, 1), 6,
++                       SkColorSetA(SK_ColorBLACK, 0x40))};
++  const SkColor card_color =
++      color_provider->GetColor(kColorNewTabPageBackground);
++#else
 +  // Its soft shadow falls mostly below it; its rim is a shade off the frame.
 +  const gfx::ShadowValues shadows = {
 +      gfx::ShadowValue(gfx::Vector2d(0, 5), 28,
 +                       SkColorSetA(SK_ColorBLACK, 0x50))};
++  const SkColor card_color = color_utils::BlendTowardMaxContrast(frame, 0x0A);
++#endif
 +  cc::PaintFlags flags;
 +  flags.setAntiAlias(true);
-+  flags.setColor(color_utils::BlendTowardMaxContrast(frame, 0x0A));
++  flags.setColor(card_color);
 +  flags.setLooper(gfx::CreateShadowDrawLooper(shadows));
-+  canvas->DrawRoundRect(gfx::RectF(card), 4, flags);
++  canvas->DrawRoundRect(
++      gfx::RectF(card),
++      MultiContentsView::kArcomiumPageRoundedCorners.upper_left(), flags);
 +  return;
-+#endif
    ThemedBackground::PaintBackground(canvas, this, browser_view_);
  }
  
  ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
-+#if !BUILDFLAG(IS_MAC)
 +  // Arcomium: the frame shows around the page card, which casts a soft
-+  // shadow, as in Arc for Windows.
++  // shadow, as in Arc.
 +  return ui::LAYER_TEXTURED;
-+#endif
    const bool has_custom_image =
        !ThemedBackground::GetBackgroundColor(this, browser_view_).has_value();
    return has_custom_image ? ui::LAYER_TEXTURED : ui::LAYER_SOLID_COLOR;
-@@ -54,6 +96,13 @@ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
+@@ -54,6 +107,11 @@ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
  
  void MultiContentsBackgroundView::UpdateSolidLayerColor() {
    CHECK(layer()->AsSolidColor());
-+#if !BUILDFLAG(IS_MAC)
 +  if (const ui::ColorProvider* color_provider = GetColorProvider()) {
 +    layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(
 +        color_provider->GetColor(ui::kColorFrameActive)));
 +  }
 +  return;
-+#endif
    if (auto color = ThemedBackground::GetBackgroundColor(this, browser_view_)) {
      layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(*color));
    }
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 5e8ccde047f..01b4f4cb16c 100644
+index 5e8ccde..3a10b75 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
-@@ -70,7 +70,13 @@ MultiContentsView::MultiContentsView(
+@@ -68,11 +68,11 @@ MultiContentsView::MultiContentsView(
+     std::unique_ptr<MultiContentsViewDelegate> delegate)
+     : browser_view_(browser_view),
        delegate_(std::move(delegate)),
-       // Arcomium: the page card starts right at the sidebar's edge, as in Arc.
-       split_view_insets_(gfx::Insets::TLBR(0,
-+#if BUILDFLAG(IS_MAC)
-                                            0,
-+#else
-+                                           // Arc for Windows' page card
-+                                           // keeps off the sidebar.
+-      // Arcomium: the page card starts right at the sidebar's edge, as in Arc.
+-      split_view_insets_(gfx::Insets::TLBR(0,
+-                                           0,
+-                                           kSplitViewContentInset,
+-                                           kSplitViewContentInset)) {
++      // Arcomium: the page card's place beside the sidebar, as in Arc.
++      split_view_insets_(gfx::Insets::TLBR(kArcomiumPageTopInset,
 +                                           kArcomiumPageLeadingInset,
-+#endif
-                                            kSplitViewContentInset,
-                                            kSplitViewContentInset)) {
++                                           kArcomiumPageInset,
++                                           kArcomiumPageInset)) {
    SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
-@@ -522,11 +528,16 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   SetProperty(views::kElementIdentifierKey, kMultiContentsViewElementId);
+ 
+@@ -522,11 +522,8 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
    available_space =
        CalculateSeparatorLayouts(available_space, layouts.child_layouts);
  
 -  // Arcomium: split pages float as cards; a single page fills the window up
 -  // to its right and bottom edges, as in Arc.
-+  // Arcomium: split pages float as cards. A single page fills the window up
-+  // to its right and bottom edges on macOS, and is an inset card as in Arc
-+  // for Windows elsewhere.
-+#if BUILDFLAG(IS_MAC)
-   if (IsInSplitView()) {
-     available_space.Inset(split_view_insets_);
-   }
-+#else
+-  if (IsInSplitView()) {
+-    available_space.Inset(split_view_insets_);
+-  }
++  // Arcomium: split pages and a single page float as cards, as in Arc.
 +  available_space.Inset(split_view_insets_);
-+#endif
    ViewSizes sizes = GetViewSizes(available_space);
  
    gfx::Rect start_rect, resize_rect, end_rect;
 diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
-index 431ee6f1f18..493419b734f 100644
+index 431ee6f..366cd6c 100644
 --- a/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ b/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -8,6 +8,7 @@
@@ -452,24 +450,35 @@ index 431ee6f1f18..493419b734f 100644
  #include "base/callback_list.h"
  #include "base/functional/callback_forward.h"
  #include "base/gtest_prod_util.h"
-@@ -65,14 +66,22 @@ class MultiContentsView
+@@ -65,14 +66,31 @@ class MultiContentsView
    };
  
    static constexpr int kSplitViewContentInset = 8;
-+  // Arcomium: the gap between the sidebar and the page card on Windows.
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS' page card touches the sidebar and keeps 10 pt
++  // from the window's other edges.
++  static constexpr int kArcomiumPageLeadingInset = 0;
++  static constexpr int kArcomiumPageTopInset = 10;
++  static constexpr int kArcomiumPageInset = 10;
++#else
++  // Arcomium: the gap between the sidebar and the page card on Windows; the
++  // top bar is above it.
 +  static constexpr int kArcomiumPageLeadingInset = 3;
++  static constexpr int kArcomiumPageTopInset = 0;
++  static constexpr int kArcomiumPageInset = kSplitViewContentInset;
++#endif
    // Arcomium: Arc-like card radius.
    static constexpr float kSplitViewContentCornerRadius = 10;
    static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
        kSplitViewContentCornerRadius};
 -  // Arcomium: a single page meets the window's right and bottom edges, so
 -  // only its corners along the sidebar are rounded.
-+  // Arcomium: on macOS a single page meets the window's right and bottom
-+  // edges, so only its corners along the sidebar are rounded; elsewhere it is
-+  // a card like Arc for Windows'.
+-  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{
+-      kSplitViewContentCornerRadius, 0, 0, kSplitViewContentCornerRadius};
++  // Arcomium: a single page is a card, as in Arc.
 +#if BUILDFLAG(IS_MAC)
-   static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{
-       kSplitViewContentCornerRadius, 0, 0, kSplitViewContentCornerRadius};
++  // Arc for macOS' card has 6 pt corners.
++  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{6};
 +#else
 +  // Arc for Windows' page card has small corners.
 +  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{4};

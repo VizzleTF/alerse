@@ -18,7 +18,7 @@ index 272d8c4ed00..50d339c288f 100644
        /*autosize=*/true);
    bubble_delegate->SetOwnedByWidget(
 diff --git a/chrome/browser/ui/views/frame/app_menu_button.cc b/chrome/browser/ui/views/frame/app_menu_button.cc
-index edf4150731b..3b1941cae4d 100644
+index edf4150..249c10d 100644
 --- a/chrome/browser/ui/views/frame/app_menu_button.cc
 +++ b/chrome/browser/ui/views/frame/app_menu_button.cc
 @@ -20,6 +20,7 @@
@@ -29,7 +29,7 @@ index edf4150731b..3b1941cae4d 100644
  #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
  #include "chrome/browser/ui/views/toolbar/app_menu.h"
  #include "chrome/browser/ui/views/toolbar/toolbar_ink_drop_util.h"
-@@ -52,6 +53,16 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
+@@ -52,12 +53,27 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
    if (IsDrawn()) {
      return views::BubbleAnchor(this);
    }
@@ -46,6 +46,17 @@ index edf4150731b..3b1941cae4d 100644
    // The app menu button is always present but might be non-visible or offscreen
    // in certain cases (e.g. content-fullscreen). In this case, use the fallback
    // anchor instead.
+   auto* const elements = BrowserElementsViews::From(this);
+   CHECK(elements);
+   auto* const element = elements->GetElement(kFallbackPopupAnchorElementId);
++  // Arcomium: on macOS the sidebar hides with no toolbar to fall back on;
++  // the bubble then points at the window.
++  if (!element && GetWidget()) {
++    return views::BubbleAnchor(GetWidget()->GetRootView());
++  }
+   CHECK(element);
+   return views::BubbleAnchor(element);
+ }
 diff --git a/chrome/browser/ui/views/frame/browser_frame_view_win.cc b/chrome/browser/ui/views/frame/browser_frame_view_win.cc
 index 5bafaddaaca..1c2b3c6ca3c 100644
 --- a/chrome/browser/ui/views/frame/browser_frame_view_win.cc

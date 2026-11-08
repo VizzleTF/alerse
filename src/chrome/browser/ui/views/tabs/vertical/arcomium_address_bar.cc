@@ -5,12 +5,14 @@
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_address_bar.h"
 
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <utility>
 
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -18,7 +20,11 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "cc/paint/paint_flags.h"
+#include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/scoped_canvas.h"
+#include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/border.h"
 #include "ui/views/painter.h"
 #include "ui/gfx/color_utils.h"
@@ -41,23 +47,43 @@
 #include "ui/views/view_class_properties.h"
 #include "ui/views/event_monitor.h"
 #include "ui/views/widget/widget.h"
+#include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 
 namespace {
 
 // Room around the address field inside the sidebar.
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' field: 148x36 pt, 8 pt from the sidebar's edges.
+constexpr int kHorizontalInset = 8;
+constexpr int kFieldHeight = 36;
+#else
 constexpr int kHorizontalInset = 4;
+#endif
 constexpr int kVerticalInset = 4;
 constexpr int kCopyIconSize = 16;
 constexpr int kCopyButtonSize = 24;
 constexpr int kCopyButtonEndInset = 6;
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' command bar: 765 pt wide and centred on the window, its
+// 327 pt panel (five rows) 5 pt above the middle; the address row is its top
+// 63 pt; 12 pt corners and a grey rim.
+constexpr int kCommandBarWidth = 765;
+constexpr int kCommandBarHeight = 327;
+constexpr int kCommandBarOffset = -5;
+constexpr int kCommandBarInputHeight = 63;
+constexpr int kCommandBarRadius = 12;
+constexpr SkAlpha kCommandBarRim = 0x3B;
+#else
 // Arc's command bar: 722 px wide and centred on the window, its 318 px panel
 // 30 px below the middle; the address row is its top 52 px.
 constexpr int kCommandBarWidth = 722;
 constexpr int kCommandBarHeight = 318;
 constexpr int kCommandBarOffset = 30;
 constexpr int kCommandBarInputHeight = 52;
-constexpr int kCommandBarMargin = 16;
 constexpr int kCommandBarRadius = 9;
+constexpr SkAlpha kCommandBarRim = 0x56;
+#endif
+constexpr int kCommandBarMargin = 16;
 
 // The top of Arc's command bar panel, behind the address row.
 class ArcomiumCommandBarPanel : public views::View {
@@ -68,9 +94,21 @@ class ArcomiumCommandBarPanel : public views::View {
     const SkColor background =
         GetColorProvider()->GetColor(kColorOmniboxResultsBackground);
     views::Painter::CreateRoundRectWith1PxBorderPainter(
-        background, color_utils::BlendTowardMaxContrast(background, 0x56),
+        background,
+        color_utils::BlendTowardMaxContrast(background, kCommandBarRim),
         kCommandBarRadius)
         ->Paint(canvas, size());
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' line under the input: one device pixel, #313030 on
+    // #191919.
+    gfx::ScopedCanvas scoped(canvas);
+    const float scale = canvas->UndoDeviceScaleFactor();
+    const int bottom = static_cast<int>(std::round(height() * scale));
+    canvas->FillRect(
+        gfx::Rect(static_cast<int>(std::round(scale)), bottom - 1,
+                  static_cast<int>(std::round((width() - 2) * scale)), 1),
+        color_utils::BlendTowardMaxContrast(background, 0x1B));
+#endif
   }
 };
 
@@ -116,8 +154,12 @@ ArcomiumAddressBar::~ArcomiumAddressBar() {
 
 gfx::Size ArcomiumAddressBar::CalculatePreferredSize(
     const views::SizeBounds& available_size) const {
+#if BUILDFLAG(IS_MAC)
+  const int height = kFieldHeight;
+#else
   const int height = location_bar_ ? location_bar_->GetPreferredSize().height()
                                    : 0;
+#endif
   return gfx::Size(0, location_bar_ ? height + 2 * kVerticalInset : 0);
 }
 
@@ -167,6 +209,50 @@ void ArcomiumAddressBar::OnMouseExited(const ui::MouseEvent& event) {
   UpdateCopyButton();
 }
 
+bool ArcomiumAddressBar::OnMousePressed(const ui::MouseEvent& event) {
+#if BUILDFLAG(IS_MAC)
+  return location_bar_ && !editing_ && event.IsOnlyLeftMouseButton();
+#else
+  return false;
+#endif
+}
+
+void ArcomiumAddressBar::OnMouseReleased(const ui::MouseEvent& event) {
+#if BUILDFLAG(IS_MAC)
+  if (location_bar_ && !editing_ && HitTestPoint(event.location())) {
+    OpenCommandBar(/*new_tab=*/false);
+  }
+#endif
+}
+
+void ArcomiumAddressBar::OnPaint(gfx::Canvas* canvas) {
+  views::View::OnPaint(canvas);
+#if BUILDFLAG(IS_MAC)
+  if (!editing_ || !location_bar_ || editing_location_bar_ != location_bar_) {
+    return;
+  }
+  // As the sidebar's location bar paints itself (location_bar_view.cc).
+  const ui::ColorProvider* colors = GetColorProvider();
+  gfx::Rect field(size());
+  field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  flags.setColor(color_utils::BlendTowardMaxContrast(
+      colors->GetColor(ui::kColorFrameActive), 0x1B));
+  canvas->DrawRoundRect(gfx::RectF(field), 12, flags);
+  canvas->DrawImageInt(
+      gfx::CreateVectorIcon(vector_icons::kArcomiumSearchIcon, 16,
+                            colors->GetColor(kColorArcomiumSidebarNewTab)),
+      field.x() + 10, field.y() + (field.height() - 16) / 2);
+  canvas->DrawStringRect(
+      field_text_, field_font_,
+      colors->GetColor(field_placeholder_ ? kColorOmniboxTextDimmed
+                                          : kColorOmniboxText),
+      gfx::Rect(field.x() + 34, field.y(), std::max(0, field.width() - 42),
+                field.height()));
+#endif
+}
+
 void ArcomiumAddressBar::OnViewIsDeleting(views::View* observed_view) {
   if (observed_view == edit_placeholder_) {
     edit_placeholder_observation_.Reset();
@@ -180,6 +266,12 @@ void ArcomiumAddressBar::OnViewIsDeleting(views::View* observed_view) {
 void ArcomiumAddressBar::OpenCommandBar(bool new_tab) {
   LocationBarView* location_bar = GetEditableLocationBar();
   if (!location_bar) {
+    // A new window's sidebar takes the location bar just after it shows.
+    if (new_tab && GetWidget() && IsDrawn() && !pending_new_tab_) {
+      pending_new_tab_ = true;
+      ScheduleUpdatePlacement();
+      return;
+    }
     if (new_tab) {
       chrome::NewTab(browser_, NewTabTypes::kNewTabButton);
     }
@@ -320,6 +412,20 @@ void ArcomiumAddressBar::StartEditing(LocationBarView* location_bar) {
                               kCommandBarOffset),
       width, kCommandBarInputHeight);
 
+  if (location_bar == location_bar_) {
+    // What the field shows stays drawn while it is away (OnPaint).
+    OmniboxViewViews* omnibox = location_bar->omnibox_view();
+    field_text_ = std::u16string(omnibox->GetText());
+    field_placeholder_ = field_text_.empty();
+    field_font_ = omnibox->GetFontList();
+    if (field_placeholder_) {
+      field_text_ = std::u16string(omnibox->GetPlaceholderText());
+      field_font_ = field_font_.DeriveWithSizeDelta(-1);
+    }
+#if BUILDFLAG(IS_MAC)
+    location_bar->SetCanProcessEventsWithinSubtree(true);
+#endif
+  }
   moving_ = true;
   editing_ = true;
   editing_location_bar_ = location_bar;
@@ -350,13 +456,21 @@ void ArcomiumAddressBar::StartEditing(LocationBarView* location_bar) {
       click_watcher_.get(), widget->GetNativeWindow(),
       {ui::EventType::kMousePressed, ui::EventType::kTouchPressed});
   location_bar->SetArcomiumCommandBar(true);
+  UpdateCopyButton();
 
   location_bar->FocusLocation(/*is_user_initiated=*/true,
                               /*clear_focus_if_failed=*/false);
-  if (location_bar->ArcomiumOpensNewTab()) {
+  // An empty field (a new tab, an empty Space) asks for rows itself: focus
+  // moved with the field to the panel drops the on-focus suggestions.
+  if (location_bar->ArcomiumOpensNewTab() ||
+      location_bar->omnibox_view()->GetText().empty()) {
     location_bar->omnibox_view()->SetUserText(std::u16string());
   } else {
     location_bar->omnibox_view()->SelectAll(/*reversed=*/true);
+  }
+  SchedulePaint();
+  if (command_bar_callback_) {
+    command_bar_callback_.Run(true, location_bar->ArcomiumOpensNewTab());
   }
 }
 
@@ -373,6 +487,9 @@ void ArcomiumAddressBar::StopEditing() {
   location_bar->SetArcomiumNewTab(false);
   if (location_bar == location_bar_) {
     AddChildViewAt(location_bar, 0);
+#if BUILDFLAG(IS_MAC)
+    location_bar->SetCanProcessEventsWithinSubtree(false);
+#endif
   } else if (edit_placeholder_) {
     views::View* placeholder = edit_placeholder_;
     views::View* toolbar = placeholder->parent();
@@ -384,6 +501,10 @@ void ArcomiumAddressBar::StopEditing() {
   editor_->Hide();
   moving_ = false;
   InvalidateLayout();
+  SchedulePaint();
+  if (command_bar_callback_) {
+    command_bar_callback_.Run(false, false);
+  }
 }
 
 void ArcomiumAddressBar::ScheduleUpdatePlacement() {
@@ -395,6 +516,16 @@ void ArcomiumAddressBar::ScheduleUpdatePlacement() {
 void ArcomiumAddressBar::UpdatePlacement() {
   const bool sidebar_drawn = GetWidget() && IsDrawn();
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+  // A new tab's command bar waiting for the location bar opens now.
+  absl::Cleanup open_pending = [this] {
+    if (std::exchange(pending_new_tab_, false)) {
+      if (GetEditableLocationBar()) {
+        OpenCommandBar(/*new_tab=*/true);
+      } else {
+        chrome::NewTab(browser_, NewTabTypes::kNewTabButton);
+      }
+    }
+  };
   if (sidebar_drawn && browser_view && !browser_view->IsToolbarVisible()) {
     TakeLocationBar();
     return;
@@ -431,6 +562,11 @@ void ArcomiumAddressBar::TakeLocationBar() {
       std::move(placeholder), *toolbar->GetIndexOf(location_bar));
   placeholder_observation_.Observe(toolbar_placeholder_);
   location_bar_ = AddChildViewAt(location_bar, 0);
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' field is one button: the address bar takes its clicks.
+  // Windows keeps the location bar's own (its site icon and warnings).
+  location_bar_->SetCanProcessEventsWithinSubtree(false);
+#endif
   location_bar_->SetArcomiumCompact(true);
   location_bar_->SetArcomiumHovered(hovered_);
   PreferredSizeChanged();
@@ -443,6 +579,9 @@ void ArcomiumAddressBar::ReturnLocationBar() {
   StopEditing();
   LocationBarView* location_bar = location_bar_;
   location_bar_ = nullptr;
+#if BUILDFLAG(IS_MAC)
+  location_bar->SetCanProcessEventsWithinSubtree(true);
+#endif
   location_bar->SetArcomiumCompact(false);
   views::View* placeholder = toolbar_placeholder_;
   views::View* toolbar = placeholder ? placeholder->parent() : nullptr;
@@ -458,7 +597,13 @@ void ArcomiumAddressBar::ReturnLocationBar() {
 }
 
 void ArcomiumAddressBar::UpdateCopyButton() {
-  copy_button_->SetVisible(hovered_ && location_bar_);
+  // As in Arc: not while the command bar has the field, nor on an empty
+  // Space's blank page, which has no address to copy.
+  content::WebContents* contents =
+      browser_->GetTabStripModel()->GetActiveWebContents();
+  copy_button_->SetVisible(
+      hovered_ && location_bar_ && !editing_ && contents &&
+      !TabStripModel::IsArcomiumEmptySpace(contents));
   if (location_bar_) {
     location_bar_->SetArcomiumHovered(hovered_);
   }

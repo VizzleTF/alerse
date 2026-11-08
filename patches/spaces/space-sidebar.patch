@@ -1,14 +1,22 @@
 diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-index 62ea6d7c9b3..07baf214e6c 100644
+index 62ea6d7..2798e14 100644
 --- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-@@ -7,7 +7,8 @@
+@@ -5,9 +5,16 @@
+ #ifndef CHROME_BROWSER_UI_TABS_VERTICAL_TAB_STRIP_STATE_H_
+ #define CHROME_BROWSER_UI_TABS_VERTICAL_TAB_STRIP_STATE_H_
  
++#include "build/build_config.h"
++
  namespace tabs {
  
 -inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
-+// Arcomium: Arc's sidebar width.
++// Arcomium: Arc's sidebar width: 198 px on Windows, 164 pt on macOS.
++#if BUILDFLAG(IS_MAC)
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 164;
++#else
 +inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 198;
++#endif
  // TODO(crbug.com/465833741): Replace constant with derived value based on
  // caption buttons.
  inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
@@ -410,3 +418,30 @@ index c03539ffa6f..c95adf5ef12 100644
  
    PrefChangeRegistrar pref_registrar_;
    base::CallbackListSubscription collapse_subscription_;
+diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+index 931bdae..0cf7279 100644
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.h"
+ 
++#include "build/build_config.h"
++
+ #include <optional>
+ 
+ #include "base/i18n/rtl.h"
+@@ -77,6 +79,13 @@ VerticalTabStripStateControllerImpl::VerticalTabStripStateControllerImpl(
+   if (restored_state_collapsed.has_value()) {
+     SetCollapsed(restored_state_collapsed.value());
+   }
++  // Arcomium: 198 is Arc for Windows' width, which macOS builds used before
++  // they took Arc for macOS' (the default); a window saved with it gets that.
++#if BUILDFLAG(IS_MAC)
++  if (restored_state_uncollapsed_width == 198) {
++    restored_state_uncollapsed_width.reset();
++  }
++#endif
+   if (restored_state_uncollapsed_width.has_value()) {
+     SetUncollapsedWidth(restored_state_uncollapsed_width.value());
+   }

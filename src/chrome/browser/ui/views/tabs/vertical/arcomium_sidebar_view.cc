@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -21,6 +22,7 @@
 #include "base/uuid.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/favicon/favicon_utils.h"
@@ -43,10 +45,17 @@
 #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/arcomium_command_bar_hook.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_mini_player.h"
+#include "ui/views/view_utils.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_tooltip.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
+#include "components/bookmarks/browser/bookmark_node_data.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -64,7 +73,9 @@
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPathBuilder.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/token.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/dragdrop/drag_drop_types.h"
 #include "ui/base/dragdrop/drop_target_event.h"
@@ -83,10 +94,13 @@
 #include "ui/display/screen.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/canvas.h"
+#include "ui/gfx/color_utils.h"
+#include "ui/gfx/scoped_canvas.h"
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/rect_f.h"
+#include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -112,6 +126,13 @@
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
+#if BUILDFLAG(IS_MAC)
+#include "base/i18n/case_conversion.h"
+#include "ui/base/l10n/time_format.h"
+#include "ui/gfx/paint_vector_icon.h"
+#include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/controls/textfield/textfield_controller.h"
+#endif
 
 namespace {
 
@@ -122,27 +143,76 @@ constexpr char kSpaceMetaKey[] = "arcomium.space";
 constexpr char kOpenMetaKey[] = "arcomium.open";
 constexpr char kIconMetaKey[] = "arcomium.icon";
 constexpr char kFolderIconMetaKey[] = "arcomium.folder_icon";
+// A pinned item's or favorite's glyph from Change Icon..., in place of its
+// favicon: a Space icon's name.
+constexpr char kGlyphMetaKey[] = "arcomium.glyph";
+// The favorites' folder, beside the Spaces' folders; and a Space folder whose
+// pinned tabs are collapsed under its name.
+constexpr char kFavoritesMetaKey[] = "arcomium.favorites";
+#if BUILDFLAG(IS_MAC)
+constexpr char kCollapsedMetaKey[] = "arcomium.collapsed";
+#endif
 constexpr char kDefaultSpace[] = "default";
 
+// Arc's favorites: tiles above the Space's name, 47 high, 8 apart, up to
+// four in a row (measured on Arc for macOS: two tiles 70x47 in its 148 pt).
+constexpr int kFavoriteHeight = 47;
+constexpr int kFavoriteGap = 8;
+constexpr int kFavoritesPerRow = 4;
+constexpr int kFavoritesTop = 4;
+constexpr int kFavoritesBottom = 6;
+constexpr float kFavoriteRadius = 12;
+// Shades off the frame: #2F2F2F, hovered #383839 on Arc's #161616.
+constexpr SkAlpha kFavoriteShade = 0x1B;
+constexpr SkAlpha kFavoriteHoverShade = 0x25;
+constexpr SkAlpha kFavoriteActiveShade = 0x40;
+
+#if BUILDFLAG(IS_MAC)
+// Measured on Arc for macOS (in pt): rows 41 apart with a 148x36 highlight
+// with 12 pt corners, favicons at x = 18, 19 pt folders, nested rows 16 in.
+// The Space's name is a row of its own with the Space's icon; no divider
+// before New Tab.
+constexpr float kRowPitch = 41;
+constexpr int kIconX = 18;
+constexpr int kFolderGlyphSize = 22;
+constexpr int kOpenFolderGlyphWidth = 24;
+constexpr float kFolderGlyphScale = 19 / 16.5f;
+constexpr float kFolderOutlineScale = 19 / 18.0f;
+constexpr SkColor kFolderInside = SkColorSetRGB(0x05, 0x05, 0x05);
+// Space bar's icons are 13 pt; the Space's name's 15 pt, in the active white.
+constexpr float kSpaceTitleIconScale = 15 / 17.0f;
+// Text ends 11 pt short of the highlight's edge, where Arc elides it.
+constexpr int kTextEndInset = 11;
+constexpr int kIndent = 16;
+constexpr float kRowBackgroundInsetY = 2.5f;
+constexpr float kRowBackgroundRadius = 12;
+constexpr int kSpaceTitleTextX = 44;
+constexpr int kSpaceTitleIconX = 26;
+constexpr int kSpaceTitleFontSize = 13;
+constexpr SkColor kSpaceTitleColor = SkColorSetRGB(0x80, 0x80, 0x80);
+#else
 // Measured on Arc for Windows at 100% scale. Rows are 43.3 px apart, so row
 // heights alternate between 43 and 44.
 constexpr float kRowPitch = 43.3f;
 constexpr int kIconX = 16;
-constexpr int kTextX = 44;
 constexpr int kFolderGlyphSize = 18;
-constexpr int kIconSize = 16;
 constexpr int kIndent = 9;
+constexpr float kRowBackgroundInsetY = 4;
+constexpr float kRowBackgroundRadius = 8;
 constexpr int kSpaceLabelHeight = 21;
 constexpr int kSpaceLabelTextHeight = 13;
 constexpr int kSpaceLabelX = 18;
+constexpr int kLabelFontSize = 12;
+#endif
+constexpr int kTextX = 44;
+constexpr int kIconSize = 16;
+#if !BUILDFLAG(IS_MAC)
 constexpr int kDividerInset = 9;
 constexpr int kDividerTop = 11;
 constexpr int kDividerBottom = 9;
+#endif
 constexpr int kItemFontSize = 14;
-constexpr int kLabelFontSize = 12;
 constexpr int kRowBackgroundInsetX = 8;
-constexpr int kRowBackgroundInsetY = 4;
-constexpr float kRowBackgroundRadius = 8;
 // The speaker of a tab playing sound, and the gap after it.
 constexpr int kSpeakerSize = 16;
 constexpr int kSpeakerGap = 6;
@@ -153,7 +223,9 @@ constexpr ui::ColorId kFolderColor = kColorArcomiumSidebarFolder;
 constexpr ui::ColorId kSubtleColor = kColorArcomiumSidebarSubtle;
 constexpr ui::ColorId kNewTabColor = kColorArcomiumSidebarNewTab;
 constexpr ui::ColorId kPlusColor = kColorArcomiumSidebarPlus;
+#if !BUILDFLAG(IS_MAC)
 constexpr ui::ColorId kDividerColor = kColorArcomiumSidebarDivider;
+#endif
 constexpr ui::ColorId kGlyphColor = kColorArcomiumSidebarGlyph;
 constexpr ui::ColorId kGlyphFillColor = kColorArcomiumSidebarGlyphFill;
 constexpr ui::ColorId kHoverColor = kColorArcomiumSidebarHover;
@@ -164,10 +236,48 @@ constexpr base::TimeDelta kFolderAnimationDuration = base::Milliseconds(150);
 constexpr base::TimeDelta kPopupFadeDuration = base::Milliseconds(120);
 
 // Folder popup: hover delay, size, color and pointer polling.
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS waits about 1.5 s before it shows a folder's links.
+constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(1500);
+#else
 constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(200);
+#endif
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' popup: 240 pt wide, 4 pt right of the sidebar and centred on
+// its folder's row; a 48 pt search row over a line, then rows 45 pt apart
+// with the link's title and when it was last opened, the first selected.
+// Longer lists scroll inside 320 pt.
+constexpr int kPopupWidth = 240;
+constexpr views::BubbleBorder::Arrow kPopupArrow =
+    views::BubbleBorder::LEFT_CENTER;
+constexpr int kPopupGap = 4;
+constexpr int kPopupRadius = 12;
+constexpr int kPopupSearchHeight = 49;
+constexpr int kPopupRowPitch = 45;
+constexpr int kPopupMaxHeight = 320;
+constexpr int kPopupIconCenterX = 21;
+constexpr int kPopupTextX = 36;
+constexpr int kPopupTextEndInset = 13;
+constexpr SkColor kPopupBackground = SkColorSetRGB(0x1A, 0x1A, 0x19);
+// macOS lightens a dark window's edge by about 0x13: these show as Arc's
+// #3D3D3D and #4F4F4E.
+constexpr SkColor kPopupOuterRim = SkColorSetRGB(0x2A, 0x2A, 0x2A);
+constexpr SkColor kPopupRim = SkColorSetRGB(0x3C, 0x3C, 0x3B);
+constexpr SkColor kPopupLine = SkColorSetRGB(0x38, 0x38, 0x37);
+constexpr SkColor kPopupSelected = SkColorSetRGB(0x2C, 0x2C, 0x2B);
+constexpr SkColor kPopupTitle = SkColorSetRGB(0xD3, 0xD3, 0xD3);
+constexpr SkColor kPopupDate = SkColorSetRGB(0x92, 0x92, 0x91);
+constexpr SkColor kPopupGlyph = SkColorSetRGB(0x8C, 0x8C, 0x8C);
+// The line Arc for macOS draws above the Space bar while the rows overflow:
+// 1 px #212121 on #161616.
+constexpr SkAlpha kOverflowLineShade = 0x0C;
+#else
 constexpr int kPopupWidth = 260;
+constexpr views::BubbleBorder::Arrow kPopupArrow =
+    views::BubbleBorder::LEFT_TOP;
 constexpr int kPopupPadding = 4;
 constexpr ui::ColorId kPopupColor = kColorArcomiumSidebarPopup;
+#endif
 constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(30);
 // Polls the pointer may spend outside before the popup closes.
 constexpr int kPopupOutsideTicks = 10;
@@ -187,6 +297,11 @@ enum Command {
   kEditPinnedPage,
   kReplacePinnedUrl,
   kEditPinnedItem,
+  kAddFavorite,
+  kRemoveFavorite,
+  kCopyAllLinks,
+  kTurnIntoSpace,
+  kChangeIcon,
   // "Move to" submenu: one command per Space from here.
   kMoveToFirst = 100,
 };
@@ -233,22 +348,83 @@ class FolderGlyph : public views::View {
   METADATA_HEADER(FolderGlyph, views::View)
 
  public:
-  FolderGlyph(bool has_open_tabs, std::string custom_icon)
-      : has_open_tabs_(has_open_tabs), custom_icon_(std::move(custom_icon)) {
+  FolderGlyph(bool has_open_tabs, std::string custom_icon, bool open = false)
+      : has_open_tabs_(has_open_tabs),
+        custom_icon_(std::move(custom_icon)),
+        open_(open) {
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' open folder is wider, 22.5 pt.
+    SetPreferredSize(gfx::Size(open ? kOpenFolderGlyphWidth : kFolderGlyphSize,
+                               kFolderGlyphSize));
+#else
     SetPreferredSize(gfx::Size(kFolderGlyphSize, kFolderGlyphSize));
+#endif
     SetCanProcessEventsWithinSubtree(false);
   }
 
-  // Arc's folder is a 17 px square, larger than a favicon.
+  // Arc's folder is a 17 px square, larger than a favicon; on macOS 19 pt.
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     const SkColor glyph = arcomium::SidebarInk(this, kGlyphColor);
     const SkColor glyph_fill = arcomium::SidebarInk(this, kGlyphFillColor);
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS fills its folders near black.
+    const SkColor inside = arcomium::SidebarInk(this, kFolderInside);
+    if (open_) {
+      PaintOpenFolder(canvas, glyph, inside);
+      return;
+    }
+    // Arc for macOS' folder: one 18.5 pt outline whose tab slants down into
+    // the body, grey behind a bright front edge, near black below it.
+    {
+      gfx::ScopedCanvas scoped(canvas);
+      canvas->sk_canvas()->translate(kFolderGlyphSize / 2.0f - 9.25f,
+                                     kFolderGlyphSize / 2.0f - 9.3f);
+      SkPathBuilder outline;
+      outline.moveTo(0.75f, 3.2f)
+          .quadTo(0.75f, 0.75f, 3.2f, 0.75f)
+          .lineTo(7.4f, 0.75f)
+          .quadTo(8.4f, 0.75f, 9.1f, 1.5f)
+          .lineTo(9.9f, 2.3f)
+          .quadTo(10.3f, 2.75f, 11, 2.75f)
+          .lineTo(15.3f, 2.75f)
+          .quadTo(17.75f, 2.75f, 17.75f, 5.2f)
+          .lineTo(17.75f, 15.3f)
+          .quadTo(17.75f, 17.75f, 15.3f, 17.75f)
+          .lineTo(3.2f, 17.75f)
+          .quadTo(0.75f, 17.75f, 0.75f, 15.3f)
+          .close();
+      const SkPath path = outline.detach();
+      flags.setColor(inside);
+      canvas->DrawPath(path, flags);
+      canvas->sk_canvas()->save();
+      canvas->ClipPath(path, /*do_anti_alias=*/true);
+      flags.setColor(SkColorSetA(glyph, 0x8C));
+      canvas->DrawRect(gfx::RectF(0, 0, 18.5f, 4.0f), flags);
+      flags.setColor(glyph);
+      canvas->DrawRect(gfx::RectF(0, 4.0f, 18.5f, 1.5f), flags);
+      canvas->sk_canvas()->restore();
+      flags.setStyle(cc::PaintFlags::kStroke_Style);
+      flags.setStrokeWidth(1.5f);
+      flags.setStrokeJoin(cc::PaintFlags::kRound_Join);
+      canvas->DrawPath(path, flags);
+      flags.setStyle(cc::PaintFlags::kFill_Style);
+    }
+    // The marks inside follow, drawn for Windows' 16.5 px folder.
+    canvas->sk_canvas()->translate(kFolderGlyphSize / 2.0f,
+                                   kFolderGlyphSize / 2.0f);
+    canvas->sk_canvas()->scale(kFolderOutlineScale, kFolderOutlineScale);
+    canvas->sk_canvas()->translate(-9, -9.25f);
+    canvas->sk_canvas()->translate(9 - 8.75f * kFolderGlyphScale,
+                                   9.25f - 9.25f * kFolderGlyphScale);
+    canvas->sk_canvas()->scale(kFolderGlyphScale, kFolderGlyphScale);
+#else
     flags.setColor(glyph);
     canvas->DrawRoundRect(gfx::RectF(0.5f, 1, 16.5f, 16.5f), 3, flags);
     flags.setColor(glyph_fill);
     canvas->DrawRoundRect(gfx::RectF(2, 5, 13.5f, 11), 1.5f, flags);
+#endif
     flags.setColor(glyph);
     if (has_open_tabs_) {
       canvas->DrawRect(gfx::RectF(4, 9.5f, 3.5f, 1.6f), flags);
@@ -269,12 +445,58 @@ class FolderGlyph : public views::View {
       right.moveTo(10.5f, 8).lineTo(12.5f, 10.5f).lineTo(10.5f, 13);
       canvas->DrawPath(left.detach(), flags);
       canvas->DrawPath(right.detach(), flags);
+    } else if (!custom_icon_.empty()) {
+      // A glyph picked with Change Icon..., at half size in the body.
+      gfx::ScopedCanvas scoped(canvas);
+      canvas->sk_canvas()->translate(8.75f, 10.6f);
+      canvas->sk_canvas()->scale(0.5f, 0.5f);
+      arcomium::PaintSpaceIcon(canvas, gfx::PointF(), custom_icon_, glyph);
     }
   }
 
  private:
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' open folder: a grey back panel leaning left behind a
+  // slanted front, both outlined. Drawn from a 22.5x15.3 pt trace.
+  void PaintOpenFolder(gfx::Canvas* canvas, SkColor glyph, SkColor inside) {
+    // Its left edge 2 pt left of the closed folder's, as Arc's.
+    canvas->sk_canvas()->translate(2, (height() - 15.3f) / 2 + 0.5f);
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStrokeJoin(cc::PaintFlags::kRound_Join);
+    SkPathBuilder back;
+    back.moveTo(0.65f, 0.65f)
+        .lineTo(6.6f, 0.65f)
+        .lineTo(8.4f, 2.4f)
+        .lineTo(14.2f, 2.4f)
+        .lineTo(14.6f, 4.0f)
+        .lineTo(7.8f, 4.0f)
+        .lineTo(4.4f, 14.6f)
+        .lineTo(0.65f, 1.5f)
+        .close();
+    SkPathBuilder front;
+    front.moveTo(7.8f, 4.0f)
+        .lineTo(21.8f, 4.1f)
+        .lineTo(18.3f, 14.65f)
+        .lineTo(4.4f, 14.65f)
+        .close();
+    const SkPath back_path = back.detach();
+    const SkPath front_path = front.detach();
+    flags.setColor(SkColorSetA(glyph, 0x8C));
+    canvas->DrawPath(back_path, flags);
+    flags.setColor(inside);
+    canvas->DrawPath(front_path, flags);
+    flags.setColor(glyph);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(1.3f);
+    canvas->DrawPath(back_path, flags);
+    canvas->DrawPath(front_path, flags);
+  }
+#endif
+
   const bool has_open_tabs_;
   const std::string custom_icon_;
+  [[maybe_unused]] const bool open_;
 };
 
 BEGIN_METADATA(FolderGlyph)
@@ -290,13 +512,46 @@ class PlusGlyph : public views::View {
     SetCanProcessEventsWithinSubtree(false);
   }
 
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS brightens the "+" while its row is hovered, and draws it
+  // as the text while the row is the command bar's new tab.
+  void SetHovered(bool hovered) {
+    hovered_ = hovered;
+    SchedulePaint();
+  }
+
+  void SetActive(bool active) {
+    active_ = active;
+    SchedulePaint();
+  }
+#endif
+
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
+#if BUILDFLAG(IS_MAC)
+    flags.setColor(
+        active_    ? arcomium::SidebarInk(this, kItemColor)
+        : hovered_ ? arcomium::SidebarInk(this, SkColorSetRGB(0x95, 0x95, 0x95))
+                   : arcomium::SidebarInk(this, kPlusColor));
+#else
     flags.setColor(arcomium::SidebarInk(this, kPlusColor));
+#endif
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' is 11.5 pt, a point left of Windows'.
+    canvas->DrawRect(gfx::RectF(2, 7.4f, 11.5f, 1.2f), flags);
+    canvas->DrawRect(gfx::RectF(7.15f, 2.25f, 1.2f, 11.5f), flags);
+#else
     canvas->DrawRect(gfx::RectF(3, 7.4f, 12, 1.2f), flags);
     canvas->DrawRect(gfx::RectF(8.4f, 2.5f, 1.2f, 12), flags);
+#endif
   }
+
+#if BUILDFLAG(IS_MAC)
+ private:
+  bool hovered_ = false;
+  bool active_ = false;
+#endif
 };
 
 BEGIN_METADATA(PlusGlyph)
@@ -308,17 +563,335 @@ class Divider : public views::View {
 
  public:
   Divider() {
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS has no line here; the view stays as the end of the
+    // pinned items for drag and drop.
+    SetPreferredSize(gfx::Size());
+#else
     SetPreferredSize(gfx::Size(0, kDividerTop + 1 + kDividerBottom));
+#endif
   }
 
+#if !BUILDFLAG(IS_MAC)
   void OnPaint(gfx::Canvas* canvas) override {
     canvas->FillRect(
         gfx::Rect(kDividerInset, kDividerTop, width() - 2 * kDividerInset, 1),
         arcomium::SidebarInk(this, kDividerColor));
   }
+#endif
 };
 
 BEGIN_METADATA(Divider)
+END_METADATA
+
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' line over the Space bar while the rows overflow: one device
+// pixel, barely off the frame.
+class OverflowLine : public views::View {
+  METADATA_HEADER(OverflowLine, views::View)
+
+ public:
+  explicit OverflowLine(bool bottom) : bottom_(bottom) {}
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    gfx::ScopedCanvas scoped(canvas);
+    const float scale = canvas->UndoDeviceScaleFactor();
+    const int width = static_cast<int>(std::ceil(this->width() * scale));
+    const int height = static_cast<int>(std::ceil(this->height() * scale));
+    canvas->FillRect(
+        gfx::Rect(0, bottom_ ? height - 1 : 0, width, 1),
+        color_utils::BlendTowardMaxContrast(
+            GetColorProvider()->GetColor(ui::kColorFrameActive),
+            kOverflowLineShade));
+  }
+
+ private:
+  const bool bottom_;
+};
+
+BEGIN_METADATA(OverflowLine)
+END_METADATA
+#endif
+
+// A shade off the frame (the Space's tint), as Arc's tiles and plates are.
+SkColor FrameShade(const views::View* view, SkAlpha alpha) {
+  return color_utils::BlendTowardMaxContrast(
+      view->GetColorProvider()->GetColor(ui::kColorFrameActive), alpha);
+}
+
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' Space name: a row with the Space's icon, in semibold grey.
+// Hovered, it shows a plate, a chevron that collapses the pinned tabs in
+// place of the icon, and "..." for the Space's menu at its end.
+class SpaceTitle : public views::View {
+  METADATA_HEADER(SpaceTitle, views::View)
+
+ public:
+  SpaceTitle(const std::u16string& title,
+             std::string icon,
+             bool collapsed,
+             base::RepeatingClosure toggle_collapsed,
+             base::RepeatingCallback<void(const gfx::Point&)> show_menu)
+      : icon_(std::move(icon)),
+        collapsed_(collapsed),
+        toggle_collapsed_(std::move(toggle_collapsed)),
+        show_menu_(std::move(show_menu)) {
+    label_ = AddChildView(MakeLabel(
+        title, ArcFont("", kSpaceTitleFontSize, gfx::Font::Weight::SEMIBOLD),
+        kSubtleColor));
+    label_->SetCanProcessEventsWithinSubtree(false);
+    SetPreferredSize(gfx::Size(0, static_cast<int>(kRowPitch)));
+  }
+
+  void Layout(PassKey) override {
+    // A rebuild under the pointer: hovered at once.
+    if (!size().IsEmpty() && !hover_checked_) {
+      hover_checked_ = true;
+      hovered_ = IsMouseHovered();
+      UpdateLabelColor();
+    }
+    label_->SetBounds(kSpaceTitleTextX, 0,
+                      std::max(0, MoreButtonX() - 12 - kSpaceTitleTextX),
+                      height());
+  }
+
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    UpdateLabelColor();
+  }
+
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    hovered_ = true;
+    UpdateLabelColor();
+    SchedulePaint();
+  }
+
+  void OnMouseExited(const ui::MouseEvent& event) override {
+    hovered_ = false;
+    UpdateLabelColor();
+    SchedulePaint();
+  }
+
+  bool OnMousePressed(const ui::MouseEvent& event) override {
+    return event.IsOnlyLeftMouseButton();
+  }
+
+  void OnMouseReleased(const ui::MouseEvent& event) override {
+    if (!HitTestPoint(event.location())) {
+      return;
+    }
+    if (event.x() < kSpaceTitleTextX - 4) {
+      toggle_collapsed_.Run();
+    } else if (event.x() >= MoreButtonX() - 12) {
+      gfx::Point point(MoreButtonX(), height());
+      views::View::ConvertPointToScreen(this, &point);
+      show_menu_.Run(point);
+    }
+  }
+
+  std::u16string GetRenderedTooltipText(const gfx::Point& p) const override {
+    if (p.x() < kSpaceTitleTextX - 4) {
+      return l10n_util::GetStringUTF16(collapsed_ ? IDS_ARCOMIUM_EXPAND_PINNED
+                                                  : IDS_ARCOMIUM_COLLAPSE_PINNED);
+    }
+    if (p.x() >= MoreButtonX() - 12) {
+      return l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPACE_OPTIONS);
+    }
+    return std::u16string();
+  }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    const gfx::PointF icon_center(kSpaceTitleIconX, height() / 2.0f);
+    if (!hovered_) {
+      // The Space's icon, 15 pt in the active white.
+      gfx::ScopedCanvas scoped(canvas);
+      canvas->sk_canvas()->translate(icon_center.x(), icon_center.y());
+      canvas->sk_canvas()->scale(kSpaceTitleIconScale, kSpaceTitleIconScale);
+      arcomium::PaintSpaceIcon(
+          canvas, gfx::PointF(), icon_,
+          arcomium::SidebarInk(this, kColorArcomiumSpaceIconActive));
+      return;
+    }
+    // Arc's plate: 148x36 with 12 pt corners, #2F2F2F on #161616.
+    flags.setColor(FrameShade(this, kFavoriteShade));
+    gfx::RectF plate(0, 0, width(), height());
+    plate.Inset(gfx::InsetsF::TLBR((height() - 36) / 2.0f - 0.5f,
+                                   kRowBackgroundInsetX,
+                                   (height() - 36) / 2.0f + 0.5f,
+                                   kRowBackgroundInsetX));
+    canvas->DrawRoundRect(plate, kRowBackgroundRadius, flags);
+    // Arc's chevron and "..." here are #ABABAB, a shade over the Space bar's.
+    flags.setColor(arcomium::SidebarInk(this, SkColorSetRGB(0xAB, 0xAB, 0xAB)));
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    // Arc's chevron: 11 pt wide, a 1.9 pt stroke.
+    flags.setStrokeWidth(1.9f);
+    flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+    flags.setStrokeJoin(cc::PaintFlags::kRound_Join);
+    // Down while the pinned tabs show, right while they are collapsed.
+    SkPathBuilder chevron;
+    if (collapsed_) {
+      chevron.moveTo(icon_center.x() - 2.25f, icon_center.y() - 4.5f)
+          .lineTo(icon_center.x() + 2.25f, icon_center.y())
+          .lineTo(icon_center.x() - 2.25f, icon_center.y() + 4.5f);
+    } else {
+      chevron.moveTo(icon_center.x() - 4.5f, icon_center.y() - 2.25f)
+          .lineTo(icon_center.x(), icon_center.y() + 2.25f)
+          .lineTo(icon_center.x() + 4.5f, icon_center.y() - 2.25f);
+    }
+    canvas->DrawPath(chevron.detach(), flags);
+    // "...": three 3 pt dots, 5 pt apart, as the header's.
+    flags.setStyle(cc::PaintFlags::kFill_Style);
+    for (int i = -1; i <= 1; ++i) {
+      canvas->DrawCircle(
+          gfx::PointF(MoreButtonX() + 5 * i, height() / 2.0f - 0.5f), 1.5f,
+          flags);
+    }
+  }
+
+ private:
+  // The centre of "...", 18 pt from the plate's end as Arc's.
+  int MoreButtonX() const { return width() - kRowBackgroundInsetX - 18; }
+
+  // Arc brightens the name a little under the pointer.
+  void UpdateLabelColor() {
+    if (GetColorProvider()) {
+      label_->SetEnabledColor(arcomium::SidebarInk(
+          this, hovered_ ? SkColorSetRGB(0x8D, 0x8D, 0x8D) : kSpaceTitleColor));
+    }
+  }
+
+  const std::string icon_;
+  const bool collapsed_;
+  base::RepeatingClosure toggle_collapsed_;
+  base::RepeatingCallback<void(const gfx::Point&)> show_menu_;
+  raw_ptr<views::Label> label_ = nullptr;
+  bool hovered_ = false;
+  bool hover_checked_ = false;
+};
+
+BEGIN_METADATA(SpaceTitle)
+END_METADATA
+#endif
+
+// Arc's favorite: a tile with the site's icon in its middle; lighter while
+// hovered or while its tab shows.
+class FavoriteTile : public views::Button {
+  METADATA_HEADER(FavoriteTile, views::Button)
+
+ public:
+  FavoriteTile(PressedCallback callback,
+               const ui::ImageModel& icon,
+               const std::u16string& title,
+               bool active)
+      : views::Button(std::move(callback)), active_(active) {
+    icon_ = AddChildView(std::make_unique<views::ImageView>(icon));
+    icon_->SetImageSize(gfx::Size(kIconSize, kIconSize));
+    icon_->SetCanProcessEventsWithinSubtree(false);
+#if !BUILDFLAG(IS_MAC)
+    // Arc for macOS' favorites have no tooltip.
+    SetTooltipText(title);
+#endif
+    GetViewAccessibility().SetName(title);
+    SetInstallFocusRingOnFocus(false);
+    SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON);
+  }
+
+  void Layout(PassKey) override {
+    icon_->SetBounds((width() - kIconSize) / 2, (height() - kIconSize) / 2,
+                     kIconSize, kIconSize);
+  }
+
+  void SetDragDoneCallback(base::RepeatingClosure callback) {
+    drag_done_callback_ = std::move(callback);
+  }
+
+  void OnDragDone() override {
+    views::Button::OnDragDone();
+    if (drag_done_callback_) {
+      drag_done_callback_.Run();
+    }
+  }
+
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    views::Button::OnMouseEntered(event);
+    SchedulePaint();
+  }
+
+  void OnMouseExited(const ui::MouseEvent& event) override {
+    views::Button::OnMouseExited(event);
+    SchedulePaint();
+  }
+
+  void OnPaintBackground(gfx::Canvas* canvas) override {
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setColor(FrameShade(this, active_             ? kFavoriteActiveShade
+                                    : IsMouseHovered() ? kFavoriteHoverShade
+                                                       : kFavoriteShade));
+    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kFavoriteRadius,
+                          flags);
+  }
+
+ private:
+  const bool active_;
+  raw_ptr<views::ImageView> icon_ = nullptr;
+  base::RepeatingClosure drag_done_callback_;
+};
+
+BEGIN_METADATA(FavoriteTile)
+END_METADATA
+
+// The favorites' grid: rows of up to four tiles filling the sidebar's width.
+class FavoritesGrid : public views::View {
+  METADATA_HEADER(FavoritesGrid, views::View)
+
+ public:
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override {
+    const int count = static_cast<int>(children().size());
+    if (!count) {
+      return gfx::Size();
+    }
+    const int rows = (count + kFavoritesPerRow - 1) / kFavoritesPerRow;
+    return gfx::Size(0, kFavoritesTop + rows * kFavoriteHeight +
+                            (rows - 1) * kFavoriteGap + kFavoritesBottom);
+  }
+
+  void Layout(PassKey) override {
+    const int count = static_cast<int>(children().size());
+    const int columns = std::min(count, kFavoritesPerRow);
+    if (!columns) {
+      return;
+    }
+    const float space = width() - 2 * kRowBackgroundInsetX;
+    const float tile = (space - (columns - 1) * kFavoriteGap) / columns;
+    for (int i = 0; i < count; ++i) {
+      const float left = kRowBackgroundInsetX + (i % columns) * (tile + kFavoriteGap);
+      const int x = static_cast<int>(std::lround(left));
+      const int right = static_cast<int>(std::lround(left + tile));
+      children()[i]->SetBounds(
+          x, kFavoritesTop + (i / columns) * (kFavoriteHeight + kFavoriteGap),
+          right - x, kFavoriteHeight);
+    }
+  }
+
+  // Where a tile dropped at `point` lands among the tiles.
+  size_t GetDropIndex(const gfx::Point& point) const {
+    size_t index = 0;
+    for (const views::View* child : children()) {
+      if (point.y() >= child->bounds().bottom() ||
+          (point.y() >= child->y() &&
+           point.x() >= child->bounds().CenterPoint().x())) {
+        ++index;
+      }
+    }
+    return index;
+  }
+};
+
+BEGIN_METADATA(FavoritesGrid)
 END_METADATA
 
 std::unique_ptr<views::View> MakeImageIcon(const ui::ImageModel& image) {
@@ -340,6 +913,25 @@ const bookmarks::BookmarkNode* FindSpaceFolder(
   }
   return nullptr;
 }
+
+// A Space glyph as a pinned item's icon (Change Icon...).
+class GlyphImageSource : public gfx::CanvasImageSource {
+ public:
+  GlyphImageSource(std::string name, SkColor color)
+      : gfx::CanvasImageSource(gfx::Size(kIconSize, kIconSize)),
+        name_(std::move(name)),
+        color_(color) {}
+
+  void Draw(gfx::Canvas* canvas) override {
+    arcomium::PaintSpaceIcon(canvas,
+                             gfx::PointF(kIconSize / 2.0f, kIconSize / 2.0f),
+                             name_, color_);
+  }
+
+ private:
+  const std::string name_;
+  const SkColor color_;
+};
 
 std::string FolderIcon(const bookmarks::BookmarkNode* folder) {
   std::string value;
@@ -367,6 +959,138 @@ bool ShowsSpeaker(tabs::TabInterface* tab) {
   return alerts && alerts->IsAlertActive(tabs::TabAlert::kAudioPlaying);
 }
 
+ArcomiumSidebarView* FindSidebarIn(views::View* view) {
+  if (auto* sidebar = views::AsViewClass<ArcomiumSidebarView>(view)) {
+    return sidebar;
+  }
+  for (views::View* child : view->children()) {
+    if (ArcomiumSidebarView* sidebar = FindSidebarIn(child)) {
+      return sidebar;
+    }
+  }
+  return nullptr;
+}
+
+#if BUILDFLAG(IS_MAC)
+// Arc for macOS' popup rim: 1 px #3D3D3D outside 1 px #4F4F4E.
+class PopupRimBorder : public views::Border {
+ public:
+  void Paint(const views::View& view, gfx::Canvas* canvas) override {
+    gfx::ScopedCanvas scoped(canvas);
+    const float scale = canvas->UndoDeviceScaleFactor();
+    gfx::RectF bounds(gfx::ScaleRect(gfx::RectF(view.GetLocalBounds()), scale));
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(1);
+    for (const auto& [inset, color] :
+         {std::pair(0.5f, kPopupOuterRim), std::pair(1.5f, kPopupRim)}) {
+      gfx::RectF ring = bounds;
+      ring.Inset(inset);
+      flags.setColor(arcomium::SidebarInk(&view, color));
+      canvas->DrawRoundRect(ring, kPopupRadius * scale - inset, flags);
+    }
+  }
+  gfx::Insets GetInsets() const override { return gfx::Insets(); }
+  gfx::Size GetMinimumSize() const override { return gfx::Size(); }
+};
+
+// The popup's search row: a magnifier, then the field.
+class PopupSearchRow : public views::View {
+  METADATA_HEADER(PopupSearchRow, views::View)
+
+ public:
+  explicit PopupSearchRow(std::unique_ptr<views::Textfield> field) {
+    field_ = AddChildView(std::move(field));
+    SetPreferredSize(gfx::Size(kPopupWidth, kPopupSearchHeight));
+  }
+
+  void Layout(PassKey) override {
+    const int height = field_->GetPreferredSize().height();
+    field_->SetBounds(kPopupTextX, 24 - height / 2 + 1,
+                      kPopupWidth - kPopupTextX - kPopupTextEndInset, height);
+  }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    // Arc's magnifier: 12 pt, its middle 24.5 pt down and 20.5 pt in.
+    gfx::ScopedCanvas scoped(canvas);
+    canvas->sk_canvas()->translate(0.5f, 0);
+    canvas->DrawImageInt(
+        gfx::CreateVectorIcon(vector_icons::kArcomiumSearchIcon, 16,
+                              arcomium::SidebarInk(this, kPopupGlyph)),
+        12, 17);
+    canvas->FillRect(gfx::Rect(-1, kPopupSearchHeight - 1, width() + 2, 1),
+                     arcomium::SidebarInk(this, kPopupLine));
+  }
+
+ private:
+  raw_ptr<views::Textfield> field_ = nullptr;
+};
+
+BEGIN_METADATA(PopupSearchRow)
+END_METADATA
+
+#endif
+
+}  // namespace
+
+#if BUILDFLAG(IS_MAC)
+// Hands the folder popup's search field's typing and keys to the sidebar.
+class ArcomiumSidebarView::PopupSearchController
+    : public views::TextfieldController {
+ public:
+  PopupSearchController(
+      base::RepeatingCallback<void(const std::u16string&)> on_changed,
+      base::RepeatingCallback<bool(ui::KeyboardCode)> on_key)
+      : on_changed_(std::move(on_changed)), on_key_(std::move(on_key)) {}
+
+  void ContentsChanged(views::Textfield* sender,
+                       const std::u16string& new_contents) override {
+    on_changed_.Run(new_contents);
+  }
+
+  bool HandleKeyEvent(views::Textfield* sender,
+                      const ui::KeyEvent& key_event) override {
+    return key_event.type() == ui::EventType::kKeyPressed &&
+           on_key_.Run(key_event.key_code());
+  }
+
+ private:
+  base::RepeatingCallback<void(const std::u16string&)> on_changed_;
+  base::RepeatingCallback<bool(ui::KeyboardCode)> on_key_;
+};
+#endif
+
+namespace {
+
+#if BUILDFLAG(IS_MAC)
+
+// Arc for macOS' popup stands 4 pt off the sidebar.
+class FolderPopupBubble : public views::BubbleDialogDelegate {
+ public:
+  using views::BubbleDialogDelegate::BubbleDialogDelegate;
+
+  gfx::Rect GetAnchorRect() const override {
+    gfx::Rect rect = views::BubbleDialogDelegate::GetAnchorRect();
+    rect.Inset(gfx::Insets::TLBR(0, 0, 0, -kPopupGap));
+    return rect;
+  }
+};
+
+// When a pinned link was last opened, or else added, as Arc's popup says.
+std::u16string LastUsedText(const bookmarks::BookmarkNode* node) {
+  const base::Time when = node->date_last_used().is_null()
+                              ? node->date_added()
+                              : node->date_last_used();
+  if (when.is_null()) {
+    return std::u16string();
+  }
+  return ui::TimeFormat::Simple(ui::TimeFormat::FORMAT_ELAPSED,
+                                ui::TimeFormat::LENGTH_LONG,
+                                std::max(base::TimeDelta(),
+                                         base::Time::Now() - when));
+}
+#endif
 }  // namespace
 
 // One line of the sidebar: icon, optional "/", for a tab with sound its
@@ -393,7 +1117,12 @@ class ArcomiumSidebarView::Row : public views::Button {
       slash_ = AddChildView(MakeLabel(u"/", font, kSubtleColor));
     }
     label_ = AddChildView(MakeLabel(title, font, color));
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' black pill (arcomium_tooltip.h).
+    arcomium::SetArcTooltip(this, title);
+#else
     SetTooltipText(title);
+#endif
     GetViewAccessibility().SetName(title);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON |
                              ui::EF_MIDDLE_MOUSE_BUTTON);
@@ -401,8 +1130,27 @@ class ArcomiumSidebarView::Row : public views::Button {
   }
 
   void SetCloseCallback(PressedCallback callback) {
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' cross: 11 pt in #A9A9A9 (the icon draws 11 of 24),
+    // brighter under the pointer; fixed colors, which the native theme's
+    // button would replace.
+    auto close = std::make_unique<views::ImageButton>(std::move(callback));
+    views::ConfigureVectorImageButton(close.get());
+    close->SetImageModel(
+        views::Button::STATE_NORMAL,
+        ui::ImageModel::FromVectorIcon(vector_icons::kCloseIcon,
+                                       SkColorSetRGB(0xA9, 0xA9, 0xA9), 24));
+    for (const auto state :
+         {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
+      close->SetImageModel(
+          state, ui::ImageModel::FromVectorIcon(
+                     vector_icons::kCloseIcon,
+                     SkColorSetRGB(0xDA, 0xDA, 0xDA), 24));
+    }
+#else
     auto close = views::CreateVectorImageButtonWithNativeTheme(
         std::move(callback), vector_icons::kCloseIcon, 18);
+#endif
     close->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
     close->GetViewAccessibility().SetName(
         l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
@@ -440,7 +1188,52 @@ class ArcomiumSidebarView::Row : public views::Button {
     hover_callback_ = std::move(callback);
   }
 
+  // As in Arc, a double click renames a pinned tab.
+  void SetDoubleClickCallback(base::RepeatingClosure callback) {
+    double_click_callback_ = std::move(callback);
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' tooltip says so under the name.
+    arcomium::SetArcTooltipDetail(
+        this, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOUBLE_CLICK_TO_RENAME));
+#endif
+  }
+
+  bool OnMousePressed(const ui::MouseEvent& event) override {
+    if (double_click_callback_ && event.IsOnlyLeftMouseButton() &&
+        event.GetClickCount() == 2) {
+      double_click_callback_.Run();
+      return true;
+    }
+    return views::Button::OnMousePressed(event);
+  }
+
   void set_height(int height) { height_ = height; }
+
+#if BUILDFLAG(IS_MAC)
+  // A row of Arc for macOS' folder popup: smaller text, an optional second
+  // line in grey, and only the selected row highlighted.
+  void SetPopupStyle(const std::u16string& subtitle) {
+    popup_ = true;
+    height_ = kPopupRowPitch;
+    label_->SetFontList(ArcFont("", 13, gfx::Font::Weight::NORMAL));
+    color_override_ = kPopupTitle;
+    if (!subtitle.empty()) {
+      subtitle_ = AddChildView(MakeLabel(
+          subtitle, ArcFont("", 11, gfx::Font::Weight::MEDIUM), kSubtleColor));
+      subtitle_->SetCanProcessEventsWithinSubtree(false);
+    }
+  }
+
+  void SetSelected(bool selected) {
+    if (selected_ != selected) {
+      selected_ = selected;
+      SchedulePaint();
+    }
+  }
+
+  // Arc for macOS brightens some rows' text under the pointer.
+  void SetHoverLabelColor(SkColor color) { hover_label_color_ = color; }
+#endif
 
   std::u16string title() const { return std::u16string(label_->GetText()); }
 
@@ -484,11 +1277,25 @@ class ArcomiumSidebarView::Row : public views::Button {
         SetAnimateOnStateChange(false);
         SetState(STATE_HOVERED);
         SetAnimateOnStateChange(true);
+        // Without the animation its value stays 0: the highlight shows at
+        // once (OnPaintBackground).
+        adopted_hover_ = true;
+        // The root view never saw the pointer enter this row, so it sends no
+        // exit either: the row checks for itself until the pointer leaves.
+        adopt_poll_.Start(FROM_HERE, base::Milliseconds(100),
+                          base::BindRepeating(&Row::PollAdoptedHover,
+                                              base::Unretained(this)));
         if (close_) {
           close_->SetVisible(true);
         }
       }
     }
+#if BUILDFLAG(IS_MAC)
+    if (popup_) {
+      LayoutPopupRow();
+      return;
+    }
+#endif
     const int shift = depth_ * kIndent;
     const int center_y = height_ / 2;
     const gfx::Size icon_size = icon_->GetPreferredSize();
@@ -496,11 +1303,22 @@ class ArcomiumSidebarView::Row : public views::Button {
                      center_y - icon_size.height() / 2, icon_size.width(),
                      icon_size.height());
     int x = kTextX + shift;
+#if BUILDFLAG(IS_MAC)
+    int right = width() - kRowBackgroundInsetX - kTextEndInset;
+#else
     int right = width() - kRowBackgroundInsetX;
+#endif
     if (close_) {
       const gfx::Size size = close_->GetPreferredSize();
-      close_->SetBounds(right - size.width() - 4, center_y - size.height() / 2,
-                        size.width(), size.height());
+#if BUILDFLAG(IS_MAC)
+      // Arc for macOS centres its cross 18 pt from the highlight's edge.
+      const int close_right = width() - kRowBackgroundInsetX + 2;
+#else
+      const int close_right = width() - kRowBackgroundInsetX;
+#endif
+      close_->SetBounds(close_right - size.width() - 4,
+                        center_y - size.height() / 2, size.width(),
+                        size.height());
       if (close_->GetVisible()) {
         right = close_->x() - 2;
       }
@@ -525,7 +1343,7 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   void OnThemeChanged() override {
     views::Button::OnThemeChanged();
-    label_->SetEnabledColor(arcomium::SidebarInk(this, color_));
+    UpdateLabelColor();
     if (slash_) {
       slash_->SetEnabledColor(arcomium::SidebarInk(this, kSubtleColor));
     }
@@ -534,13 +1352,34 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   void OnMouseExited(const ui::MouseEvent& event) override {
     views::Button::OnMouseExited(event);
+    adopted_hover_ = false;
+    adopt_poll_.Stop();
     UpdateHover(false);
   }
 
   void OnPaintBackground(gfx::Canvas* canvas) override {
     // The hover highlight fades with the button's hover animation.
-    const double hover =
-        polled_hover_ ? 1.0 : hover_animation().GetCurrentValue();
+#if BUILDFLAG(IS_MAC)
+    // On macOS the button's hover animation never advances here, so the
+    // highlight follows the pointer without a fade.
+    const double hover = polled_hover_ || adopted_hover_ || mouse_hovered_;
+#else
+    const double hover = polled_hover_ || adopted_hover_
+                             ? 1.0
+                             : hover_animation().GetCurrentValue();
+#endif
+#if BUILDFLAG(IS_MAC)
+    if (popup_) {
+      if (selected_) {
+        cc::PaintFlags flags;
+        flags.setAntiAlias(true);
+        flags.setColor(arcomium::SidebarInk(this, kPopupSelected));
+        canvas->DrawRoundRect(gfx::RectF(4, 0, width() - 8, height_ - 1), 8,
+                              flags);
+      }
+      return;
+    }
+#endif
     if (!active_ && hover <= 0) {
       return;
     }
@@ -553,7 +1392,15 @@ class ArcomiumSidebarView::Row : public views::Button {
                                              SkColorGetA(hover_color) *
                                              hover))));
     gfx::RectF bounds(0, 0, width(), height_);
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' plate sits half a point above the row's middle.
+    bounds.Inset(gfx::InsetsF::TLBR(kRowBackgroundInsetY - 0.5f,
+                                    kRowBackgroundInsetX,
+                                    kRowBackgroundInsetY + 0.5f,
+                                    kRowBackgroundInsetX));
+#else
     bounds.Inset(gfx::InsetsF::VH(kRowBackgroundInsetY, kRowBackgroundInsetX));
+#endif
     canvas->DrawRoundRect(bounds, kRowBackgroundRadius, flags);
   }
 
@@ -571,7 +1418,68 @@ class ArcomiumSidebarView::Row : public views::Button {
             arcomium::SidebarInk(this, kSubtleColor), kSpeakerSize));
   }
 
+  void PollAdoptedHover() {
+    if (IsMouseHovered()) {
+      return;
+    }
+    adopt_poll_.Stop();
+    adopted_hover_ = false;
+    SetState(STATE_NORMAL);
+    UpdateHover(false);
+  }
+
+#if BUILDFLAG(IS_MAC)
+  void LayoutPopupRow() {
+    const int shift = depth_ * kIndent;
+    const gfx::Size icon_size = icon_->GetPreferredSize();
+    const int center_y = subtitle_ ? 21 : height_ / 2;
+    icon_->SetBounds(kPopupIconCenterX + shift - icon_size.width() / 2,
+                     center_y - icon_size.height() / 2, icon_size.width(),
+                     icon_size.height());
+    int x = kPopupTextX + shift;
+    if (speaker_) {
+      speaker_->SetBounds(x, center_y - kSpeakerSize / 2, kSpeakerSize,
+                          kSpeakerSize);
+      x += kSpeakerSize + kSpeakerGap;
+    }
+    const int text_width = std::max(0, width() - kPopupTextEndInset - x);
+    if (!subtitle_) {
+      label_->SetBounds(x, 0, text_width, height_);
+      return;
+    }
+    // Arc's title caps start 8 pt into the row, the date's 26 pt.
+    label_->SetBounds(x, 5, text_width, 16);
+    subtitle_->SetBounds(kPopupTextX + shift, 23, text_width, 14);
+  }
+#endif
+
+  void UpdateLabelColor() {
+    if (!GetColorProvider()) {
+      return;
+    }
+#if BUILDFLAG(IS_MAC)
+    if (subtitle_) {
+      subtitle_->SetEnabledColor(arcomium::SidebarInk(this, kPopupDate));
+    }
+    if (mouse_hovered_ && hover_label_color_) {
+      label_->SetEnabledColor(arcomium::SidebarInk(this, *hover_label_color_));
+      return;
+    }
+    if (color_override_) {
+      label_->SetEnabledColor(arcomium::SidebarInk(this, *color_override_));
+      return;
+    }
+#endif
+    label_->SetEnabledColor(arcomium::SidebarInk(this, color_));
+  }
+
   void UpdateHover(bool hovered) {
+    mouse_hovered_ = hovered;
+#if BUILDFLAG(IS_MAC)
+    if (hover_label_color_) {
+      UpdateLabelColor();
+    }
+#endif
     if (close_) {
       close_->SetVisible(hovered);
       InvalidateLayout();
@@ -591,10 +1499,21 @@ class ArcomiumSidebarView::Row : public views::Button {
   raw_ptr<views::Label> label_ = nullptr;
   raw_ptr<views::ImageButton> close_ = nullptr;
   raw_ptr<views::ImageButton> speaker_ = nullptr;
+#if BUILDFLAG(IS_MAC)
+  raw_ptr<views::Label> subtitle_ = nullptr;
+  bool popup_ = false;
+  bool selected_ = false;
+  std::optional<SkColor> color_override_;
+  std::optional<SkColor> hover_label_color_;
+#endif
   bool speaker_muted_ = false;
   bool adopt_hover_ = false;
   bool polled_hover_ = false;
+  bool adopted_hover_ = false;
+  bool mouse_hovered_ = false;
+  base::RepeatingTimer adopt_poll_;
   base::RepeatingCallback<void(bool)> hover_callback_;
+  base::RepeatingClosure double_click_callback_;
   base::RepeatingClosure drag_done_callback_;
 };
 
@@ -610,6 +1529,12 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
   address_bar_ = AddChildView(std::make_unique<ArcomiumAddressBar>(browser_));
+  address_bar_->SetCommandBarCallback(base::BindRepeating(
+      &ArcomiumSidebarView::OnCommandBarChanged, base::Unretained(this)));
+  // As in Arc, a right click on the address field offers the Space's menu.
+  address_bar_->set_context_menu_controller(this);
+  favorites_ = AddChildView(std::make_unique<FavoritesGrid>());
+  favorites_->set_context_menu_controller(this);
   // Clips the rows while they slide between Spaces.
   SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
@@ -626,6 +1551,16 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
   scroll->SetVerticalScrollBarMode(
       views::ScrollView::ScrollBarMode::kHiddenButEnabled);
   scroll->ClipHeightTo(0, 100000);
+#if BUILDFLAG(IS_MAC)
+  for (const auto side : {views::OverflowIndicatorAlignment::kTop,
+                          views::OverflowIndicatorAlignment::kBottom}) {
+    scroll->SetCustomOverflowIndicator(
+        side,
+        std::make_unique<OverflowLine>(
+            side == views::OverflowIndicatorAlignment::kBottom),
+        1, /*fills_opaquely=*/false);
+  }
+#endif
   auto rows = std::make_unique<views::View>();
   rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -645,7 +1580,21 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
   browser_->GetTabStripModel()->AddObserver(this);
   folder_animation_.SetSlideDuration(kFolderAnimationDuration);
   folder_animation_.SetTweenType(gfx::Tween::LINEAR);
+  arcomium::NewTabCommandBarHook() = &ArcomiumSidebarView::OpenNewTabCommandBar;
   Rebuild();
+}
+
+// static
+bool ArcomiumSidebarView::OpenNewTabCommandBar(
+    BrowserWindowInterface* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  ArcomiumSidebarView* sidebar =
+      browser_view ? FindSidebarIn(browser_view) : nullptr;
+  if (!sidebar || !sidebar->IsDrawn()) {
+    return false;
+  }
+  sidebar->address_bar_->OpenCommandBar(/*new_tab=*/true);
+  return true;
 }
 
 ArcomiumSidebarView::~ArcomiumSidebarView() {
@@ -823,8 +1772,10 @@ void ArcomiumSidebarView::BindTabsByUuid() {
                   kLocalOrSyncableNodes);
     // Only in the tab's own Space: an item elsewhere has no row where the tab
     // is shown, and the tab would be lost from the sidebar.
+    // A favorite's tab is outside the Spaces.
     if (node && node->is_url() && !GetBoundTab(node->id()) &&
-        GetSpaceOfNode(node) == GetSpaceOfTab(tab)) {
+        (IsFavorite(node) ? tab->IsPinned()
+                          : GetSpaceOfNode(node) == GetSpaceOfTab(tab))) {
       bound_[node->id()] = tab->GetHandle();
     }
   }
@@ -997,6 +1948,14 @@ std::string ArcomiumSidebarView::SpeakerState(
 
 ui::ImageModel ArcomiumSidebarView::GetBookmarkIcon(
     const bookmarks::BookmarkNode* node) {
+  std::string glyph;
+  if (node->GetMetaInfo(kGlyphMetaKey, &glyph) && !glyph.empty()) {
+    const SkColor color = GetColorProvider()
+                              ? arcomium::SidebarInk(this, kGlyphColor)
+                              : SK_ColorWHITE;
+    return ui::ImageModel::FromImageSkia(
+        gfx::CanvasImageSource::MakeImageSkia<GlyphImageSource>(glyph, color));
+  }
   const gfx::Image& favicon = model_->GetFavicon(node);
   if (!favicon.IsEmpty()) {
     return ui::ImageModel::FromImage(favicon);
@@ -1024,7 +1983,8 @@ ui::ImageModel ArcomiumSidebarView::GetBookmarkIcon(
 bool ArcomiumSidebarView::HasOwnIcon(const bookmarks::BookmarkNode* node) {
   std::string unused;
   return !model_->GetFavicon(node).IsEmpty() ||
-         node->GetMetaInfo(kIconMetaKey, &unused);
+         node->GetMetaInfo(kIconMetaKey, &unused) ||
+         (node->GetMetaInfo(kGlyphMetaKey, &unused) && !unused.empty());
 }
 
 ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
@@ -1260,7 +2220,8 @@ void ArcomiumSidebarView::Rebuild() {
   tabs::TabInterface::Handle focused_speaker;
   if (const views::FocusManager* focus = GetFocusManager()) {
     for (const auto& [row, target] : row_targets_) {
-      const views::View* speaker = static_cast<Row*>(row)->speaker();
+      const Row* as_row = views::AsViewClass<Row>(row);
+      const views::View* speaker = as_row ? as_row->speaker() : nullptr;
       if (speaker && speaker == focus->GetFocusedView()) {
         focused_speaker = target.tab;
       }
@@ -1278,15 +2239,18 @@ void ArcomiumSidebarView::Rebuild() {
     return !tab || !node ||
            browser_->GetTabStripModel()->GetIndexOfTab(tab) ==
                TabStripModel::kNoTab ||
-           GetSpaceOfNode(node) != GetSpaceOfTab(tab);
+           (IsFavorite(node) ? !tab->IsPinned()
+                             : GetSpaceOfNode(node) != GetSpaceOfTab(tab));
   });
   BindTabsByUuid();
 
   BuildRows();
+  BuildFavorites();
   SaveBindings();
   if (focused_speaker.Get()) {
     for (const auto& [row, target] : row_targets_) {
-      views::View* speaker = static_cast<Row*>(row)->speaker();
+      Row* as_row = views::AsViewClass<Row>(row);
+      views::View* speaker = as_row ? as_row->speaker() : nullptr;
       if (speaker && target.tab == focused_speaker) {
         speaker->RequestFocus();
         break;
@@ -1358,31 +2322,75 @@ void ArcomiumSidebarView::BuildRows() {
   if (title.empty()) {
     title = folder ? folder->GetTitle() : u"home";
   }
+#if BUILDFLAG(IS_MAC)
+  const bool collapsed = IsPinnedCollapsed(folder);
+  rows_->AddChildView(std::make_unique<SpaceTitle>(
+      title, arcomium::GetSpaceIconName(folder, GetActiveSpace()), collapsed,
+      base::BindRepeating(&ArcomiumSidebarView::ToggleCollapsedPinned,
+                          base::Unretained(this)),
+      base::BindRepeating(
+          [](ArcomiumSidebarView* sidebar, const gfx::Point& point) {
+            sidebar->ShowSpaceMenu(point, ui::mojom::MenuSourceType::kMouse);
+          },
+          base::Unretained(this))))
+      ->set_context_menu_controller(this);
+#else
   auto* space_label = rows_->AddChildView(MakeLabel(
       title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
       kSubtleColor));
   space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
       2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
   space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
+#endif
 
   if (folder) {
     BindTabsByUrl(folder);
+#if BUILDFLAG(IS_MAC)
+    // Collapsed, only the pinned tabs that are open show, as in a folder.
+    if (collapsed) {
+      AddBoundTabRows(folder, 0);
+    } else {
+      AddPinnedRows(folder, 0);
+    }
+#else
     AddPinnedRows(folder, 0);
+#endif
   }
 
   rows_->AddChildView(std::make_unique<Divider>());
 
   // Arc's New Tab opens its command bar; what is picked there opens in a
   // new tab.
-  AddRow(std::make_unique<Row>(
+  auto plus = std::make_unique<PlusGlyph>();
+  [[maybe_unused]] PlusGlyph* plus_glyph = plus.get();
+  [[maybe_unused]] Row* new_tab = AddRow(std::make_unique<Row>(
       base::BindRepeating(
           [](ArcomiumAddressBar* address_bar) {
             address_bar->OpenCommandBar(/*new_tab=*/true);
           },
           base::Unretained(address_bar_.get())),
-      std::make_unique<PlusGlyph>(),
+      std::move(plus),
       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB), 0, ItemFont(false),
+#if BUILDFLAG(IS_MAC)
+      // Arc for macOS shows the command bar's new tab as the active row.
+      command_bar_new_tab_ && !preview_space_ ? kItemColor : kNewTabColor,
+      /*slash=*/false, /*active=*/command_bar_new_tab_ && !preview_space_));
+#else
       kNewTabColor, /*slash=*/false, /*active=*/false));
+#endif
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS brightens New Tab's "+" and text under the pointer.
+  plus_glyph->SetActive(command_bar_new_tab_ && !preview_space_);
+  if (!command_bar_new_tab_ || preview_space_) {
+    new_tab->SetHoverLabelColor(SkColorSetRGB(0x8B, 0x8B, 0x8B));
+    new_tab->SetHoverCallback(base::BindRepeating(
+        [](PlusGlyph* plus, bool hovered) { plus->SetHovered(hovered); },
+        base::Unretained(plus_glyph)));
+  }
+  // Arc for macOS has no tooltip on New Tab.
+  new_tab->SetTooltipText(std::u16string());
+  arcomium::SetArcTooltip(new_tab, std::u16string());
+#endif
 
   TabStripModel* tabs = browser_->GetTabStripModel();
   for (int i = 0; i < tabs->count(); ++i) {
@@ -1429,10 +2437,16 @@ void ArcomiumSidebarView::AddPinnedRows(const bookmarks::BookmarkNode* folder,
                    base::BindRepeating(&ArcomiumSidebarView::OnFolderPressed,
                                        base::Unretained(this), id),
                    std::make_unique<FolderGlyph>(
-                       !open && HasBoundDescendant(node), FolderIcon(node)),
+                       !open && HasBoundDescendant(node), FolderIcon(node),
+                       open),
                    node->GetTitle(), depth, ItemFont(true), kFolderColor,
                    /*slash=*/false, /*active=*/false),
                id);
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS shows the popup, not a tooltip, on a folder.
+    row->SetTooltipText(std::u16string());
+    arcomium::SetArcTooltip(row, std::u16string());
+#endif
     row->SetHoverCallback(
         base::BindRepeating(&ArcomiumSidebarView::OnFolderHovered,
                             base::Unretained(this), id, row));
@@ -1487,12 +2501,21 @@ void ArcomiumSidebarView::AddBookmarkRow(const bookmarks::BookmarkNode* node,
                  MakeImageIcon(icon), node->GetTitle(), depth, ItemFont(false),
                  kItemColor, slash, tab && tab->IsActivated()),
              node->id(), tab ? tab->GetHandle() : tabs::TabInterface::Handle());
+  row->SetDoubleClickCallback(base::BindRepeating(
+      &ArcomiumSidebarView::RenameNode, base::Unretained(this), node->id()));
   if (tab) {
     AddSpeaker(row, tab);
     row->SetCloseCallback(
         base::BindRepeating(&ArcomiumSidebarView::OnTabClosePressed,
                             base::Unretained(this), tab->GetHandle()));
   }
+#if BUILDFLAG(IS_MAC)
+  else {
+    // Arc for macOS shows the cross on every pinned tab; with none open
+    // there is nothing to close.
+    row->SetCloseCallback(views::Button::PressedCallback());
+  }
+#endif
 }
 
 void ArcomiumSidebarView::AddTabRow(tabs::TabInterface* tab) {
@@ -1696,6 +2719,32 @@ void ArcomiumSidebarView::OnTabClosePressed(tabs::TabInterface::Handle handle) {
   }
 }
 
+void ArcomiumSidebarView::RunMenuBarCommand(int command_id) {
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  if (command_id == IDC_ARCOMIUM_PIN_TAB) {
+    tabs::TabInterface* tab = tabs->GetActiveTab();
+    if (tab && !IsBound(tab) && IsInActiveSpace(tab) &&
+        !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
+      PinTab(tab, nullptr);
+    }
+  } else if (command_id == IDC_ARCOMIUM_NEW_FOLDER) {
+    AddFolder(nullptr);
+  } else if (command_id == IDC_ARCOMIUM_CLEAR_TODAY) {
+    // Arc's Clear Today: the Space's tabs below its pinned ones close.
+    std::vector<tabs::TabInterface::Handle> today;
+    for (int i = 0; i < tabs->count(); ++i) {
+      tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+      if (IsInActiveSpace(tab) && !IsBound(tab) && !tab->IsPinned() &&
+          !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
+        today.push_back(tab->GetHandle());
+      }
+    }
+    for (const tabs::TabInterface::Handle& handle : today) {
+      OnTabClosePressed(handle);
+    }
+  }
+}
+
 void ArcomiumSidebarView::OnTabMutePressed(tabs::TabInterface::Handle handle) {
   tabs::TabInterface* tab = handle.Get();
   if (content::WebContents* contents = tab ? tab->GetContents() : nullptr) {
@@ -1706,6 +2755,10 @@ void ArcomiumSidebarView::OnTabMutePressed(tabs::TabInterface::Handle handle) {
 }
 
 void ArcomiumSidebarView::OpenBookmark(const bookmarks::BookmarkNode* node) {
+  if (IsFavorite(node)) {
+    OpenFavorite(node);
+    return;
+  }
   if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
     OnTabPressed(tab->GetHandle());
     return;
@@ -1789,17 +2842,30 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
   auto contents = std::make_unique<views::View>();
   contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
+#if BUILDFLAG(IS_MAC)
+  folder_popup_query_.clear();
+  BuildFolderPopup(contents.get());
+#endif
   FillFolderPopup(contents.get(), node);
 
   // A bubble right of the row, shown without taking focus. It must be able to
   // activate: Windows drops clicks on bubbles that cannot.
+#if BUILDFLAG(IS_MAC)
+  auto delegate = std::make_unique<FolderPopupBubble>(row, kPopupArrow);
+  delegate->set_margins(gfx::Insets());
+  delegate->set_corner_radius(kPopupRadius);
+  delegate->SetBackgroundColor(arcomium::SidebarInk(this, kPopupBackground));
+  delegate->SetInitiallyFocusedView(folder_popup_field_);
+  contents->SetBorder(std::make_unique<PopupRimBorder>());
+#else
   auto delegate = std::make_unique<views::BubbleDialogDelegate>(
-      row, views::BubbleBorder::LEFT_TOP);
+      row, kPopupArrow);
+  delegate->set_margins(gfx::Insets::VH(kPopupPadding, 0));
+  delegate->SetBackgroundColor(arcomium::SidebarInk(this, kPopupColor));
+#endif
   delegate->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   delegate->SetShowCloseButton(false);
   delegate->set_close_on_deactivate(false);
-  delegate->set_margins(gfx::Insets::VH(kPopupPadding, 0));
-  delegate->SetBackgroundColor(arcomium::SidebarInk(this, kPopupColor));
   delegate->SetContentsView(std::move(contents));
   folder_popup_ = views::BubbleDialogDelegate::CreateBubble(
       delegate.get(), base::BindOnce(&ArcomiumSidebarView::OnFolderPopupClosed,
@@ -1809,7 +2875,12 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
   if (layer) {
     layer->SetOpacity(0);
   }
+#if BUILDFLAG(IS_MAC)
+  // Arc's popup takes the keyboard: its search field has the caret.
+  folder_popup_->Show();
+#else
   folder_popup_->ShowInactive();
+#endif
   if (layer) {
     ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
     fade.SetTransitionDuration(kPopupFadeDuration);
@@ -1822,9 +2893,144 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
                             &ArcomiumSidebarView::CheckFolderPopupHover);
 }
 
+#if BUILDFLAG(IS_MAC)
+void ArcomiumSidebarView::BuildFolderPopup(views::View* contents) {
+  folder_popup_search_ = std::make_unique<PopupSearchController>(
+      base::BindRepeating(&ArcomiumSidebarView::OnFolderPopupQuery,
+                          base::Unretained(this)),
+      base::BindRepeating(&ArcomiumSidebarView::OnFolderPopupKey,
+                          base::Unretained(this)));
+  auto field = std::make_unique<views::Textfield>();
+  field->set_controller(folder_popup_search_.get());
+  field->SetBorder(views::NullBorder());
+  field->SetBackgroundEnabled(false);
+  // 13 pt, its hint #989897 as the command bar's.
+  field->SetFontList(ArcFont("", 13, gfx::Font::Weight::NORMAL));
+  field->SetTextColorId(kColorOmniboxText);
+  field->SetPlaceholderTextColorId(kColorOmniboxForegroundDisabled);
+  folder_popup_field_ = field.get();
+  contents->AddChildView(std::make_unique<PopupSearchRow>(std::move(field)));
+  auto* scroll = contents->AddChildView(std::make_unique<views::ScrollView>());
+  scroll->SetBackgroundColor(std::nullopt);
+  scroll->SetDrawOverflowIndicator(false);
+  scroll->SetHorizontalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kDisabled);
+  scroll->SetVerticalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kHiddenButEnabled);
+  scroll->ClipHeightTo(0, kPopupMaxHeight - kPopupSearchHeight);
+  auto rows = std::make_unique<views::View>();
+  rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(4, 0)));
+  folder_popup_rows_ = scroll->SetContents(std::move(rows));
+}
+
+void ArcomiumSidebarView::OnFolderPopupQuery(const std::u16string& query) {
+  folder_popup_query_ = base::i18n::ToLower(query);
+  // Later: this runs inside the field's own event.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&ArcomiumSidebarView::RefreshFolderPopup,
+                                drop_weak_factory_.GetWeakPtr()));
+}
+
+bool ArcomiumSidebarView::OnFolderPopupKey(ui::KeyboardCode key) {
+  const int count = static_cast<int>(folder_popup_items_.size());
+  switch (key) {
+    case ui::VKEY_DOWN:
+    case ui::VKEY_UP:
+      if (count) {
+        SelectFolderPopupRow(
+            (folder_popup_selected_ + (key == ui::VKEY_DOWN ? 1 : -1) +
+             count) %
+            count);
+      }
+      return true;
+    case ui::VKEY_RETURN:
+      if (folder_popup_selected_ >= 0 && folder_popup_selected_ < count) {
+        const int64_t id = folder_popup_items_[folder_popup_selected_];
+        const bookmarks::BookmarkNode* node = GetNode(id);
+        if (node && node->is_folder()) {
+          ToggleFolderPopupFolder(id);
+        } else {
+          base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+              FROM_HERE,
+              base::BindOnce(
+                  [](base::WeakPtr<ArcomiumSidebarView> sidebar, int64_t id) {
+                    if (sidebar) {
+                      sidebar->OnBookmarkPressed(id);
+                      sidebar->CloseFolderPopup();
+                    }
+                  },
+                  drop_weak_factory_.GetWeakPtr(), id));
+        }
+      }
+      return true;
+    case ui::VKEY_ESCAPE:
+      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(&ArcomiumSidebarView::CloseFolderPopup,
+                                    drop_weak_factory_.GetWeakPtr()));
+      return true;
+    default:
+      return false;
+  }
+}
+
+void ArcomiumSidebarView::SelectFolderPopupRow(int index) {
+  folder_popup_selected_ = index;
+  if (!folder_popup_rows_) {
+    return;
+  }
+  int i = 0;
+  for (views::View* child : folder_popup_rows_->children()) {
+    if (Row* row = views::AsViewClass<Row>(child)) {
+      row->SetSelected(i == index);
+      if (i == index) {
+        row->ScrollViewToVisible();
+      }
+    }
+    ++i;
+  }
+}
+
+void ArcomiumSidebarView::AddFilteredPopupRows(
+    views::View* container,
+    const bookmarks::BookmarkNode* folder) {
+  for (const auto& child : folder->children()) {
+    const bookmarks::BookmarkNode* node = child.get();
+    if (node->is_folder()) {
+      AddFilteredPopupRows(container, node);
+    } else if (base::i18n::ToLower(node->GetTitle())
+                       .find(folder_popup_query_) != std::u16string::npos ||
+               base::i18n::ToLower(base::UTF8ToUTF16(node->url().spec()))
+                       .find(folder_popup_query_) != std::u16string::npos) {
+      AddFolderPopupLink(container, node, 0);
+    }
+  }
+}
+#endif
+
 void ArcomiumSidebarView::FillFolderPopup(
     views::View* contents,
     const bookmarks::BookmarkNode* folder) {
+#if BUILDFLAG(IS_MAC)
+  // Arc's popup: the search row stays, the rows below follow the query.
+  folder_popup_field_->SetPlaceholderText(l10n_util::GetStringFUTF16(
+      IDS_ARCOMIUM_SEARCH_FOLDER, folder->GetTitle()));
+  folder_popup_items_.clear();
+  folder_popup_rows_->RemoveAllChildViews();
+  if (folder_popup_query_.empty()) {
+    AddFolderPopupRows(folder_popup_rows_, folder, 0);
+  } else {
+    AddFilteredPopupRows(folder_popup_rows_, folder);
+  }
+  folder_popup_speakers_ = SpeakerState(folder);
+  SelectFolderPopupRow(folder_popup_items_.empty() ? -1 : 0);
+  folder_popup_rows_->SizeToPreferredSize();
+  const int rows_height = folder_popup_rows_->GetPreferredSize().height();
+  contents->SetPreferredSize(gfx::Size(
+      kPopupWidth,
+      kPopupSearchHeight +
+          std::min(rows_height, kPopupMaxHeight - kPopupSearchHeight)));
+#else
   contents->RemoveAllChildViews();
   AddFolderPopupRows(contents, folder, 0);
   folder_popup_speakers_ = SpeakerState(folder);
@@ -1833,6 +3039,7 @@ void ArcomiumSidebarView::FillFolderPopup(
     height += child->GetPreferredSize().height();
   }
   contents->SetPreferredSize(gfx::Size(kPopupWidth, height));
+#endif
 }
 
 void ArcomiumSidebarView::ToggleFolderPopupFolder(int64_t id) {
@@ -1851,6 +3058,7 @@ void ArcomiumSidebarView::RefreshFolderPopup() {
     return;
   }
   FillFolderPopup(folder_popup_delegate_->GetContentsView(), folder);
+  folder_popup_delegate_->GetContentsView()->InvalidateLayout();
   folder_popup_delegate_->SizeToContents();
 }
 
@@ -1861,29 +3069,45 @@ void ArcomiumSidebarView::AddFolderPopupRows(
   for (const auto& child : folder->children()) {
     const bookmarks::BookmarkNode* node = child.get();
     if (node->is_folder()) {
-      container->AddChildView(std::make_unique<Row>(
-          base::BindRepeating(&ArcomiumSidebarView::ToggleFolderPopupFolder,
-                              base::Unretained(this), node->id()),
-          std::make_unique<FolderGlyph>(false, FolderIcon(node)),
-          node->GetTitle(), depth, ItemFont(true), kFolderColor,
-          /*slash=*/false, /*active=*/false));
+      [[maybe_unused]] Row* folder_row =
+          container->AddChildView(std::make_unique<Row>(
+              base::BindRepeating(&ArcomiumSidebarView::ToggleFolderPopupFolder,
+                                  base::Unretained(this), node->id()),
+              std::make_unique<FolderGlyph>(false, FolderIcon(node)),
+              node->GetTitle(), depth, ItemFont(true), kFolderColor,
+              /*slash=*/false, /*active=*/false));
+#if BUILDFLAG(IS_MAC)
+      folder_row->SetPopupStyle(std::u16string());
+      folder_popup_items_.push_back(node->id());
+#endif
       if (folder_popup_open_.contains(node->id())) {
         AddFolderPopupRows(container, node, depth + 1);
       }
       continue;
     }
-    Row* row = container->AddChildView(std::make_unique<Row>(
-        base::BindRepeating(
-            [](ArcomiumSidebarView* sidebar, int64_t id) {
-              sidebar->OnBookmarkPressed(id);
-              sidebar->CloseFolderPopup();
-            },
-            base::Unretained(this), node->id()),
-        MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
-        ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
-    if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
-      AddSpeaker(row, tab);
-    }
+    AddFolderPopupLink(container, node, depth);
+  }
+}
+
+void ArcomiumSidebarView::AddFolderPopupLink(
+    views::View* container,
+    const bookmarks::BookmarkNode* node,
+    int depth) {
+  Row* row = container->AddChildView(std::make_unique<Row>(
+      base::BindRepeating(
+          [](ArcomiumSidebarView* sidebar, int64_t id) {
+            sidebar->OnBookmarkPressed(id);
+            sidebar->CloseFolderPopup();
+          },
+          base::Unretained(this), node->id()),
+      MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
+      ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
+#if BUILDFLAG(IS_MAC)
+  row->SetPopupStyle(LastUsedText(node));
+  folder_popup_items_.push_back(node->id());
+#endif
+  if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
+    AddSpeaker(row, tab);
   }
 }
 
@@ -1903,11 +3127,27 @@ void ArcomiumSidebarView::CheckFolderPopupHover() {
                            row.height());
     inside = inside || bridge.Contains(point);
   }
+#if BUILDFLAG(IS_MAC)
+  // The row under a moving pointer is the selected one, as in Arc.
+  if (folder_popup_rows_ && point != folder_popup_last_point_) {
+    int i = 0;
+    for (views::View* child : folder_popup_rows_->children()) {
+      if (i != folder_popup_selected_ &&
+          child->GetBoundsInScreen().Contains(point)) {
+        SelectFolderPopupRow(i);
+        break;
+      }
+      ++i;
+    }
+  }
+  folder_popup_last_point_ = point;
+#else
   for (views::View* child :
        folder_popup_delegate_->GetContentsView()->children()) {
     static_cast<Row*>(child)->SetPolledHover(
         child->GetBoundsInScreen().Contains(point));
   }
+#endif
   folder_popup_outside_ticks_ = inside ? 0 : folder_popup_outside_ticks_ + 1;
   if (folder_popup_outside_ticks_ >= kPopupOutsideTicks) {
     CloseFolderPopup();
@@ -1940,6 +3180,14 @@ void ArcomiumSidebarView::CloseFolderPopup() {
   if (!folder_popup_) {
     return;
   }
+#if BUILDFLAG(IS_MAC)
+  if (folder_popup_field_) {
+    folder_popup_field_->set_controller(nullptr);
+  }
+  folder_popup_field_ = nullptr;
+  folder_popup_rows_ = nullptr;
+  folder_popup_items_.clear();
+#endif
   // Deleted later: this may run from inside the popup's own events.
   folder_popup_->Hide();
   DeleteBubbleSoon(std::move(folder_popup_),
@@ -1976,8 +3224,23 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
   const bookmarks::BookmarkNode* node = GetNode(menu_node_);
   tabs::TabInterface* tab = menu_tab_.Get();
 
-  // "Move to": the other Spaces.
+  // "Move to": the other Spaces. As in Arc, a pinned item or folder can also
+  // go to a Space that is not open here: into its pinned folder.
   menu_spaces_ = GetOtherSpaces();
+  if (node && model_ && model_->loaded()) {
+    const std::string active = GetActiveSpace();
+    for (const auto& child : model_->other_node()->children()) {
+      std::string space;
+      if (!child->is_folder() || !child->GetMetaInfo(kSpaceMetaKey, &space) ||
+          space.starts_with("arc:") || space == active ||
+          std::ranges::any_of(menu_spaces_, [&space](const SpaceTarget& t) {
+            return t.space == space;
+          })) {
+        continue;
+      }
+      menu_spaces_.push_back({std::nullopt, space, child->GetTitle()});
+    }
+  }
   move_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   for (size_t i = 0; i < menu_spaces_.size(); ++i) {
     move_menu_model_->AddItem(kMoveToFirst + static_cast<int>(i),
@@ -1992,39 +3255,37 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
 
   // A tab's own items: its sound when it plays or is muted, and a split
   // with the current tab.
-  auto add_tab_items = [this](tabs::TabInterface* tab) {
+  // As in Arc, Mute stays in the menu, dimmed while there is no sound (the
+  // row's speaker's rule), and so does Split View for a pinned tab that is
+  // not open.
+  auto add_mute = [this](tabs::TabInterface* tab) {
     content::WebContents* contents = tab ? tab->GetContents() : nullptr;
-    if (!contents) {
-      return;
-    }
-    // The same rule as the row's speaker.
-    if (ShowsSpeaker(tab)) {
-      menu_model_->AddItem(
-          kToggleMute, l10n_util::GetStringUTF16(contents->IsAudioMuted()
-                                                     ? IDS_ARCOMIUM_UNMUTE_TAB
-                                                     : IDS_ARCOMIUM_MUTE_TAB));
-    }
-    if (!tab->IsSplit()) {
+    const bool speaker = contents && ShowsSpeaker(tab);
+    menu_model_->AddItem(
+        kToggleMute,
+        l10n_util::GetStringUTF16(speaker && contents->IsAudioMuted()
+                                      ? IDS_ARCOMIUM_UNMUTE_TAB
+                                      : IDS_ARCOMIUM_MUTE_TAB));
+    menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, speaker);
+  };
+  auto add_split = [this, node](tabs::TabInterface* tab) {
+    content::WebContents* contents = tab ? tab->GetContents() : nullptr;
+    if (!contents || !tab->IsSplit()) {
       menu_model_->AddItem(
           kSplitView, l10n_util::GetStringUTF16(IDS_ARCOMIUM_OPEN_IN_SPLIT_VIEW));
+      // A pinned item that is not open opens into the split.
+      menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1,
+                                contents || (node && node->is_url()));
     }
   };
+  // Arc for macOS' Change Icon...: a glyph for a pinned item or folder.
+  [[maybe_unused]] auto add_change_icon = [this] {
+    menu_model_->AddItem(kChangeIcon,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_CHANGE_ICON));
+  };
 
-  if (node && node->is_folder()) {
-    menu_model_->AddItem(kPinTab,
-                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE));
-    menu_model_->AddItem(kNewFolder,
-                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER_INSIDE));
-    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
-    add_move_to();
-    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_FOLDER));
-  } else if (node) {
-    menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
-    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
-    add_tab_items(tab);
-    // The pinned page: what the tab shows now, or edited by hand.
+  // The pinned page: what the tab shows now, or edited by hand.
+  auto add_pinned_page = [this, node](tabs::TabInterface* tab) {
     pinned_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
     if (tab && tab->GetContents() &&
         tab->GetContents()->GetLastCommittedURL().is_valid() &&
@@ -2038,8 +3299,69 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     menu_model_->AddSubMenu(kEditPinnedPage,
                             l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_PINNED_PAGE),
                             pinned_menu_model_.get());
+  };
+
+  // Arc's menus, in its order; Share is not there yet (on macOS Change
+  // Icon is).
+  if (node && node->is_folder()) {
+    menu_model_->AddItem(kNewFolder,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER_INSIDE));
+    menu_model_->AddItem(kTurnIntoSpace,
+                         l10n_util::GetStringFUTF16(IDS_ARCOMIUM_TURN_INTO_SPACE,
+                                                    node->GetTitle()));
+    menu_model_->AddItem(kCopyAllLinks,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_ALL_LINKS));
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+#if BUILDFLAG(IS_MAC)
+    add_change_icon();
+#endif
+    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     add_move_to();
+#if !BUILDFLAG(IS_MAC)
+    menu_model_->AddItem(kPinTab,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE));
+#endif
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+    menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_FOLDER));
+  } else if (node && IsFavorite(node)) {
+    menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+#if BUILDFLAG(IS_MAC)
+    add_change_icon();
+#endif
+    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
+    add_mute(tab);
+#if BUILDFLAG(IS_MAC)
+    add_pinned_page(tab);
+#endif
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+    add_split(tab);
+    menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
+#if BUILDFLAG(IS_MAC)
+    add_move_to();
+#endif
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+    menu_model_->AddItem(kRemoveFavorite,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_REMOVE_FAVORITE));
+  } else if (node) {
+    menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+#if BUILDFLAG(IS_MAC)
+    add_change_icon();
+#endif
+    menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
+    add_mute(tab);
+    add_pinned_page(tab);
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+    add_split(tab);
+    menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
+    add_move_to();
+#if !BUILDFLAG(IS_MAC)
+    menu_model_->AddItem(kAddFavorite,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_FAVORITES));
+#endif
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_UNPIN));
     if (tab) {
@@ -2047,17 +3369,21 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     }
   } else if (tab) {
     menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
-    add_tab_items(tab);
+    add_mute(tab);
+    add_split(tab);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     menu_model_->AddItem(kPinTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_TO_SPACE));
+    menu_model_->AddItem(kAddFavorite,
+                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_FAVORITES));
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kCloseTab, l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
   } else {
-    menu_model_->AddItem(kNewFolder, l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
-    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_model_->AddItem(kEditColor,
-                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_THEME_COLOR));
+    // Arc's Space menu: on the Space's name, New Tab, the address field and
+    // the empty space below the rows.
+    menu_model_.reset();
+    ShowSpaceMenu(point, source_type);
+    return;
   }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
@@ -2191,6 +3517,44 @@ void ArcomiumSidebarView::CopyLink() {
   }
 }
 
+void ArcomiumSidebarView::ShowIconPicker(const bookmarks::BookmarkNode* node) {
+  // A folder keeps Arc's imported glyphs too; any item may go back to its
+  // own icon ("").
+  const bool folder = node->is_folder();
+  const char* const key = folder ? kFolderIconMetaKey : kGlyphMetaKey;
+  std::string current;
+  node->GetMetaInfo(key, &current);
+  std::vector<std::string> names = {""};
+  if (folder) {
+    names.push_back("chatBubbleEllipses");
+  }
+  for (const std::string& name : arcomium::GetSpaceIconNames()) {
+    if (name != "dot") {
+      names.push_back(name);
+    }
+  }
+  arcomium::ShowArcIconPicker(
+      this, menu_point_, std::move(names), current,
+      base::BindOnce(&ArcomiumSidebarView::SetNodeIcon,
+                     drop_weak_factory_.GetWeakPtr(), node->id(),
+                     std::string(key)));
+}
+
+void ArcomiumSidebarView::SetNodeIcon(int64_t id,
+                                      const std::string& key,
+                                      const std::string& name) {
+  const bookmarks::BookmarkNode* node = GetNode(id);
+  if (!node) {
+    return;
+  }
+  if (name.empty()) {
+    model_->DeleteNodeMetaInfo(node, key);
+  } else {
+    model_->SetNodeMetaInfo(node, key, name);
+  }
+  ScheduleRebuild();
+}
+
 void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
   if (command_id >= kMoveToFirst) {
     const size_t index = static_cast<size_t>(command_id - kMoveToFirst);
@@ -2206,7 +3570,11 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
       CopyLink();
       break;
     case kDuplicate:
-      DuplicateItem();
+      if (node && node->is_folder()) {
+        DuplicateFolder(node);
+      } else {
+        DuplicateItem();
+      }
       break;
     case kPinTab:
       PinTab(tab ? tab : browser_->GetTabStripModel()->GetActiveTab(),
@@ -2216,11 +3584,8 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
       AddFolder(node && node->is_folder() ? node : nullptr);
       break;
     case kRename:
-      if (node && GetWidget()) {
-        BookmarkEditor::Show(GetWidget()->GetNativeWindow(),
-                             browser_->GetProfile(),
-                             BookmarkEditor::EditDetails::EditNode(node),
-                             BookmarkEditor::NO_TREE);
+      if (node) {
+        RenameNode(node->id());
       }
       break;
     case kRemove:
@@ -2244,7 +3609,34 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
                          TabMutedReason::kAudioIndicator, std::string());
       }
       break;
+    case kChangeIcon:
+      if (node) {
+        ShowIconPicker(node);
+      }
+      break;
     case kSplitView:
+      if (!tab && node && node->is_url()) {
+        // Opens it, then splits it with the tab that was showing.
+        TabStripModel* model = browser_->GetTabStripModel();
+        tabs::TabInterface* shown = model->GetActiveTab();
+        if (!shown || shown->IsSplit()) {
+          OpenBookmark(node);
+          break;
+        }
+        OpenBookmark(node);
+        tabs::TabInterface* opened = GetBoundTab(node->id());
+        const int shown_index = model->GetIndexOfTab(shown);
+        const int opened_index = opened ? model->GetIndexOfTab(opened)
+                                        : TabStripModel::kNoTab;
+        if (opened && opened != shown && shown_index != TabStripModel::kNoTab &&
+            opened_index != TabStripModel::kNoTab) {
+          model->ActivateTabAt(shown_index);
+          model->ExecuteAddToNewSplitCommand(
+              model->GetIndexOfTab(opened),
+              split_tabs::SplitTabLayout::kSideBySide);
+        }
+        break;
+      }
       if (tab && !tab->IsSplit()) {
         TabStripModel* model = browser_->GetTabStripModel();
         const int index = model->GetIndexOfTab(tab);
@@ -2266,6 +3658,25 @@ void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
           model_->SetURL(node, url,
                          bookmarks::metrics::BookmarkEditSource::kUser);
         }
+      }
+      break;
+    case kAddFavorite:
+      AddFavorite(tab, node && !node->is_folder() ? node : nullptr,
+                  /*index=*/SIZE_MAX);
+      break;
+    case kRemoveFavorite:
+      if (node && IsFavorite(node)) {
+        RemoveFavorite(node);
+      }
+      break;
+    case kCopyAllLinks:
+      if (node && node->is_folder()) {
+        CopyAllLinks(node);
+      }
+      break;
+    case kTurnIntoSpace:
+      if (node && node->is_folder()) {
+        TurnIntoSpace(node);
       }
       break;
     case kEditPinnedItem:
@@ -2365,8 +3776,11 @@ void ArcomiumSidebarView::WriteDragDataForView(views::View* sender,
   drag_source_ = it->second;
   // The rows only move within the sidebar; the text marks the data as ours.
   data->SetString(kRowDragData);
-  button_drag_utils::SetDragImage(GURL(), static_cast<Row*>(sender)->title(),
-                                  gfx::ImageSkia(), &press_pt, data);
+  const Row* row = views::AsViewClass<Row>(sender);
+  const bookmarks::BookmarkNode* node = GetNode(it->second.node);
+  button_drag_utils::SetDragImage(
+      GURL(), row ? row->title() : (node ? node->GetTitle() : std::u16string()),
+      gfx::ImageSkia(), &press_pt, data);
 }
 
 int ArcomiumSidebarView::GetDragOperationsForView(views::View* sender,
@@ -2423,6 +3837,25 @@ ArcomiumSidebarView::GetDropTarget(const gfx::Point& point) {
       source_node ? nullptr : drag_source_->tab.Get();
   if (!source_node && !source_tab) {
     return std::nullopt;
+  }
+  if (const gfx::Rect area = favorites_->bounds();
+      (source_tab || source_node->is_url()) &&
+      (area.Contains(point) ||
+       // With no favorites, the strip under the address field takes one.
+       (favorites_->children().empty() && point.y() >= area.y() - 4 &&
+        point.y() < area.y() + 12))) {
+    DropTarget target;
+    target.favorite = true;
+    gfx::Point in_grid = point;
+    views::View::ConvertPointToTarget(this, favorites_, &in_grid);
+    target.index =
+        static_cast<FavoritesGrid*>(favorites_.get())->GetDropIndex(in_grid);
+    target.into_folder = true;
+    target.indicator = favorites_->children().empty()
+                           ? gfx::Rect(kRowBackgroundInsetX, area.y(),
+                                       width() - 2 * kRowBackgroundInsetX, 8)
+                           : area;
+    return target;
   }
   gfx::Point p = point;
   views::View::ConvertPointToTarget(this, rows_, &p);
@@ -2487,7 +3920,8 @@ ArcomiumSidebarView::GetDropTarget(const gfx::Point& point) {
         target.into_folder = true;
         gfx::Rect rect =
             views::View::ConvertRectToTarget(rows_, this, child->bounds());
-        rect.Inset(gfx::Insets::VH(kRowBackgroundInsetY, kRowBackgroundInsetX));
+        rect.Inset(gfx::Insets::VH(static_cast<int>(kRowBackgroundInsetY),
+                                   kRowBackgroundInsetX));
         target.indicator = rect;
       } else if (node->is_folder() && lower && IsOpen(node)) {
         // Below an open folder is its first item.
@@ -2576,6 +4010,11 @@ void ArcomiumSidebarView::PerformDrop(
   const bookmarks::BookmarkNode* node = GetNode(drag_source_->node);
   tabs::TabInterface* tab = node ? nullptr : drag_source_->tab.Get();
 
+  if (target.favorite) {
+    AddFavorite(tab, node, target.index);
+    output_drag_op = ui::mojom::DragOperation::kMove;
+    return;
+  }
   if (!target.tab_index) {
     // Into the pinned tree.
     const bookmarks::BookmarkNode* parent =
@@ -2648,6 +4087,335 @@ void ArcomiumSidebarView::OnRowDragDone() {
     ScheduleRebuild();
   }
 }
+
+void ArcomiumSidebarView::RenameNode(int64_t id) {
+  const bookmarks::BookmarkNode* node = GetNode(id);
+  if (node && GetWidget()) {
+    BookmarkEditor::Show(GetWidget()->GetNativeWindow(), browser_->GetProfile(),
+                         BookmarkEditor::EditDetails::EditNode(node),
+                         BookmarkEditor::NO_TREE);
+  }
+}
+
+void ArcomiumSidebarView::OnCommandBarChanged(bool open, bool new_tab) {
+  if (command_bar_new_tab_ != (open && new_tab)) {
+    command_bar_new_tab_ = open && new_tab;
+    ScheduleRebuild();
+  }
+}
+
+const bookmarks::BookmarkNode* ArcomiumSidebarView::GetFavoritesFolder(
+    bool create) {
+  if (!model_ || !model_->loaded()) {
+    return nullptr;
+  }
+  for (const auto& child : model_->other_node()->children()) {
+    std::string value;
+    if (child->is_folder() && child->GetMetaInfo(kFavoritesMetaKey, &value) &&
+        value == "1") {
+      return child.get();
+    }
+  }
+  if (!create) {
+    return nullptr;
+  }
+  bookmarks::BookmarkNode::MetaInfoMap meta;
+  meta[kFavoritesMetaKey] = "1";
+  return model_->AddFolder(model_->other_node(),
+                           model_->other_node()->children().size(),
+                           l10n_util::GetStringUTF16(IDS_ARCOMIUM_FAVORITES),
+                           &meta);
+}
+
+bool ArcomiumSidebarView::IsFavorite(
+    const bookmarks::BookmarkNode* node) const {
+  if (!node || !model_ || !node->parent()) {
+    return false;
+  }
+  const bookmarks::BookmarkNode* folder = node->parent();
+  std::string value;
+  return folder->parent() == model_->other_node() &&
+         folder->GetMetaInfo(kFavoritesMetaKey, &value) && value == "1";
+}
+
+void ArcomiumSidebarView::BindFavoritesByUrl(
+    const bookmarks::BookmarkNode* folder) {
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  for (const auto& child : folder->children()) {
+    if (!child->is_url() || GetBoundTab(child->id())) {
+      continue;
+    }
+    for (int i = 0; i < tabs->count(); ++i) {
+      tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+      if (tab->IsPinned() && !IsBound(tab) &&
+          tab->GetContents()->GetLastCommittedURL() == child->url()) {
+        bound_[child->id()] = tab->GetHandle();
+        break;
+      }
+    }
+  }
+}
+
+void ArcomiumSidebarView::BuildFavorites() {
+  favorites_->RemoveAllChildViews();
+  const bookmarks::BookmarkNode* folder = GetFavoritesFolder(false);
+  if (folder) {
+    BindFavoritesByUrl(folder);
+    TabStripModel* tabs = browser_->GetTabStripModel();
+    for (const auto& child : folder->children()) {
+      if (!child->is_url()) {
+        continue;
+      }
+      tabs::TabInterface* tab = GetBoundTab(child->id());
+      ui::ImageModel icon = GetBookmarkIcon(child.get());
+      if (tab && !HasOwnIcon(child.get())) {
+        icon = GetTabIcon(tab);
+      }
+      auto* tile = favorites_->AddChildView(std::make_unique<FavoriteTile>(
+          base::BindRepeating(&ArcomiumSidebarView::OnBookmarkPressed,
+                              base::Unretained(this), child->id()),
+          icon, child->GetTitle(), tab && tab == tabs->GetActiveTab()));
+      tile->set_context_menu_controller(this);
+      tile->set_drag_controller(this);
+      tile->SetDragDoneCallback(base::BindRepeating(
+          &ArcomiumSidebarView::OnRowDragDone, base::Unretained(this)));
+      row_targets_[tile] =
+          RowTarget{child->id(), tab ? tab->GetHandle()
+                                     : tabs::TabInterface::Handle()};
+    }
+  }
+  favorites_->InvalidateLayout();
+}
+
+void ArcomiumSidebarView::OpenFavorite(const bookmarks::BookmarkNode* node) {
+  if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
+    OnTabPressed(tab->GetHandle());
+    return;
+  }
+  // Outside the Spaces, in their default storage, as Arc's favorites are
+  // the same in every Space.
+  Profile* profile = browser_->GetProfile();
+  std::unique_ptr<content::WebContents> contents =
+      content::WebContents::Create(content::WebContents::CreateParams(
+          profile, tab_util::GetSiteInstanceForNewTab(profile, node->url())));
+  contents->GetController().LoadURL(node->url(), content::Referrer(),
+                                    ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                                    std::string());
+  content::WebContents* opened = contents.get();
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  tabs->AddWebContents(std::move(contents), tabs->IndexOfFirstNonPinnedTab(),
+                       ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                       AddTabTypes::ADD_ACTIVE | AddTabTypes::ADD_PINNED,
+                       std::nullopt);
+  if (tabs::TabInterface* tab =
+          tabs::TabInterface::MaybeGetFromContents(opened)) {
+    bound_[node->id()] = tab->GetHandle();
+  }
+  ScheduleRebuild();
+}
+
+tabs::TabInterface* ArcomiumSidebarView::PinAsFavoriteTab(
+    tabs::TabInterface* tab) {
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  int index = tabs->GetIndexOfTab(tab);
+  if (index == TabStripModel::kNoTab) {
+    return nullptr;
+  }
+  if (!tab->GetGroup()) {
+    if (!tab->IsPinned()) {
+      index = tabs->SetTabPinned(index, true);
+    }
+    return tabs->GetTabAtIndex(index);
+  }
+  // A Space's tab keeps the Space's storage: the favorite opens anew outside.
+  content::WebContents* old_contents = tab->GetContents();
+  GURL url = old_contents->GetLastCommittedURL();
+  if (!url.is_valid()) {
+    url = old_contents->GetVisibleURL();
+  }
+  Profile* profile = browser_->GetProfile();
+  std::unique_ptr<content::WebContents> contents =
+      content::WebContents::Create(content::WebContents::CreateParams(
+          profile, tab_util::GetSiteInstanceForNewTab(profile, url)));
+  contents->GetController().LoadURL(url, content::Referrer(),
+                                    ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                                    std::string());
+  content::WebContents* opened = contents.get();
+  tabs->AddWebContents(
+      std::move(contents), tabs->IndexOfFirstNonPinnedTab(),
+      ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+      AddTabTypes::ADD_PINNED |
+          (tab->IsActivated() ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE),
+      std::nullopt);
+  {
+    tabs::TabInterface* const leaving[] = {tab};
+    tabs->ArcomiumKeepSpaces(leaving);
+  }
+  OnTabClosePressed(tab->GetHandle());
+  return tabs::TabInterface::MaybeGetFromContents(opened);
+}
+
+void ArcomiumSidebarView::AddFavorite(tabs::TabInterface* tab,
+                                      const bookmarks::BookmarkNode* node,
+                                      size_t index) {
+  const bookmarks::BookmarkNode* folder = GetFavoritesFolder(true);
+  if (!folder) {
+    return;
+  }
+  index = std::min(index, folder->children().size());
+  if (node && node->is_url()) {
+    if (!tab) {
+      tab = GetBoundTab(node->id());
+    }
+    bound_.erase(node->id());
+    model_->Move(node, folder, index);
+  } else if (tab) {
+    content::WebContents* contents = tab->GetContents();
+    if (!contents->GetLastCommittedURL().is_valid()) {
+      return;
+    }
+    node = model_->AddNewURL(folder, index, contents->GetTitle(),
+                             contents->GetLastCommittedURL());
+  }
+  if (!node) {
+    return;
+  }
+  if (tab) {
+    if (tabs::TabInterface* pinned = PinAsFavoriteTab(tab)) {
+      bound_[node->id()] = pinned->GetHandle();
+    }
+  }
+  ScheduleRebuild();
+}
+
+void ArcomiumSidebarView::RemoveFavorite(const bookmarks::BookmarkNode* node) {
+  tabs::TabInterface* tab = GetBoundTab(node->id());
+  bound_.erase(node->id());
+  model_->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
+                 FROM_HERE);
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  if (tab && tab->IsPinned()) {
+    const int index = tabs->GetIndexOfTab(tab);
+    if (index != TabStripModel::kNoTab) {
+      tabs->SetTabPinned(index, false);
+    }
+  }
+}
+
+void ArcomiumSidebarView::TurnIntoSpace(
+    const bookmarks::BookmarkNode* folder) {
+  if (!model_ || !model_->loaded() || browser_->GetProfile()->IsOffTheRecord()) {
+    return;
+  }
+  // The folder becomes the new Space's folder, beside the other Spaces'.
+  const std::string space =
+      base::ToLowerASCII(base::Token::CreateRandom().ToString());
+  const std::u16string title = folder->GetTitle();
+  model_->Move(folder, model_->other_node(),
+               model_->other_node()->children().size());
+  model_->DeleteNodeMetaInfo(folder, kOpenMetaKey);
+  model_->SetNodeMetaInfo(folder, kSpaceMetaKey, space);
+  ArcomiumSpaceSwitcher::OpenSpace(browser_, space, title);
+}
+
+void ArcomiumSidebarView::CopyAllLinks(const bookmarks::BookmarkNode* folder) {
+  std::u16string links;
+  std::vector<const bookmarks::BookmarkNode*> pending = {folder};
+  while (!pending.empty()) {
+    const bookmarks::BookmarkNode* node = pending.back();
+    pending.pop_back();
+    // Depth first, in the sidebar's order.
+    for (auto it = node->children().rbegin(); it != node->children().rend();
+         ++it) {
+      pending.push_back(it->get());
+    }
+    if (node->is_url() && node->url().is_valid()) {
+      if (!links.empty()) {
+        links += u"\n";
+      }
+      links += base::UTF8ToUTF16(node->url().spec());
+    }
+  }
+  if (!links.empty()) {
+    ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+        .WriteText(links);
+  }
+}
+
+void ArcomiumSidebarView::DuplicateFolder(
+    const bookmarks::BookmarkNode* folder) {
+  // A copy of titles, addresses and icons; not of what binds items to tabs.
+  auto meta_of = [](const bookmarks::BookmarkNode* node) {
+    bookmarks::BookmarkNode::MetaInfoMap meta;
+    for (const char* key : {kIconMetaKey, kFolderIconMetaKey, kOpenMetaKey}) {
+      std::string value;
+      if (node->GetMetaInfo(key, &value)) {
+        meta[key] = value;
+      }
+    }
+    return meta;
+  };
+  std::vector<std::pair<const bookmarks::BookmarkNode*,
+                        const bookmarks::BookmarkNode*>>
+      pending;
+  const bookmarks::BookmarkNode* parent = folder->parent();
+  const bookmarks::BookmarkNode::MetaInfoMap folder_meta = meta_of(folder);
+  const bookmarks::BookmarkNode* copy = model_->AddFolder(
+      parent, parent->GetIndexOf(folder).value() + 1, folder->GetTitle(),
+      &folder_meta);
+  pending.emplace_back(folder, copy);
+  while (!pending.empty()) {
+    auto [from, to] = pending.back();
+    pending.pop_back();
+    for (const auto& child : from->children()) {
+      const bookmarks::BookmarkNode::MetaInfoMap meta = meta_of(child.get());
+      if (child->is_folder()) {
+        pending.emplace_back(
+            child.get(), model_->AddFolder(to, to->children().size(),
+                                           child->GetTitle(), &meta));
+      } else {
+        model_->AddNewURL(to, to->children().size(), child->GetTitle(),
+                          child->url(), &meta);
+      }
+    }
+  }
+}
+
+void ArcomiumSidebarView::ShowSpaceMenu(const gfx::Point& screen_point,
+                                        ui::mojom::MenuSourceType source_type) {
+  if (!GetWidget()) {
+    return;
+  }
+  // The Space bar of this window has the Space's menu.
+  std::vector<views::View*> views = {GetWidget()->GetRootView()};
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    if (auto* switcher = views::AsViewClass<ArcomiumSpaceSwitcher>(view)) {
+      switcher->ShowActiveSpaceMenu(screen_point, source_type);
+      return;
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+}
+
+#if BUILDFLAG(IS_MAC)
+bool ArcomiumSidebarView::IsPinnedCollapsed(
+    const bookmarks::BookmarkNode* folder) const {
+  std::string value;
+  return folder && folder->GetMetaInfo(kCollapsedMetaKey, &value) &&
+         value == "1";
+}
+
+void ArcomiumSidebarView::ToggleCollapsedPinned() {
+  if (const bookmarks::BookmarkNode* folder = GetSpaceFolder(true)) {
+    model_->SetNodeMetaInfo(folder, kCollapsedMetaKey,
+                            IsPinnedCollapsed(folder) ? "0" : "1");
+  }
+}
+#endif
 
 BEGIN_METADATA(ArcomiumSidebarView)
 END_METADATA

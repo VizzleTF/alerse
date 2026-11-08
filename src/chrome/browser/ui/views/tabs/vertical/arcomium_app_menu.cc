@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_app_menu.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -18,9 +19,13 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
 #include "chrome/grit/generated_resources.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/image_model.h"
@@ -60,6 +65,9 @@ ArcomiumSpaceSwitcher* FindSpaceSwitcher(views::View* view) {
   }
   return nullptr;
 }
+
+// Arc for macOS' "..." popover is 200 pt wide.
+constexpr int kHeaderMenuWidth = 200;
 
 class AppMenu : public ui::SimpleMenuModel::Delegate {
  public:
@@ -249,7 +257,60 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   std::unique_ptr<views::MenuRunner> runner_;
 };
 
+// Runs `command` in `browser`, if it is still there.
+void RunBrowserCommand(base::WeakPtr<BrowserWindowInterface> browser,
+                       int command) {
+  if (browser) {
+    chrome::ExecuteCommand(browser.get(), command);
+  }
+}
+
 }  // namespace
+
+void ShowHeaderMenu(BrowserWindowInterface* browser,
+                    views::View* anchor,
+                    base::RepeatingClosure toggle_sidebar,
+                    base::OnceClosure on_closed) {
+  if (!browser || !anchor || !anchor->GetWidget()) {
+    if (on_closed) {
+      std::move(on_closed).Run();
+    }
+    return;
+  }
+  BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser);
+  auto shortcut = [view](int command) -> std::optional<ui::Accelerator> {
+    ui::Accelerator accelerator;
+    if (view && view->GetAccelerator(command, &accelerator)) {
+      return accelerator;
+    }
+    return std::nullopt;
+  };
+  // As in Arc, Reload is dimmed on an empty Space.
+  const tabs::TabInterface* tab = browser->GetTabStripModel()->GetActiveTab();
+  const bool page = tab && tab->GetContents() &&
+                    tab->GetContents()->GetVisibleURL().ref() !=
+                        "arcomium-space";
+  std::vector<PopoverItem> items;
+  items.emplace_back(
+      PopoverIcon::kReload, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RELOAD),
+      shortcut(IDC_RELOAD),
+      page && chrome::IsCommandEnabled(browser, IDC_RELOAD),
+      base::BindOnce(&RunBrowserCommand, browser->GetWeakPtr(), IDC_RELOAD));
+  items.emplace_back(
+      PopoverIcon::kSidebar,
+      l10n_util::GetStringUTF16(IDS_ARCOMIUM_TOGGLE_SIDEBAR),
+      shortcut(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE), true,
+      base::BindOnce(
+          [](base::WeakPtr<BrowserWindowInterface> browser,
+             base::RepeatingClosure toggle) {
+            if (browser) {
+              toggle.Run();
+            }
+          },
+          browser->GetWeakPtr(), std::move(toggle_sidebar)));
+  ShowArcPopover(anchor, std::move(items), /*above=*/false, kHeaderMenuWidth,
+                 std::move(on_closed));
+}
 
 void ShowAppMenu(BrowserWindowInterface* browser, views::View* anchor) {
   if (!browser || !anchor || !anchor->GetWidget()) {
@@ -257,6 +318,12 @@ void ShowAppMenu(BrowserWindowInterface* browser, views::View* anchor) {
   }
   // Owns itself until its menu closes.
   (new AppMenu(browser))->RunAt(anchor);
+}
+
+void ShowSpaceMenu(BrowserWindowInterface* browser,
+                   const gfx::Point& point,
+                   ui::mojom::MenuSourceType source_type) {
+  ArcomiumSpaceSwitcher::ShowActiveSpaceMenuIn(browser, point, source_type);
 }
 
 }  // namespace arcomium

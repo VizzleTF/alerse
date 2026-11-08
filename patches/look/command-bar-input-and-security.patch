@@ -40,10 +40,18 @@ index 36e753bdc4f..b42353057cb 100644
    } else if (location_icon_view_->GetShowText() &&
               !ShouldChipOverrideLocationIcon()) {
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
-index df8ae097985..8f0b1531859 100644
+index df8ae09..29cbcc2 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -609,6 +609,8 @@ class LocationBarView
+@@ -339,6 +339,7 @@ class LocationBarView
+   // Arcomium: Arc's command bar opened to start a new tab.
+   void SetArcomiumNewTab(bool new_tab) { arcomium_new_tab_ = new_tab; }
+   bool ArcomiumOpensNewTab() const override;
++  bool IsArcomiumCommandBar() const { return arcomium_command_bar_; }
+ 
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
+@@ -609,6 +610,8 @@ class LocationBarView
    bool arcomium_hovered_ = false;
    bool arcomium_centered_ = false;
    bool arcomium_command_bar_ = false;
@@ -52,3 +60,44 @@ index df8ae097985..8f0b1531859 100644
    bool arcomium_new_tab_ = false;
    // Where the centred address's pill is painted; empty unless it shows.
    gfx::Rect arcomium_pill_bounds_;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+index 0bbdfde..746d11b 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -2173,6 +2173,10 @@ bool OmniboxViewViews::ShouldShowPlaceholderText() const {
+   if (!Textfield::ShouldShowPlaceholderText()) {
+     return false;
+   }
++  // Arcomium: Arc's command bar keeps its placeholder while typing starts.
++  if (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar()) {
++    return true;
++  }
+ 
+   return omnibox::ShouldShowPlaceholderText(
+       location_bar_view_,
+@@ -2297,6 +2301,13 @@ bool OmniboxViewViews::HandleKeyEvent(views::Textfield* textfield,
+       return true;
+     }
+     case ui::VKEY_ESCAPE:
++      // Arcomium: one Escape closes Arc's command bar, whatever it shows; the
++      // page taking focus closes it.
++      if (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar()) {
++        controller()->edit_model()->Revert();
++        controller()->client()->FocusWebContents();
++        return true;
++      }
+       return controller()->edit_model()->OnEscapeKeyPressed();
+ 
+     case ui::VKEY_CONTROL:
+@@ -2697,8 +2708,10 @@ void OmniboxViewViews::PerformDrop(
+ }
+ 
+ void OmniboxViewViews::UpdatePlaceholderTextColor() {
++  // Arcomium: Arc's command bar dims its placeholder.
+   SetPlaceholderTextColorId(
+-      omnibox::ShouldUseDimPlaceholderColor(location_bar_view_)
++      omnibox::ShouldUseDimPlaceholderColor(location_bar_view_) ||
++              (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar())
+           ? kColorOmniboxForegroundDisabled
+           : kColorOmniboxText);
+ }

@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index ffa698bc775..609eb121194 100644
+index ffa698b..3a3c418 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-@@ -910,6 +910,13 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
+@@ -910,6 +910,21 @@ bool BrowserWebContentsDelegate::ShouldFocusLocationBarByDefault(
    return search::NavEntryIsInstantNTP(source, entry);
  }
  
@@ -13,19 +13,29 @@ index ffa698bc775..609eb121194 100644
 +  return !TabStripModel::IsArcomiumEmptySpace(source);
 +}
 +
++bool BrowserWebContentsDelegate::HandleContextMenu(
++    content::RenderFrameHost& render_frame_host,
++    const content::ContextMenuParams& params) {
++  // Arcomium: as in Arc, an empty Space's card has no context menu.
++  return TabStripModel::IsArcomiumEmptySpace(
++      content::WebContents::FromRenderFrameHost(&render_frame_host));
++}
++
  bool BrowserWebContentsDelegate::ShouldFocusPageAfterCrash(
      content::WebContents* source) {
    // Focus only the active page when reloading after a crash, otherwise
 diff --git a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
-index 040961e3b6b..7e026972ef0 100644
+index 040961e..98ccaa9 100644
 --- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
 +++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h
-@@ -145,6 +145,8 @@ class BrowserWebContentsDelegate : public content::WebContentsDelegate {
+@@ -145,6 +145,10 @@ class BrowserWebContentsDelegate : public content::WebContentsDelegate {
                           bool proceed,
                           bool* proceed_to_fire_unload) override;
    bool ShouldFocusLocationBarByDefault(content::WebContents* source) override;
 +  bool FocusLocationBarForInitialBlankPage(
 +      content::WebContents* source) override;
++  bool HandleContextMenu(content::RenderFrameHost& render_frame_host,
++                         const content::ContextMenuParams& params) override;
    bool ShouldFocusPageAfterCrash(content::WebContents* source) override;
    void ShowRepostFormWarningDialog(content::WebContents* source) override;
    std::unique_ptr<content::EyeDropper> OpenEyeDropper(

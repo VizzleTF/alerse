@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/resources/omnibox_popup/app.css b/chrome/browser/resources/omnibox_popup/app.css
-index 48ae23bb48b..f2bb9059930 100644
+index 48ae23b..f9bb4c4 100644
 --- a/chrome/browser/resources/omnibox_popup/app.css
 +++ b/chrome/browser/resources/omnibox_popup/app.css
 @@ -24,8 +24,9 @@
@@ -13,7 +13,7 @@ index 48ae23bb48b..f2bb9059930 100644
  }
  
  /**
-@@ -35,3 +36,10 @@
+@@ -35,3 +36,28 @@
    display: block;
    width: 50%;
  }
@@ -24,6 +24,24 @@ index 48ae23bb48b..f2bb9059930 100644
 +  border-top: 1px solid rgb(28, 28, 28);
 +  padding-top: 4px;
 +}
++
++<if expr="is_macosx">
++/* Arcomium: Arc for macOS' command bar: a #313030 hairline (one device
++ * pixel) a point under the address row, 6 px above the first row and 7 more
++ * below the last.
++ * (In a media block of their own: they restate selectors above.) */
++@media all {
++  .dropdownContainer {
++    border-top: 0.5px solid rgb(49, 48, 48);
++    margin-top: 1px;
++    padding-top: 6px;
++  }
++
++  :host([has-visible-matches_]) .dropdownContainer {
++    padding-bottom: 7px;
++  }
++}
++</if>
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
 index e5e4b1943ec..a71c593f719 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
@@ -109,10 +127,31 @@ index e0018a3bb6f..b999df3e65a 100644
      autocomplete_controller_config.stop_timer_duration =
          autocomplete_stop_timer_duration.value();
 diff --git a/chrome/browser/ui/omnibox/omnibox_edit_model.cc b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
-index 7c03135dc2f..9b928beeeb7 100644
+index 7c03135..801a8b9 100644
 --- a/chrome/browser/ui/omnibox/omnibox_edit_model.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
-@@ -2613,8 +2613,8 @@ void OmniboxEditModel::OpenMatch(
+@@ -2273,6 +2273,20 @@ void OmniboxEditModel::OnPopupResultChanged() {
+   TRACE_EVENT("omnibox", "OmniboxEditModel::OnPopupResultChanged");
+   UpdatePopupSelectionOnResultChanged();
+   observers_.NotifyAllowReentrancy(&Observer::OnContentsChanged);
++  // Arcomium: Arc's empty command bar has its first row selected, an open
++  // tab or else a sidebar item, and Return opens it. Told after the rows,
++  // which the popup redraws.
++  const AutocompleteResult& result = autocomplete_controller()->result();
++  if (popup_selection_.line == OmniboxPopupSelection::kNoMatch &&
++      GetText().empty() && !result.empty() &&
++      (result.match_at(0).type == omnibox::AutocompleteMatchType::kOpenTab ||
++       result.match_at(0).type ==
++           omnibox::AutocompleteMatchType::kBookmarkTitle)) {
++    const OmniboxPopupSelection old_selection = popup_selection_;
++    popup_selection_.line = 0;
++    observers_.Notify(&Observer::OnSelectionChanged, old_selection,
++                      popup_selection_);
++  }
+ }
+ 
+ const SkBitmap* OmniboxEditModel::GetPopupRichSuggestionBitmap(
+@@ -2613,8 +2627,8 @@ void OmniboxEditModel::OpenMatch(
    // originated while in keyword mode.  This is to support the keyword mode
    // starter pack's tab search (@tabs) feature, which should open all
    // suggestions in the existing open tab.

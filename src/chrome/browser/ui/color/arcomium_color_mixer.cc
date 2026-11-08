@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/color/arcomium_color_mixer.h"
 
 #include "base/functional/bind.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
@@ -55,25 +56,65 @@ void AddArcomiumColorMixer(ui::ColorProvider* provider,
     mixer[kColorArcomiumArchiveSlot] = {ui::kColorSysSurface};
     return;
   }
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS sets tabs as bright as folders, and its New Tab row's "+"
+  // brighter than the text.
+  mixer[kColorArcomiumSidebarItem] = Ink(SkColorSetRGB(0xDA, 0xDA, 0xDA));
+  mixer[kColorArcomiumSidebarFolder] = Ink(SkColorSetRGB(0xDA, 0xDA, 0xDA));
+  mixer[kColorArcomiumSidebarNewTab] = Ink(SkColorSetRGB(0x7F, 0x7F, 0x7F));
+  mixer[kColorArcomiumSidebarPlus] = Ink(SkColorSetRGB(0x8B, 0x8B, 0x8B));
+#else
   mixer[kColorArcomiumSidebarItem] = Ink(SkColorSetRGB(0xCF, 0xCF, 0xCF));
   mixer[kColorArcomiumSidebarFolder] = Ink(SkColorSetRGB(0xDB, 0xDB, 0xDB));
-  mixer[kColorArcomiumSidebarSubtle] = Ink(SkColorSetRGB(0x84, 0x84, 0x84));
   mixer[kColorArcomiumSidebarNewTab] = Ink(SkColorSetRGB(0x87, 0x87, 0x87));
   mixer[kColorArcomiumSidebarPlus] = Ink(SkColorSetRGB(0x77, 0x77, 0x77));
+#endif
+  mixer[kColorArcomiumSidebarSubtle] = Ink(SkColorSetRGB(0x84, 0x84, 0x84));
   mixer[kColorArcomiumSidebarDivider] = Ink(SkColorSetRGB(0x3E, 0x3E, 0x3E));
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' folder outline.
+  mixer[kColorArcomiumSidebarGlyph] = Ink(SkColorSetRGB(0xF0, 0xF0, 0xF0));
+#else
   mixer[kColorArcomiumSidebarGlyph] = Ink(SkColorSetRGB(0xEB, 0xEB, 0xEB));
+#endif
   mixer[kColorArcomiumSidebarGlyphFill] = Ink(SkColorSetRGB(0x18, 0x18, 0x18));
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' highlights are brighter: #2D2D2D and #444543 on its
+  // #161616 frame.
+  mixer[kColorArcomiumSidebarHover] =
+      Ink(SkColorSetARGB(0x19, 0xFF, 0xFF, 0xFF));
+  mixer[kColorArcomiumSidebarActive] =
+      Ink(SkColorSetARGB(0x32, 0xFF, 0xFF, 0xFF));
+#else
   mixer[kColorArcomiumSidebarHover] =
       Ink(SkColorSetARGB(0x10, 0xFF, 0xFF, 0xFF));
   mixer[kColorArcomiumSidebarActive] =
       Ink(SkColorSetARGB(0x1E, 0xFF, 0xFF, 0xFF));
+#endif
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' folder popup is near the frame's black.
+  mixer[kColorArcomiumSidebarPopup] = Ink(SkColorSetRGB(0x1A, 0x19, 0x19));
+#else
   mixer[kColorArcomiumSidebarPopup] = Ink(SkColorSetRGB(0x2B, 0x2B, 0x2B));
+#endif
   mixer[kColorArcomiumMiniPlayerCard] =
       Ink(SkColorSetARGB(0x1E, 0xFF, 0xFF, 0xFF));
   mixer[kColorArcomiumMiniPlayerCardHover] =
       Ink(SkColorSetARGB(0x2A, 0xFF, 0xFF, 0xFF));
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS dims the other Spaces far more; its archive and "+" take
+  // the hovered grey (arcomium_space_switcher.cc).
+  mixer[kColorArcomiumSpaceIcon] = Ink(SkColorSetRGB(0x3F, 0x3F, 0x3F));
+  mixer[kColorArcomiumSpaceIconHovered] = Ink(SkColorSetRGB(0xA0, 0xA0, 0xA0));
+  mixer[kColorArcomiumSpaceIconActive] = Ink(SkColorSetRGB(0xF0, 0xF0, 0xF1));
+#else
   mixer[kColorArcomiumSpaceIcon] = Ink(SkColorSetRGB(0x7C, 0x7C, 0x7C));
   mixer[kColorArcomiumSpaceIconHovered] = Ink(SkColorSetRGB(0xC4, 0xC4, 0xC4));
   mixer[kColorArcomiumSpaceIconActive] = Ink(SkColorSetRGB(0xF2, 0xF2, 0xF2));
+#endif
   mixer[kColorArcomiumArchiveSlot] = Ink(SkColorSetRGB(0x1E, 0x1F, 0x20));
+#if BUILDFLAG(IS_MAC)
+  // Arc for macOS' command bar placeholder (omnibox_view_views.cc).
+  mixer[kColorOmniboxForegroundDisabled] = Ink(SkColorSetRGB(0x97, 0x97, 0x97));
+#endif
 }

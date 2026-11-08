@@ -1,0 +1,201 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+index 7f4c3ec..946f1fa 100644
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -12,7 +12,9 @@ source_set("vertical") {
+     "arcomium_address_bar.h",
+     "arcomium_sidebar_view.h",
+     "arcomium_space_color.h",
++    "arcomium_popover.h",
+     "arcomium_space_switcher.h",
++    "arcomium_tooltip.h",
+     "top_container_button.h",
+     "vertical_tab_strip_bottom_container.h",
+     "vertical_tab_strip_expand_on_hover_lock.h",
+@@ -48,7 +50,9 @@ source_set("impl") {
+     "arcomium_address_bar.cc",
+     "arcomium_sidebar_view.cc",
+     "arcomium_space_color.cc",
++    "arcomium_popover.cc",
+     "arcomium_space_switcher.cc",
++    "arcomium_tooltip.cc",
+     "top_container_button.cc",
+     "vertical_tab_strip_bottom_container.cc",
+     "vertical_tab_strip_expand_on_hover_lock.cc",
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 316833e..777b7f8 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -24,6 +24,7 @@
+ #include "base/numerics/safe_conversions.h"
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "base/functional/bind.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/task/sequenced_task_runner.h"
+ #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -32,6 +33,8 @@
+ #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_host.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
++#include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
++#include "chrome/browser/ui/views/tabs/vertical/arcomium_tooltip.h"
+ #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
+ #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_segmented_control.h"
+ #include "chrome/common/pref_names.h"
+@@ -52,6 +55,7 @@
+ #include "ui/views/background.h"
+ #include "ui/views/actions/action_view_controller.h"
+ #include "ui/base/accelerators/accelerator.h"
++#include "ui/views/context_menu_controller.h"
+ #include "ui/views/animation/ink_drop.h"
+ #include "ui/views/controls/button/image_button.h"
+ #include "ui/views/controls/button/image_button_factory.h"
+@@ -106,25 +110,80 @@ constexpr int kArcMacIconSize = 22;
+ 
+ // Arc for macOS' "..." button: three 3 pt dots 5 pt apart. It opens the
+ // header menu (arcomium_app_menu.h).
+-class ArcMoreButton : public views::Button {
++class ArcMoreButton : public views::Button,
++                      public views::ContextMenuController {
+   METADATA_HEADER(ArcMoreButton, views::Button)
+ 
+  public:
+-  explicit ArcMoreButton(PressedCallback callback)
+-      : views::Button(std::move(callback)) {
+-    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
++  ArcMoreButton(PressedCallback callback, BrowserWindowInterface* browser)
++      : views::Button(std::move(callback)), browser_(browser) {
++    // Arc for macOS' pill reads "More options".
++    arcomium::SetArcTooltip(
++        this, l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE_OPTIONS));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
++    // Arc opens its Space menu on a right click here.
++    set_context_menu_controller(this);
++    // Its plates reach past the header's bottom: a layer is not clipped there.
++    SetPaintToLayer();
++    layer()->SetFillsBoundsOpaquely(false);
++  }
++
++  // views::ContextMenuController:
++  void ShowContextMenuForViewImpl(
++      views::View* source,
++      const gfx::Point& point,
++      ui::mojom::MenuSourceType source_type) override {
++    arcomium::ShowSpaceMenu(browser_, point, source_type);
++  }
++
++  // While its popover is open the dots are a cross on a lighter plate.
++  void SetOpen(bool open) {
++    open_ = open;
++    SchedulePaint();
++  }
++
++  // Turns the cross back into dots, if the button is still there.
++  base::OnceClosure GetClosedCallback() {
++    return base::BindOnce(&ArcMoreButton::SetOpen, weak_factory_.GetWeakPtr(),
++                          false);
+   }
+ 
++  void StateChanged(ButtonState old_state) override { SchedulePaint(); }
++
+   void PaintButtonContents(gfx::Canvas* canvas) override {
+     cc::PaintFlags flags;
+     flags.setAntiAlias(true);
++    // Arc's plates: #262626 on hover, 27 pt square; #2A2A2A and half a
++    // point taller while open. Its dots and cross sit 0.5 pt above centre.
++    if (open_ || IsMouseHovered()) {
++      flags.setColor(open_ ? SkColorSetRGB(0x2A, 0x2A, 0x2A)
++                           : SkColorSetRGB(0x26, 0x26, 0x26));
++      canvas->DrawRoundRect(
++          gfx::RectF(0.5f, open_ ? -0.5f : 0, 27, open_ ? 28 : 27), 6, flags);
++    }
++    const gfx::PointF center =
++        gfx::RectF(GetLocalBounds()).CenterPoint() + gfx::Vector2dF(0, -0.5f);
++    if (open_) {
++      flags.setColor(SkColorSetRGB(0xA8, 0xA8, 0xA8));
++      flags.setStyle(cc::PaintFlags::kStroke_Style);
++      flags.setStrokeWidth(1.7f);
++      flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
++      for (const float side : {-1.0f, 1.0f}) {
++        canvas->DrawLine(center + gfx::Vector2dF(-4.6f, -4.6f * side),
++                         center + gfx::Vector2dF(4.6f, 4.6f * side), flags);
++      }
++      return;
++    }
+     flags.setColor(SkColorSetRGB(0xA1, 0xA1, 0xA1));
+-    const gfx::PointF center = gfx::RectF(GetLocalBounds()).CenterPoint();
+     for (int i = -1; i <= 1; ++i) {
+       canvas->DrawCircle(center + gfx::Vector2dF(i * 5.0f, 0), 1.5f, flags);
+     }
+   }
++
++ private:
++  const raw_ptr<BrowserWindowInterface> browser_;
++  bool open_ = false;
++  base::WeakPtrFactory<ArcMoreButton> weak_factory_{this};
+ };
+ 
+ BEGIN_METADATA(ArcMoreButton)
+@@ -327,16 +386,20 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+     );
+     StyleArcHeaderButton(button.get());
+ #if BUILDFLAG(IS_MAC)
+-    // Arc for macOS names the shortcut, as the menu bar's: Cmd+[ and Cmd+].
+-    std::u16string tooltip = l10n_util::GetStringUTF16(nav.name);
+-    if (nav.command != IDC_RELOAD) {
+-      tooltip += u"  " + ui::Accelerator(nav.command == IDC_BACK
+-                                             ? ui::VKEY_OEM_4
+-                                             : ui::VKEY_OEM_6,
+-                                         ui::EF_COMMAND_DOWN)
+-                             .GetShortcutText();
++    // Arc for macOS' pill: "Go back" with Cmd [ as keycaps, as the menu
++    // bar's shortcut; "Go forward" with Cmd ].
++    if (nav.command == IDC_RELOAD) {
++      button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
++    } else {
++      const bool back = nav.command == IDC_BACK;
++      arcomium::SetArcTooltip(
++          button.get(),
++          l10n_util::GetStringUTF16(back ? IDS_ARCOMIUM_GO_BACK
++                                         : IDS_ARCOMIUM_GO_FORWARD),
++          std::u16string(),
++          ui::Accelerator(back ? ui::VKEY_OEM_4 : ui::VKEY_OEM_6,
++                          ui::EF_COMMAND_DOWN));
+     }
+-    button->SetTooltipText(tooltip);
+ #else
+     button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
+ #endif
+@@ -356,16 +419,28 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+   arc_more_button_ = AddChildView(std::make_unique<ArcMoreButton>(
+       base::BindRepeating(
+           [](VerticalTabStripTopContainer* container) {
++            auto* button =
++                static_cast<ArcMoreButton*>(container->arc_more_button_.get());
++            // The press that closed the popover does not open it again.
++            if (arcomium::ArcPopoverJustClosed(button)) {
++              return;
++            }
++            button->SetOpen(true);
+             arcomium::ShowHeaderMenu(
+-                container->browser_, container->arc_more_button_,
++                container->browser_, button,
+                 base::BindRepeating(
+                     [](tabs::VerticalTabStripStateController* controller) {
+                       controller->RequestCollapse(!controller->IsCollapsed());
+                     },
+-                    base::Unretained(container->state_controller_.get())));
++                    base::Unretained(container->state_controller_.get())),
++                button->GetClosedCallback());
+           },
+-          base::Unretained(this))));
++          base::Unretained(this)),
++      browser_));
+   StyleArcHeaderButton(static_cast<views::Button*>(arc_more_button_.get()));
++  // It draws Arc's plates itself.
++  views::InkDrop::Get(static_cast<views::Button*>(arc_more_button_.get()))
++      ->SetMode(views::InkDropHost::InkDropMode::OFF);
+   // Arc for macOS keeps only back and forward in its header; the rest is in
+   // the "..." menu and the menu bar.
+   for (views::View* button :

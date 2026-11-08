@@ -1,8 +1,8 @@
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
-index 42803f46b49..60fb253fb7e 100644
+index 42803f4..422d000 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc
 +++ b/chrome/browser/ui/color/chrome_color_mixers.cc
-@@ -106,13 +106,22 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+@@ -106,23 +106,52 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
      // Its top bar's icons are a dim grey whether enabled or not.
      mixer[kColorToolbarButtonIcon] = {SkColorSetRGB(0x52, 0x52, 0x52)};
      mixer[kColorToolbarButtonIconInactive] = {SkColorSetRGB(0x52, 0x52, 0x52)};
@@ -11,6 +11,17 @@ index 42803f46b49..60fb253fb7e 100644
 +    // Its window controls.
 +    mixer[kColorCaptionButtonOnToolbar] = {SkColorSetRGB(0x66, 0x66, 0x66)};
 +#endif
++  }
++#else
++  // Arcomium: Arc for macOS' dark frame, behind its sidebar and around the
++  // page card; the same whether the window is active or not.
++  if (!key.custom_theme &&
++      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
++    ui::ColorMixer& mixer = provider->AddMixer();
++    mixer[ui::kColorFrameActive] = {SkColorSetRGB(0x16, 0x16, 0x16)};
++    mixer[ui::kColorFrameInactive] = {SkColorSetRGB(0x16, 0x16, 0x16)};
++    // Its dim text, as the sidebar field's "Search...".
++    mixer[kColorOmniboxTextDimmed] = {SkColorSetRGB(0x6F, 0x6F, 0x6F)};
 +  }
 +#endif
 +
@@ -27,11 +38,24 @@ index 42803f46b49..60fb253fb7e 100644
      // Its command bar: a near-black panel with a grey selected row.
      mixer[kColorOmniboxResultsBackground] = {SkColorSetRGB(0x09, 0x09, 0x09)};
      mixer[kColorOmniboxResultsBackgroundHovered] = {
-@@ -122,7 +131,6 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
-     // And its blank page.
+         SkColorSetRGB(0x1E, 0x1E, 0x1E)};
+     mixer[kColorOmniboxResultsBackgroundSelected] = {
+         SkColorSetRGB(0x2E, 0x2E, 0x2E)};
+-    // And its blank page.
++    // And its blank page; Arc for macOS' is a shade lighter.
++#if BUILDFLAG(IS_MAC)
++    mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x2B, 0x2B, 0x2B)};
++    // Arc for macOS' command bar is a dark grey panel.
++    mixer[kColorOmniboxResultsBackground] = {SkColorSetRGB(0x19, 0x19, 0x19)};
++    mixer[kColorOmniboxResultsBackgroundHovered] = {
++        SkColorSetRGB(0x25, 0x25, 0x25)};
++    mixer[kColorOmniboxResultsBackgroundSelected] = {
++        SkColorSetRGB(0x30, 0x30, 0x30)};
++#else
      mixer[kColorNewTabPageBackground] = {SkColorSetRGB(0x27, 0x27, 0x27)};
-   }
--#endif
+-  }
+ #endif
++  }
  
    // Arcomium: the active Space's theme color tints the window frame, behind
    // the sidebar (BrowserWidget::GetColorProviderKey()).

@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "base/memory/raw_ptr.h"
+#include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -15,6 +16,7 @@
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
+#include "ui/gfx/font_list.h"
 #include "ui/views/widget/widget_observer.h"
 
 class BrowserWindowInterface;
@@ -46,7 +48,13 @@ class ArcomiumAddressBar : public views::View,
   ~ArcomiumAddressBar() override;
 
   // Opens Arc's command bar: on the address, or empty to start a new tab.
+  // In a window still placing its location bar, once it is in place.
   void OpenCommandBar(bool new_tab);
+
+  // Runs with (open, new_tab) as the command bar opens and closes.
+  void SetCommandBarCallback(base::RepeatingCallback<void(bool, bool)> callback) {
+    command_bar_callback_ = std::move(callback);
+  }
 
   // views::View:
   gfx::Size CalculatePreferredSize(
@@ -57,6 +65,14 @@ class ArcomiumAddressBar : public views::View,
   void RemovedFromWidget() override;
   void OnMouseEntered(const ui::MouseEvent& event) override;
   void OnMouseExited(const ui::MouseEvent& event) override;
+  // On macOS the held location bar takes no events until edited: a click on
+  // the field opens the command bar, a right click its context menu (the
+  // sidebar's).
+  bool OnMousePressed(const ui::MouseEvent& event) override;
+  void OnMouseReleased(const ui::MouseEvent& event) override;
+  // While the location bar is in the command bar, the field it left stays
+  // drawn, as Arc's does.
+  void OnPaint(gfx::Canvas* canvas) override;
 
   // views::ViewObserver: a placeholder goes with the toolbar when the window
   // closes; the location bar then stays where it is and goes with it.
@@ -124,6 +140,13 @@ class ArcomiumAddressBar : public views::View,
   // Watches the window's clicks while the command bar is open.
   std::unique_ptr<ClickWatcher> click_watcher_;
   std::unique_ptr<views::EventMonitor> click_monitor_;
+  base::RepeatingCallback<void(bool, bool)> command_bar_callback_;
+  // A new tab's command bar asked for before the location bar was placed.
+  bool pending_new_tab_ = false;
+  // What the field showed when the command bar took the location bar.
+  std::u16string field_text_;
+  bool field_placeholder_ = false;
+  gfx::FontList field_font_;
   base::WeakPtrFactory<ArcomiumAddressBar> weak_factory_{this};
 };
 

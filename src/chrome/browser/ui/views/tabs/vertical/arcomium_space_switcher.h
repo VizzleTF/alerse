@@ -10,6 +10,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -28,6 +29,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
+#include "third_party/skia/include/core/SkColor.h"
 
 class BrowserWindowInterface;
 
@@ -36,8 +38,25 @@ class MenuRunner;
 }
 class TabStripModel;
 
+namespace gfx {
+class Canvas;
+class PointF;
+}  // namespace gfx
+
 namespace arcomium {
 class SpaceColorTransition;
+
+// The icon a Space's folder records, "sunny" for Home and "dot" for others
+// without one; `folder` may be null.
+std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
+                             const std::string& space);
+// Draws the Space icon `name` centered on `center`.
+void PaintSpaceIcon(gfx::Canvas* canvas,
+                    const gfx::PointF& center,
+                    const std::string& name,
+                    SkColor color);
+// The names of the icons a Space can have, in the picker's order.
+std::vector<std::string> GetSpaceIconNames();
 }  // namespace arcomium
 
 // Arcomium: row of Spaces at the bottom of the vertical tab strip. Every Space
@@ -71,6 +90,13 @@ class ArcomiumSpaceSwitcher : public views::View,
   // Creates a Space with a blank tab in a fresh storage partition and switches
   // to it.
   static void CreateSpace(BrowserWindowInterface* browser);
+  // Runs IDC_ARCOMIUM_NEW_SPACE, _NEXT_SPACE or _PREVIOUS_SPACE in `browser`'s
+  // Space bar (arcomium_space_command_hook.h); false without one.
+  static bool RunSpaceCommand(BrowserWindowInterface* browser, int command_id);
+  // Opens the active Space's menu of `browser`'s Space bar at `point`.
+  static void ShowActiveSpaceMenuIn(BrowserWindowInterface* browser,
+                                    const gfx::Point& point,
+                                    ui::mojom::MenuSourceType source_type);
   // Opens the Space `space` named `title` with a blank tab in its storage
   // partition and switches to it.
   static void OpenSpace(BrowserWindowInterface* browser,
@@ -112,6 +138,13 @@ class ArcomiumSpaceSwitcher : public views::View,
 
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override;
+
+  // Arc's Space menu for the Space shown, at `point` (screen coordinates), as
+  // the sidebar opens it from its own empty places.
+  void ShowActiveSpaceMenu(const gfx::Point& point,
+                           ui::mojom::MenuSourceType source_type);
+  // The Space's name follows its folder's, as Rename Space edits it.
+  void BookmarkNodeChanged(const bookmarks::BookmarkNode* node) override;
 
   // views::View:
   void AddedToWidget() override;
@@ -161,6 +194,16 @@ class ArcomiumSpaceSwitcher : public views::View,
       const std::string& space) const;
   // The plus button's menu: a new Space, folder or tab.
   void ShowAddMenu(const ui::Event& event);
+  void ShowSpaceMenu(const std::string& space,
+                     const std::string& sync_id,
+                     const gfx::Point& point,
+                     ui::mojom::MenuSourceType source_type);
+  // The bookmark folder of the menu's Space, added if it has none yet.
+  const bookmarks::BookmarkNode* GetOrAddMenuSpaceFolder();
+  // Edits the name of the menu's Space in its folder.
+  void RenameMenuSpace();
+  // Arc for macOS' Change Space Icon...: a picker where the menu was.
+  void ShowMenuSpaceIconPicker();
   // Switches to the Space of the icon menu, opening it if it is closed.
   void ActivateMenuSpace();
   // Opens the sidebar's theme color picker for the Space of the icon menu.
@@ -193,6 +236,9 @@ class ArcomiumSpaceSwitcher : public views::View,
   // The tab each Space was last on, by its tab group; home has none.
   std::map<std::optional<tab_groups::TabGroupId>, tabs::TabHandle>
       last_active_tabs_;
+  // The Space folder being renamed, and its Space.
+  int64_t renaming_folder_ = 0;
+  std::string renaming_space_;
   // The Space whose icon menu is open.
   std::string menu_space_;
   std::string menu_sync_id_;

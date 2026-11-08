@@ -10,7 +10,7 @@
       Close tab
     </message>
     <message name="IDS_ARCOMIUM_COPY_LINK" desc="Tooltip and menu item: copy the address of a page or a pinned tab.">
-      Copy link
+      Copy Link
     </message>
     <message name="IDS_ARCOMIUM_DUPLICATE" desc="Sidebar menu item: open a copy of a tab or a pinned tab.">
       Duplicate
@@ -130,6 +130,18 @@
     <message name="IDS_ARCOMIUM_MENU_COMMAND_BAR" desc="Menu of the sidebar logo: open the command bar to search or type an address.">
       Open Command Bar
     </message>
+    <message name="IDS_ARCOMIUM_MENU_PIN_TAB" desc="macOS menu bar, Tabs menu: pin the shown tab in the current Space, as Arc's Pin Tab.">
+      Pin Tab
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_CLEAR_TODAY" desc="macOS menu bar, Tabs menu: close the current Space's tabs that are not pinned, as Arc's Clear Today.">
+      Clear Today
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_EDIT_THEME" desc="macOS menu bar, Spaces menu: open the current Space's theme color picker.">
+      Edit Theme…
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_OPEN_COMMAND_BAR" desc="macOS menu bar, File menu: open the command bar, where an address or a search is typed.">
+      Open Command Bar
+    </message>
     <message name="IDS_ARCOMIUM_MENU_NEXT_TAB" desc="Menu of the sidebar logo: select the next tab.">
       Next Tab
     </message>
@@ -188,19 +200,73 @@
       Pin current tab here
     </message>
     <message name="IDS_ARCOMIUM_NEW_FOLDER_INSIDE" desc="Sidebar folder menu item: create a folder inside this one.">
-      New folder inside
+      New Nested Folder…
     </message>
     <message name="IDS_ARCOMIUM_DELETE_FOLDER" desc="Sidebar folder menu item: delete the folder and its pinned tabs.">
-      Delete folder
+      Delete
     </message>
     <message name="IDS_ARCOMIUM_UNPIN" desc="Sidebar menu item: unpin a pinned tab.">
-      Unpin
+      Remove Pin
     </message>
     <message name="IDS_ARCOMIUM_PIN_TO_SPACE" desc="Sidebar tab menu item: pin the tab to the current Space.">
       Pin to this Space
     </message>
     <message name="IDS_ARCOMIUM_NEW_FOLDER" desc="Sidebar menu item: create a folder of pinned tabs.">
-      New folder
+      New Folder
+    </message>
+    <message name="IDS_ARCOMIUM_TURN_INTO_SPACE" desc="Sidebar folder menu item: make the folder a new Space of its own, its items the Space's pinned tabs. $1 is the folder's name.">
+      Turn “<ph name="FOLDER_NAME">$1<ex>Shopping</ex></ph>” into Space
+    </message>
+    <message name="IDS_ARCOMIUM_COPY_ALL_LINKS" desc="Sidebar folder menu item: copy the addresses of the folder's pinned tabs, one per line.">
+      Copy All Links
+    </message>
+    <message name="IDS_ARCOMIUM_ADD_TO_FAVORITES" desc="Sidebar menu item: add a tab or a pinned tab to the favorites, the tiles above every Space.">
+      Add to Favorites
+    </message>
+    <message name="IDS_ARCOMIUM_REMOVE_FAVORITE" desc="Favorite tile menu item: remove the favorite.">
+      Remove Favorite
+    </message>
+    <message name="IDS_ARCOMIUM_FAVORITES" desc="Name of the bookmark folder that holds the favorites tiles.">
+      Favorites
+    </message>
+    <message name="IDS_ARCOMIUM_RENAME_SPACE" desc="Space menu item: rename the Space.">
+      Rename Space…
+    </message>
+    <message name="IDS_ARCOMIUM_COLLAPSE_PINNED" desc="Tooltip of the chevron on the Space's name: hide the Space's pinned tabs.">
+      Collapse Pinned Tabs
+    </message>
+    <message name="IDS_ARCOMIUM_EXPAND_PINNED" desc="Tooltip of the chevron on the Space's name: show the Space's pinned tabs again.">
+      Expand Pinned Tabs
+    </message>
+    <message name="IDS_ARCOMIUM_SPACE_OPTIONS" desc="Tooltip of the button on the Space's name that opens the Space's menu.">
+      Space Options
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_HIDE_SIDEBAR" desc="macOS View menu item, Command-S: hides the sidebar, which then floats over the page while the pointer is at the window's left edge.">
+      Hide Sidebar
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SHOW_SIDEBAR" desc="macOS View menu item, Command-S, while the sidebar is hidden: shows it again.">
+      Show Sidebar
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_COPY_URL" desc="macOS Edit menu item, Shift-Command-C: copies the current page's address.">
+      Copy URL
+    </message>
+    <message name="IDS_ARCOMIUM_GO_BACK" desc="Tooltip of the sidebar's back button on macOS, shown with its shortcut.">
+      Go back
+    </message>
+    <message name="IDS_ARCOMIUM_GO_FORWARD" desc="Tooltip of the sidebar's forward button on macOS, shown with its shortcut.">
+      Go forward
+    </message>
+    <message name="IDS_ARCOMIUM_MORE_OPTIONS" desc="Tooltip of the sidebar's '...' button on macOS, which opens a menu with Reload and Hide Sidebar.">
+      More options
+    </message>
+    <message name="IDS_ARCOMIUM_DOUBLE_CLICK_TO_RENAME" desc="Second line of a pinned tab's tooltip in the sidebar: double-clicking the row renames it.">
+      Double-click to rename
+    </message>
+    <message name="IDS_ARCOMIUM_SWITCH_TO_TAB" desc="Button at the end of an open tab's row in the command bar: switch to that tab.">
+      Switch to Tab
+    </message>
+    <message name="IDS_ARCOMIUM_SEARCH_FOLDER" desc="Placeholder of the search field in a sidebar folder's popup, which filters the folder's links.">
+      Search <ph name="FOLDER">$1<ex>Shopping</ex></ph>...
     </message>
     <message name="IDS_ARCOMIUM_EDIT_THEME_COLOR" desc="Menu item: pick the color of the current Space.">
       Edit Theme Color…
@@ -214,7 +280,7 @@
       New Space
     </message>
     <message name="IDS_ARCOMIUM_SPACE_ICON" desc="Space menu: the submenu that picks the Space's icon.">
-      Icon
+      Change Space Icon
     </message>
     <message name="IDS_ARCOMIUM_DELETE_SPACE" desc="Space menu item: delete the Space after asking.">
       Delete Space…
@@ -324,6 +390,21 @@
     </message>
     <message name="IDS_ARCOMIUM_DOWNLOADS" desc="Tooltip of the sidebar button that shows downloads.">
       Downloads
+    </message>
+    <message name="IDS_ARCOMIUM_TOGGLE_SIDEBAR" desc="macOS: item of the sidebar header's More popover that hides or shows the sidebar.">
+      Toggle Sidebar
+    </message>
+    <message name="IDS_ARCOMIUM_NEW_SPLIT" desc="macOS: item of the Space bar's plus popover that splits the current tab with a new one.">
+      New Split
+    </message>
+    <message name="IDS_ARCOMIUM_CHANGE_SPACE_ICON" desc="macOS: Space menu item that opens the icon picker for the Space.">
+      Change Space Icon…
+    </message>
+    <message name="IDS_ARCOMIUM_DELETE_SPACE_MAC" desc="macOS: Space menu item: delete the Space after asking.">
+      Delete Space
+    </message>
+    <message name="IDS_ARCOMIUM_CHANGE_ICON" desc="macOS: sidebar menu item that opens the icon picker for a pinned tab, favorite or folder.">
+      Change Icon…
     </message>
   </if>
 </grit-part>
