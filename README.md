@@ -17,6 +17,8 @@ and a fallback Arc import script. Builds come from the platform repositories bel
   collapsed folders, a popup of a folder's links on hover, New Tab, then the Space's tabs.
   Arc's icon pickers give pinned items, folders and Spaces a glyph (Spaces also an
   emoji), and the Space menu collapses or expands all folders at once.
+  As in Arc, a hovered pinned item's "−" closes its tab and keeps the item, and with no
+  tab open its "×" removes the item.
 - **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
   logged into different accounts side by side. Spaces survive restarts.
 

@@ -281,6 +281,12 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
     switch (event->type()) {
       case ui::EventType::kMouseEntered:
       case ui::EventType::kMouseMoved:
+        if (OverChildWithTooltip(event)) {
+          // A child with a pill of its own (a row's close button) has the
+          // pointer: this view's pill gives way to it.
+          Hide();
+          break;
+        }
         if (!pressed_ && !widget_ && !show_timer_.IsRunning() &&
             !settle_poll_.IsRunning() && !Suppressed() &&
             view_->IsMouseHovered()) {
@@ -380,6 +386,17 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
     hover_poll_.Start(FROM_HERE, kHoverPoll,
                       base::BindRepeating(&TooltipHandler::CheckHover,
                                           base::Unretained(this)));
+  }
+
+  // Whether `event` goes to a view inside view_ with its own pill.
+  bool OverChildWithTooltip(const ui::MouseEvent* event) const {
+    for (views::View* target = static_cast<views::View*>(event->target());
+         target && target != view_; target = target->parent()) {
+      if (Handlers().contains(target)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // Shows the pill once the pointer has not moved for kWarmSettle.

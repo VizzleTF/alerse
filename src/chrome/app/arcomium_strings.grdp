@@ -9,6 +9,12 @@
     <message name="IDS_ARCOMIUM_CLOSE_TAB" desc="Tooltip and menu item: close the tab of a sidebar row.">
       Close tab
     </message>
+    <message name="IDS_ARCOMIUM_CLOSE_TAB_BUTTON" desc="Tooltip of the button on a hovered sidebar row that closes its tab (a cross on a tab, a minus on a pinned tab, whose pinned item stays).">
+      Close Tab
+    </message>
+    <message name="IDS_ARCOMIUM_REMOVE_PINNED_BUTTON" desc="Tooltip of the cross on a hovered pinned tab with no tab open: removes the pinned tab from the sidebar.">
+      Remove
+    </message>
     <message name="IDS_ARCOMIUM_COPY_LINK" desc="Tooltip and menu item: copy the address of a page or a pinned tab.">
       Copy Link
     </message>

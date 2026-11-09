@@ -256,6 +256,14 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
   hover from the popup's pointer polls.
 - Divider, "+ New Tab", then the Space's other tabs. A tab's close button shows only
   while its row is hovered.
+- Hovered rows' buttons follow Arc's, the same on every platform: a tab shows "×",
+  which closes it; a pinned item with its tab open shows "−", which closes the tab and
+  keeps the item; a pinned item with no tab open shows "×", which removes the item
+  (its bookmark, as Remove Pin does). Favorites have no button. The "−" is Chromium's
+  minus (`kRemoveIcon`) drawn as wide and as thick as the cross, on the same button
+  and plate. Their tooltips are "Close Tab" and "Remove": Arc's pill on macOS
+  (a row's own pill gives way to a child with a pill of its own,
+  `arcomium_tooltip.cc`), the native tooltip elsewhere.
 - Folders open and close in 150 ms, animated on layers (rows clipped like a curtain,
   rows below shifted by transforms): resizing the rows relaid out the whole browser view
   every frame and stuttered. A folder's open state is meta info, which
@@ -393,8 +401,8 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   highlight too (it starts where the row does, as Arc's). Tab
   and folder text is #DADADA and ends 16 pt before the highlight's edge, where Arc
   elides it; New Tab's "+" is #8B8B8B and its text #7F7F7F. Every pinned tab shows
-  Arc's cross on hover (11 pt, #A9A9A9), also one with no tab open, where it does
-  nothing. No divider line before New Tab (the view stays for drag and drop). While the
+  Arc's cross on hover (11 pt, #A9A9A9), or its "−" while its tab is open (see the
+  hover buttons above). No divider line before New Tab (the view stays for drag and drop). While the
   command bar is open for a new tab, New Tab is the active row, as in Arc.
 - The Space's name is a row of its own: the Space's icon, 15 pt in the active white,
   centred at x = 26 and the name in 13 pt semibold #808080. Hovered, it gets a 148x36

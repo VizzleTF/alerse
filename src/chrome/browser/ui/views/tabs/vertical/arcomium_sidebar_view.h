@@ -317,6 +317,8 @@ class ArcomiumSidebarView : public views::View,
   void ResetFolderAnimation();
   void OnTabPressed(tabs::TabInterface::Handle handle);
   void OnTabClosePressed(tabs::TabInterface::Handle handle);
+  // The "x" of a pinned item with no tab open: removes the item.
+  void OnRemovePinnedPressed(int64_t id);
   // Mutes or unmutes the tab.
   void OnTabMutePressed(tabs::TabInterface::Handle handle);
   void OpenBookmark(const bookmarks::BookmarkNode* node);

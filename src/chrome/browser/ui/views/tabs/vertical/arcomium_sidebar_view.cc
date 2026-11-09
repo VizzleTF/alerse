@@ -45,6 +45,7 @@
 #include "chrome/browser/ui/tabs/arcomium_split.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -1295,31 +1296,54 @@ class ArcomiumSidebarView::Row : public views::Button {
     SetInstallFocusRingOnFocus(false);
   }
 
-  void SetCloseCallback(PressedCallback callback) {
+  // What a row's button on hover does, as in Arc: a tab's "x" closes it, a
+  // pinned item's "-" closes its tab and keeps the item, and the "x" of a
+  // pinned item with no tab open removes the item.
+  enum class CloseKind { kCloseTab, kClosePinnedTab, kRemovePinned };
+
+  void SetCloseCallback(PressedCallback callback,
+                        CloseKind kind = CloseKind::kCloseTab) {
+    // The "-" is Chromium's minus drawn as wide and thick as the cross: its
+    // bar spans 8.5 of 16, the cross 9.4 of 20.
+    const bool minus = kind == CloseKind::kClosePinnedTab;
+    const gfx::VectorIcon& icon =
+        minus ? kRemoveIcon : vector_icons::kCloseIcon;
 #if BUILDFLAG(IS_MAC)
     // Arc for macOS' cross: 11 pt in #A9A9A9 (the icon draws 11 of 24),
     // brighter under the pointer; fixed colors, which the native theme's
     // button would replace.
+    constexpr int kButtonIconSize = 24;
+    const int icon_size = minus ? 21 : kButtonIconSize;
     auto close = std::make_unique<views::ImageButton>(std::move(callback));
     views::ConfigureVectorImageButton(close.get());
     close->SetImageModel(
         views::Button::STATE_NORMAL,
-        ui::ImageModel::FromVectorIcon(vector_icons::kCloseIcon,
-                                       SkColorSetRGB(0xA9, 0xA9, 0xA9), 24));
+        ui::ImageModel::FromVectorIcon(icon, SkColorSetRGB(0xA9, 0xA9, 0xA9),
+                                       icon_size));
     for (const auto state :
          {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
       close->SetImageModel(
           state, ui::ImageModel::FromVectorIcon(
-                     vector_icons::kCloseIcon,
-                     SkColorSetRGB(0xDA, 0xDA, 0xDA), 24));
+                     icon, SkColorSetRGB(0xDA, 0xDA, 0xDA), icon_size));
     }
 #else
+    constexpr int kButtonIconSize = 18;
     auto close = views::CreateVectorImageButtonWithNativeTheme(
-        std::move(callback), vector_icons::kCloseIcon, 18);
+        std::move(callback), icon, minus ? 16 : kButtonIconSize);
 #endif
-    close->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
-    close->GetViewAccessibility().SetName(
-        l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_TAB));
+    // The "-" takes the cross's place and plate.
+    close->SetMinimumImageSize(gfx::Size(kButtonIconSize, kButtonIconSize));
+    const std::u16string name = l10n_util::GetStringUTF16(
+        kind == CloseKind::kRemovePinned ? IDS_ARCOMIUM_REMOVE_PINNED_BUTTON
+                                         : IDS_ARCOMIUM_CLOSE_TAB_BUTTON);
+#if BUILDFLAG(IS_MAC)
+    // Arc for macOS' black pill (arcomium_tooltip.h); the row's own pill
+    // gives way to it.
+    arcomium::SetArcTooltip(close.get(), name);
+#else
+    close->SetTooltipText(name);
+#endif
+    close->GetViewAccessibility().SetName(name);
     close_ = AddChildView(std::move(close));
     // As in Arc, shown only while the row is hovered.
     close_->SetVisible(false);
@@ -2888,17 +2912,27 @@ void ArcomiumSidebarView::AddBookmarkRow(const bookmarks::BookmarkNode* node,
       node->GetMetaInfo(kRenamedMetaKey, &renamed) && renamed == "1");
   if (tab) {
     AddSpeaker(row, tab);
+    // As in Arc, "-" closes the tab and keeps the item.
     row->SetCloseCallback(
         base::BindRepeating(&ArcomiumSidebarView::OnTabClosePressed,
-                            base::Unretained(this), tab->GetHandle()));
+                            base::Unretained(this), tab->GetHandle()),
+        Row::CloseKind::kClosePinnedTab);
+  } else {
+    // With no tab open, Arc's "x" removes the pinned item.
+    row->SetCloseCallback(
+        base::BindRepeating(&ArcomiumSidebarView::OnRemovePinnedPressed,
+                            base::Unretained(this), node->id()),
+        Row::CloseKind::kRemovePinned);
   }
-#if BUILDFLAG(IS_MAC)
-  else {
-    // Arc for macOS shows the cross on every pinned tab; with none open
-    // there is nothing to close.
-    row->SetCloseCallback(views::Button::PressedCallback());
+}
+
+void ArcomiumSidebarView::OnRemovePinnedPressed(int64_t id) {
+  // Looked up again: the item may have gone since the rows were built.
+  const bookmarks::BookmarkNode* node = GetNode(id);
+  if (node && node->is_url() && !GetBoundTab(id)) {
+    model_->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
+                   FROM_HERE);
   }
-#endif
 }
 
 std::unique_ptr<ArcomiumSidebarView::Row> ArcomiumSidebarView::MakeTabRow(
