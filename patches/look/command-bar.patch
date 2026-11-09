@@ -13,7 +13,7 @@ index 48ae23b..271bd36 100644
  }
  
  /**
-@@ -35,3 +36,36 @@
+@@ -35,3 +36,34 @@
    display: block;
    width: 50%;
  }
@@ -25,7 +25,6 @@ index 48ae23b..271bd36 100644
 +  padding-top: 4px;
 +}
 +
-+<if expr="is_macosx">
 +/* Arcomium: Arc for macOS' command bar: a #313030 hairline (one device
 + * pixel) a point under the address row, 6 px above the first row and 7 more
 + * below the last.
@@ -49,7 +48,6 @@ index 48ae23b..271bd36 100644
 +    border-top: none;
 +  }
 +}
-+</if>
 diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
 index e5e4b1943ec..a71c593f719 100644
 --- a/chrome/browser/ui/color/chrome_color_mixers.cc

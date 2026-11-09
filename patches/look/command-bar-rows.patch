@@ -196,7 +196,7 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 index 4985bad..43e42e9 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -464,3 +464,104 @@
+@@ -464,3 +464,102 @@
  :host([is-top-chrome-searchbox_]) #secondaryText:not(:empty)::before {
    content: ' — ';
  }
@@ -253,7 +253,6 @@ index 4985bad..43e42e9 100644
 +  color: rgb(255, 255, 255);
 +}
 +
-+<if expr="is_macosx">
 +/* Arcomium: Arc for macOS' command bar rows: 46 px high and 50 apart, 8 px in
 + * from the panel; the title 13 px medium, grey, white on the selected row;
 + * Switch to Tab 13 px from the row's end before Arc's arrow square.
@@ -300,7 +299,6 @@ index 4985bad..43e42e9 100644
 +    padding: 0;
 +  }
 +}
-+</if>
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
 index 27ac410c2a3..5008461d8d5 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
@@ -340,12 +338,11 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_action.css b/u
 index 70ca871..66322ab 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_action.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_action.css
-@@ -86,3 +86,44 @@
+@@ -86,3 +86,42 @@
    text-overflow: ellipsis;
    white-space: nowrap;
  }
 +
-+<if expr="is_macosx">
 +/* Arcomium: Arc for macOS' Switch to Tab in the command bar: the words, then
 + * an arrow on a 24 px square, dark, white on the selected row. */
 +:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) .contents {
@@ -384,7 +381,6 @@ index 70ca871..66322ab 100644
 +    #action-icon::after {
 +  background-color: rgb(93, 93, 93);
 +}
-+</if>
 diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
 index d817230..1a6e040 100644
 --- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc

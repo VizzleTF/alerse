@@ -19,6 +19,8 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/arcomium_menu_bar_hook.h"
+#include "chrome/browser/ui/tabs/arcomium_space_command_hook.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
@@ -49,7 +51,19 @@ enum Command {
   kNextSpace,
   kPreviousSpace,
   kMore,
+  // The Spaces submenu's Spaces, as macOS' Spaces menu lists them.
+  kSpaceFirst = 100,
+  kSpaceLast = 199,
 };
+
+// The sidebar's commands that are no browser command: Arc's Copy URL as
+// Quote, Reveal Tab in Sidebar and Collapse Pinned Tabs
+// (arcomium_space_command_hook.h).
+bool IsSidebarCommand(int command_id) {
+  return command_id == IDC_ARCOMIUM_COPY_URL_QUOTE ||
+         command_id == IDC_ARCOMIUM_REVEAL_TAB ||
+         command_id == IDC_ARCOMIUM_TOGGLE_PINNED;
+}
 
 ArcomiumSpaceSwitcher* FindSpaceSwitcher(views::View* view) {
   if (!view) {
@@ -107,11 +121,43 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
                     l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_NEXT_SPACE));
     spaces_.AddItem(kPreviousSpace,
                     l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_PREVIOUS_SPACE));
+    // Then the window's Spaces, the shown one checked.
+    const std::vector<MenuBarEntry> spaces =
+        GetMenuBarList(browser_, MenuBarList::kSpaces);
+    if (!spaces.empty()) {
+      spaces_.AddSeparator(ui::NORMAL_SEPARATOR);
+    }
+    for (size_t i = 0;
+         i < spaces.size() && kSpaceFirst + static_cast<int>(i) <= kSpaceLast;
+         ++i) {
+      const int id = kSpaceFirst + static_cast<int>(i);
+      spaces_.AddCheckItem(id, spaces[i].title);
+      if (spaces[i].checked) {
+        checked_space_ = id;
+      }
+    }
     root_.AddSubMenu(0, l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_SPACES),
                      &spaces_);
 
     tabs_.AddItem(IDC_FOCUS_LOCATION,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_COMMAND_BAR));
+    // Arc for macOS' Copy URL items (its Edit menu) and Tabs menu items.
+    tabs_.AddItem(IDC_COPY_URL,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_COPY_URL));
+    tabs_.AddItem(IDC_ARCOMIUM_COPY_URL_MARKDOWN,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_URL_MARKDOWN));
+    tabs_.AddItem(IDC_ARCOMIUM_COPY_URL_QUOTE,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_URL_QUOTE));
+    tabs_.AddItem(IDC_ARCOMIUM_REVEAL_TAB,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_REVEAL_TAB));
+    tabs_.AddItem(
+        IDC_ARCOMIUM_TOGGLE_PINNED,
+        l10n_util::GetStringUTF16(
+            GetSpaceCommandState(browser_, IDC_ARCOMIUM_TOGGLE_PINNED) ==
+                    SpaceCommandState::kOn
+                ? IDS_ARCOMIUM_EXPAND_PINNED
+                : IDS_ARCOMIUM_COLLAPSE_PINNED));
+    tabs_.AddSeparator(ui::NORMAL_SEPARATOR);
     // Arc's Split View items, which its View menu holds on macOS.
     tabs_.AddItem(IDC_NEW_SPLIT_TAB,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_SPLIT_VIEW));
@@ -186,7 +232,18 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   }
 
   // ui::SimpleMenuModel::Delegate:
+  bool IsCommandIdChecked(int command_id) const override {
+    return command_id == checked_space_;
+  }
+
   bool IsCommandIdEnabled(int command_id) const override {
+    if (command_id >= kSpaceFirst && command_id <= kSpaceLast) {
+      return true;
+    }
+    if (IsSidebarCommand(command_id)) {
+      return GetSpaceCommandState(browser_, command_id) !=
+             SpaceCommandState::kUnavailable;
+    }
     switch (command_id) {
       // The submenus (Spaces, Tabs, Extensions, Developer) have no command;
       // the browser's says 0 is disabled, which greyed them out.
@@ -224,6 +281,15 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
     if (!browser) {
       return;
     }
+    if (command_id >= kSpaceFirst && command_id <= kSpaceLast) {
+      RunMenuBarEntry(browser.get(), MenuBarList::kSpaces,
+                      static_cast<size_t>(command_id - kSpaceFirst));
+      return;
+    }
+    if (IsSidebarCommand(command_id)) {
+      RunSpaceCommand(browser.get(), command_id);
+      return;
+    }
     switch (command_id) {
       case kCheckForUpdates:
         browser->OpenGURL(GetLatestReleaseUrl(),
@@ -259,6 +325,7 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   }
 
   raw_ptr<BrowserWindowInterface> browser_;
+  int checked_space_ = -1;
   ui::SimpleMenuModel root_;
   ui::SimpleMenuModel spaces_;
   ui::SimpleMenuModel tabs_;

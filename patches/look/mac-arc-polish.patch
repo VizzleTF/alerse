@@ -345,18 +345,17 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/organizer/organizer_panel_controller.h"
  #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
-@@ -3724,6 +3725,14 @@
+@@ -3724,6 +3725,13 @@
  }
  
  std::u16string BrowserView::GetWindowTitle() const {
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: Arc for macOS names its window after the shown Space ("home")
-+  // in the Window menu, Mission Control and the Dock, not after the page.
++  // in the Window menu, Mission Control and the Dock (the taskbar and
++  // Alt+Tab on Windows), not after the page.
 +  if (std::u16string space = arcomium::GetShownSpaceTitle(browser_.get());
 +      !space.empty()) {
 +    return space;
 +  }
-+#endif
    std::u16string title =
        WindowMetadataController::From(browser_.get())
            ->GetWindowTitleForCurrentTab(true /* include_app_name */);

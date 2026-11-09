@@ -104,7 +104,6 @@ class ArcomiumSpaceSwitcher : public views::View,
   static arcomium::SpaceCommandState GetSpaceCommandState(
       BrowserWindowInterface* browser,
       int command_id);
-#if BUILDFLAG(IS_MAC)
   // macOS' menu bar lists: the Space bar's Spaces and the window's
   // extensions (arcomium_menu_bar_hook.h).
   static std::vector<arcomium::MenuBarEntry> GetMenuBarList(
@@ -115,7 +114,6 @@ class ArcomiumSpaceSwitcher : public views::View,
                               size_t index);
   // The shown Space's name, the window's title as in Arc for macOS.
   static std::u16string GetShownSpaceTitle(BrowserWindowInterface* browser);
-#endif
   // Opens the active Space's menu of `browser`'s Space bar at `point`.
   static void ShowActiveSpaceMenuIn(BrowserWindowInterface* browser,
                                     const gfx::Point& point,

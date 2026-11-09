@@ -428,14 +428,12 @@ class ArcomiumSidebarView : public views::View,
     tabs::TabInterface::Handle tab;
   };
   base::flat_map<views::View*, RowTarget> row_targets_;
-#if BUILDFLAG(IS_MAC)
   // Arc's sidebar items for Command-1 to -9: the rows and favorites that are
   // pages, in the order drawn.
   std::vector<RowTarget> GetSidebarItems() const;
   // The row of the shown tab, for Reveal Tab in Sidebar; null when it has
   // none drawn (a favorite's tab, an empty Space).
   views::View* FindActiveTabRow() const;
-#endif
 
   // Where a dragged row would land.
   struct DropTarget {

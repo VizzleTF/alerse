@@ -509,10 +509,10 @@
     <message name="IDS_ARCOMIUM_SHARE_FOLDER" desc="Folder menu item on macOS, as Arc's: opens the system's share picker for the links in the folder.">
       Share Folder...
     </message>
-    <message name="IDS_ARCOMIUM_COPY_URL_QUOTE" desc="macOS menu bar, Edit menu, as Arc's: copies the selected text as a quote followed by a link to the page.">
+    <message name="IDS_ARCOMIUM_COPY_URL_QUOTE" desc="macOS menu bar's Edit menu, the logo menu and the command bar, as Arc's: copies the selected text as a quote followed by a link to the page.">
       Copy URL as Quote
     </message>
-    <message name="IDS_ARCOMIUM_MENU_REVEAL_TAB" desc="macOS menu bar, Tabs menu, as Arc's: scrolls the sidebar to the shown tab's row.">
+    <message name="IDS_ARCOMIUM_MENU_REVEAL_TAB" desc="macOS menu bar's Tabs menu, the logo menu and the command bar, as Arc's: scrolls the sidebar to the shown tab's row.">
       Reveal Tab in Sidebar
     </message>
     <message name="IDS_ARCOMIUM_MENU_SET_DEFAULT_BROWSER" desc="macOS menu bar, app menu, as Arc's: makes Alerse the default browser.">

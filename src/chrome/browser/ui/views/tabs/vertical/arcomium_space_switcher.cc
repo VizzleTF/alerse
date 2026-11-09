@@ -52,14 +52,12 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#if BUILDFLAG(IS_MAC)
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "ui/gfx/image/image_skia.h"
-#endif
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
@@ -117,11 +115,9 @@ constexpr gfx::Insets kBarInsets = gfx::Insets::TLBR(2, 0, 0, 0);
 constexpr int kIconGap = 0;
 // The sun, rays and all, is 16.8 wide drawn for the sidebar.
 constexpr float kIconScale = 13 / 16.8f;
-#if BUILDFLAG(IS_MAC)
 // The menu bar's Spaces menu's icons, about 12.5 pt as Arc's, not the
 // sidebar's 14.5.
 constexpr float kMenuIconScale = 0.87f;
-#endif
 constexpr float kHoverPlateRadius = 8;
 constexpr SkColor kHoverPlate = SkColorSetARGB(0x11, 0xFF, 0xFF, 0xFF);
 constexpr int kDotDiameter = 6;
@@ -305,6 +301,7 @@ bool IsSidebarCommand(int command_id) {
          command_id == IDC_ARCOMIUM_CLEAR_TODAY ||
          command_id == IDC_ARCOMIUM_TOGGLE_PINNED ||
          command_id == IDC_ARCOMIUM_REVEAL_TAB ||
+         command_id == IDC_ARCOMIUM_COPY_URL_QUOTE ||
          (command_id >= IDC_SELECT_TAB_0 && command_id <= IDC_SELECT_LAST_TAB);
 }
 
@@ -596,11 +593,9 @@ ArcomiumSpaceSwitcher::ArcomiumSpaceSwitcher(BrowserWindowInterface* browser)
   arcomium::SpaceCommandHook() = &ArcomiumSpaceSwitcher::RunSpaceCommand;
   arcomium::SpaceCommandStateHook() =
       &ArcomiumSpaceSwitcher::GetSpaceCommandState;
-#if BUILDFLAG(IS_MAC)
   arcomium::MenuBarListHook() = &ArcomiumSpaceSwitcher::GetMenuBarList;
   arcomium::MenuBarRunHook() = &ArcomiumSpaceSwitcher::RunMenuBarEntry;
   arcomium::ShownSpaceTitleHook() = &ArcomiumSpaceSwitcher::GetShownSpaceTitle;
-#endif
   if (!browser->GetProfile()->IsOffTheRecord()) {
     sync_service_ = tab_groups::TabGroupSyncServiceFactory::GetForProfile(
         browser->GetProfile());
@@ -722,7 +717,6 @@ arcomium::SpaceCommandState ArcomiumSpaceSwitcher::GetSpaceCommandState(
   return SpaceCommandState::kUnavailable;
 }
 
-#if BUILDFLAG(IS_MAC)
 namespace {
 
 ArcomiumSpaceSwitcher* FindSpaceSwitcherIn(BrowserWindowInterface* browser) {
@@ -862,7 +856,6 @@ void ArcomiumSpaceSwitcher::RunMenuBarEntry(BrowserWindowInterface* browser,
         ids[index], ToolbarActionViewModel::InvocationSource::kMenuEntry);
   }
 }
-#endif  // BUILDFLAG(IS_MAC)
 
 // static
 void ArcomiumSpaceSwitcher::ShowActiveSpaceMenuIn(
@@ -1193,7 +1186,14 @@ void ArcomiumSpaceSwitcher::Rebuild() {
     view->set_context_menu_controller(this);
   };
 
-  // The tabs outside of any Space form the first, default Space.
+  // The tabs outside of any Space form the first, default Space: "home",
+  // or the name it was renamed to, as the sidebar shows it.
+  std::u16string home_title = u"home";
+  if (const bookmarks::BookmarkNode* home =
+          FindSpaceFolder(kDefaultSpace, std::string());
+      home && !home->GetTitle().empty()) {
+    home_title = home->GetTitle();
+  }
   add_icon(base::BindRepeating(
                [](TabStripModel* model) {
                  model->ExitFocusMode(
@@ -1201,7 +1201,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
                },
                base::Unretained(model_.get())),
            GetSpaceIcon(kDefaultSpace, std::string()), !focused.has_value(),
-           u"home", kDefaultSpace, std::string());
+           home_title, kDefaultSpace, std::string());
   for (const tab_groups::TabGroupId& id : spaces) {
     const tab_groups::TabGroupVisualData* visuals =
         groups->GetTabGroup(id)->visual_data();
@@ -1282,12 +1282,10 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   add_button_->set_context_menu_controller(this);
 
   PreferredSizeChanged();
-#if BUILDFLAG(IS_MAC)
   // The window is named after the shown Space (BrowserView::GetWindowTitle).
   if (GetWidget()) {
     GetWidget()->UpdateWindowTitle();
   }
-#endif
 }
 
 const bookmarks::BookmarkNode* ArcomiumSpaceSwitcher::FindSpaceFolder(

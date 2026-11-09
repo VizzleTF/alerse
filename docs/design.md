@@ -394,8 +394,9 @@ Windows' numbers for those:
   "+" opens one above it, 210 pt wide and starting 6 pt from the window's left edge, as
   Arc's: New Space, New Folder, then New Split (Control+Shift+=, dimmed on an empty
   Space or a page already split, see Split View) and New Tab (Cmd+T); "+" turns into a
-  cross meanwhile, on its plate only while the pointer is on it. Arc's New Easel and New Boost rows are left out with those features. Windows keeps the plain menu: Arc for
-  Windows' "+" has not been measured.
+  cross meanwhile, on its plate only while the pointer is on it. Arc's New Easel and New Boost rows are left out with those features. The same
+  popover on every platform; off macOS its shortcuts read "Ctrl+Shift+=" and it is
+  250 pt wide for them.
 - Icon picker (Change Space Icon..., Change Icon...): see [Icon pickers](#icon-pickers);
   its measurements are Arc for macOS'.
 - Address field 148x36 pt at x = 8, y = 46, with 12 pt corners, a shade lighter than
@@ -417,7 +418,7 @@ Windows' numbers for those:
   centred at x = 26 and the name in 13 pt semibold #808080. Hovered, it gets a 148x36
   plate (#2F2F2F), a chevron in place of the icon that collapses the Space's pinned
   tabs under the name (only open ones stay, as in a folder; meta info
-  `arcomium.collapsed` on the Space's folder, read on macOS only) and "..." at its end
+  `arcomium.collapsed` on the Space's folder) and "..." at its end
   for the Space's menu; under the pointer "..." takes a 24 pt plate of its own
   (#3F3F3F on the row's #2F2F2F), as Arc's. While the Space's icon picker is open
   the name is not lit for it and shows no tooltip; the pointer still lights it, but
@@ -584,10 +585,12 @@ Windows' numbers for those:
     `NSAutoFillSystemInsertMenuEnabled` off (registration defaults only, for this
     app; nothing is written to the user's defaults).
   - **Help**: Chromium's help page and Arc's Troubleshooting > Open Task Manager.
-  - All of it is macOS only (`main_menu_builder.mm` and `browser_native_widget_mac.mm`
-    are macOS files; the hook code in the Space bar and the sidebar is under
-    `BUILDFLAG(IS_MAC)`): Windows and Linux keep the logo menu, as Arc for Windows
-    has no menu bar, and Ctrl+1 to 9 stay Chromium's there.
+  - The menu bar is macOS only (`main_menu_builder.mm` and
+    `browser_native_widget_mac.mm` are macOS files): Windows and Linux keep the logo
+    menu, as Arc for Windows has no menu bar, and Ctrl+1 to 9 stay Chromium's there.
+    The hooks the Space bar and the sidebar answer (the Spaces list, the shown Space's
+    name, Reveal Tab, Collapse Pinned Tabs, Copy URL as Quote) serve the logo menu and
+    the command bar on every platform.
   - **Cmd+1 to 9**, as Arc's Go to Sidebar Item 1 to 8 and Go to last Sidebar Item:
     the sidebar's pages as drawn, favorites first, then the Space's pinned items and
     its tabs (a split's halves one by one); folders, the Space's name and New Tab do
@@ -970,8 +973,11 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   nothing on Windows. Open tabs are suggested without `@tabs`, and
   picking one switches to it. Tabs and bookmarks also match fuzzily
   (`look/command-bar.patch`): at least two letters, close together and starting a word
-  unless they are contiguous, at most three bookmarks. On Windows and Linux the input is
-  16 px, larger than the rows, as in Arc for Windows; on macOS 18 pt (15 pt in the
+  unless they are contiguous, at most three bookmarks. The input is 18 pt in medium
+  weight on every platform, Arc for macOS' (`look/windows-mac-command-bar.patch` lifts
+  the macOS gates of `location_bar_view.cc` the earlier patches set; the caret is the
+  system's blue on macOS only), as are the panel's 12 pt corners, rim, dark ring and
+  broad shadow, the rows' layout and colors and "Search or Enter URL..." (15 pt in the
   compact command bar, where "Search or Enter URL..." is 13 pt, and the
   magnifier, the input and the (i) sit 2, 2 and 3 pt lower in its row than
   centred, with no line under the input, as Arc's). The centred panel is 764 pt
@@ -1050,7 +1056,14 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   "Update to Alerse X.Y.Z"), Import from Another Browser..., new tab, window and
   incognito window, Spaces, Tabs, Extensions and Developer submenus, Downloads,
   History, Bookmarks, Sync, Search Engine, Link routing, Settings, Print, About, More...
-  (Chromium's full menu) and Close Window. The submenus have no command of their own
+  (Chromium's full menu) and Close Window. As macOS' menu bar has them, the Spaces
+  submenu lists the window's Spaces after Next and Previous Space (the shown one
+  checked; picking one switches to it), and the Tabs submenu starts with Copy URL, Copy
+  URL as Markdown, Copy URL as Quote (dimmed without selected text), Reveal Tab in
+  Sidebar and Collapse (or Expand) Pinned Tabs, which the command bar offers too. Share
+  stays macOS-only: Chromium has no share menu of the system's services on Windows.
+  The window is named after the shown Space on every platform, as Arc for macOS
+  names it (the taskbar and Alt+Tab say "home"). The submenus have no command of their own
   (id 0), so the menu says they are enabled itself: the browser's command state calls
   0 disabled, which greyed them out and kept them shut. On macOS the logo opens Chromium's app menu,
   which carries Alerse's items (Sync, Link routing; Update and Import come with the
@@ -1563,8 +1576,8 @@ Support/Alerse` (CrProductDirName, `defaults/mac-own-profile-dir.patch`). See
 [Name](#name) for how Alerse takes over Arcomium's profile and installation.
 
 Platform differences: Windows and Linux look and behave like macOS except at the top of
-the window. The Arc for Windows top bar, the logo menu, the 16 px command bar input and
-Alt+1 to Alt+9 are not on macOS, where Arc itself looks different (window buttons, the
+the window. The Arc for Windows top bar, the logo menu and Alt+1 to Alt+9 are not on
+macOS, where Arc itself looks different (window buttons, the
 menu bar), and the header's "..." menu holds what the Windows header has as buttons.
 The sidebar's rows, Space name, folders and folder popup (searchable, with dates), Space
 bar, popovers (shortcuts spelled out as "Ctrl+T" off macOS), the page card, the floating
@@ -1572,9 +1585,9 @@ hidden sidebar, pills (`look/mac-arc-tooltips.patch`) and context menus follow A
 macOS everywhere (Sidebar look, On macOS). Still macOS-only: the header, the address
 field, the window controls in the floating hidden sidebar
 (`look/mac-floating-sidebar.patch`),
-the inactive window's lighter frame, Share, the menu bar (`look/mac-menu-bar.patch`) and
-the command bar's row layout and colors; what its rows offer (Switch to Tab at the row's end, the
-sidebar's items in an empty command bar) is the same everywhere. A pinned item's or
+the inactive window's lighter frame, Share, the menu bar (`look/mac-menu-bar.patch`),
+Cmd+1 to 9 for the sidebar's items and the key chips' spaced glyphs. The command bar
+looks and works the same everywhere. A pinned item's or
 folder's Move to lists every Space, also one not open in the window (into its pinned
 folder), as Arc's does; a plain tab still moves only to an open Space.
 

@@ -78,10 +78,13 @@
 #include "components/vector_icons/vector_icons.h"
 #include "chrome/common/webui_url_constants.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPathBuilder.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/token.h"
@@ -1162,6 +1165,37 @@ std::u16string LastUsedText(const bookmarks::BookmarkNode* node) {
                                   ui::TimeFormat::LENGTH_LONG, elapsed);
   }
   return base::i18n::UnicodeStringToString16(text);
+}
+
+// Arc's Copy URL as Quote: the page's selected text as a Markdown quote, then
+// the page's link; empty without a selection. (macOS' menu bar has its own
+// copy, browser_native_widget_mac.mm.)
+std::u16string GetQuote(BrowserWindowInterface* browser) {
+  content::WebContents* contents = chrome::GetArcomiumCopyableContents(browser);
+  content::RenderWidgetHostView* view =
+      contents ? contents->GetRenderWidgetHostView() : nullptr;
+  if (!view) {
+    return std::u16string();
+  }
+  const std::u16string selection(
+      base::TrimWhitespace(view->GetSelectedText(), base::TRIM_ALL));
+  if (selection.empty()) {
+    return std::u16string();
+  }
+  std::u16string quote;
+  for (std::u16string_view line :
+       base::SplitStringPiece(selection, u"\n", base::TRIM_WHITESPACE,
+                              base::SPLIT_WANT_ALL)) {
+    base::StrAppend(&quote, {u"> ", line, u"\n"});
+  }
+  // The title's brackets are escaped, so the link stays one.
+  std::u16string title = contents->GetTitle();
+  base::ReplaceChars(title, u"[", u"\\[", &title);
+  base::ReplaceChars(title, u"]", u"\\]", &title);
+  base::StrAppend(&quote,
+                  {u"\n[", title, u"](",
+                   base::UTF8ToUTF16(contents->GetVisibleURL().spec()), u")"});
+  return quote;
 }
 
 // Hides Chromium's split drop zone in every window once a row's drag is over.
@@ -3035,7 +3069,6 @@ void ArcomiumSidebarView::RunMenuBarCommand(int command_id) {
         !TabStripModel::IsArcomiumEmptySpace(tab->GetContents())) {
       PinTab(tab, nullptr);
     }
-#if BUILDFLAG(IS_MAC)
   } else if (command_id == IDC_ARCOMIUM_TOGGLE_PINNED) {
     ToggleCollapsedPinned();
   } else if (command_id >= IDC_SELECT_TAB_0 &&
@@ -3061,7 +3094,11 @@ void ArcomiumSidebarView::RunMenuBarCommand(int command_id) {
     if (views::View* row = FindActiveTabRow()) {
       row->ScrollViewToVisible();
     }
-#endif
+  } else if (command_id == IDC_ARCOMIUM_COPY_URL_QUOTE) {
+    if (const std::u16string quote = GetQuote(browser_); !quote.empty()) {
+      ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
+          .WriteText(quote);
+    }
   } else if (command_id == IDC_ARCOMIUM_NEW_FOLDER) {
     AddFolder(nullptr);
   } else if (command_id == IDC_ARCOMIUM_CLEAR_TODAY) {
@@ -3112,7 +3149,6 @@ arcomium::SpaceCommandState ArcomiumSidebarView::GetMenuBarCommandState(
         }
       }
       return SpaceCommandState::kUnavailable;
-#if BUILDFLAG(IS_MAC)
     case IDC_ARCOMIUM_TOGGLE_PINNED: {
       // Only a Space with pinned items has them to collapse.
       const bookmarks::BookmarkNode* folder = GetSpaceFolder(false);
@@ -3125,7 +3161,10 @@ arcomium::SpaceCommandState ArcomiumSidebarView::GetMenuBarCommandState(
     case IDC_ARCOMIUM_REVEAL_TAB:
       return FindActiveTabRow() ? SpaceCommandState::kAvailable
                                 : SpaceCommandState::kUnavailable;
-#endif
+    case IDC_ARCOMIUM_COPY_URL_QUOTE:
+      // Only with text selected on the page, as Arc's.
+      return GetQuote(browser_).empty() ? SpaceCommandState::kUnavailable
+                                        : SpaceCommandState::kAvailable;
     default:
       return SpaceCommandState::kUnavailable;
   }
@@ -5102,7 +5141,6 @@ void ArcomiumSidebarView::ShowSpaceMenu(const gfx::Point& screen_point,
   }
 }
 
-#if BUILDFLAG(IS_MAC)
 std::vector<ArcomiumSidebarView::RowTarget>
 ArcomiumSidebarView::GetSidebarItems() const {
   // The rows and favorites that are pages, top to bottom as drawn: the view
@@ -5145,7 +5183,6 @@ views::View* ArcomiumSidebarView::FindActiveTabRow() const {
   }
   return nullptr;
 }
-#endif
 
 bool ArcomiumSidebarView::IsPinnedCollapsed(
     const bookmarks::BookmarkNode* folder) const {

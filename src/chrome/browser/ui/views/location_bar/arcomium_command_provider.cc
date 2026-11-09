@@ -84,12 +84,15 @@ const Command kCommands[] = {
      u"color colour"},
     {IDC_ARCOMIUM_NEW_FOLDER, Kind::kSidebar, IDS_ARCOMIUM_NEW_FOLDER, 0,
      &vector_icons::kFolderOpenIcon, nullptr, u""},
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS collapses the pinned tabs under the Space's name.
     {IDC_ARCOMIUM_TOGGLE_PINNED, Kind::kSidebar, IDS_ARCOMIUM_COLLAPSE_PINNED,
      IDS_ARCOMIUM_EXPAND_PINNED, &kChevronRightIcon, &kChevronRightIcon,
      u"folders"},
-#endif
+    // Listed only while it can run: a shown tab with a row, text selected.
+    {IDC_ARCOMIUM_REVEAL_TAB, Kind::kSidebar, IDS_ARCOMIUM_MENU_REVEAL_TAB, 0,
+     &vector_icons::kSearchIcon, nullptr, u"show find"},
+    {IDC_ARCOMIUM_COPY_URL_QUOTE, Kind::kSidebar, IDS_ARCOMIUM_COPY_URL_QUOTE,
+     0, &vector_icons::kContentCopyIcon, nullptr, u"link selection"},
     {IDC_OPTIONS, Kind::kBrowser, IDS_ARCOMIUM_MENU_SETTINGS, 0,
      &vector_icons::kSettingsIcon, nullptr, u"preferences options"},
     {IDC_SHOW_HISTORY, Kind::kBrowser, IDS_ARCOMIUM_VIEW_HISTORY, 0,

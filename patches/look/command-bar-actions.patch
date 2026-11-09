@@ -369,24 +369,22 @@ diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h b/ch
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 --- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-@@ -1439,8 +1439,15 @@ int OmniboxViewViews::GetOmniboxTextLength() const {
+@@ -1439,8 +1439,13 @@ int OmniboxViewViews::GetOmniboxTextLength() const {
  }
  
  void OmniboxViewViews::SetEmphasis(bool emphasize, const gfx::Range& range) {
 -  const SkColor color = GetColorProvider()->GetColor(
 +  SkColor color = GetColorProvider()->GetColor(
        emphasize ? kColorOmniboxText : kColorOmniboxTextDimmed);
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: Arc for macOS sets what is typed in its command bar #E4E5E8.
 +  if (emphasize && location_bar_view_ &&
 +      location_bar_view_->IsArcomiumCommandBar()) {
 +    color = SkColorSetRGB(0xE4, 0xE5, 0xE8);
 +  }
-+#endif
    if (range.IsValid()) {
      ApplyColor(color, range);
    } else {
-@@ -2173,9 +2180,10 @@ bool OmniboxViewViews::ShouldShowPlaceholderText() const {
+@@ -2173,9 +2178,10 @@ bool OmniboxViewViews::ShouldShowPlaceholderText() const {
    if (!Textfield::ShouldShowPlaceholderText()) {
      return false;
    }
@@ -563,10 +561,9 @@ diff --git a/ui/views/controls/textfield/textfield.h b/ui/views/controls/textfie
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -565,3 +565,67 @@
+@@ -565,2 +565,69 @@
    }
  }
- </if>
 +
 +/* Arcomium: a command bar action, as in Arc: its icon on a 24 px tile,
 + * #252525 with a light glyph, white with a dark one on the selected row, and
@@ -605,14 +602,18 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 +
 +<if expr="is_macosx">
 +/* Arcomium: Arc for macOS' key chips space their glyphs (the shortcut text
-+ * is AppKit's, as "⇧⌘C"); a row's address after the title is #656565,
-+ * #989898 on the selected row; the selected row's magnifier is white. */
++ * is AppKit's, as "⇧⌘C"; elsewhere it is spelled out, "Ctrl+Shift+C"). */
 +@media all {
 +  :host([is-top-chrome-searchbox_]) #arcomiumShortcut {
 +    letter-spacing: 3px;
 +    padding-inline: 7px 4px;
 +  }
++}
++</if>
 +
++/* Arcomium: as Arc for macOS, a row's address after the title is #656565,
++ * #989898 on the selected row; the selected row's magnifier is white. */
++@media all {
 +  :host([is-top-chrome-searchbox_]) #secondaryText,
 +  :host([is-top-chrome-searchbox_]) #secondaryText .url,
 +  :host([is-top-chrome-searchbox_]) #secondaryText span {
@@ -630,7 +631,6 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 +    --color-searchbox-results-dim-selected: rgb(255, 255, 255);
 +  }
 +}
-+</if>
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
