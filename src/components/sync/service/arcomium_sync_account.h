@@ -51,8 +51,16 @@ class ArcomiumSyncAccount {
                    const GURL& server_url,
                    const SyncChainSecret& secret);
 
-  // Forgets the setup. Sync stops at the next browser start.
+  // Forgets the setup, including the sign-in's local settings. Sync stops at
+  // the next browser start.
   static void Clear(PrefService* prefs);
+
+  // The optional sign-in with a login name and password, as this device
+  // knows it: the normalized login name it set or joined with, or empty.
+  // The password is never kept.
+  static std::string GetLogin(const PrefService& prefs);
+  static void SetLogin(PrefService* prefs, const std::string& login);
+  static void ClearLogin(PrefService* prefs);
 
   // Reads the saved secret, or nullopt.
   static std::optional<SyncChainSecret> LoadSecret(

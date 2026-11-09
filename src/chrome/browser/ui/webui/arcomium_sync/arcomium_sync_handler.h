@@ -14,7 +14,9 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/values.h"
+#include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_login_client.h"
 #include "components/sync/service/arcomium_sync_code.h"
+#include "components/sync/service/arcomium_sync_pairing.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync/service/sync_service_observer.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -31,14 +33,32 @@ class Encryptor;
 }  // namespace os_crypt_async
 
 // Backs chrome://arcomium-sync: starting or joining a sync chain, showing its
-// sync code, leaving it. The page calls:
+// sync code, leaving it, and the chain's optional sign-in with a login name
+// and password. The page calls:
 //
-//   getState()                 -> state
-//   createChain(server)        -> {code}
-//   joinChain(server, code)    -> {}
-//   showCode()                 -> {code}
-//   leaveChain()               -> {}
+//   getState()                           -> state
+//   createChain(server, login|null)      -> {code}
+//   joinChain(server, code)              -> {}
+//   joinWithLogin(server, login, password) -> {}
+//   showCode()                           -> {code}
+//   leaveChain()                         -> {}
+//   getLoginState()                      -> {login, onServer}
+//   setLogin(login)                      -> {}
+//   removeLogin()                        -> {}
+//   checkPassword(login, password)       -> {problem}
+//   startPairing()                       -> {code, link, qr: {size, modules}}
+//   pairingStatus()                      -> {state, name, number, expires}
+//   approvePairing()                     -> {}
+//   cancelPairing()                      -> {}
+//   joinWithPairing(server, code)        -> {number}
+//   pairingJoinStatus()                  -> {state}
 //   restart()
+//
+// where login is {login, password, confirm}. Pairing: the device that syncs
+// shows a one-time code (startPairing) and polls pairingStatus until the new
+// device joins, then the user allows it (approvePairing); the new device
+// joins with the code (joinWithPairing) and polls pairingJoinStatus until it
+// has the chain's secret, which it saves like joinChain.
 //
 // and gets "state-changed" with the state whenever sync changes.
 class ArcomiumSyncHandler : public content::WebUIMessageHandler,
@@ -65,32 +85,97 @@ class ArcomiumSyncHandler : public content::WebUIMessageHandler,
   void HandleShowCode(const base::ListValue& args);
   void HandleLeaveChain(const base::ListValue& args);
   void HandleRestart(const base::ListValue& args);
+  void HandleJoinWithLogin(const base::ListValue& args);
+  void HandleGetLoginState(const base::ListValue& args);
+  void HandleSetLogin(const base::ListValue& args);
+  void HandleRemoveLogin(const base::ListValue& args);
+  void HandleCheckPassword(const base::ListValue& args);
+  void HandleStartPairing(const base::ListValue& args);
+  void HandlePairingStatus(const base::ListValue& args);
+  void HandleApprovePairing(const base::ListValue& args);
+  void HandleCancelPairing(const base::ListValue& args);
+  void HandleJoinWithPairing(const base::ListValue& args);
+  void HandlePairingJoinStatus(const base::ListValue& args);
+
+  void OnPairingOpened(const std::string& callback_id,
+                       ArcomiumSyncLoginClient::Response response);
+  void OnPairingSlot(const std::string& callback_id,
+                     ArcomiumSyncLoginClient::Response response);
+  void OnPairingSlotForJoin(const std::string& callback_id,
+                            ArcomiumSyncLoginClient::Response response);
+  void OnDeviceNameForJoin(const std::string& callback_id,
+                           const std::string& name);
+  void OnPairingJoinSlot(const std::string& callback_id,
+                         ArcomiumSyncLoginClient::Response response);
+  void ResetPairing();
 
   base::DictValue BuildState() const;
 
-  // Checks that `server` answers, then saves the setup with `secret` and
-  // resolves `callback_id` with `result`.
-  void CheckServerAndSave(const std::string& callback_id,
-                          const GURL& server,
-                          const syncer::SyncChainSecret& secret,
-                          base::DictValue result);
+  // A sign-in the user typed, checked.
+  struct NewLogin {
+    std::string login;  // normalized
+    std::string password;
+  };
+  // Reads {login, password, confirm}; on a problem, rejects
+  // `callback_id` and returns nullopt.
+  std::optional<NewLogin> ReadNewLogin(const std::string& callback_id,
+                                       const base::Value& value);
+
+  // Checks that `server` answers, then runs `next`; rejects `callback_id`
+  // if it does not.
+  void CheckServer(const std::string& callback_id,
+                   const GURL& server,
+                   base::OnceClosure next);
   void OnServerChecked(const std::string& callback_id,
-                       const GURL& server,
-                       const syncer::SyncChainSecret& secret,
-                       base::DictValue result,
+                       base::OnceClosure next,
                        std::optional<std::string> body);
+
+  // Saves the setup with `secret` and, if set, the sign-in's local settings,
+  // then resolves `callback_id` with `result`.
+  void Save(const std::string& callback_id,
+            const GURL& server,
+            const syncer::SyncChainSecret& secret,
+            std::optional<NewLogin> login,
+            base::DictValue result);
   void OnEncryptorForSave(const std::string& callback_id,
                           const GURL& server,
                           const syncer::SyncChainSecret& secret,
+                          std::optional<NewLogin> login,
                           base::DictValue result,
                           scoped_refptr<os_crypt_async::Encryptor> encryptor);
   void OnEncryptorForCode(const std::string& callback_id,
                           scoped_refptr<os_crypt_async::Encryptor> encryptor);
 
+  // Runs `next` with this device's chain secret, or rejects `callback_id`.
+  void WithSecret(
+      const std::string& callback_id,
+      base::OnceCallback<void(const syncer::SyncChainSecret&)> next);
+  void OnEncryptorForSecret(
+      const std::string& callback_id,
+      base::OnceCallback<void(const syncer::SyncChainSecret&)> next,
+      scoped_refptr<os_crypt_async::Encryptor> encryptor);
+
+  void OnLoginState(const std::string& callback_id,
+                    std::optional<std::string> id,
+                    std::optional<std::string> error);
+  // Records the sign-in this device set (`login`), or that it removed it.
+  void OnLoginChanged(const std::string& callback_id,
+                      std::optional<NewLogin> login,
+                      std::optional<std::string> error);
+
+  ArcomiumSyncLoginClient& login_client();
+
   syncer::SyncService* GetSyncService() const;
 
   const raw_ptr<Profile> profile_;
   std::unique_ptr<network::SimpleURLLoader> health_check_;
+  std::unique_ptr<ArcomiumSyncLoginClient> login_client_;
+  // The pairing in progress, on either device.
+  std::unique_ptr<syncer::SyncPairing> pairing_;
+  std::optional<syncer::SyncPairingCode> pairing_code_;
+  GURL pairing_server_;
+  std::optional<syncer::SyncChainSecret> pairing_secret_;
+  std::string pairing_name_;
   // Set when the setup changed since the browser started.
   bool restart_needed_ = false;
   base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>

@@ -27,6 +27,7 @@ namespace {
 
 constexpr char kServerURLPref[] = "arcomium.sync.server_url";
 constexpr char kSecretPref[] = "arcomium.sync.secret";
+constexpr char kLoginPref[] = "arcomium.sync.login";
 
 // For setting up a device by hand until the settings page exists. The secret
 // on a command line is visible to other programs of the user, so the switch
@@ -56,6 +57,7 @@ std::array<uint8_t, 32> Derive(base::span<const uint8_t> secret,
 void ArcomiumSyncAccount::RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kServerURLPref, std::string());
   registry->RegisterStringPref(kSecretPref, std::string());
+  registry->RegisterStringPref(kLoginPref, std::string());
 }
 
 // static
@@ -101,6 +103,23 @@ void ArcomiumSyncAccount::Save(PrefService* prefs,
 void ArcomiumSyncAccount::Clear(PrefService* prefs) {
   prefs->ClearPref(kServerURLPref);
   prefs->ClearPref(kSecretPref);
+  ClearLogin(prefs);
+}
+
+// static
+std::string ArcomiumSyncAccount::GetLogin(const PrefService& prefs) {
+  return prefs.GetString(kLoginPref);
+}
+
+// static
+void ArcomiumSyncAccount::SetLogin(PrefService* prefs,
+                                   const std::string& login) {
+  prefs->SetString(kLoginPref, login);
+}
+
+// static
+void ArcomiumSyncAccount::ClearLogin(PrefService* prefs) {
+  prefs->ClearPref(kLoginPref);
 }
 
 // static

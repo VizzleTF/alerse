@@ -2,11 +2,13 @@ diff --git a/components/sync/BUILD.gn b/components/sync/BUILD.gn
 index 1458d9d387b..69be325082d 100644
 --- a/components/sync/BUILD.gn
 +++ b/components/sync/BUILD.gn
-@@ -277,6 +277,7 @@ source_set("unit_tests") {
+@@ -277,6 +277,9 @@ source_set("unit_tests") {
      "service/sync_error_unittest.cc",
      "service/sync_feature_status_for_migrations_recorder_unittest.cc",
      "service/sync_internals_util_unittest.cc",
 +    "service/arcomium_sync_code_unittest.cc",
++    "service/arcomium_sync_login_unittest.cc",
++    "service/arcomium_sync_pairing_unittest.cc",
      "service/sync_prefs_unittest.cc",
      "service/sync_service_crypto_unittest.cc",
      "service/sync_service_impl_startup_unittest.cc",
@@ -14,7 +16,7 @@ diff --git a/components/sync/service/BUILD.gn b/components/sync/service/BUILD.gn
 index 60d8dc0f7d6..4e7bf97b3dc 100644
 --- a/components/sync/service/BUILD.gn
 +++ b/components/sync/service/BUILD.gn
-@@ -4,6 +4,12 @@
+@@ -4,6 +4,16 @@
  
  static_library("service") {
    sources = [
@@ -24,10 +26,14 @@ index 60d8dc0f7d6..4e7bf97b3dc 100644
 +    "arcomium_sync_code.h",
 +    "arcomium_sync_events.cc",
 +    "arcomium_sync_events.h",
++    "arcomium_sync_login.cc",
++    "arcomium_sync_login.h",
++    "arcomium_sync_pairing.cc",
++    "arcomium_sync_pairing.h",
      "active_devices_provider.h",
      "backend_migrator.cc",
      "backend_migrator.h",
-@@ -127,6 +133,7 @@ static_library("service") {
+@@ -127,6 +137,7 @@ static_library("service") {
      "//components/version_info",
      "//components/version_info:generate_version_info",
      "//services/network/public/cpp",

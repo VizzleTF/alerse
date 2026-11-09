@@ -1194,6 +1194,119 @@ sign-in. As in Brave Sync v2:
 - Leave sync chain forgets the server and the code on this device and stops sync. The
   other devices keep their data, and so does the server.
 
+### Optional sign-in with an email and password
+
+Typing 24 words on every new device is the price of having no account. A chain may
+also get a sign-in: an email address or any login name, and a password. Another
+device then joins with those instead of the words. It is optional, set on
+`chrome://arcomium-sync` when starting a chain ("Add an email and password") or
+later on a device that syncs (Set up, Change, Remove), and the words keep working
+exactly as before. The join form offers "Sync code (24 words)", "Email and
+password" or "Pair with another device" (below).
+
+The server stays zero-knowledge (`arcomium_sync_login.cc`, the scheme `pw-v1` of
+[arcomium-sync's protocol notes](https://github.com/VizzleTF/arcomium-sync/blob/main/docs/protocol.md)):
+
+- The device derives a key from the password with scrypt (N = 2^17, r = 8, p = 1:
+  128 MiB, about half a second, on the thread pool), salted with a random salt of
+  the sign-in and the login name's id. HKDF-SHA256 splits it into an authentication
+  key and an encryption key. The encryption key wraps the chain's 256-bit secret
+  with AES-256-GCM; it never leaves the device.
+- The server gets the login name only as `SHA-256` of it with a context (the
+  lookup id), the salt and scrypt parameters, the wrapped secret, and the
+  authentication key, which it keeps only as an Argon2id hash with a salt of its
+  own. It never sees the login name, the password or the secret.
+- Joining: the device fetches the salt and parameters for the id, derives the
+  keys, proves the authentication key, gets the wrapped secret and opens it; from
+  there it is the same as joining with the words.
+- Setting, changing and removing the sign-in are requests signed with the chain's
+  token, so any device of the chain can do it. A new password only wraps the same
+  secret again; the chain's data stays as it is. Removing deletes the record.
+  Clearing the chain on the server removes its sign-in too.
+- Argon2id would be the first choice for the device's KDF (RFC 9106), but
+  Chromium's tree has none; scrypt is in BoringSSL. Every record names its scheme
+  and parameters, and a device that signs in to a record with weaker parameters
+  than its own wraps it again with the current ones, so the cost can be raised
+  later. OPAQUE (RFC 9807), which would hide even the authentication key from the
+  server, could be added as another scheme; not decided.
+
+Decisions and limits:
+
+- The password policy follows NIST SP 800-63B-4: at least 15 characters (counted
+  as characters, not bytes), up to 256, no rules about character classes; a short
+  bundled list of common long passwords, one character or a short run repeated,
+  and passwords that contain the login name or "Arcomium" are refused. There is
+  no online breach check. The page shows a strength meter.
+- The residual risk, said on the page: whoever runs the server, or has a copy of
+  its database, can guess passwords offline at the cost of one scrypt and one
+  Argon2id a guess. Only the length of the password protects it. The words, 256
+  random bits, cannot be guessed. A device refuses parameters weaker than its
+  own, so a server cannot make it send a key that is cheap to attack.
+- No account enumeration: the server answers made-up but stable parameters for
+  login names that have no sign-in and does the same work before refusing. A
+  second chain that tries to take a login name in use is refused, which tells
+  that chain the name is taken; the server limits how often a chain may try.
+- Wrong passwords: "Wrong email, login name or password." The server allows ten
+  attempts an hour per login name and thirty per address, then answers "Too many
+  attempts. Try again in N minutes." The limit holds even for the right password,
+  so someone guessing at a name can lock its owner out for an hour; the words
+  still work.
+- The login name is a user name, not a verified email: nobody checks that the
+  address belongs to whoever types it, and the first chain to set it has it. A
+  public server would need verification before email addresses can be claimed,
+  which comes with mail.
+- The login name (lower-cased, without surrounding spaces) is kept in this
+  device's prefs (`arcomium.sync.login`) to show it on the page and on the
+  recovery sheet; the password is never kept.
+- Mailing the words to the user was considered and rejected: mail is a weak
+  channel (stored in the clear by mail providers, forwarded, searched), and
+  sending from the server would hand the words to the server. The recovery sheet
+  replaces it.
+- iOS has no sign-in yet; it still joins with the words.
+
+### Recovery sheet
+
+Next to the sync code, "Print recovery sheet" (like 1Password's Emergency Kit)
+prints a sheet with the 24 words, the server address, the login name if the
+chain has a sign-in (with an empty line for the password, written by hand), the
+date and how to add a device; the print dialog's Save as PDF makes a file of it.
+The sheet is a print-only part of the Sync page, built from what the page already
+shows, so nothing is sent anywhere. A downloaded HTML file was tried first:
+Chromium treats HTML downloads from a script as dangerous and drops them, and
+printing gives paper and PDF in one step.
+
+### Pairing a device with a short code
+
+"Add a device" on a device that syncs shows a one-time code such as
+`7KQ2-M9XD-4TPA` and a QR code of `arcomium://pair?server=…&code=…` (the QR is
+for the future iOS app; computers have no camera, so they type the code). On the
+new device the join form's "Pair with another device" takes the server and the
+code. Both devices then show a four-digit number; the existing device asks "Allow
+<device name> to join this sync chain?", and only after Allow does the new device
+get the chain's secret, which it saves like a typed sync code.
+
+The server is a dumb relay (`arcomium_sync_pairing.cc`, scheme `pair-v1` of the
+server's protocol notes):
+
+- The code is 12 characters of Crockford's base32: 4 name the relay slot (the
+  server knows the slot only as SHA-256 of them), 8 (40 bits) are the password of
+  a SPAKE2 exchange (BoringSSL's, on Curve25519) between the two devices. The
+  server sees the two SPAKE2 messages but never the code, and SPAKE2 gives it
+  nothing to guess the password offline with.
+- From the SPAKE2 key, HKDF-SHA256 derives a confirmation key, a box key and a
+  verification key. The new device proves the key with an HMAC over its name; a
+  wrong code fails there, and the existing device closes the slot, so a guess
+  costs the attacker the whole slot: one try per code, at most 2^-40.
+- The four-digit number from the verification key, shown on both devices,
+  catches a relay that would put itself between them; the user also sees the new
+  device's name before allowing it.
+- The secret travels in AES-256-GCM under the box key. A slot lives 5 minutes,
+  takes one join and one approval, and goes with its chain; only the chain's
+  devices (signed token) can open, approve or close one. Joins and reads are
+  rate-limited per address.
+- The new device's name is Chromium's personalizable device name (the computer's
+  name), cut to 64 characters.
+
 Known gaps: the sync code cannot be changed or revoked, a single device cannot be
 removed, and nothing deletes the chain's data on the server, although the server
 supports Chromium's ClearServerData; the iOS page accepts plain http to any host; the
@@ -1409,6 +1522,11 @@ these changes:
 - Few automated tests, and CI runs none of the browser's: the import and update-check
   unit tests run only locally.
 - No public sync server.
+- Sync, planned for the public server: OPAQUE (RFC 9807) for the email and password
+  sign-in, so the server would not see even the authentication key (each sign-in
+  record names its scheme, so OPAQUE can sit next to `pw-v1`); a second factor
+  (TOTP) for signing in with the email and password; verified email addresses
+  before a login name can be claimed. Pairing and sign-in on iOS.
 - From Arc: Share in the sidebar's menus on Windows and Linux (macOS has it on the
   system's sharing services; Arc for Windows' menus were not compared);
   the Ctrl+T hint on New Tab (each new string means a full resource rebuild, so they
