@@ -1104,7 +1104,16 @@ The user asked for it back on 2026-11-08 after it had been taken out; Peek stays
   most), onto the row itself, for folders, and onto the page while it shows a split
   (Chromium shows no zone then). The split target is the row's plate with a 2 px
   outline in the item ink, so it reads apart from the shown tab's plate. Escape ends
-  a drag with nothing moved (the platform's own drag session cancels it). Shared
+  a drag with nothing moved (the platform's own drag session cancels it). The
+  drop zone goes away whenever a row's drag ends, dropped, cancelled with Escape
+  or refused: the row's `OnDragDone` (or a rebuild that ends the drag) posts
+  `BrowserView::HandleDragEnded` to every window, Chromium's own end of a drag
+  that started in a page, which stops the zone's show timers and hides it.
+  Chromium hides the zone only for drags that start in a page or drop on the
+  zone, so a row dropped on the page itself (before the zone's 500 ms delay ran
+  out, or beside it) left the zone up, shown by its timer after the drop, until
+  the next drag; a drop that split the tabs hid it only because the shown tab
+  changed. Shared
   code, so the same on macOS, Windows and Linux. Chromium's zone takes a drop as a
   link, so on Windows and Linux a row's drag offers a link as well as a move
   (`GetDragOperationsForView`): Windows' drag and drop delivers no drop whose

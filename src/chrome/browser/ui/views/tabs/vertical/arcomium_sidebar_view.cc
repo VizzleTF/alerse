@@ -36,6 +36,7 @@
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
@@ -1258,6 +1259,26 @@ std::u16string LastUsedText(const bookmarks::BookmarkNode* node) {
   return base::i18n::UnicodeStringToString16(text);
 }
 #endif
+
+// Hides Chromium's split drop zone in every window once a row's drag is over.
+// The zone's controller hides it when a drag that started in a page ends
+// (BrowserView::HandleDragEnded) or when the drop lands on the zone; a row's
+// drag starts in the sidebar, so a drop on the page itself, before the zone's
+// delay ran out or outside it, left the zone up, or let its timer show it
+// after the drop, until the next drag. Posted, so that a drop on the zone is
+// done with it first.
+void HideSplitDropZones() {
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce([] {
+        for (BrowserWindowInterface* browser :
+             GetAllBrowserWindowInterfaces()) {
+          if (BrowserView* view =
+                  BrowserView::GetBrowserViewForBrowser(browser)) {
+            view->HandleDragEnded();
+          }
+        }
+      }));
+}
 }  // namespace
 
 // One line of the sidebar: icon, optional "/", for a tab with sound its
@@ -2382,6 +2403,7 @@ void ArcomiumSidebarView::ScheduleRebuild() {
     }
     // The drag ended without reaching the row's OnDragDone().
     EndRowDrag();
+    HideSplitDropZones();
     rebuild_after_drag_ = false;
   }
   weak_factory_.InvalidateWeakPtrs();
@@ -4964,7 +4986,9 @@ bool ArcomiumSidebarView::SplitDraggedRow(BrowserWindowInterface* browser,
 }
 
 void ArcomiumSidebarView::OnRowDragDone() {
+  // Done, cancelled (Escape) or refused alike.
   EndRowDrag();
+  HideSplitDropZones();
   ShowDropIndicator(std::nullopt);
   if (std::exchange(rebuild_after_drag_, false)) {
     ScheduleRebuild();
