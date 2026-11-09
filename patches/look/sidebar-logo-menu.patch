@@ -125,7 +125,6 @@ index ddc5bc9eec3..493bf206bc5 100644
  END_METADATA
  
  #if !BUILDFLAG(IS_MAC)
- #if !BUILDFLAG(IS_MAC)
 @@ -202,8 +219,19 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
      unfocus_button_->SetVisible(false);
    }
