@@ -14,7 +14,6 @@
 
 namespace arcomium {
 
-#if BUILDFLAG(IS_MAC)
 // The hidden sidebar floating over the page is Arc's darker #0D0D0D panel:
 // what it holds is shaded off that, not off the frame. The window property
 // is set (to a non-null mark) while it floats, by VerticalTabStripRegionView.
@@ -34,25 +33,24 @@ inline bool InFloatingSidebar(const views::View* view) {
   }
   return false;
 }
-#endif
 
 // The frame's color as the window paints it now. Arc for macOS lightens an
 // inactive window (chrome_color_mixers.cc), and the shades drawn off the
 // frame follow it; BrowserView repaints them on the change. Windows and
-// Linux keep the active frame: Arc for Windows does not lighten, and there
-// nothing repaints these views when the window turns inactive.
+// Linux keep the active frame: nothing repaints these views there when the
+// window turns inactive. The floating sidebar is the same everywhere.
 inline SkColor FrameColor(const views::View* view) {
 #if BUILDFLAG(IS_MAC)
   const views::Widget* widget = view->GetWidget();
   const bool active = !widget || widget->ShouldPaintAsActive();
+#else
+  const bool active = true;
+#endif
   if (active && InFloatingSidebar(view)) {
     return kFloatingSidebarColor;
   }
   return view->GetColorProvider()->GetColor(active ? ui::kColorFrameActive
                                                    : ui::kColorFrameInactive);
-#else
-  return view->GetColorProvider()->GetColor(ui::kColorFrameActive);
-#endif
 }
 
 // `color`, a shade drawn for the active frame, as it shows over the frame the
@@ -63,14 +61,18 @@ inline SkColor FrameColor(const views::View* view) {
 // is #4A4A4A on #0D0D0D, as Arc's dimmed arrows). Shades with alpha and those
 // of child widgets (popups, tooltips: their own panels) stay as they are.
 inline SkColor InkOverFrame(const views::View* view, SkColor color) {
-#if BUILDFLAG(IS_MAC)
   const views::Widget* widget = view->GetWidget();
   const ui::ColorProvider* provider = view->GetColorProvider();
   if (!widget || widget->parent() || !provider ||
       SkColorGetA(color) != SK_AlphaOPAQUE) {
     return color;
   }
+#if BUILDFLAG(IS_MAC)
   const bool active = widget->ShouldPaintAsActive();
+#else
+  // Only macOS lightens an inactive window so far.
+  const bool active = true;
+#endif
   const bool floating = active && InFloatingSidebar(view);
   if (active && !floating) {
     return color;
@@ -88,9 +90,6 @@ inline SkColor InkOverFrame(const views::View* view, SkColor color) {
       channel(SkColorGetR(color), SkColorGetR(from), SkColorGetR(to)),
       channel(SkColorGetG(color), SkColorGetG(from), SkColorGetG(to)),
       channel(SkColorGetB(color), SkColorGetB(from), SkColorGetB(to)));
-#else
-  return color;
-#endif
 }
 
 // Whether `view` is in a browser window Arc for macOS would show lightened:

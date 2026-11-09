@@ -102,12 +102,10 @@ class ArcomiumSidebarView : public views::View,
   // empty space below the rows offers Arc's "Edit Theme Color"; a left click
   // there does nothing.
   void OnThemeChanged() override;
-#if BUILDFLAG(IS_MAC)
   // Rows recolor when the window turns active or not: Arc for macOS lightens
   // an inactive window, and its shades follow (arcomium::InkOverFrame).
   void AddedToWidget() override;
   void RemovedFromWidget() override;
-#endif
 
   // A new folder at the top of the active Space's pinned items, as the plus
   // button's menu asks.
@@ -368,11 +366,9 @@ class ArcomiumSidebarView : public views::View,
   // Arc's Space menu (the Space bar's), at `screen_point`.
   void ShowSpaceMenu(const gfx::Point& screen_point,
                      ui::mojom::MenuSourceType source_type);
-#if BUILDFLAG(IS_MAC)
   // Collapses or expands the active Space's pinned tabs under its name.
   void ToggleCollapsedPinned();
   bool IsPinnedCollapsed(const bookmarks::BookmarkNode* folder) const;
-#endif
 
   // Fills the popup with `folder`'s items, subfolders opened in place.
   void FillFolderPopup(views::View* contents,
@@ -383,7 +379,6 @@ class ArcomiumSidebarView : public views::View,
   void AddFolderPopupLink(views::View* container,
                           const bookmarks::BookmarkNode* node,
                           int depth);
-#if BUILDFLAG(IS_MAC)
   // Arc for macOS' popup: a search field over the rows, which it filters;
   // Up, Down and Return pick a row.
   void BuildFolderPopup(views::View* contents);
@@ -393,7 +388,6 @@ class ArcomiumSidebarView : public views::View,
   // The links under `folder`, at any depth, that match the query.
   void AddFilteredPopupRows(views::View* container,
                             const bookmarks::BookmarkNode* folder);
-#endif
   void ToggleFolderPopupFolder(int64_t id);
   void RefreshFolderPopup();
   // Closes the popup once the pointer has left the folder row and the popup.
@@ -539,12 +533,9 @@ class ArcomiumSidebarView : public views::View,
   base::OneShotTimer hover_timer_;
   // Coalesces the rebuilds a run of theme changes asks for.
   base::OneShotTimer theme_rebuild_timer_;
-#if BUILDFLAG(IS_MAC)
   base::CallbackListSubscription paint_as_active_subscription_;
-#endif
   base::RepeatingTimer folder_popup_timer_;
   int folder_popup_outside_ticks_ = 0;
-#if BUILDFLAG(IS_MAC)
   class PopupSearchController;
   std::unique_ptr<PopupSearchController> folder_popup_search_;
   raw_ptr<views::Textfield> folder_popup_field_ = nullptr;
@@ -556,7 +547,6 @@ class ArcomiumSidebarView : public views::View,
   // The rows' height unfiltered: Arc's popup keeps it while a query filters.
   int folder_popup_rows_height_ = 0;
   gfx::Point folder_popup_last_point_;
-#endif
 
   // The theme color picker.
   std::unique_ptr<views::BubbleDialogDelegate> color_picker_delegate_;

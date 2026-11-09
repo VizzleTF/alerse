@@ -62,9 +62,9 @@ index 67f15dc..d43677d 100644
 +  // An inactive window's card lightens with the frame, #2B2B2B to #4B4B4B.
 +  const SkColor card_color = arcomium::InkOverFrame(
 +      this, color_provider->GetColor(kColorNewTabPageBackground));
- #else
-   // Its soft shadow falls mostly below it; its rim is a shade off the frame.
-   const gfx::ShadowValues shadows = {
+   cc::PaintFlags flags;
+   flags.setAntiAlias(true);
+   flags.setColor(card_color);
 diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc

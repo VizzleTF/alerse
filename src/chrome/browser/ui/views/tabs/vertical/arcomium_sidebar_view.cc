@@ -136,7 +136,6 @@
 #include "ui/views/layout/fill_layout.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
-#if BUILDFLAG(IS_MAC)
 #include "base/i18n/case_conversion.h"
 #include "third_party/icu/source/common/unicode/locid.h"
 #include "third_party/icu/source/common/unicode/unistr.h"
@@ -145,6 +144,7 @@
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
+#if BUILDFLAG(IS_MAC)
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_share_mac.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_window_mac.h"
 #endif
@@ -166,9 +166,7 @@ constexpr char kRenamedMetaKey[] = "arcomium.renamed";
 // The favorites' folder, beside the Spaces' folders; and a Space folder whose
 // pinned tabs are collapsed under its name.
 constexpr char kFavoritesMetaKey[] = "arcomium.favorites";
-#if BUILDFLAG(IS_MAC)
 constexpr char kCollapsedMetaKey[] = "arcomium.collapsed";
-#endif
 constexpr char kDefaultSpace[] = "default";
 
 // Arc's favorites: tiles above the Space's name, 47 high, 8 apart, up to
@@ -184,8 +182,8 @@ constexpr SkAlpha kFavoriteShade = 0x1B;
 constexpr SkAlpha kFavoriteHoverShade = 0x25;
 constexpr SkAlpha kFavoriteActiveShade = 0x40;
 
-#if BUILDFLAG(IS_MAC)
-// Measured on Arc for macOS (in pt): rows 41 apart with a 148x36 highlight
+// Measured on Arc for macOS (in pt), used on every platform (a point is a
+// DIP on Windows and Linux): rows 41 apart with a 148x36 highlight
 // with 12 pt corners, favicons at x = 18, 19 pt folders, nested rows 16 in.
 // The Space's name is a row of its own with the Space's icon; no divider
 // before New Tab.
@@ -207,27 +205,8 @@ constexpr int kSpaceTitleTextX = 44;
 constexpr int kSpaceTitleIconX = 26;
 constexpr int kSpaceTitleFontSize = 13;
 constexpr SkColor kSpaceTitleColor = SkColorSetRGB(0x80, 0x80, 0x80);
-#else
-// Measured on Arc for Windows at 100% scale. Rows are 43.3 px apart, so row
-// heights alternate between 43 and 44.
-constexpr float kRowPitch = 43.3f;
-constexpr int kIconX = 16;
-constexpr int kFolderGlyphSize = 18;
-constexpr int kIndent = 9;
-constexpr float kRowBackgroundInsetY = 4;
-constexpr float kRowBackgroundRadius = 8;
-constexpr int kSpaceLabelHeight = 21;
-constexpr int kSpaceLabelTextHeight = 13;
-constexpr int kSpaceLabelX = 18;
-constexpr int kLabelFontSize = 12;
-#endif
 constexpr int kTextX = 44;
 constexpr int kIconSize = 16;
-#if !BUILDFLAG(IS_MAC)
-constexpr int kDividerInset = 9;
-constexpr int kDividerTop = 11;
-constexpr int kDividerBottom = 9;
-#endif
 constexpr int kItemFontSize = 14;
 constexpr int kRowBackgroundInsetX = 8;
 // The speaker of a tab playing sound, and the gap after it.
@@ -243,9 +222,6 @@ constexpr ui::ColorId kFolderColor = kColorArcomiumSidebarFolder;
 constexpr ui::ColorId kSubtleColor = kColorArcomiumSidebarSubtle;
 constexpr ui::ColorId kNewTabColor = kColorArcomiumSidebarNewTab;
 constexpr ui::ColorId kPlusColor = kColorArcomiumSidebarPlus;
-#if !BUILDFLAG(IS_MAC)
-constexpr ui::ColorId kDividerColor = kColorArcomiumSidebarDivider;
-#endif
 constexpr ui::ColorId kGlyphColor = kColorArcomiumSidebarGlyph;
 constexpr ui::ColorId kGlyphFillColor = kColorArcomiumSidebarGlyphFill;
 constexpr ui::ColorId kHoverColor = kColorArcomiumSidebarHover;
@@ -256,13 +232,8 @@ constexpr base::TimeDelta kFolderAnimationDuration = base::Milliseconds(150);
 constexpr base::TimeDelta kPopupFadeDuration = base::Milliseconds(120);
 
 // Folder popup: hover delay, size, color and pointer polling.
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS shows a folder's links 0.3 to 0.6 s into the hover.
 constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(400);
-#else
-constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(200);
-#endif
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' popup: 240 pt wide, 4 pt right of the sidebar and centred on
 // its folder's row; a 48 pt search row over a line, then rows 45 pt apart
 // with the link's title and when it was last opened, the first selected.
@@ -292,13 +263,6 @@ constexpr SkColor kPopupGlyph = SkColorSetRGB(0x8C, 0x8C, 0x8C);
 // The line Arc for macOS draws above the Space bar while the rows overflow:
 // 1 pt #212121 on #161616.
 constexpr SkAlpha kOverflowLineShade = 0x0C;
-#else
-constexpr int kPopupWidth = 260;
-constexpr views::BubbleBorder::Arrow kPopupArrow =
-    views::BubbleBorder::LEFT_TOP;
-constexpr int kPopupPadding = 4;
-constexpr ui::ColorId kPopupColor = kColorArcomiumSidebarPopup;
-#endif
 constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(30);
 // Polls the pointer may spend outside before the popup closes.
 constexpr int kPopupOutsideTicks = 10;
@@ -332,27 +296,24 @@ enum Command {
   kShareFirst = 1000,
 };
 
-// Arc draws its sidebar with Segoe UI Variable: "Text" optical size,
-// semilight for items and semibold for folders; "Small" for the Space name.
-// Segoe UI is the fallback before Windows 11.
-constexpr auto kSemilight = static_cast<gfx::Font::Weight>(350);
-
-gfx::FontList ArcFont(const char* family, int size, gfx::Font::Weight weight) {
+// Arc for macOS draws its sidebar in the system font, the same sizes and
+// weights on every platform: SF Pro on macOS; on Windows the system's Segoe UI
+// Variable ("Text" optical size; Segoe UI before Windows 11), regular for
+// items and semibold for folders, as macOS', not Arc for Windows' semilight.
+gfx::FontList ArcFont(int size, gfx::Font::Weight weight) {
 #if BUILDFLAG(IS_WIN)
-  return gfx::FontList({family, "Segoe UI"}, gfx::Font::NORMAL, size, weight);
+  return gfx::FontList({"Segoe UI Variable Text", "Segoe UI"},
+                       gfx::Font::NORMAL, size, weight);
 #else
-  // Elsewhere Arc uses the system font. macOS fonts come in the standard
-  // weights only, so semilight is regular there.
   const gfx::FontList system;
   return system.DeriveWithSizeDelta(size - system.GetFontSize())
-      .DeriveWithWeight(weight == kSemilight ? gfx::Font::Weight::NORMAL
-                                             : weight);
+      .DeriveWithWeight(weight);
 #endif
 }
 
 gfx::FontList ItemFont(bool bold) {
-  return ArcFont("Segoe UI Variable Text", kItemFontSize,
-                 bold ? gfx::Font::Weight::SEMIBOLD : kSemilight);
+  return ArcFont(kItemFontSize, bold ? gfx::Font::Weight::SEMIBOLD
+                                     : gfx::Font::Weight::NORMAL);
 }
 
 std::unique_ptr<views::Label> MakeLabel(const std::u16string& text,
@@ -378,13 +339,9 @@ class FolderGlyph : public views::View {
       : has_open_tabs_(has_open_tabs),
         custom_icon_(std::move(custom_icon)),
         open_(open) {
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' open folder is wider, 22.5 pt.
     SetPreferredSize(gfx::Size(open ? kOpenFolderGlyphWidth : kFolderGlyphSize,
                                kFolderGlyphSize));
-#else
-    SetPreferredSize(gfx::Size(kFolderGlyphSize, kFolderGlyphSize));
-#endif
     SetCanProcessEventsWithinSubtree(false);
   }
 
@@ -394,7 +351,6 @@ class FolderGlyph : public views::View {
     flags.setAntiAlias(true);
     const SkColor glyph = arcomium::SidebarInk(this, kGlyphColor);
     const SkColor glyph_fill = arcomium::SidebarInk(this, kGlyphFillColor);
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS fills its folders near black.
     const SkColor inside = arcomium::SidebarInk(this, kFolderInside);
     if (open_) {
@@ -445,12 +401,6 @@ class FolderGlyph : public views::View {
     canvas->sk_canvas()->translate(9 - 8.75f * kFolderGlyphScale,
                                    9.25f - 9.25f * kFolderGlyphScale);
     canvas->sk_canvas()->scale(kFolderGlyphScale, kFolderGlyphScale);
-#else
-    flags.setColor(glyph);
-    canvas->DrawRoundRect(gfx::RectF(0.5f, 1, 16.5f, 16.5f), 3, flags);
-    flags.setColor(glyph_fill);
-    canvas->DrawRoundRect(gfx::RectF(2, 5, 13.5f, 11), 1.5f, flags);
-#endif
     flags.setColor(glyph);
     if (has_open_tabs_) {
       canvas->DrawRect(gfx::RectF(4, 9.5f, 3.5f, 1.6f), flags);
@@ -481,7 +431,6 @@ class FolderGlyph : public views::View {
   }
 
  private:
-#if BUILDFLAG(IS_MAC)
   // Arc for macOS' open folder: a grey back panel leaning left behind a
   // slanted front, both outlined. Drawn from a 22.5x15.3 pt trace.
   void PaintOpenFolder(gfx::Canvas* canvas, SkColor glyph, SkColor inside) {
@@ -518,7 +467,6 @@ class FolderGlyph : public views::View {
     canvas->DrawPath(back_path, flags);
     canvas->DrawPath(front_path, flags);
   }
-#endif
 
   const bool has_open_tabs_;
   const std::string custom_icon_;
@@ -538,7 +486,6 @@ class PlusGlyph : public views::View {
     SetCanProcessEventsWithinSubtree(false);
   }
 
-#if BUILDFLAG(IS_MAC)
   // Arc for macOS brightens the "+" while its row is hovered, and draws it
   // as the text while the row is the command bar's new tab.
   void SetHovered(bool hovered) {
@@ -550,34 +497,22 @@ class PlusGlyph : public views::View {
     active_ = active;
     SchedulePaint();
   }
-#endif
 
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
-#if BUILDFLAG(IS_MAC)
     flags.setColor(
         active_    ? arcomium::SidebarInk(this, kItemColor)
         : hovered_ ? arcomium::SidebarInk(this, SkColorSetRGB(0x95, 0x95, 0x95))
                    : arcomium::SidebarInk(this, kPlusColor));
-#else
-    flags.setColor(arcomium::SidebarInk(this, kPlusColor));
-#endif
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' is 11.5 pt, a point left of Windows'.
     canvas->DrawRect(gfx::RectF(2, 7.4f, 11.5f, 1.2f), flags);
     canvas->DrawRect(gfx::RectF(7.15f, 2.25f, 1.2f, 11.5f), flags);
-#else
-    canvas->DrawRect(gfx::RectF(3, 7.4f, 12, 1.2f), flags);
-    canvas->DrawRect(gfx::RectF(8.4f, 2.5f, 1.2f, 12), flags);
-#endif
   }
 
-#if BUILDFLAG(IS_MAC)
  private:
   bool hovered_ = false;
   bool active_ = false;
-#endif
 };
 
 BEGIN_METADATA(PlusGlyph)
@@ -589,28 +524,16 @@ class Divider : public views::View {
 
  public:
   Divider() {
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS has no line here; the view stays as the end of the
     // pinned items for drag and drop.
     SetPreferredSize(gfx::Size());
-#else
-    SetPreferredSize(gfx::Size(0, kDividerTop + 1 + kDividerBottom));
-#endif
   }
 
-#if !BUILDFLAG(IS_MAC)
-  void OnPaint(gfx::Canvas* canvas) override {
-    canvas->FillRect(
-        gfx::Rect(kDividerInset, kDividerTop, width() - 2 * kDividerInset, 1),
-        arcomium::SidebarInk(this, kDividerColor));
-  }
-#endif
 };
 
 BEGIN_METADATA(Divider)
 END_METADATA
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' line over the Space bar while the rows overflow: a point
 // high (the indicator's whole height), barely off the frame.
 class OverflowLine : public views::View {
@@ -628,7 +551,6 @@ class OverflowLine : public views::View {
 
 BEGIN_METADATA(OverflowLine)
 END_METADATA
-#endif
 
 // A shade off the frame (the Space's tint), as Arc's tiles and plates are.
 SkColor FrameShade(const views::View* view, SkAlpha alpha) {
@@ -636,7 +558,6 @@ SkColor FrameShade(const views::View* view, SkAlpha alpha) {
                                               alpha);
 }
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' Space name: a row with the Space's icon, in semibold grey.
 // Hovered, it shows a plate, a chevron that collapses the pinned tabs in
 // place of the icon, and "..." for the Space's menu at its end.
@@ -654,7 +575,7 @@ class SpaceTitle : public views::View {
         toggle_collapsed_(std::move(toggle_collapsed)),
         show_menu_(std::move(show_menu)) {
     label_ = AddChildView(MakeLabel(
-        title, ArcFont("", kSpaceTitleFontSize, gfx::Font::Weight::SEMIBOLD),
+        title, ArcFont(kSpaceTitleFontSize, gfx::Font::Weight::SEMIBOLD),
         kSubtleColor));
     label_->SetCanProcessEventsWithinSubtree(false);
     SetPreferredSize(gfx::Size(0, static_cast<int>(kRowPitch)));
@@ -860,7 +781,6 @@ class SpaceTitle : public views::View {
 
 BEGIN_METADATA(SpaceTitle)
 END_METADATA
-#endif
 
 // Arc's favorite: a tile with the site's icon in its middle; lighter while
 // hovered or while its tab shows.
@@ -876,10 +796,6 @@ class FavoriteTile : public views::Button {
     icon_ = AddChildView(std::make_unique<views::ImageView>(icon));
     icon_->SetImageSize(gfx::Size(kIconSize, kIconSize));
     icon_->SetCanProcessEventsWithinSubtree(false);
-#if !BUILDFLAG(IS_MAC)
-    // Arc for macOS' favorites have no tooltip.
-    SetTooltipText(title);
-#endif
     GetViewAccessibility().SetName(title);
     SetInstallFocusRingOnFocus(false);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON);
@@ -1028,7 +944,6 @@ class GlyphImageSource : public gfx::CanvasImageSource {
   const SkColor color_;
 };
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' icon for a page without a favicon: an outlined globe, a
 // 12.8 pt ring with one meridian and the equator in 1.25 pt strokes, not
 // Chromium's filled one.
@@ -1058,20 +973,15 @@ class BlankPageImageSource : public gfx::CanvasImageSource {
  private:
   const SkColor color_;
 };
-#endif
 
 // A page without a favicon of its own.
 ui::ImageModel DefaultPageIcon(const views::View* view) {
-#if BUILDFLAG(IS_MAC)
   const SkColor color = view->GetColorProvider()
                             ? arcomium::SidebarInk(
                                   view, SkColorSetRGB(0x8D, 0x8D, 0x8D))
                             : SK_ColorGRAY;
   return ui::ImageModel::FromImageSkia(
       gfx::CanvasImageSource::MakeImageSkia<BlankPageImageSource>(color));
-#else
-  return ui::ImageModel::FromImage(favicon::GetDefaultFavicon());
-#endif
 }
 
 std::string FolderIcon(const bookmarks::BookmarkNode* folder) {
@@ -1112,7 +1022,6 @@ ArcomiumSidebarView* FindSidebarIn(views::View* view) {
   return nullptr;
 }
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' popup rim: 1 px #3D3D3D outside 1 px #4F4F4E.
 class PopupRimBorder : public views::Border {
  public:
@@ -1171,11 +1080,9 @@ class PopupSearchRow : public views::View {
 BEGIN_METADATA(PopupSearchRow)
 END_METADATA
 
-#endif
 
 }  // namespace
 
-#if BUILDFLAG(IS_MAC)
 // Hands the folder popup's search field's typing and keys to the sidebar.
 class ArcomiumSidebarView::PopupSearchController
     : public views::TextfieldController {
@@ -1200,11 +1107,9 @@ class ArcomiumSidebarView::PopupSearchController
   base::RepeatingCallback<void(const std::u16string&)> on_changed_;
   base::RepeatingCallback<bool(ui::KeyboardCode)> on_key_;
 };
-#endif
 
 namespace {
 
-#if BUILDFLAG(IS_MAC)
 
 // Arc for macOS' popup stands 4 pt off the sidebar.
 class FolderPopupBubble : public views::BubbleDialogDelegate {
@@ -1258,7 +1163,6 @@ std::u16string LastUsedText(const bookmarks::BookmarkNode* node) {
   }
   return base::i18n::UnicodeStringToString16(text);
 }
-#endif
 
 // Hides Chromium's split drop zone in every window once a row's drag is over.
 // The zone's controller hides it when a drag that started in a page ends
@@ -1305,12 +1209,8 @@ class ArcomiumSidebarView::Row : public views::Button {
       slash_ = AddChildView(MakeLabel(u"/", font, kSubtleColor));
     }
     label_ = AddChildView(MakeLabel(title, font, color));
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' black pill (arcomium_tooltip.h).
     arcomium::SetArcTooltip(this, title);
-#else
-    SetTooltipText(title);
-#endif
     GetViewAccessibility().SetName(title);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON |
                              ui::EF_MIDDLE_MOUSE_BUTTON);
@@ -1329,7 +1229,6 @@ class ArcomiumSidebarView::Row : public views::Button {
     const bool minus = kind == CloseKind::kClosePinnedTab;
     const gfx::VectorIcon& icon =
         minus ? kRemoveIcon : vector_icons::kCloseIcon;
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' cross: 11 pt in #A9A9A9 (the icon draws 11 of 24),
     // brighter under the pointer; fixed colors, which the native theme's
     // button would replace.
@@ -1347,23 +1246,14 @@ class ArcomiumSidebarView::Row : public views::Button {
           state, ui::ImageModel::FromVectorIcon(
                      icon, SkColorSetRGB(0xDA, 0xDA, 0xDA), icon_size));
     }
-#else
-    constexpr int kButtonIconSize = 18;
-    auto close = views::CreateVectorImageButtonWithNativeTheme(
-        std::move(callback), icon, minus ? 16 : kButtonIconSize);
-#endif
     // The "-" takes the cross's place and plate.
     close->SetMinimumImageSize(gfx::Size(kButtonIconSize, kButtonIconSize));
     const std::u16string name = l10n_util::GetStringUTF16(
         kind == CloseKind::kRemovePinned ? IDS_ARCOMIUM_REMOVE_PINNED_BUTTON
                                          : IDS_ARCOMIUM_CLOSE_TAB_BUTTON);
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' black pill (arcomium_tooltip.h); the row's own pill
     // gives way to it.
     arcomium::SetArcTooltip(close.get(), name);
-#else
-    close->SetTooltipText(name);
-#endif
     close->GetViewAccessibility().SetName(name);
     close_ = AddChildView(std::move(close));
     // As in Arc, shown only while the row is hovered.
@@ -1407,7 +1297,6 @@ class ArcomiumSidebarView::Row : public views::Button {
                               bool renamed) {
     double_click_key_ = key;
     double_click_callback_ = std::move(callback);
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' tooltip says so under the name, but not once the item
     // has a name of its own.
     if (!renamed) {
@@ -1415,7 +1304,6 @@ class ArcomiumSidebarView::Row : public views::Button {
           this,
           l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOUBLE_CLICK_TO_RENAME));
     }
-#endif
   }
 
   bool OnMousePressed(const ui::MouseEvent& event) override {
@@ -1447,17 +1335,16 @@ class ArcomiumSidebarView::Row : public views::Button {
   // half paints only its hover, and its insets stop at the row's middle.
   void SetSplitHalf(bool start) { split_half_ = start ? 1 : 2; }
 
-#if BUILDFLAG(IS_MAC)
   // A row of Arc for macOS' folder popup: smaller text, an optional second
   // line in grey, and only the selected row highlighted.
   void SetPopupStyle(const std::u16string& subtitle) {
     popup_ = true;
     height_ = kPopupRowPitch;
-    label_->SetFontList(ArcFont("", 13, gfx::Font::Weight::NORMAL));
+    label_->SetFontList(ArcFont(13, gfx::Font::Weight::NORMAL));
     color_override_ = kPopupTitle;
     if (!subtitle.empty()) {
       subtitle_ = AddChildView(MakeLabel(
-          subtitle, ArcFont("", 11, gfx::Font::Weight::MEDIUM), kSubtleColor));
+          subtitle, ArcFont(11, gfx::Font::Weight::MEDIUM), kSubtleColor));
       subtitle_->SetCanProcessEventsWithinSubtree(false);
     }
   }
@@ -1471,7 +1358,6 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   // Arc for macOS brightens some rows' text under the pointer.
   void SetHoverLabelColor(SkColor color) { hover_label_color_ = color; }
-#endif
 
   std::u16string title() const { return std::u16string(label_->GetText()); }
 
@@ -1528,12 +1414,10 @@ class ArcomiumSidebarView::Row : public views::Button {
         }
       }
     }
-#if BUILDFLAG(IS_MAC)
     if (popup_) {
       LayoutPopupRow();
       return;
     }
-#endif
     const int shift = depth_ * kIndent +
                       (split_half_ == 2 ? kSplitHalfGap - kRowBackgroundInsetX
                                         : 0);
@@ -1548,19 +1432,11 @@ class ArcomiumSidebarView::Row : public views::Button {
     // runs to the half's end.
     int x = split_half_ ? kIconX + shift + kIconSize + kSplitHalfGap + 2
                         : kTextX + shift;
-#if BUILDFLAG(IS_MAC)
     int right = width() - end_inset - (split_half_ ? 0 : kTextEndInset);
-#else
-    int right = width() - end_inset;
-#endif
     if (close_) {
       const gfx::Size size = close_->GetPreferredSize();
-#if BUILDFLAG(IS_MAC)
       // Arc for macOS centres its cross 18 pt from the highlight's edge.
       const int close_right = width() - end_inset + 2;
-#else
-      const int close_right = width() - end_inset;
-#endif
       close_->SetBounds(close_right - size.width() - 4,
                         center_y - size.height() / 2, size.width(),
                         size.height());
@@ -1611,16 +1487,9 @@ class ArcomiumSidebarView::Row : public views::Button {
 
   void OnPaintBackground(gfx::Canvas* canvas) override {
     // The hover highlight fades with the button's hover animation.
-#if BUILDFLAG(IS_MAC)
     // On macOS the button's hover animation never advances here, so the
     // highlight follows the pointer without a fade.
     const double hover = polled_hover_ || adopted_hover_ || mouse_hovered_;
-#else
-    const double hover = polled_hover_ || adopted_hover_
-                             ? 1.0
-                             : hover_animation().GetCurrentValue();
-#endif
-#if BUILDFLAG(IS_MAC)
     if (popup_) {
       if (selected_) {
         cc::PaintFlags flags;
@@ -1631,7 +1500,6 @@ class ArcomiumSidebarView::Row : public views::Button {
       }
       return;
     }
-#endif
     if (!active_ && hover <= 0) {
       return;
     }
@@ -1647,16 +1515,11 @@ class ArcomiumSidebarView::Row : public views::Button {
     // A split row's halves meet at its middle.
     const float start_inset = split_half_ == 2 ? 1 : kRowBackgroundInsetX;
     const float end_inset = split_half_ == 1 ? 1 : kRowBackgroundInsetX;
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' plate sits half a point above the row's middle, and
     // a nested row's starts where the row does.
     bounds.Inset(gfx::InsetsF::TLBR(kRowBackgroundInsetY - 0.5f,
                                     start_inset + depth_ * kIndent,
                                     kRowBackgroundInsetY + 0.5f, end_inset));
-#else
-    bounds.Inset(gfx::InsetsF::TLBR(kRowBackgroundInsetY, start_inset,
-                                    kRowBackgroundInsetY, end_inset));
-#endif
     canvas->DrawRoundRect(bounds, kRowBackgroundRadius, flags);
   }
 
@@ -1686,7 +1549,6 @@ class ArcomiumSidebarView::Row : public views::Button {
     UpdateHover(false);
   }
 
-#if BUILDFLAG(IS_MAC)
   void LayoutPopupRow() {
     const int shift = depth_ * kIndent;
     const gfx::Size icon_size = icon_->GetPreferredSize();
@@ -1709,13 +1571,11 @@ class ArcomiumSidebarView::Row : public views::Button {
     label_->SetBounds(x, 5, text_width, 16);
     subtitle_->SetBounds(kPopupTextX + shift, 23, text_width, 14);
   }
-#endif
 
   void UpdateLabelColor() {
     if (!GetColorProvider()) {
       return;
     }
-#if BUILDFLAG(IS_MAC)
     if (subtitle_) {
       subtitle_->SetEnabledColor(arcomium::SidebarInk(this, kPopupDate));
     }
@@ -1727,17 +1587,14 @@ class ArcomiumSidebarView::Row : public views::Button {
       label_->SetEnabledColor(arcomium::SidebarInk(this, *color_override_));
       return;
     }
-#endif
     label_->SetEnabledColor(arcomium::SidebarInk(this, color_));
   }
 
   void UpdateHover(bool hovered) {
     mouse_hovered_ = hovered;
-#if BUILDFLAG(IS_MAC)
     if (hover_label_color_) {
       UpdateLabelColor();
     }
-#endif
     if (close_) {
       close_->SetVisible(hovered);
       InvalidateLayout();
@@ -1759,13 +1616,11 @@ class ArcomiumSidebarView::Row : public views::Button {
   raw_ptr<views::Label> label_ = nullptr;
   raw_ptr<views::ImageButton> close_ = nullptr;
   raw_ptr<views::ImageButton> speaker_ = nullptr;
-#if BUILDFLAG(IS_MAC)
   raw_ptr<views::Label> subtitle_ = nullptr;
   bool popup_ = false;
   bool selected_ = false;
   std::optional<SkColor> color_override_;
   std::optional<SkColor> hover_label_color_;
-#endif
   bool speaker_muted_ = false;
   bool adopt_hover_ = false;
   bool polled_hover_ = false;
@@ -1812,15 +1667,10 @@ class SplitPair : public views::View {
     if (active_) {
       flags.setColor(arcomium::SidebarInk(this, kActiveColor));
       gfx::RectF bounds(0, 0, width(), height_);
-#if BUILDFLAG(IS_MAC)
       bounds.Inset(gfx::InsetsF::TLBR(kRowBackgroundInsetY - 0.5f,
                                       kRowBackgroundInsetX,
                                       kRowBackgroundInsetY + 0.5f,
                                       kRowBackgroundInsetX));
-#else
-      bounds.Inset(
-          gfx::InsetsF::VH(kRowBackgroundInsetY, kRowBackgroundInsetX));
-#endif
       canvas->DrawRoundRect(bounds, kRowBackgroundRadius, flags);
     }
     flags.setColor(arcomium::SidebarInk(this, kSubtleColor));
@@ -1870,13 +1720,11 @@ ArcomiumSidebarView::ArcomiumSidebarView(BrowserWindowInterface* browser)
   scroll->SetVerticalScrollBarMode(
       views::ScrollView::ScrollBarMode::kHiddenButEnabled);
   scroll->ClipHeightTo(0, 100000);
-#if BUILDFLAG(IS_MAC)
   for (const auto side : {views::OverflowIndicatorAlignment::kTop,
                           views::OverflowIndicatorAlignment::kBottom}) {
     scroll->SetCustomOverflowIndicator(side, std::make_unique<OverflowLine>(),
                                        1, /*fills_opaquely=*/false);
   }
-#endif
   auto rows = std::make_unique<views::View>();
   rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -2381,14 +2229,12 @@ bool ArcomiumSidebarView::HasOwnIcon(const bookmarks::BookmarkNode* node) {
 
 ui::ImageModel ArcomiumSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
   ui::ImageModel icon = TabUIHelper::From(tab)->GetFavicon();
-#if BUILDFLAG(IS_MAC)
   // A page without a favicon shows Chromium's default one.
   if (icon.IsImage() &&
       icon.GetImage().AsImageSkia().BackedBySameObjectAs(
           favicon::GetDefaultFavicon().AsImageSkia())) {
     return DefaultPageIcon(this);
   }
-#endif
   return icon.IsEmpty()
              ? DefaultPageIcon(this)
              : icon;
@@ -2724,7 +2570,6 @@ void ArcomiumSidebarView::BuildRows() {
   if (title.empty()) {
     title = folder ? folder->GetTitle() : u"home";
   }
-#if BUILDFLAG(IS_MAC)
   const bool collapsed = IsPinnedCollapsed(folder);
   auto* space_title = rows_->AddChildView(std::make_unique<SpaceTitle>(
       title, arcomium::GetSpaceIconName(folder, GetActiveSpace()), collapsed,
@@ -2738,28 +2583,15 @@ void ArcomiumSidebarView::BuildRows() {
   space_title->set_context_menu_controller(this);
   space_title->SetHighlighted(space_title_highlighted_);
   space_title_ = space_title;
-#else
-  auto* space_label = rows_->AddChildView(MakeLabel(
-      title, ArcFont("Segoe UI Variable Small", kLabelFontSize, kSemilight),
-      kSubtleColor));
-  space_label->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(
-      2, kSpaceLabelX, kSpaceLabelHeight - kSpaceLabelTextHeight - 2, 0)));
-  space_label->SetPreferredSize(gfx::Size(0, kSpaceLabelHeight));
-  space_title_ = space_label;
-#endif
 
   if (folder) {
     BindTabsByUrl(folder);
-#if BUILDFLAG(IS_MAC)
     // Collapsed, only the pinned tabs that are open show, as in a folder.
     if (collapsed) {
       AddBoundTabRows(folder, 0);
     } else {
       AddPinnedRows(folder, 0);
     }
-#else
-    AddPinnedRows(folder, 0);
-#endif
   }
 
   rows_->AddChildView(std::make_unique<Divider>());
@@ -2776,14 +2608,9 @@ void ArcomiumSidebarView::BuildRows() {
           base::Unretained(address_bar_.get())),
       std::move(plus),
       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB), 0, ItemFont(false),
-#if BUILDFLAG(IS_MAC)
       // Arc for macOS shows the command bar's new tab as the active row.
       command_bar_new_tab_ && !preview_space_ ? kItemColor : kNewTabColor,
       /*slash=*/false, /*active=*/command_bar_new_tab_ && !preview_space_));
-#else
-      kNewTabColor, /*slash=*/false, /*active=*/false));
-#endif
-#if BUILDFLAG(IS_MAC)
   // Arc for macOS brightens New Tab's "+" and text under the pointer.
   plus_glyph->SetActive(command_bar_new_tab_ && !preview_space_);
   if (!command_bar_new_tab_ || preview_space_) {
@@ -2795,7 +2622,6 @@ void ArcomiumSidebarView::BuildRows() {
   // Arc for macOS has no tooltip on New Tab.
   new_tab->SetTooltipText(std::u16string());
   arcomium::SetArcTooltip(new_tab, std::u16string());
-#endif
 
   TabStripModel* tabs = browser_->GetTabStripModel();
   // An empty Space's hidden tab has no row, nor does a pinned item's tab.
@@ -2867,11 +2693,9 @@ void ArcomiumSidebarView::AddPinnedRows(const bookmarks::BookmarkNode* folder,
                    node->GetTitle(), depth, ItemFont(true), kFolderColor,
                    /*slash=*/false, /*active=*/false),
                id);
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS shows the popup, not a tooltip, on a folder.
     row->SetTooltipText(std::u16string());
     arcomium::SetArcTooltip(row, std::u16string());
-#endif
     row->SetHoverCallback(
         base::BindRepeating(&ArcomiumSidebarView::OnFolderHovered,
                             base::Unretained(this), id, row));
@@ -3404,29 +3228,20 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
   auto contents = std::make_unique<views::View>();
   contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
-#if BUILDFLAG(IS_MAC)
   folder_popup_query_.clear();
   folder_popup_selected_ = 0;
   folder_popup_rows_height_ = 0;
   BuildFolderPopup(contents.get());
-#endif
   FillFolderPopup(contents.get(), node);
 
   // A bubble right of the row, shown without taking focus. It must be able to
   // activate: Windows drops clicks on bubbles that cannot.
-#if BUILDFLAG(IS_MAC)
   auto delegate = std::make_unique<FolderPopupBubble>(row, kPopupArrow);
   delegate->set_margins(gfx::Insets());
   delegate->set_corner_radius(kPopupRadius);
   delegate->SetBackgroundColor(arcomium::SidebarInk(this, kPopupBackground));
   delegate->SetInitiallyFocusedView(folder_popup_field_);
   contents->SetBorder(std::make_unique<PopupRimBorder>());
-#else
-  auto delegate = std::make_unique<views::BubbleDialogDelegate>(
-      row, kPopupArrow);
-  delegate->set_margins(gfx::Insets::VH(kPopupPadding, 0));
-  delegate->SetBackgroundColor(arcomium::SidebarInk(this, kPopupColor));
-#endif
   delegate->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   delegate->SetShowCloseButton(false);
   delegate->set_close_on_deactivate(false);
@@ -3442,12 +3257,8 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
   if (layer) {
     layer->SetOpacity(0);
   }
-#if BUILDFLAG(IS_MAC)
   // Arc's popup takes the keyboard: its search field has the caret.
   folder_popup_->Show();
-#else
-  folder_popup_->ShowInactive();
-#endif
   if (layer) {
     ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
     fade.SetTransitionDuration(kPopupFadeDuration);
@@ -3460,7 +3271,6 @@ void ArcomiumSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
                             &ArcomiumSidebarView::CheckFolderPopupHover);
 }
 
-#if BUILDFLAG(IS_MAC)
 void ArcomiumSidebarView::BuildFolderPopup(views::View* contents) {
   folder_popup_search_ = std::make_unique<PopupSearchController>(
       base::BindRepeating(&ArcomiumSidebarView::OnFolderPopupQuery,
@@ -3472,7 +3282,7 @@ void ArcomiumSidebarView::BuildFolderPopup(views::View* contents) {
   field->SetBorder(views::NullBorder());
   field->SetBackgroundEnabled(false);
   // 13 pt, its hint #989897 as the command bar's.
-  field->SetFontList(ArcFont("", 13, gfx::Font::Weight::NORMAL));
+  field->SetFontList(ArcFont(13, gfx::Font::Weight::NORMAL));
   field->SetTextColorId(kColorOmniboxText);
   field->SetPlaceholderTextColorId(kColorOmniboxForegroundDisabled);
   folder_popup_field_ = field.get();
@@ -3573,12 +3383,10 @@ void ArcomiumSidebarView::AddFilteredPopupRows(
     }
   }
 }
-#endif
 
 void ArcomiumSidebarView::FillFolderPopup(
     views::View* contents,
     const bookmarks::BookmarkNode* folder) {
-#if BUILDFLAG(IS_MAC)
   // Arc's popup: the search row stays, the rows below follow the query.
   folder_popup_field_->SetPlaceholderText(l10n_util::GetStringFUTF16(
       IDS_ARCOMIUM_SEARCH_FOLDER, folder->GetTitle()));
@@ -3606,16 +3414,6 @@ void ArcomiumSidebarView::FillFolderPopup(
       kPopupWidth,
       kPopupSearchHeight +
           std::min(rows_height, kPopupMaxHeight - kPopupSearchHeight)));
-#else
-  contents->RemoveAllChildViews();
-  AddFolderPopupRows(contents, folder, 0);
-  folder_popup_speakers_ = SpeakerState(folder);
-  int height = 0;
-  for (const views::View* child : contents->children()) {
-    height += child->GetPreferredSize().height();
-  }
-  contents->SetPreferredSize(gfx::Size(kPopupWidth, height));
-#endif
 }
 
 void ArcomiumSidebarView::ToggleFolderPopupFolder(int64_t id) {
@@ -3652,10 +3450,8 @@ void ArcomiumSidebarView::AddFolderPopupRows(
               std::make_unique<FolderGlyph>(false, FolderIcon(node)),
               node->GetTitle(), depth, ItemFont(true), kFolderColor,
               /*slash=*/false, /*active=*/false));
-#if BUILDFLAG(IS_MAC)
       folder_row->SetPopupStyle(std::u16string());
       folder_popup_items_.push_back(node->id());
-#endif
       if (folder_popup_open_.contains(node->id())) {
         AddFolderPopupRows(container, node, depth + 1);
       }
@@ -3678,10 +3474,8 @@ void ArcomiumSidebarView::AddFolderPopupLink(
           base::Unretained(this), node->id()),
       MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
       ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
-#if BUILDFLAG(IS_MAC)
   row->SetPopupStyle(LastUsedText(node));
   folder_popup_items_.push_back(node->id());
-#endif
   if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
     AddSpeaker(row, tab);
   }
@@ -3703,7 +3497,6 @@ void ArcomiumSidebarView::CheckFolderPopupHover() {
                            row.height());
     inside = inside || bridge.Contains(point);
   }
-#if BUILDFLAG(IS_MAC)
   // The row under a moving pointer is the selected one, as in Arc.
   if (folder_popup_rows_ && point != folder_popup_last_point_) {
     int i = 0;
@@ -3717,13 +3510,6 @@ void ArcomiumSidebarView::CheckFolderPopupHover() {
     }
   }
   folder_popup_last_point_ = point;
-#else
-  for (views::View* child :
-       folder_popup_delegate_->GetContentsView()->children()) {
-    static_cast<Row*>(child)->SetPolledHover(
-        child->GetBoundsInScreen().Contains(point));
-  }
-#endif
   // The pointer is on the folder's menu while that runs.
   if (menu_runner_ && menu_runner_->IsRunning()) {
     inside = true;
@@ -3760,14 +3546,12 @@ void ArcomiumSidebarView::CloseFolderPopup() {
   if (!folder_popup_) {
     return;
   }
-#if BUILDFLAG(IS_MAC)
   if (folder_popup_field_) {
     folder_popup_field_->set_controller(nullptr);
   }
   folder_popup_field_ = nullptr;
   folder_popup_rows_ = nullptr;
   folder_popup_items_.clear();
-#endif
   // Deleted later: this may run from inside the popup's own events.
   folder_popup_->Hide();
   DeleteBubbleSoon(std::move(folder_popup_),
@@ -3787,7 +3571,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
   menu_node_ = 0;
   menu_point_ = point;
   menu_tab_ = tabs::TabInterface::Handle();
-#if BUILDFLAG(IS_MAC)
   // Arc keeps a folder's popup open behind the folder's own menu, and after
   // Escape closes the menu.
   if (const auto source_it = row_targets_.find(source);
@@ -3795,9 +3578,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
       source_it->second.node != folder_popup_id_) {
     CloseFolderPopup();
   }
-#else
-  CloseFolderPopup();
-#endif
   // The previous menu's runner refers to the models replaced below.
   menu_runner_.reset();
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -3947,10 +3727,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     add_move_to();
-#if !BUILDFLAG(IS_MAC)
-    menu_model_->AddItem(kPinTab,
-                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_PIN_CURRENT_TAB_HERE));
-#endif
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_FOLDER));
   } else if (node && IsFavorite(node)) {
@@ -3960,16 +3736,12 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     add_change_icon();
     menu_model_->AddItem(kRename, l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME));
     add_mute(tab);
-#if BUILDFLAG(IS_MAC)
     add_pinned_page(tab);
-#endif
     add_reset(tab);
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     add_split(tab);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
-#if BUILDFLAG(IS_MAC)
     add_move_to();
-#endif
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemoveFavorite,
                          l10n_util::GetStringUTF16(IDS_ARCOMIUM_REMOVE_FAVORITE));
@@ -3986,10 +3758,6 @@ void ArcomiumSidebarView::ShowContextMenuForViewImpl(
     add_split(tab);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ARCOMIUM_DUPLICATE));
     add_move_to();
-#if !BUILDFLAG(IS_MAC)
-    menu_model_->AddItem(kAddFavorite,
-                         l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_FAVORITES));
-#endif
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ARCOMIUM_UNPIN));
     if (tab) {
@@ -4190,21 +3958,15 @@ bool ArcomiumSidebarView::GetSpaceTitleAnchor(gfx::Rect* bounds,
     return false;
   }
   *bounds = space_title_->GetBoundsInScreen();
-#if BUILDFLAG(IS_MAC)
   *arrow_x = bounds->x() + kSpaceTitleIconX;
-#else
-  *arrow_x = bounds->x() + kSpaceLabelX + 8;
-#endif
   return true;
 }
 
 void ArcomiumSidebarView::SetSpaceTitleHighlighted(bool highlighted) {
   space_title_highlighted_ = highlighted;
-#if BUILDFLAG(IS_MAC)
   if (auto* title = views::AsViewClass<SpaceTitle>(space_title_.get())) {
     title->SetHighlighted(highlighted);
   }
-#endif
 }
 
 void ArcomiumSidebarView::SetNodeIcon(int64_t id,
@@ -4223,9 +3985,9 @@ void ArcomiumSidebarView::SetNodeIcon(int64_t id,
 }
 
 void ArcomiumSidebarView::ExecuteCommand(int command_id, int event_flags) {
-#if BUILDFLAG(IS_MAC)
   // A folder's popup kept behind its menu goes once an item is picked.
   CloseFolderPopup();
+#if BUILDFLAG(IS_MAC)
   if (command_id >= kShareFirst) {
     const auto [url, title] = GetMenuLink();
     if (url.is_valid()) {
@@ -4401,19 +4163,21 @@ void ArcomiumSidebarView::OnThemeChanged() {
                      base::Unretained(this)));
 }
 
-#if BUILDFLAG(IS_MAC)
 void ArcomiumSidebarView::AddedToWidget() {
   views::View::AddedToWidget();
+#if BUILDFLAG(IS_MAC)
+  // Only macOS lightens an inactive frame so far (arcomium::FrameColor);
+  // elsewhere a rebuild would change nothing.
   paint_as_active_subscription_ =
       GetWidget()->RegisterPaintAsActiveChangedCallback(base::BindRepeating(
           &ArcomiumSidebarView::ScheduleRebuild, base::Unretained(this)));
+#endif
 }
 
 void ArcomiumSidebarView::RemovedFromWidget() {
   paint_as_active_subscription_ = {};
   views::View::RemovedFromWidget();
 }
-#endif
 
 void ArcomiumSidebarView::EditSpaceColorAt(const gfx::Point& screen_point) {
   menu_point_ = screen_point;
@@ -5381,6 +5145,7 @@ views::View* ArcomiumSidebarView::FindActiveTabRow() const {
   }
   return nullptr;
 }
+#endif
 
 bool ArcomiumSidebarView::IsPinnedCollapsed(
     const bookmarks::BookmarkNode* folder) const {
@@ -5395,7 +5160,6 @@ void ArcomiumSidebarView::ToggleCollapsedPinned() {
                             IsPinnedCollapsed(folder) ? "0" : "1");
   }
 }
-#endif
 
 BEGIN_METADATA(ArcomiumSidebarView)
 END_METADATA

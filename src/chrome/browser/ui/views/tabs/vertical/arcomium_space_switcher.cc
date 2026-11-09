@@ -104,7 +104,6 @@ namespace {
 
 // Arc's Space bar: Downloads at the left (where Arc has its archive), the
 // Spaces' icons in the middle (the active one bright), "+" at the right edge.
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' Space bar: 34x32 pt Space buttons side by side, centred on
 // the sidebar; Downloads and "+" centred 24 pt from its sides (the region
 // already keeps 12 pt), 13 pt icons; a hovered button gets a faint plate as
@@ -118,18 +117,13 @@ constexpr gfx::Insets kBarInsets = gfx::Insets::TLBR(2, 0, 0, 0);
 constexpr int kIconGap = 0;
 // The sun, rays and all, is 16.8 wide drawn for the sidebar.
 constexpr float kIconScale = 13 / 16.8f;
-// The Spaces menu's icons, about 12.5 pt as Arc's, not the sidebar's 14.5.
+#if BUILDFLAG(IS_MAC)
+// The menu bar's Spaces menu's icons, about 12.5 pt as Arc's, not the
+// sidebar's 14.5.
 constexpr float kMenuIconScale = 0.87f;
+#endif
 constexpr float kHoverPlateRadius = 8;
 constexpr SkColor kHoverPlate = SkColorSetARGB(0x11, 0xFF, 0xFF, 0xFF);
-#else
-constexpr int kButtonSize = 28;
-constexpr gfx::Size kButtonBox(kButtonSize, kButtonSize);
-constexpr gfx::Size kSideButtonBox = kButtonBox;
-constexpr gfx::Insets kBarInsets = gfx::Insets::VH(4, 6);
-constexpr int kIconGap = 0;
-constexpr int kAddIconSize = 20;
-#endif
 constexpr int kDotDiameter = 6;
 constexpr int kSpaceIconSize = 16;
 // The colors (chrome/browser/ui/color/arcomium_color_mixer.cc).
@@ -154,6 +148,9 @@ constexpr int kToggleFoldersCommand = 9;
 constexpr char kFolderOpenMetaKey[] = "arcomium.open";
 #if BUILDFLAG(IS_MAC)
 constexpr int kAddPopoverWidth = 210;
+#else
+// Room for Windows' spelled-out shortcuts, "Ctrl+Shift+=".
+constexpr int kAddPopoverWidth = 250;
 #endif
 
 // Meta info of a Space's bookmark folder: its Space id, and the saved tab
@@ -255,7 +252,6 @@ void PaintSpaceIcon(gfx::Canvas* canvas,
                     const std::string& name,
                     SkColor color) {
   const SpaceIconChoice* choice = FindSpaceIcon(name);
-#if BUILDFLAG(IS_MAC)
   if (name == "book") {
     // Arc for macOS' book: two filled pages open at a spine gap, their tops
     // dipping and their bottoms sagging towards it.
@@ -273,7 +269,6 @@ void PaintSpaceIcon(gfx::Canvas* canvas,
     }
     return;
   }
-#endif
   if (choice && choice->icon) {
     const gfx::ImageSkia image =
         gfx::CreateVectorIcon(*choice->icon, kSpaceIconSize, color);
@@ -325,7 +320,6 @@ ui::Accelerator SpaceAccelerator(size_t index) {
   );
 }
 
-#if BUILDFLAG(IS_MAC)
 // The Space bar's icons: Arc for macOS dims them in an inactive window to
 // half their contrast with its lighter frame (#A0A0A0 to #747474, the shown
 // Space's #F0F0F1 to #969696).
@@ -346,7 +340,6 @@ void PaintHoverPlate(const views::Button* button, gfx::Canvas* canvas) {
   canvas->DrawRoundRect(gfx::RectF(button->GetLocalBounds()),
                         kHoverPlateRadius, flags);
 }
-#endif
 
 // A Space: its icon, bright while it is the active one and dimmed otherwise.
 class SpaceIcon : public views::Button {
@@ -382,28 +375,18 @@ class SpaceIcon : public views::Button {
     const ui::ColorId color = active_            ? kActiveIconColor
                               : IsMouseHovered() ? kHoveredIconColor
                                                  : kIconColor;
-#if BUILDFLAG(IS_MAC)
     const SkColor ink = !active_ && IsMouseHovered() && hover_tint_
                             ? *hover_tint_
                             : IconInk(this, color);
-#else
-    const SkColor ink = !active_ && IsMouseHovered() && hover_tint_
-                            ? *hover_tint_
-                            : arcomium::SidebarInk(this, color);
-#endif
     const gfx::PointF center = gfx::RectF(GetContentsBounds()).CenterPoint();
     // An emoji fades like the glyphs do on the dark theme, on every theme.
     const uint8_t emoji_alpha = active_ ? 255 : IsMouseHovered() ? 150 : 90;
-#if BUILDFLAG(IS_MAC)
     PaintHoverPlate(this, canvas);
     // Arc for macOS' Space icons are 13 pt, smaller than the sidebar's.
     gfx::ScopedCanvas scoped_canvas(canvas);
     canvas->sk_canvas()->translate(center.x(), center.y());
     canvas->sk_canvas()->scale(kIconScale, kIconScale);
     arcomium::PaintSpaceIcon(canvas, gfx::PointF(), icon_, ink, emoji_alpha);
-#else
-    arcomium::PaintSpaceIcon(canvas, center, icon_, ink, emoji_alpha);
-#endif
   }
 
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
@@ -431,19 +414,17 @@ class DownloadsButton : public views::Button {
       : views::Button(std::move(callback)) {
     const std::u16string name =
         l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS);
-#if BUILDFLAG(IS_MAC)
-    // Named with its shortcut (Shift-Command-J) in Arc for macOS' pill.
+    // Named with its shortcut in Arc for macOS' pill: Shift-Command-J there,
+    // Chromium's Ctrl+J on Windows and Linux.
     arcomium::SetArcTooltip(
         this, name, std::u16string(),
+#if BUILDFLAG(IS_MAC)
         ui::Accelerator(ui::VKEY_J, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN));
+#else
+        ui::Accelerator(ui::VKEY_J, ui::EF_CONTROL_DOWN));
+#endif
     // Kept under the pointer at the window's bottom, as Arc's Library pill.
     arcomium::SetArcTooltipBelowPointer(this);
-#else
-    SetTooltipText(
-        name + u" (" +
-        ui::Accelerator(ui::VKEY_J, ui::EF_CONTROL_DOWN).GetShortcutText() +
-        u")");
-#endif
     GetViewAccessibility().SetName(name);
     SetPreferredSize(kSideButtonBox);
   }
@@ -455,7 +436,6 @@ class DownloadsButton : public views::Button {
     flags.setStyle(cc::PaintFlags::kStroke_Style);
     flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
     flags.setStrokeJoin(cc::PaintFlags::kRound_Join);
-#if BUILDFLAG(IS_MAC)
     PaintHoverPlate(this, canvas);
     // Grey under the pointer too, as the "+"; the plate shows the hover.
     flags.setColor(IconInk(this, kHoveredIconColor));
@@ -466,16 +446,6 @@ class DownloadsButton : public views::Button {
     const float arrow_top = c.y() - kHalf;
     const float arrow_tip = c.y() + 2.2f;
     const float tray_top = c.y() + 1.2f;
-#else
-    flags.setColor(arcomium::SidebarInk(
-        this, IsMouseHovered() ? kHoveredIconColor : kIconColor));
-    flags.setStrokeWidth(2.0f);
-    constexpr float kHalf = 7.0f;
-    constexpr float kHead = 3.8f;
-    const float arrow_top = c.y() - kHalf;
-    const float arrow_tip = c.y() + 2.5f;
-    const float tray_top = c.y() + 1.5f;
-#endif
     SkPathBuilder arrow;
     arrow.moveTo(c.x(), arrow_top)
         .lineTo(c.x(), arrow_tip)
@@ -497,7 +467,6 @@ class DownloadsButton : public views::Button {
 BEGIN_METADATA(DownloadsButton)
 END_METADATA
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' "+": a 13.5 pt cross 1.7 pt thick in Downloads' grey,
 // on the Space bar's hover plate.
 class AddButton : public views::Button {
@@ -575,7 +544,6 @@ class AddButton : public views::Button {
 
 BEGIN_METADATA(AddButton)
 END_METADATA
-#endif
 
 }  // namespace
 
@@ -1197,7 +1165,6 @@ void ArcomiumSpaceSwitcher::Rebuild() {
         views::Button::PressedCallback(std::move(callback)), std::move(icon),
         active, title, std::move(space),
         std::move(sync_id)));
-#if BUILDFLAG(IS_MAC)
     // Arc for macOS' pill names the Space and its shortcut, "home" ^ 1.
     view->SetTooltipText(std::u16string());
     std::optional<ui::Accelerator> shortcut;
@@ -1222,7 +1189,6 @@ void ArcomiumSpaceSwitcher::Rebuild() {
         menu_bar_spaces_.back().tint = color_utils::HSLToSkColor(hsl, 255);
       }
     }
-#endif
     view->GetViewAccessibility().SetName(title);
     view->set_context_menu_controller(this);
   };
@@ -1309,20 +1275,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   LinkSpaceFolders();
   ApplyActiveSpaceColor();
 
-#if BUILDFLAG(IS_MAC)
   auto add = std::make_unique<AddButton>(base::BindRepeating(
       &ArcomiumSpaceSwitcher::ShowAddMenu, base::Unretained(this)));
-#else
-  auto add = views::CreateVectorImageButtonWithNativeTheme(
-      base::BindRepeating(&ArcomiumSpaceSwitcher::ShowAddMenu,
-                          base::Unretained(this)),
-      vector_icons::kAdd2Icon, kAddIconSize);
-  add->SetPreferredSize(kSideButtonBox);
-#endif
-#if !BUILDFLAG(IS_MAC)
-  // Arc for macOS' "+" has no tooltip.
-  add->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
-#endif
   add->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
   add_button_ = AddChildView(std::move(add));
   add_button_->set_context_menu_controller(this);
@@ -1474,9 +1428,7 @@ void ArcomiumSpaceSwitcher::ShowSpaceMenu(
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME_SPACE));
   menu_model_->AddItem(kEditColorCommand,
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_EDIT_THEME_COLOR));
-#if BUILDFLAG(IS_MAC)
   menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
-#endif
   menu_model_->AddItem(kNewFolderCommand,
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
   // Collapse All Folders while one is open, else Expand All Folders; dimmed
@@ -1493,11 +1445,7 @@ void ArcomiumSpaceSwitcher::ShowSpaceMenu(
   // item Arc always has is dimmed there.
   menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
   menu_model_->AddItem(kDeleteSpaceCommand,
-#if BUILDFLAG(IS_MAC)
-                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_SPACE_MAC));
-#else
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_DELETE_SPACE));
-#endif
   menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1,
                             menu_space_ != kDefaultSpace);
   menu_runner_ = std::make_unique<views::MenuRunner>(
@@ -1512,7 +1460,6 @@ void ArcomiumSpaceSwitcher::ShowAddMenu(const ui::Event& event) {
   if (!button || !button->GetWidget()) {
     return;
   }
-#if BUILDFLAG(IS_MAC)
   // Arc for macOS' popover over its "+": New Space, New Folder | New Split,
   // New Tab. Its Easel and Boost rows are Arc's own features, left out.
   auto* add = static_cast<AddButton*>(button);
@@ -1564,24 +1511,6 @@ void ArcomiumSpaceSwitcher::ShowAddMenu(const ui::Event& event) {
   add->SetOpen(true);
   arcomium::ShowArcPopover(add, std::move(items), /*above=*/true,
                            kAddPopoverWidth, add->GetClosedCallback());
-#else
-  // Arc's plus button: a new Space, folder or tab.
-  menu_runner_.reset();
-  menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  menu_model_->AddItem(kNewSpaceCommand,
-                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_SPACE));
-  menu_model_->AddItem(kNewFolderCommand,
-                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
-  menu_model_->AddItem(kNewTabCommand,
-                       l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_TAB));
-  menu_runner_ = std::make_unique<views::MenuRunner>(
-      menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
-  menu_runner_->RunMenuAt(button->GetWidget(), nullptr,
-                          button->GetBoundsInScreen(),
-                          views::MenuAnchorPosition::kBubbleTopLeft,
-                          event.IsKeyEvent() ? ui::mojom::MenuSourceType::kKeyboard
-                                             : ui::mojom::MenuSourceType::kMouse);
-#endif
 }
 
 void ArcomiumSpaceSwitcher::MenuClosed(ui::SimpleMenuModel* source) {

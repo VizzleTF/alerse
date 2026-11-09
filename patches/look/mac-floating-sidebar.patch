@@ -2,17 +2,14 @@ diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/
 index 2798e14..508f79c 100644
 --- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-@@ -21,7 +21,13 @@ inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
+@@ -21,7 +21,9 @@ inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
  // TODO(crbug.com/465832180): Replace constant based width final max width for
  // view.
  inline constexpr int kVerticalTabStripUncollapsedMaxWidth = 400;
-+#if BUILDFLAG(IS_MAC)
+-inline constexpr int kVerticalTabStripCollapsedWidth = 56;
 +// Arcomium: Arc for macOS' hidden sidebar leaves only the page's 10 pt
 +// margin, where hovering brings the sidebar back.
 +inline constexpr int kVerticalTabStripCollapsedWidth = 10;
-+#else
- inline constexpr int kVerticalTabStripCollapsedWidth = 56;
-+#endif
  // TODO(crbug.com/465833741): Determine snapping behavior.
  inline constexpr int kVerticalTabStripCollapseSnapWidth =
      (kVerticalTabStripUncollapsedMinWidth + kVerticalTabStripCollapsedWidth) /
@@ -31,53 +28,45 @@ index 85f1aaa..045da5a 100644
  #include "base/time/time.h"
  #include "base/timer/timer.h"
  #include "chrome/browser/ui/animation/browser_animation_types.h"
-@@ -139,6 +141,14 @@ class VerticalTabStripRegionView final
+@@ -139,6 +141,12 @@ class VerticalTabStripRegionView final
    }
  
    bool is_expanded_on_hover() const { return is_expanded_on_hover_; }
 +
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: whether the hidden sidebar floats over the page, as Arc for
 +  // macOS' does while hovered.
 +  bool IsArcomiumFloating() const;
 +  // views::View:
 +  void OnPaintBackground(gfx::Canvas* canvas) override;
-+#endif
    ShadowFrameView* shadow_frame() { return shadow_frame_; }
    int uncollapsed_width() const {
      return target_collapse_state_.uncollapsed_width;
-@@ -207,6 +217,11 @@ class VerticalTabStripRegionView final
+@@ -207,6 +215,9 @@ class VerticalTabStripRegionView final
    void CalculateMouseVelocityForExpandOnHover();
    void ResetExpandOnHoverTimers();
    void AnimateExpandOnHover(bool expand);
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: shows the Arc sidebar, its header and the window controls only
 +  // while it is not hidden, or floats.
 +  void UpdateArcomiumFloating();
-+#endif
  
    void RegisterExpandOnHoverLock(VerticalTabStripExpandOnHoverLock* lock);
    void UnregisterExpandOnHoverLock(VerticalTabStripExpandOnHoverLock* lock);
-@@ -274,6 +289,11 @@ class VerticalTabStripRegionView final
+@@ -274,6 +285,9 @@ class VerticalTabStripRegionView final
    int keep_expanded_lock_count_ = 0;
    std::unique_ptr<ExpandOnHoverLock> omnibox_open_lock_;
    std::unique_ptr<ExpandOnHoverLock> link_drag_lock_;
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: held while the active tab shows no page, when Arc for macOS
 +  // keeps its hidden sidebar floating.
 +  std::unique_ptr<ExpandOnHoverLock> arcomium_blank_page_lock_;
-+#endif
    base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
  
    std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>
-@@ -290,6 +310,22 @@ class VerticalTabStripRegionView final
+@@ -290,6 +304,20 @@ class VerticalTabStripRegionView final
    base::OneShotTimer mouse_exit_timer_;
  
    base::CallbackListSubscription paint_as_active_subscription_;
-+#if BUILDFLAG(IS_MAC)
 +  base::WeakPtrFactory<VerticalTabStripRegionView> arcomium_weak_factory_{
 +      this};
-+#endif
  };
  
 +#if BUILDFLAG(IS_MAC)
@@ -121,11 +110,15 @@ index fb01980..5757fa9 100644
  #include "ui/display/screen.h"
  #include "ui/events/event.h"
  #include "ui/gfx/geometry/point.h"
-@@ -93,11 +97,21 @@ constexpr int kSnapDistance = 15;
+@@ -93,11 +97,13 @@ constexpr int kSnapDistance = 15;
  // Shadow is used in expand-on-hover mode. Shadow radius and opacity are dynamic
  // and set by the layout.
  constexpr int kExpandOnHoverShadowElevation = 4;
-+#if BUILDFLAG(IS_MAC)
+-constexpr ShadowFrameView::ShadowAlpha kExpandOnHoverShadowAlpha(
+-    {.light_key = 0.3,
+-     .light_ambient = 0.0,
+-     .dark_key = 0.6,
+-     .dark_ambient = 0.0});
 +// Arcomium: Arc for macOS' floating sidebar casts a faint shadow, a few levels
 +// off the page beside it (#2C2C2D by #2E2E2E), a quarter of Chromium's.
 +constexpr ShadowFrameView::ShadowAlpha kExpandOnHoverShadowAlpha(
@@ -133,88 +126,69 @@ index fb01980..5757fa9 100644
 +     .light_ambient = 0.0,
 +     .dark_key = 0.15,
 +     .dark_ambient = 0.0});
-+#else
- constexpr ShadowFrameView::ShadowAlpha kExpandOnHoverShadowAlpha(
-     {.light_key = 0.3,
-      .light_ambient = 0.0,
-      .dark_key = 0.6,
-      .dark_ambient = 0.0});
-+#endif
  
  // This is the minimum time before EOH can be triggered.
  constexpr base::TimeDelta kVerticalTabsExpandOnHoverVelocityHeuristicDelay =
-@@ -465,8 +479,11 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+@@ -465,8 +471,9 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
  
    // Lay out the top button container. Arcomium: expanded, it spans the strip
    // and places the Arc header buttons on its own grid.
 -  const int header_padding =
 -      state_controller_->IsCollapsed() ? horizontal_padding : 0;
 +  bool header_collapsed = state_controller_->IsCollapsed();
-+#if BUILDFLAG(IS_MAC)
 +  header_collapsed = header_collapsed && !IsArcomiumFloating();
-+#endif
 +  const int header_padding = header_collapsed ? horizontal_padding : 0;
    layout.child_layouts.push_back(
        {.child_view = top_button_container_.get(),
         .visible = true,
-@@ -501,6 +518,15 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+@@ -501,6 +508,13 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
                                      .bounds = organizer_bounds});
    }
  
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: Arc for macOS' hidden sidebar shows nothing until it floats.
 +  if (state_controller_->IsCollapsed() && !IsArcomiumFloating()) {
 +    for (auto& child_layout : layout.child_layouts) {
 +      child_layout.visible = false;
 +    }
 +  }
-+#endif
 +
    return layout;
  }
  
-@@ -936,6 +962,9 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -936,6 +950,7 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
    if (tab_strip_view()) {
      tab_strip_view()->SetCollapsedState(collapsed);
    }
-+#if BUILDFLAG(IS_MAC)
 +  UpdateArcomiumFloating();
-+#endif
  
    if ((state == tabs::VerticalTabStripCollapseState::kCollapsing) ||
        (state == tabs::VerticalTabStripCollapseState::kExpanded &&
-@@ -959,7 +988,16 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -959,7 +974,12 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
  
    if (state == tabs::VerticalTabStripCollapseState::kExpanded ||
        state == tabs::VerticalTabStripCollapseState::kCollapsed) {
-+#if BUILDFLAG(IS_MAC)
+-    UpdateExpandOnHoverState();
 +    // Arcomium: a blank page floats the hidden sidebar at once, which starts
 +    // an animation; not from inside the collapse animation's end.
 +    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
 +        FROM_HERE,
 +        base::BindOnce(&VerticalTabStripRegionView::UpdateExpandOnHoverState,
 +                       arcomium_weak_factory_.GetWeakPtr(), std::nullopt));
-+#else
-     UpdateExpandOnHoverState();
-+#endif
    }
  }
  
-@@ -1145,6 +1183,9 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
+@@ -1145,6 +1165,7 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
  
  void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
    is_expanded_on_hover_ = expand;
-+#if BUILDFLAG(IS_MAC)
 +  UpdateArcomiumFloating();
-+#endif
    ResetExpandOnHoverTimers();
  
    if (expand) {
-@@ -1237,6 +1278,20 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
+@@ -1237,6 +1258,18 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
      const tabs::TabInterface* active_tab) {
    BaseTabStripRegionView::OnActiveTabChanged(active_tab);
    omnibox_tab_helper_observation_.Reset();
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: with no page to show (an empty Space's blank tab), Arc for
 +  // macOS keeps its hidden sidebar floating.
 +  const bool blank =
@@ -227,16 +201,14 @@ index fb01980..5757fa9 100644
 +    arcomium_blank_page_lock_ =
 +        GetExpandOnHoverLock(ExpandOnHoverLockType::kKeepExpanded);
 +  }
-+#endif
  
    if (active_tab) {
      OmniboxTabHelper* const tab_helper =
-@@ -1249,3 +1304,46 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
+@@ -1249,3 +1282,47 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
  
  BEGIN_METADATA(VerticalTabStripRegionView)
  END_METADATA
 +
-+#if BUILDFLAG(IS_MAC)
 +bool VerticalTabStripRegionView::IsArcomiumFloating() const {
 +  return state_controller_->IsCollapsed() && is_expanded_on_hover_;
 +}
@@ -251,8 +223,11 @@ index fb01980..5757fa9 100644
 +  top_button_container_->SetArcomiumFloating(floating);
 +  bottom_button_container_->UpdateButtonStyles(hidden && !floating);
 +  if (GetWidget()) {
++#if BUILDFLAG(IS_MAC)
++    // Elsewhere the window controls stay in the top bar.
 +    arcomium::SetWindowControlsHidden(GetWidget(), hidden && !floating,
 +                                      floating);
++#endif
 +  }
 +  InvalidateLayout();
 +  SchedulePaint();
@@ -277,7 +252,6 @@ index fb01980..5757fa9 100644
 +  panel.Inset(0.5f);
 +  canvas->DrawRoundRect(panel, kRadius - 0.5f, flags);
 +}
-+#endif
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
 index 02abaaa..0dc8fe0 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
@@ -358,11 +332,10 @@ index ac06020..909e8cc 100644
    }
  
    // Gets where the bottom of the toolbar will be laid out.
-@@ -945,6 +951,19 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -945,6 +951,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                      vertical_tab_strip_width,
                      params.visual_client_area.height() -
                          vertical_tab_strip_animation.top_offset);
-+#if BUILDFLAG(IS_MAC)
 +      // Arcomium: Arc for macOS' hidden sidebar floats 5 pt in from the
 +      // window's edges.
 +      if (horizontal_layout.vertical_tab_strip_collapsed_state ==
@@ -374,7 +347,6 @@ index ac06020..909e8cc 100644
 +        vertical_tab_strip_bounds.set_height(
 +            std::max(0, vertical_tab_strip_bounds.height() - 2 * inset));
 +      }
-+#endif
  
        if (layout_data_->window_state == WindowState::kFullscreenWithToolbar &&
            layout_data_->separator_info.adjust_for_missing_separator) {

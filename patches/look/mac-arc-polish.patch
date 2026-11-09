@@ -371,11 +371,13 @@ diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/c
  #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
-@@ -1322,6 +1323,18 @@
+@@ -1322,9 +1323,19 @@
    if (GetWidget()) {
+ #if BUILDFLAG(IS_MAC)
+     // Elsewhere the window controls stay in the top bar.
      arcomium::SetWindowControlsHidden(GetWidget(), hidden && !floating,
                                        floating);
-+#if BUILDFLAG(IS_MAC)
+ #endif
 +    // What the sidebar shades off the frame then follows the floating
 +    // panel's darker #0D0D0D (arcomium_frame_color.h), as Arc's glyphs do.
 +    views::Widget* widget = GetWidget();
@@ -386,7 +388,6 @@ diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/c
 +                                      floating ? &kMark : nullptr);
 +      widget->ThemeChanged();
 +    }
-+#endif
    }
    InvalidateLayout();
    SchedulePaint();

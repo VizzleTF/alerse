@@ -337,8 +337,8 @@
     <message name="IDS_ARCOMIUM_SPACE_ICON" desc="Space menu: the submenu that picks the Space's icon.">
       Change Space Icon
     </message>
-    <message name="IDS_ARCOMIUM_DELETE_SPACE" desc="Space menu item: delete the Space after asking.">
-      Delete Space…
+    <message name="IDS_ARCOMIUM_DELETE_SPACE" desc="Space menu item: delete the Space after asking. Arc for macOS' text, without an ellipsis.">
+      Delete Space
     </message>
     <message name="IDS_ARCOMIUM_DELETE_SPACE_TITLE" desc="Title of the question asked before deleting a Space.">
       Delete Space?
@@ -454,9 +454,6 @@
     </message>
     <message name="IDS_ARCOMIUM_CHANGE_SPACE_ICON" desc="Space menu item that opens the icon picker for the Space.">
       Change Space Icon…
-    </message>
-    <message name="IDS_ARCOMIUM_DELETE_SPACE_MAC" desc="macOS: Space menu item: delete the Space after asking.">
-      Delete Space
     </message>
     <message name="IDS_ARCOMIUM_CHANGE_ICON" desc="Sidebar menu item that opens the icon picker for a pinned tab, favorite or folder.">
       Change Icon…

@@ -167,6 +167,10 @@ gfx::FontList Font(int size, gfx::Font::Weight weight) {
 
 // The keys of `shortcut` as Arc writes them: the modifiers, then the key.
 std::vector<std::u16string> KeysOf(const ui::Accelerator& shortcut) {
+#if !BUILDFLAG(IS_MAC)
+  // Elsewhere the platform's own text, "Ctrl+Shift+=", as one key.
+  return {shortcut.GetShortcutText()};
+#else
   std::vector<std::u16string> keys;
   if (shortcut.IsCtrlDown()) {
     keys.push_back(u"⌃");
@@ -189,6 +193,7 @@ std::vector<std::u16string> KeysOf(const ui::Accelerator& shortcut) {
     keys.push_back(key);
   }
   return keys;
+#endif
 }
 
 // A rounded rect's outline from (x, y), `w` by `h`.
@@ -1402,7 +1407,6 @@ class IconPickerView : public views::View, public views::TextfieldController {
 BEGIN_METADATA(IconPickerView)
 END_METADATA
 
-#if BUILDFLAG(IS_MAC)
 // Arc for macOS' "..." and "+" popovers cast a faint shadow: what is under
 // them darkens by 3 to 5 levels within about 4 pt of the panel's edge.
 constexpr int kMenuShadowMargin = 6;
@@ -1448,7 +1452,6 @@ class MenuShadowHost : public views::View {
 
 BEGIN_METADATA(MenuShadowHost)
 END_METADATA
-#endif
 
 // Owns a popover's widget; deletes itself once it closes.
 class Popover : public views::WidgetObserver {
@@ -1616,7 +1619,6 @@ void ShowArcPopover(views::View* anchor,
   auto view = std::make_unique<PopoverView>(std::move(items), above,
                                             popover->GetCloseCallback());
   view->set_arrow_x(center - x);
-#if BUILDFLAG(IS_MAC)
   // Room round the panel for its shadow.
   views::View* focus = view.get();
   auto host = std::make_unique<MenuShadowHost>(
@@ -1630,11 +1632,6 @@ void ShowArcPopover(views::View* anchor,
                           width + 2 * kMenuShadowMargin,
                           height + 2 * kMenuShadowMargin),
                 /*menu=*/true, focus);
-#else
-  // Owns itself until it closes.
-  popover->Show(std::move(view), gfx::Rect(x, y, width, height),
-                /*menu=*/true);
-#endif
 }
 
 void ShowArcIconPicker(views::View* anchor,

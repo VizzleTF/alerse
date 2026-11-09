@@ -23,18 +23,16 @@ index 8432f494683..e5e4b1943ec 100644
  #include "chrome/browser/ui/color/new_tab_page_color_mixer.h"
  #include "chrome/browser/ui/color/omnibox_color_mixer.h"
  #include "chrome/browser/ui/color/product_specifications_color_mixer.h"
-@@ -88,6 +95,25 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+@@ -88,6 +95,23 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
    // Must be the last one in order to override other mixer colors.
    AddNativeChromeColorMixer(provider, key);
  
 +#if !BUILDFLAG(IS_MAC)
-+  // Arcomium: Arc for Windows' dark frame, behind its sidebar, its top bar
-+  // and the page card; the same whether the window is active or not.
++  // Arcomium: Arc for Windows' top bar over the frame, which is Arc for
++  // macOS' #161616 (arc-colors-everywhere.patch) as the sidebar beside it.
 +  if (!key.custom_theme &&
 +      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
 +    ui::ColorMixer& mixer = provider->AddMixer();
-+    mixer[ui::kColorFrameActive] = {SkColorSetRGB(0x1B, 0x1B, 0x1B)};
-+    mixer[ui::kColorFrameInactive] = {SkColorSetRGB(0x1B, 0x1B, 0x1B)};
 +    // Its top bar's icons are a dim grey whether enabled or not.
 +    mixer[kColorToolbarButtonIcon] = {SkColorSetRGB(0x52, 0x52, 0x52)};
 +    mixer[kColorToolbarButtonIconInactive] = {SkColorSetRGB(0x52, 0x52, 0x52)};
@@ -146,23 +144,17 @@ index 5407bd717cc..f95a865c8db 100644
  #include <memory>
  #include <optional>
  #include <utility>
-@@ -204,8 +214,15 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+@@ -204,8 +214,9 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
  
    if (!is_in_split) {
      if (split_changed) {
-+#if BUILDFLAG(IS_MAC)
        SetBorder(nullptr);
-+#else
-+      // Arcomium: Arc for Windows' page card has a 1 px rim a shade off the
-+      // frame.
-+      SetBorder(views::CreateEmptyBorder(gfx::Insets(1)));
-+#endif
        UpdateBorderRoundedCorners();
 +      OnThemeChanged();
  
        mini_toolbar_->SetVisible(false);
        container_outline_->SetVisible(false);
-@@ -218,6 +235,7 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
+@@ -218,6 +229,7 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
        SetBorder(views::CreateEmptyBorder(gfx::Insets(
            kSplitViewContentPadding + ContentsContainerOutline::kThickness)));
        UpdateBorderRoundedCorners();
@@ -170,7 +162,7 @@ index 5407bd717cc..f95a865c8db 100644
      }
  
      container_outline_->UpdateState(is_active, is_highlighted);
-@@ -447,6 +465,18 @@ void ContentsContainerView::SetRoundedCorners(
+@@ -447,6 +459,11 @@ void ContentsContainerView::SetRoundedCorners(
  
    rounded_corner_radii_ = corner_radii;
    UpdateBorderRoundedCorners();
@@ -179,13 +171,6 @@ index 5407bd717cc..f95a865c8db 100644
 +
 +void ContentsContainerView::OnThemeChanged() {
 +  views::View::OnThemeChanged();
-+#if !BUILDFLAG(IS_MAC)
-+  // A single page leaves 1 px for the card's rim, which
-+  // MultiContentsBackgroundView paints behind it.
-+  if (!is_in_split_) {
-+    SetBorder(views::CreateEmptyBorder(gfx::Insets(1)));
-+  }
-+#endif
  }
  
  void ContentsContainerView::UpdateContentsClip() {
@@ -338,7 +323,7 @@ index 56e57fa..67f15dc 100644
  #include "ui/compositor/layer_solid_color.h"
  #include "ui/gfx/geometry/rounded_corners_f.h"
  
-@@ -43,10 +54,52 @@ void MultiContentsBackgroundView::OnThemeChanged() {
+@@ -43,10 +54,45 @@ void MultiContentsBackgroundView::OnThemeChanged() {
  
  void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
    CHECK(layer()->AsTextured());
@@ -359,20 +344,13 @@ index 56e57fa..67f15dc 100644
 +                               MultiContentsView::kArcomiumPageLeadingInset,
 +                               MultiContentsView::kArcomiumPageInset,
 +                               MultiContentsView::kArcomiumPageInset));
-+#if BUILDFLAG(IS_MAC)
-+  // Arc for macOS' card has no rim and only a faint shadow at its edges.
++  // Arc for macOS' card, on every platform: no rim and only a faint shadow
++  // at its edges.
 +  const gfx::ShadowValues shadows = {
 +      gfx::ShadowValue(gfx::Vector2d(0, 1), 6,
 +                       SkColorSetA(SK_ColorBLACK, 0x40))};
 +  const SkColor card_color =
 +      color_provider->GetColor(kColorNewTabPageBackground);
-+#else
-+  // Its soft shadow falls mostly below it; its rim is a shade off the frame.
-+  const gfx::ShadowValues shadows = {
-+      gfx::ShadowValue(gfx::Vector2d(0, 5), 28,
-+                       SkColorSetA(SK_ColorBLACK, 0x50))};
-+  const SkColor card_color = color_utils::BlendTowardMaxContrast(frame, 0x0A);
-+#endif
 +  cc::PaintFlags flags;
 +  flags.setAntiAlias(true);
 +  flags.setColor(card_color);
@@ -391,7 +369,7 @@ index 56e57fa..67f15dc 100644
    const bool has_custom_image =
        !ThemedBackground::GetBackgroundColor(this, browser_view_).has_value();
    return has_custom_image ? ui::LAYER_TEXTURED : ui::LAYER_SOLID_COLOR;
-@@ -54,6 +107,11 @@ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
+@@ -54,6 +100,11 @@ ui::LayerType MultiContentsBackgroundView::CalculateLayerType() const {
  
  void MultiContentsBackgroundView::UpdateSolidLayerColor() {
    CHECK(layer()->AsSolidColor());
@@ -450,23 +428,20 @@ index 431ee6f..366cd6c 100644
  #include "base/callback_list.h"
  #include "base/functional/callback_forward.h"
  #include "base/gtest_prod_util.h"
-@@ -65,14 +66,31 @@ class MultiContentsView
+@@ -65,14 +66,23 @@ class MultiContentsView
    };
  
    static constexpr int kSplitViewContentInset = 8;
-+#if BUILDFLAG(IS_MAC)
 +  // Arcomium: Arc for macOS' page card touches the sidebar and keeps 10 pt
-+  // from the window's other edges.
++  // from the window's other edges; on Windows and Linux the top bar is
++  // above it.
 +  static constexpr int kArcomiumPageLeadingInset = 0;
++#if BUILDFLAG(IS_MAC)
 +  static constexpr int kArcomiumPageTopInset = 10;
-+  static constexpr int kArcomiumPageInset = 10;
 +#else
-+  // Arcomium: the gap between the sidebar and the page card on Windows; the
-+  // top bar is above it.
-+  static constexpr int kArcomiumPageLeadingInset = 3;
 +  static constexpr int kArcomiumPageTopInset = 0;
-+  static constexpr int kArcomiumPageInset = kSplitViewContentInset;
 +#endif
++  static constexpr int kArcomiumPageInset = 10;
    // Arcomium: Arc-like card radius.
    static constexpr float kSplitViewContentCornerRadius = 10;
    static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
@@ -476,13 +451,8 @@ index 431ee6f..366cd6c 100644
 -  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{
 -      kSplitViewContentCornerRadius, 0, 0, kSplitViewContentCornerRadius};
 +  // Arcomium: a single page is a card, as in Arc.
-+#if BUILDFLAG(IS_MAC)
 +  // Arc for macOS' card has 6 pt corners.
 +  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{6};
-+#else
-+  // Arc for Windows' page card has small corners.
-+  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{4};
-+#endif
  
    MultiContentsView(BrowserView* browser_view,
                      std::unique_ptr<MultiContentsViewDelegate> delegate);
