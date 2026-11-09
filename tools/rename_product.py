@@ -1,16 +1,19 @@
-"""Renames Chromium to Arcomium in the browser's strings, keeping translations.
+"""Renames Chromium to Alerse in the browser's strings, keeping translations.
 
 A translation is found by its message's ID, a fingerprint of the English text.
 Rewriting "Chromium" in the English text alone would orphan every translation,
 so this script reads the IDs with grit before and after the change and moves
 the translations, renamed too, to the new IDs. "The Chromium Authors" and
 "Chromium OS" keep their names. Run it on a patched source tree; running it
-again changes nothing.
+again changes nothing. Alerse was called Arcomium up to 0.1.7: a tree renamed
+to Arcomium is renamed to Alerse the same way.
 
-It also sets the product name in BRANDING and gives Arcomium its own macOS
+It also sets the product name in BRANDING and gives Alerse its own macOS
 bundle ID and profile directory, so it shares neither with Chromium nor
-ungoogled-chromium installed beside it, and gives each Arcomium release its own
-Chromium version number (see docs/versioning.md).
+ungoogled-chromium installed beside it (nor with Arcomium), and gives each
+release its own Chromium version number (see docs/versioning.md). Code
+identifiers keep the old name (arcomium_* files, IDS_ARCOMIUM_*, the
+ARCOMIUM_VERSION key below): only what the user sees is renamed.
 
 Usage:
   python tools/rename_product.py SRC_DIR
@@ -27,9 +30,20 @@ GRDS = [
     'ios/chrome/app/strings/ios_chromium_strings.grd',
 ]
 
-NAME = re.compile(r'\bChromium\b(?! Authors| OS)')
+PRODUCT = 'Alerse'
+# Chromium's name, and Arcomium's, which a tree renamed before 0.1.8 has.
+NAME = re.compile(
+    r'\b(?:Chromium|Arcomium)\b(?! Authors| OS)(?!<ph name="END_LINK_CHROMIUM")')
+# The About page's "made possible by the Chromium open source project" links to
+# Chromium itself: that name stays, and earlier runs, which renamed it too, are
+# undone.
+CHROMIUM_LINK = re.compile(r'\b(?:Arcomium|Alerse)(?=<ph name="END_LINK_CHROMIUM")')
 MESSAGE = re.compile(r'(<message\b[^>]*>)(.*?)(</message>)', re.S)
 TRANSLATION = re.compile(r'<translation id="(\d+)">(.*?)</translation>', re.S)
+
+
+def rename_text(text):
+    return CHROMIUM_LINK.sub('Chromium', NAME.sub(PRODUCT, text))
 
 
 def message_ids(grd):
@@ -60,7 +74,7 @@ def rename(grd):
                      for part in re.findall(r'<part file="([^"]+)"', original)]
     texts = {f: f.read_text(encoding='utf-8') for f in files}
     renamed = {f: MESSAGE.sub(
-        lambda m: m.group(1) + NAME.sub('Arcomium', m.group(2)) + m.group(3), text)
+        lambda m: m.group(1) + rename_text(m.group(2)) + m.group(3), text)
         for f, text in texts.items()}
     if renamed == texts:
         return 0
@@ -87,20 +101,30 @@ def rename(grd):
             new = moved.get(m.group(1))
             if new is None:
                 return m.group(0)
-            return f'<translation id="{new}">{NAME.sub("Arcomium", m.group(2))}</translation>'
+            return f'<translation id="{new}">{rename_text(m.group(2))}</translation>'
 
         xtb.write_text(TRANSLATION.sub(move, text), encoding='utf-8', newline='\n')
     return len(moved)
 
 
+def write_if_changed(path, text):
+    """Writes `text` unless the file has it already: a newer modification time
+    alone would rebuild everything that depends on the file."""
+    if path.read_text(encoding='utf-8') != text:
+        path.write_text(text, encoding='utf-8', newline='\n')
+
+
 BRANDING = {
-    'PRODUCT_FULLNAME': 'Arcomium',
-    'PRODUCT_SHORTNAME': 'Arcomium',
-    'PRODUCT_INSTALLER_FULLNAME': 'Arcomium Installer',
-    'PRODUCT_INSTALLER_SHORTNAME': 'Arcomium Installer',
-    'MAC_BUNDLE_ID': 'io.github.vizzletf.arcomium',
+    'PRODUCT_FULLNAME': PRODUCT,
+    'PRODUCT_SHORTNAME': PRODUCT,
+    'PRODUCT_INSTALLER_FULLNAME': f'{PRODUCT} Installer',
+    'PRODUCT_INSTALLER_SHORTNAME': f'{PRODUCT} Installer',
+    # Arcomium's was io.github.vizzletf.arcomium; Alerse is another app, which
+    # takes over Arcomium's profile (defaults/mac-own-profile-dir.patch).
+    'MAC_BUNDLE_ID': 'io.github.vizzletf.alerse',
 }
 PRODUCT_DIR_KEY = '<key>CrProductDirName</key>'
+PRODUCT_DIR = re.compile(re.escape(PRODUCT_DIR_KEY) + r'(\s*)<string>[^<]*</string>')
 
 
 def set_branding(src):
@@ -113,17 +137,21 @@ def set_branding(src):
     text = branding.read_text(encoding='utf-8')
     for key, value in BRANDING.items():
         text = re.sub(rf'^{key}=.*$', f'{key}={value}', text, flags=re.M)
-    branding.write_text(text, encoding='utf-8', newline='\n')
-    # ~/Library/Application Support/Arcomium, not .../Chromium.
+    write_if_changed(branding, text)
+    # ~/Library/Application Support/Alerse, not .../Chromium (or .../Arcomium,
+    # where a tree renamed before 0.1.8 has it).
     text = plist.read_text(encoding='utf-8')
     if PRODUCT_DIR_KEY not in text:
         text = text.replace(
             '<dict>\n',
-            f'<dict>\n\t{PRODUCT_DIR_KEY}\n\t<string>Arcomium</string>\n', 1)
-        plist.write_text(text, encoding='utf-8', newline='\n')
+            f'<dict>\n\t{PRODUCT_DIR_KEY}\n\t<string>{PRODUCT}</string>\n', 1)
+    else:
+        text = PRODUCT_DIR.sub(
+            lambda m: f'{PRODUCT_DIR_KEY}{m.group(1)}<string>{PRODUCT}</string>', text)
+    write_if_changed(plist, text)
 
 
-# The Arcomium release, MAJOR.MINOR.PATCH.
+# The release, MAJOR.MINOR.PATCH.
 CORE_VERSION = Path(__file__).resolve().parent.parent / 'VERSION'
 VERSION_LINE = re.compile(r'^(\w+)=(.*)$', re.M)
 
@@ -132,10 +160,11 @@ def stamp_version(src):
     """Numbers the release in chrome/VERSION's PATCH, Chromium's x 100 + ours.
 
     Windows' installer cannot install a version over itself while the browser
-    runs, so no two releases may share a version: Arcomium 0.1.4 on Chromium
+    runs, so no two releases may share a version: release 0.1.4 on Chromium
     157.0.8103.38 is 157.0.8103.3804. Chromium's patch number is kept as
     UPSTREAM_PATCH, which the User-Agent and its client hints report, and
-    the release itself as ARCOMIUM_VERSION, which the update check compares
+    the release itself as ARCOMIUM_VERSION (a code identifier, which keeps
+    Arcomium's name), which the update check compares
     with the latest release (chrome/browser/arcomium_update). The platform
     repositories' release workflows check that a release's tag is VERSION and
     its stamp above the latest release's (.github/scripts/release-version.sh).
@@ -149,21 +178,20 @@ def stamp_version(src):
         sys.exit(f'{CORE_VERSION} is {release!r}, not MAJOR.MINOR.PATCH')
     ours = int(match.group(1))
     if ours >= 100:
-        sys.exit(f'Arcomium {release}: its patch number must be below 100 to fit '
+        sys.exit(f'{PRODUCT} {release}: its patch number must be below 100 to fit '
                  "in the last two digits of Chromium's")
     values = dict(VERSION_LINE.findall(chrome_version.read_text(encoding='utf-8')))
     upstream = int(values.get('UPSTREAM_PATCH', values['PATCH']))
     patch = upstream * 100 + ours
     # Windows file versions hold each number in 16 bits.
     if patch > 0xFFFF:
-        sys.exit(f'chrome/VERSION: PATCH {patch} for Arcomium {release} on Chromium '
+        sys.exit(f'chrome/VERSION: PATCH {patch} for {PRODUCT} {release} on Chromium '
                  f'patch {upstream} does not fit in 16 bits')
     values['PATCH'] = str(patch)
     values['UPSTREAM_PATCH'] = str(upstream)
     values['ARCOMIUM_VERSION'] = release
-    chrome_version.write_text(''.join(f'{k}={v}\n' for k, v in values.items()),
-                              encoding='utf-8', newline='\n')
-    print(f'chrome/VERSION: Arcomium {release} is '
+    write_if_changed(chrome_version, ''.join(f'{k}={v}\n' for k, v in values.items()))
+    print(f'chrome/VERSION: {PRODUCT} {release} is '
           f'{values["MAJOR"]}.{values["MINOR"]}.{values["BUILD"]}.{patch}')
 
 

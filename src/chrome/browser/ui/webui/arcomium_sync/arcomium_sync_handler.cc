@@ -270,7 +270,7 @@ std::optional<ArcomiumSyncHandler::NewLogin> ArcomiumSyncHandler::ReadNewLogin(
       return std::nullopt;
     case syncer::SyncPasswordProblem::kContainsLogin:
       RejectJavascriptCallback(
-          callback_id, base::Value("Do not use your login name or the word "
+          callback_id, base::Value("Do not use your login name, Alerse or "
                                    "Arcomium in the password."));
       return std::nullopt;
   }
@@ -750,7 +750,7 @@ void ArcomiumSyncHandler::OnPairingOpened(
   const std::string code = pairing_code_->Display();
   // For phones: the future iOS app reads the server and the code from it.
   const std::string link =
-      "arcomium://pair?server=" +
+      "alerse://pair?server=" +
       base::EscapeQueryParamValue(pairing_server_.spec(), /*use_plus=*/false) +
       "&code=" + code;
   base::DictValue result;

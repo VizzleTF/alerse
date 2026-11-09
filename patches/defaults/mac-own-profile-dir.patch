@@ -1,46 +1,67 @@
 diff --git a/chrome/common/chrome_paths_mac.mm b/chrome/common/chrome_paths_mac.mm
-index 6829c9cb92c..12d3fbb17bb 100644
+index 6829c9cb92c..ed1360554ed 100644
 --- a/chrome/common/chrome_paths_mac.mm
 +++ b/chrome/common/chrome_paths_mac.mm
-@@ -3,7 +3,11 @@
+@@ -3,7 +3,14 @@
  // found in the LICENSE file.
  
  #import <Foundation/Foundation.h>
++#include <errno.h>
 +#include <fcntl.h>
++#include <signal.h>
 +#include <stdio.h>
++#include <stdlib.h>
  #include <string.h>
 +#include <sys/stat.h>
 +#include <unistd.h>
  
  #include <memory>
  #include <string>
-@@ -83,8 +87,52 @@ bool GetDefaultUserDataDirectoryForProduct(const std::string& product_dir,
+@@ -12,6 +19,7 @@
+ #import "base/apple/foundation_util.h"
+ #include "base/base_paths.h"
+ #include "base/check_op.h"
++#include "base/command_line.h"
+ #include "base/compiler_specific.h"
+ #include "base/memory/free_deleter.h"
+ #include "base/path_service.h"
+@@ -83,8 +91,114 @@ bool GetDefaultUserDataDirectoryForProduct(const std::string& product_dir,
  
  namespace chrome {
  
-+// Arcomium: versions before it had its own bundle ID kept their profile in
-+// "Chromium", beside Chromium's and ungoogled-chromium's. The first start
-+// with the "Arcomium" directory (CrProductDirName) moves that profile there,
-+// if it is Arcomium's: its preferences have Arcomium's own. Plain POSIX calls:
-+// this runs before the browser allows blocking calls to be checked.
++// Arcomium: Alerse (CrProductDirName "Alerse") takes over the profile of the
++// browser it was before: "Arcomium" (0.1.0 to 0.1.7), or "Chromium", where
++// versions before Arcomium had its own bundle ID kept it beside Chromium's
++// and ungoogled-chromium's (only if it is Arcomium's: its preferences have
++// Arcomium's own member). The first start without a profile of its own moves
++// that directory to "Alerse". A profile another browser has open (its
++// SingletonLock names a live process) is not moved but used where it is, so
++// that browser keeps its windows; the move happens at a later start. Only the
++// browser process that uses the default directory moves anything: never with
++// --user-data-dir (test and development runs), which still asks for the
++// default directory (crash reports live there). Plain POSIX calls: this runs
++// before the browser allows blocking calls to be checked.
 +namespace {
 +
-+void MoveArcomiumProfileFromChromium(const base::FilePath& user_data_dir) {
-+  if (user_data_dir.BaseName().value() != "Arcomium") {
-+    return;
-+  }
++bool PathExists(const std::string& path) {
 +  struct stat info;
-+  if (stat(user_data_dir.value().c_str(), &info) == 0) {
-+    return;
-+  }
-+  const base::FilePath old_dir = user_data_dir.DirName().Append("Chromium");
++  return lstat(path.c_str(), &info) == 0;
++}
++
++// Whether `dir` holds a browser profile: it has a Local State.
++bool HasProfile(const base::FilePath& dir) {
++  return PathExists(dir.Append("Local State").value());
++}
++
++// Whether `dir` is Arcomium's: its default profile's preferences are a JSON
++// object with an "arcomium" member.
++bool IsArcomiumProfile(const base::FilePath& dir) {
 +  const std::string prefs =
-+      old_dir.Append("Default").Append("Preferences").value();
-+  const int fd = open(prefs.c_str(), O_RDONLY);
++      dir.Append("Default").Append("Preferences").value();
++  const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
 +  if (fd < 0) {
-+    return;
++    return false;
 +  }
-+  // Arcomium's preferences are a JSON object with an "arcomium" member.
 +  std::string text;
 +  char buffer[64 * 1024];
 +  ssize_t read_size;
@@ -49,10 +70,62 @@ index 6829c9cb92c..12d3fbb17bb 100644
 +    text.append(buffer, static_cast<size_t>(read_size));
 +  }
 +  close(fd);
-+  if (text.find("\"arcomium\":") == std::string::npos) {
++  return text.find("\"arcomium\":") != std::string::npos;
++}
++
++// Whether a running browser has `dir` open: its SingletonLock is a symlink to
++// "hostname-pid" of a live process.
++bool ProfileInUse(const base::FilePath& dir) {
++  char target[256];
++  const ssize_t size = readlink(dir.Append("SingletonLock").value().c_str(),
++                                target, sizeof(target) - 1);
++  if (size <= 0) {
++    return false;
++  }
++  target[size] = '\0';
++  const char* dash = strrchr(target, '-');
++  const long pid = dash ? strtol(dash + 1, nullptr, 10) : 0;
++  return pid <= 0 || kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
++}
++
++void TakeOverOldProfile(base::FilePath* user_data_dir) {
++  if (user_data_dir->BaseName().value() != "Alerse" ||
++      !base::CommandLine::InitializedForCurrentProcess()) {
 +    return;
 +  }
-+  rename(old_dir.value().c_str(), user_data_dir.value().c_str());
++  const base::CommandLine& command_line =
++      *base::CommandLine::ForCurrentProcess();
++  if (command_line.HasSwitch("user-data-dir") ||
++      command_line.HasSwitch("type") || HasProfile(*user_data_dir)) {
++    return;
++  }
++  const base::FilePath arcomium = user_data_dir->DirName().Append("Arcomium");
++  const base::FilePath chromium = user_data_dir->DirName().Append("Chromium");
++  base::FilePath old_dir;
++  if (HasProfile(arcomium)) {
++    old_dir = arcomium;
++  } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++    old_dir = chromium;
++  } else {
++    return;
++  }
++  if (ProfileInUse(old_dir)) {
++    *user_data_dir = old_dir;
++    return;
++  }
++  // A directory without a profile goes if it is empty, or else (crash
++  // reports of a development run) is kept aside under another name.
++  const std::string target = user_data_dir->value();
++  if (PathExists(target) && rmdir(target.c_str()) != 0) {
++    const std::string aside = target + ".old";
++    if (PathExists(aside) || rename(target.c_str(), aside.c_str()) != 0) {
++      *user_data_dir = old_dir;
++      return;
++    }
++  }
++  if (rename(old_dir.value().c_str(), target.c_str()) != 0) {
++    *user_data_dir = old_dir;
++  }
 +}
 +
 +}  // namespace
@@ -62,7 +135,7 @@ index 6829c9cb92c..12d3fbb17bb 100644
 +  const bool success =
 +      GetDefaultUserDataDirectoryForProduct(ProductDirName(), result);
 +  if (success) {
-+    MoveArcomiumProfileFromChromium(*result);
++    TakeOverOldProfile(result);
 +  }
 +  return success;
  }

@@ -22,7 +22,7 @@ inline constexpr char kArcomiumLinksHtml[] = R"HTML(<!doctype html>
     <h1>Link routing</h1>
     <p class="lede">Choose the Space where links from other apps open, by
       site: links to github.com from a chat or mail app can open in your Work
-      Space, signed in to work accounts. Links you open inside Arcomium stay in
+      Space, signed in to work accounts. Links you open inside Alerse stay in
       the Space you are in.</p>
   </header>
 

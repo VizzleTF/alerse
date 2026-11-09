@@ -240,7 +240,7 @@ void ArcomiumSyncLoginClient::OnKeysForSet(
     Done done,
     std::optional<syncer::SyncLoginKeys> keys) {
   if (!keys) {
-    std::move(done).Run("Arcomium could not derive keys from the password.");
+    std::move(done).Run("Alerse could not derive keys from the password.");
     return;
   }
   base::DictValue body;
@@ -338,7 +338,7 @@ void ArcomiumSyncLoginClient::OnParams(const GURL& server,
   if (!scheme || *scheme != syncer::kSyncLoginScheme || !salt || !kdf) {
     std::move(done).Run(std::nullopt,
                         "This sync server uses a sign-in this version of "
-                        "Arcomium does not know. Update Arcomium, or use the "
+                        "Alerse does not know. Update Alerse, or use the "
                         "sync code.");
     return;
   }
@@ -347,7 +347,7 @@ void ArcomiumSyncLoginClient::OnParams(const GURL& server,
   if (!syncer::IsAcceptableSyncLoginKdf(*kdf)) {
     std::move(done).Run(std::nullopt,
                         "The server asks for a weaker key derivation than "
-                        "Arcomium allows, so the password was not sent. Use "
+                        "Alerse allows, so the password was not sent. Use "
                         "the sync code.");
     return;
   }
@@ -369,7 +369,7 @@ void ArcomiumSyncLoginClient::OnKeysForUnlock(
     std::optional<syncer::SyncLoginKeys> keys) {
   if (!keys) {
     std::move(done).Run(std::nullopt,
-                        "Arcomium could not derive keys from the password.");
+                        "Alerse could not derive keys from the password.");
     return;
   }
   base::DictValue body;

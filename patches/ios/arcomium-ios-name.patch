@@ -7,7 +7,7 @@ index ef490c7e89..2d9cea0624 100644
    url_x_callback_scheme = "googlechrome-x-callback"
  } else {
 -  chromium_short_name = "Chromium"
-+  chromium_short_name = "Arcomium"
++  chromium_short_name = "Alerse"
    url_channel_scheme = "chromium-dev"
    url_secure_scheme = "chromiums"
    url_ssoauth_scheme = "$ios_app_bundle_id_prefix.sso.chromium"

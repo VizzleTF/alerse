@@ -27,7 +27,7 @@ inline constexpr char kArcomiumSyncHtml[] = R"HTML(<!doctype html>
 
   <section id="restart" class="banner" hidden>
     <p id="restart-text"></p>
-    <button id="restart-button" class="primary">Restart Arcomium</button>
+    <button id="restart-button" class="primary">Restart Alerse</button>
   </section>
 
   <section id="status" hidden>
@@ -302,8 +302,8 @@ const STATUS = {
   wrongCode: ['bad', 'This device’s sync code does not open the chain’s ' +
       'data. Leave the sync chain and join again with the right code.'],
   refused: ['bad', 'The server refused this device. Check that the device’s ' +
-      'clock is right, then restart Arcomium.'],
-  error: ['bad', 'Sync stopped after an error. Restart Arcomium to try again.'],
+      'clock is right, then restart Alerse.'],
+  error: ['bad', 'Sync stopped after an error. Restart Alerse to try again.'],
 };
 
 function formatTime(ms) {
@@ -345,7 +345,7 @@ const PROBLEMS = {
   tooShort: 'At least 15 characters.',
   tooLong: 'At most 256 characters.',
   common: 'Too common or too easy to guess.',
-  containsLogin: 'Do not use your login name or the word Arcomium.',
+  containsLogin: 'Do not use your login name, Alerse or Arcomium in the password.',
 };
 
 async function updateMeter(prefix) {
@@ -456,14 +456,14 @@ function printRecoverySheet() {
   list.append(...words.map((w) => el('li', w)));
   const steps = el('ol');
   steps.append(
-      el('li', 'In Arcomium, open Sync from the logo menu.'),
+      el('li', 'In Alerse, open Sync from the logo menu.'),
       el('li', 'Under Join a sync chain, enter the sync server above.'),
       el('li', 'Choose Sync code (24 words) and type the words in order; ' +
           'the first four letters of each word are enough.' +
           (lastLogin ? ' Or choose Email and password and sign in.' : '')),
-      el('li', 'Restart Arcomium when it asks.'));
+      el('li', 'Restart Alerse when it asks.'));
   sheet.replaceChildren(
-      el('h1', 'Arcomium sync recovery sheet'),
+      el('h1', 'Alerse sync recovery sheet'),
       el('p', `Made on ${new Date().toLocaleDateString()}. Keep it ` +
           'somewhere safe: anyone with these words can read your synced ' +
           'data.', 'note'),
@@ -564,7 +564,7 @@ $('pair-allow').addEventListener('click', async () => {
     await sendWithPromise('approvePairing');
     $('pair-ask').hidden = true;
     $('pair-result').textContent = `${$('pair-name').textContent} got the ` +
-        'sync chain. It starts syncing after Arcomium restarts there.';
+        'sync chain. It starts syncing after Alerse restarts there.';
     $('pair-result').hidden = false;
   } catch (message) {
     showPairError(String(message));
@@ -627,8 +627,8 @@ function render(state) {
 
   $('restart').hidden = !state.restartNeeded;
   $('restart-text').textContent = configured ?
-      'Restart Arcomium to start syncing.' :
-      'This device left its sync chain. Restart Arcomium to finish.';
+      'Restart Alerse to start syncing.' :
+      'This device left its sync chain. Restart Alerse to finish.';
 
   const [tone, text] = STATUS[state.status] || STATUS.off;
   $('status-dot').className = 'dot ' + tone;

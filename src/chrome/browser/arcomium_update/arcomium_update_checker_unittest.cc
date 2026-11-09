@@ -68,13 +68,13 @@ TEST(ArcomiumUpdateCheckerTest, TellsAnswersFromFailures) {
 TEST(ArcomiumUpdateCheckerTest, ReleaseUrls) {
 #if BUILDFLAG(IS_WIN)
   constexpr std::string_view kReleases =
-      "https://github.com/VizzleTF/arcomium-win/releases/";
+      "https://github.com/VizzleTF/alerse-win/releases/";
 #elif BUILDFLAG(IS_MAC)
   constexpr std::string_view kReleases =
-      "https://github.com/VizzleTF/arcomium-mac/releases/";
+      "https://github.com/VizzleTF/alerse-mac/releases/";
 #else
   constexpr std::string_view kReleases =
-      "https://github.com/VizzleTF/arcomium-linux/releases/";
+      "https://github.com/VizzleTF/alerse-linux/releases/";
 #endif
   EXPECT_EQ(GetLatestReleaseUrl().spec(), std::string(kReleases) + "latest");
   EXPECT_EQ(GetReleaseUrl("0.1.5").spec(),

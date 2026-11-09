@@ -36,6 +36,14 @@ source_set("arcomium_update") {
     "//services/network/public/cpp",
     "//services/network/public/mojom",
   ]
+  if (is_win) {
+    # Removes Arcomium once Alerse took over its profile.
+    sources += [
+      "arcomium_legacy_install_win.cc",
+      "arcomium_legacy_install_win.h",
+    ]
+    deps += [ "//chrome/common:constants" ]
+  }
 }
 
 source_set("unit_tests") {
@@ -49,4 +57,7 @@ source_set("unit_tests") {
     "//testing/gtest",
     "//url",
   ]
+  if (is_win) {
+    sources += [ "arcomium_legacy_install_win_unittest.cc" ]
+  }
 }

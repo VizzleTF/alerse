@@ -1,14 +1,107 @@
-# How Arcomium works
+# How Alerse works
 
-How each Arcomium feature maps onto Chromium, and why it is built that way.
+How each Alerse feature maps onto Chromium, and why it is built that way.
 
 Goals: Spaces with separate accounts in one window, a sidebar for people moving from Arc,
 a command bar, Split View, real-time sync across Windows, macOS, Linux and iPhone, link routing to
 Spaces, media controls and picture-in-picture. Left out by the user's choice: Arc's tab
 archive, Peek and Little Arc (see [Left out on purpose](#left-out-on-purpose)).
 
-Arcomium follows how Arc behaves, not how it looks in detail: its own names, icons, logo
-and texts, and none of Arc's code or artwork.
+Alerse follows how Arc behaves, not how it looks in detail: its own names, icons, logo
+and texts, and none of Arc's code or artwork. Alerse was called Arcomium up to 0.1.7
+(see [Name](#name)).
+
+## Name
+
+The product is **Alerse** from 0.1.8 on, a free spelling of alerce, the Chilean tree
+(the user's decision, 2026-11-09); it was Arcomium from 0.1.0 to 0.1.7. The icon is
+Alerse's own: an "A" whose left stroke is a brown trunk with a cut branch and whose
+right stroke is green, on a white rounded tile (`artwork/`, see
+[patching](patching.md#branding-and-the-product-name)).
+
+What the user sees is renamed: the product name in Chromium's strings and their
+translations (`tools/rename_product.py`, which also renames a tree renamed to Arcomium
+before), BRANDING (Alerse.app, "Alerse Installer"), window titles, the menus, About,
+Alerse's own strings and pages (`arcomium_strings.grdp`, the sync, import and link
+routing pages), the installer and its shortcuts, the docs. What the user does not see
+keeps the old name for now, on purpose, so the rename touches no logic: source files
+(`arcomium_*`), resource and command ids (`IDS_ARCOMIUM_*`, `IDC_ARCOMIUM_*`,
+`kColorArcomium*`), class names, the `// Arcomium:` tag on patch hunks, the
+`arcomium.*` preferences and bookmark meta info (they are in every profile and in sync),
+the storage partition domain `arcomium` (each Space's cookies live under it), the
+`chrome://arcomium-*` pages, the sync protocol's identifiers and the
+`ARCOMIUM_VERSION` key.
+
+Taking over Arcomium's profile. Alerse is another app (its own bundle ID, install
+directory, registry keys and ProgIDs), so on its first start it finds no profile of
+its own and takes over Arcomium's, in the same place as the earlier move of Arcomium's
+profile out of Chromium's directory (`defaults/own-install-identity.patch` for Windows
+and Linux, `defaults/mac-own-profile-dir.patch` for macOS):
+
+- Windows: `%LOCALAPPDATA%\Arcomium\User Data` moves to `%LOCALAPPDATA%\Alerse\User
+  Data` (`install_static::GetDefaultUserDataDirectory`, in chrome_elf, before anything
+  opens the profile). macOS: `~/Library/Application Support/Arcomium` to `.../Alerse`.
+  Linux: `~/.config/arcomium` to `~/.config/alerse`. A profile still in Chromium's
+  directory (Arcomium before its own identity) is taken too, only if its Preferences
+  have the `arcomium` key, as before; Arcomium's own directory needs no such check
+  (a fresh Arcomium profile has no `arcomium` preference yet).
+- Only when Alerse has no profile of its own (no `Local State`): a directory without one,
+  such as the crash reports a development run leaves in `.../Alerse`, is kept aside as
+  `Alerse.old` (`User Data.old` on Windows) and the move goes ahead.
+- Never while Arcomium runs with that profile: on Windows its `lockfile` is held without
+  sharing, on macOS and Linux its `SingletonLock` names a live process. Alerse then uses
+  Arcomium's directory where it is (Chromium's process singleton hands the start over to
+  the running Arcomium, which opens a window) and moves it at a later start. If a move
+  fails for any other reason, Alerse also uses the old directory where it is: nothing is
+  lost.
+- Only for the default directory: never with `--user-data-dir`, and on macOS and Linux
+  only in the browser process (no `--type`), because there Chromium also asks for the
+  default directory with `--user-data-dir` (crash reports live under it,
+  `chrome::DIR_CRASH_DUMPS`) and in helper processes. Test runs with their own profile
+  therefore never move the profile of an installed Arcomium.
+- Plain system calls (POSIX, Win32), as this runs before blocking calls are checked.
+
+Removing Arcomium on Windows. Alerse installs beside Arcomium, so without more the user
+would have two browsers, one of them empty. A minute after startup Alerse runs
+Arcomium's own uninstaller silently, `setup.exe --uninstall --force-uninstall`, read
+from Arcomium's uninstall entry (`HKCU\...\Uninstall\Arcomium`,
+`chrome/browser/arcomium_update/arcomium_legacy_install_win.cc`, started from the
+update checker's `PostBrowserStart`). It removes Arcomium's shortcuts, taskbar pins,
+uninstall entry, ProgIDs and registration and its files, and keeps user data
+(`--force-uninstall` asks nothing and deletes the profile only with `--delete-profile`).
+It runs only when this Alerse is installed (`BASE\Alerse\Application\chrome.exe` with
+its default profile `BASE\Alerse\User Data`), the entry's uninstaller is
+`BASE\Arcomium\Application\VERSION\Installer\setup.exe --uninstall` beside it (not a
+system-level one), and Arcomium's `User Data` has no profile left, that is, Alerse took
+it over. A development build, a run with `--user-data-dir`, an Arcomium whose profile
+is still in use, or one installed elsewhere is left alone (and logged). It is decided
+without asking, as the user wants one browser and nothing of Arcomium's is lost; Windows
+then needs Alerse picked as the default browser (Chromium cannot set that itself on
+Windows 10 and 11). `--alerse-legacy-uninstall-key=KEY` reads the entry from another
+HKCU key, for tests only. On macOS and Linux nothing removes Arcomium: an app bundle or
+an AppImage is the user's to delete (README, Coming from Arcomium).
+
+The update notice keeps working for Arcomium's users: their builds ask GitHub for the
+latest release of `VizzleTF/arcomium-<platform>`, which GitHub redirects to the renamed
+`VizzleTF/alerse-<platform>` (the API answers 301 to `/repositories/ID/releases/latest`,
+which `SimpleURLLoader` follows; its request has no credentials to lose on the way;
+checked with curl on 2026-11-09), and offer "Update to Arcomium 0.1.8", which opens the
+Alerse release. Alerse itself asks `VizzleTF/alerse-<platform>`.
+
+Links: Alerse registers `alerse://` as its direct-launch scheme (Chromium's
+`chromium://URL` launch, Windows only) and the pairing QR code carries
+`alerse://pair?...`. Old `arcomium://` links are not accepted: the scheme is one value
+of the install mode, Arcomium's uninstaller removes its registration, and no app reads
+pairing links yet.
+
+Repositories. The user renamed them on GitHub to `VizzleTF/alerse`, `alerse-win`,
+`alerse-mac`, `alerse-linux`, `alerse-ios` and `alerse-sync`; GitHub redirects the old
+names. Updated with the rename: the platform repositories' `.gitmodules`, the update
+check's `kRepository` and its unit test, the AppImage update information in
+alerse-linux's `package/package.sh` (Arcomium's AppImages keep asking `arcomium-linux`,
+which redirects) and the links in the READMEs and docs. Not changed: the local checkout
+folders and the `arcomium` submodule path, and the sync server's Go module path
+(`github.com/VizzleTF/arcomium-sync`), which only matters for building it.
 
 ## Spaces
 
@@ -111,7 +204,7 @@ Known gaps:
 The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100% scale
 (see `ArcomiumSidebarView`):
 
-- Header row, 32 px: Arcomium menu, sidebar toggle, downloads at x = 23, 58, 93.
+- Header row, 32 px: Alerse menu, sidebar toggle, downloads at x = 23, 58, 93.
 - Favorites: Arc's tiles above the Space's name, the same in every Space. They are
   the bookmarks of a folder beside the Spaces' (meta info `arcomium.favorites = 1`,
   created by the first Add to Favorites), so they sync like pinned tabs. Tiles are 47
@@ -128,7 +221,7 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
 - Space name (Segoe UI Variable Small, 12 px, #848484).
 - Pinned tree: the Space's bookmark folder (meta info `arcomium.space = <Space id>`,
   `default` outside of Spaces, `arc:<id>` for an imported Space not yet adopted by an
-  Arcomium Space of the same name). Rows are 43.3 px apart, icon at x = 16, text at
+  Alerse Space of the same name). Rows are 43.3 px apart, icon at x = 16, text at
   x = 44 in Segoe UI Variable Text 14 px (semilight items, semibold folders).
   Folder glyphs follow Arc: a folder holding open tabs shows two dashes, otherwise its
   Arc icon (`arcomium.folder_icon`). Open state is the `arcomium.open` meta info.
@@ -387,7 +480,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
 - No line along the window's top edge: the top container's separator, which Windows
   already drops, would draw a light line over the card there.
 - Menu bar (`look/mac-menu-bar.patch`, `look/mac-menu-bar-arc.patch`): Arc for macOS'
-  menus in its order, with its items and keys wherever Arcomium has the feature:
+  menus in its order, with its items and keys wherever Alerse has the feature:
   - **App menu**: About, Settings... (Cmd+,; Arc's reads Preferences..., but macOS
     renames an item so titled to Settings... in apps built with its current SDK, as
     Arc is not), Set as Default Browser (Chromium's `IDC_SET_BROWSER_AS_DEFAULT`, the system asks),
@@ -425,7 +518,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
     `AcceleratorForEnterFullscreen` is Arc's and the alternate is gone). macOS still
     draws the full screen item's key as Globe+F, as it does for apps built with its
     current SDK; the key itself is Control+Cmd+F.
-    Chromium's Always Show Toolbar in Full Screen is not there: Arcomium for
+    Chromium's Always Show Toolbar in Full Screen is not there: Alerse for
     macOS has no toolbar. Chromium's bookmark bar, toolbar and tab strip
     switches are not there; turning vertical tabs off would remove the sidebar.
   - **Spaces**: New Space..., Edit Theme... and Rename Space (Arc's ellipses: none
@@ -446,7 +539,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
     (Option+Cmd+Down and Up), Reveal Tab in Sidebar (scrolls the sidebar to the shown
     tab's row; dimmed for a favorite's tab, which has none) and Clear Today
     (Shift+Cmd+K: the shown Space's tabs that are not pinned close; Arc archives
-    them, Arcomium has no archive), run by the sidebar through the same hook.
+    them, Alerse has no archive), run by the sidebar through the same hook.
     Chromium's tab items and its list of the window's tabs (`TabMenuBridge`, which
     here would list every Space's tabs) are not there.
   - **Archive**: Chromium's History without Home, under Arc's names: Go Back, Go
@@ -495,7 +588,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   #909090, 44 pt high, half a point left of and above the name's inset, ending 9.5 pt
   after its longer line (141.5 pt for "Double-click to rename"), as Arc's, unless the
   item has a name of its own: Arc's renamed pinned tabs (its items with a title, as
-  iCloud Mail and Twitch) show the name alone. Arcomium marks an item named by
+  iCloud Mail and Twitch) show the name alone. Alerse marks an item named by
   Rename... (the editor's new title, `BookmarkNodeChanged`) or imported with Arc's own
   title with meta info `arcomium.renamed` = "1". They
   show a second after the pointer settles (0.9 s for a two-line one: Arc's row hint,
@@ -561,7 +654,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   after a crash). Windows and Linux keep Chromium's collapsed
   list: Arc for Windows' hidden sidebar has not been measured, and its top bar differs.
 - Inactive window (another app in front): Arc for macOS lightens the whole window,
-  its #161616 frame to #393939, and every shade off it follows. Arcomium's
+  its #161616 frame to #393939, and every shade off it follows. Alerse's
   `kColorFrameInactive` is the active frame blended 15% toward white (#393939, a
   Space's tint as much), and what it paints off the frame (the sidebar field, the
   favorites' tiles, the overflow lines, the frame around the page card) takes the
@@ -613,16 +706,16 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   (`harfbuzz_font_skia.cc`, `look/mac-arc-polish.patch`), as CoreText; glyph
   advances already came from Skia's CoreText font. Subpixel positioning adds
   nothing.
-  What remained wider was the weight or size Arcomium picked: the popovers' labels
+  What remained wider was the weight or size Alerse picked: the popovers' labels
   were semibold where Arc's are medium ("Toggle Sidebar" 93.5 against 92.5 pt), the
   compact command bar's placeholder 15 pt where Arc's is 13 (149.5 against 135.5).
 
 Known gaps on macOS: the command bar's caret is 22 pt high where Arc's is 21 (the
 text field's line height); Arc's Edit menu ends with Format (Font: Bold, Italic,
-Underline), which Arcomium leaves out, as Chromium has no rich-text commands for
+Underline), which Alerse leaves out, as Chromium has no rich-text commands for
 the menu to run; macOS gives Find its magnifier icon, Arc's has none, and adds
 a separator after Find that Arc's menu does not show. Arc's frame and sidebar are translucent (they take a little of
-what lies under the window, #141414 to #191919); Arcomium's are a solid #161616.
+what lies under the window, #141414 to #191919); Alerse's are a solid #161616.
 Row text, favicons and favorites sit half a point above Arc's, the Space icon half a
 point below, the bottom bar's icons half a point left: views lay out in whole points.
 The folder popup casts no shadow at all (Arc's darkens what is beside it by 2 or 3
@@ -636,25 +729,25 @@ tooltips are up to 1.5 pt wider or narrower than Arc's (the text is measured, th
 keycaps are fixed). The folder popup's dates read in the browser's language, which
 the test kit sets to English: Arc's follow the system's ("1 неделю назад").
 Menu bar gaps:
-Arc's Show Toolbar (Shift+Cmd+D; Arcomium for macOS has no toolbar to show), View >
+Arc's Show Toolbar (Shift+Cmd+D; Alerse for macOS has no toolbar to show), View >
 Appearance (Arc's light or dark web pages), Blank Window, Stay On Top, Find and
 Replace (Chromium has no replace), Reset all tabs in this Space, Change Profile and
 Manage Spaces are not there; Arc-only items (Share Arc, Sign Out, Little Arc, Easels,
 Notes, Boosts, Capture, Library, View Archive, Clear Archive, Arc's help pages) are
-left out on purpose. Set as Default Browser stays enabled when Arcomium is the
+left out on purpose. Set as Default Browser stays enabled when Alerse is the
 default already (asking the system blocks, which the menu must not); Pin Tab, New
 Folder and Clear Today stay enabled where they would do nothing. An extension run from the
 Extensions menu opens its popup at the window's top left (its hidden header button
 is the anchor), not under the menu bar as Arc's. Copy URL as Quote's
-layout (quote, blank line, link) is Arcomium's: Arc's was not tried, as that would
+layout (quote, blank line, link) is Alerse's: Arc's was not tried, as that would
 take a selection on a page of the user's own browser. Menu items keep Chromium's
 names where Chromium has the item (Reload This Page, not Arc's Refresh the Page), as
 those are translated, except the items the last comparison named (Hide Other Windows, Restore Last Closed Tab, Save Page As, Print, Go Back, Go Forward,
 View History, Minimize Window, View Downloads...), which take Arc's names in English
-only, as Arcomium's other strings. Arc's File > Share... is a single item; Arcomium
+only, as Alerse's other strings. Arc's File > Share... is a single item; Alerse
 keeps Chromium's Share submenu under Chromium's name, which the app controller looks
 the submenu up by. Arc's Edit menu dims Undo, Redo, Cut, Paste, Paste and Match Style,
-Delete and Select All while no text has the focus; Chromium's (and so Arcomium's)
+Delete and Select All while no text has the focus; Chromium's (and so Alerse's)
 keep them enabled, as the page decides. The Archive menu keeps Chromium's recently
 closed and visited lists, which Arc's has not (Chromium's history menu fills them by
 tag). The Space bar's left button, Arc's Library (archive and media), is
@@ -662,7 +755,7 @@ Downloads since 0.1.7: tooltip "Downloads" Shift+Cmd+J, it opens `chrome://downl
 and it has no menu (Arc's "Show media from" is left out).
 
 Known gaps: no keyboard navigation of the sidebar (rows draw no focus ring and have no
-tree roles); Arcomium's own text is English only: most of it is in
+tree roles); Alerse's own text is English only: most of it is in
 `arcomium_strings.grdp` and translatable, but the sync page's error messages are
 hard-coded English (`arcomium_sync_handler.cc`); tab rows show a speaker for sound but
 no camera, microphone or screen-capture indicator.
@@ -744,11 +837,11 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   faded on the other Space buttons (35%, 60% hovered) on every theme: the fade is a
   fixed opacity, not taken from the ink, whose dark shade on a light theme would
   otherwise fade the active Space's emoji too.
-- The glyphs are Arcomium's own vector drawings in the spirit of Arc's solid set
+- The glyphs are Alerse's own vector drawings in the spirit of Arc's solid set
   (`arcomium_glyphs.cc`: filled shapes with holes cut through, in one layer), named as
   Arc names its icons (`heart`, `flash`, `construction`, `restaurant`, `planet`,
   `chatBubbleEllipses`, ...), so icons imported from Arc show as picked ones. The
-  names of Arcomium's first icons still draw (`bolt`, `lightbulb`, `chat`, `pets`,
+  names of Alerse's first icons still draw (`bolt`, `lightbulb`, `chat`, `pets`,
   `flight` are shown as their Arc names' cells; `home`, `globe`, `rocket` draw as
   before but are no longer offered; `star` is now Arc's solid star). Arc's sun and
   book keep their earlier drawings.
@@ -757,7 +850,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 - Windows and Linux show the same picker. Arc for Windows' picker has not been
   compared yet: its look there follows Arc for macOS until it is.
 - Known gaps: Arc's emoji search goes by the system's names in the system's
-  language (its placeholder reads in the system's language), Arcomium's by Unicode's
+  language (its placeholder reads in the system's language), Alerse's by Unicode's
   English names, with an English placeholder; the system palette's newer emoji (Emoji
   15.1 and later), skin tones and category headings are not there; the category bar
   does not mark the shown category; there is no custom image; the rim does not run
@@ -872,7 +965,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   pinned), Add Split View (see Split View), New Space, Rename Space…, Edit Theme…, New Folder, Collapse or Expand
   Pinned Tabs (macOS, where the pinned tabs collapse; a Space with pinned items),
   Settings and View History. Arc's archive actions (Archive Tab, View Archive, Clear
-  Today, which archives) are not there: Arcomium has no tab archive (see Left out on
+  Today, which archives) are not there: Alerse has no tab archive (see Left out on
   purpose). A name matches as a whole (3), by its start (2) or when every typed
   word starts a word of the name or of a few aliases ("preferences" finds Settings,
   "library" View History) (1); at most three rows, the best first, then the shorter
@@ -935,13 +1028,13 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   colors come from Arc for macOS and show the same on Windows and Linux, Arc for
   Windows' command bar not having been compared; the selected keyword row ends in Chromium's small keyword button.
 - **Logo menu** (Windows, Linux; `arcomium_app_menu.cc`): Check for Updates (or
-  "Update to Arcomium X.Y.Z"), Import from Another Browser..., new tab, window and
+  "Update to Alerse X.Y.Z"), Import from Another Browser..., new tab, window and
   incognito window, Spaces, Tabs, Extensions and Developer submenus, Downloads,
   History, Bookmarks, Sync, Search Engine, Link routing, Settings, Print, About, More...
   (Chromium's full menu) and Close Window. The submenus have no command of their own
   (id 0), so the menu says they are enabled itself: the browser's command state calls
   0 disabled, which greyed them out and kept them shut. On macOS the logo opens Chromium's app menu,
-  which carries Arcomium's items (Sync, Link routing; Update and Import come with the
+  which carries Alerse's items (Sync, Link routing; Update and Import come with the
   first macOS build on 157), and the menu bar stays.
 - **Extensions** sit at the end of the address row, sized like its buttons. The sliders
   button opens the site controls (`arcomium_site_controls.cc`): Copy Link, Find,
@@ -1091,8 +1184,9 @@ Space Arc no longer has loses its imported items and the binding. Cached favicon
 Space's (or Home's) pinned folder, marked `arcomium.import = <browser>/<profile>` and
 recorded by uuid in the local pref `arcomium.import_folders`; importing it again
 replaces the folder's imported contents. Sources are found in the per-user known folders (Windows), Application
-Support (macOS) or the XDG config directory (Linux). Arcomium's own user data directory
-is skipped, even when Arcomium still runs from Chromium's (see Platforms), and so is any
+Support (macOS) or the XDG config directory (Linux). Alerse's own user data directory
+is skipped, even when Alerse still runs from Chromium's or Arcomium's (see Name), and so
+is any
 profile whose Preferences have an `arcomium` key; profiles without a `Bookmarks` file
 are not listed. `tools/arc_import.py` is the offline fallback for the Arc
 part: it writes the `Bookmarks` file of a closed profile, marking what it adds the
@@ -1151,7 +1245,7 @@ Known gaps:
 
 ## Sync
 
-Sync goes to an [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server the
+Sync goes to an [arcomium-sync](https://github.com/VizzleTF/alerse-sync) server the
 user picks, set up at `chrome://arcomium-sync` (Sync in the logo menu and the app menu;
 every link to Chromium's sync settings leads there). There is no default server: the
 user runs one, at home or in their own cloud account, and the browser only needs its
@@ -1172,7 +1266,7 @@ sign-in. As in Brave Sync v2:
   the public key and a timestamp, signed with the private key. The server checks the
   signature and freshness and knows the chain only by a hash of the public key. No
   passwords, no emails, nothing to leak but a public key. The exact format is in
-  [arcomium-sync's protocol notes](https://github.com/VizzleTF/arcomium-sync/blob/main/docs/protocol.md).
+  [arcomium-sync's protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md).
   The browser makes a new token every hour; a token is valid for 24 hours.
 - The passphrase is applied with `encrypt_everything` on, so bookmarks, tabs, Spaces,
   passwords and history are encrypted on the device. Chromium refuses to go back from a
@@ -1205,7 +1299,7 @@ exactly as before. The join form offers "Sync code (24 words)", "Email and
 password" or "Pair with another device" (below).
 
 The server stays zero-knowledge (`arcomium_sync_login.cc`, the scheme `pw-v1` of
-[arcomium-sync's protocol notes](https://github.com/VizzleTF/arcomium-sync/blob/main/docs/protocol.md)):
+[arcomium-sync's protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md)):
 
 - The device derives a key from the password with scrypt (N = 2^17, r = 8, p = 1:
   128 MiB, about half a second, on the thread pool), salted with a random salt of
@@ -1235,7 +1329,8 @@ Decisions and limits:
 - The password policy follows NIST SP 800-63B-4: at least 15 characters (counted
   as characters, not bytes), up to 256, no rules about character classes; a short
   bundled list of common long passwords, one character or a short run repeated,
-  and passwords that contain the login name or "Arcomium" are refused. There is
+  and passwords that contain the login name, "Alerse" or "Arcomium" are refused
+  (only new passwords are checked, so an existing one still signs in). There is
   no online breach check. The page shows a strength meter.
 - The residual risk, said on the page: whoever runs the server, or has a copy of
   its database, can guess passwords offline at the cost of one scrypt and one
@@ -1315,9 +1410,15 @@ and the iOS app do not hold data back until the passphrase is set, so a chain st
 on one of them may upload its first data unencrypted: start a chain on Windows 0.1.2 or
 later and only join it from the others.
 
-### Server: arcomium-sync
+### Server: alerse-sync (arcomium-sync)
 
-Written for Arcomium in Go: [arcomium-sync](https://github.com/VizzleTF/arcomium-sync).
+Written for Alerse in Go: [arcomium-sync](https://github.com/VizzleTF/alerse-sync). The
+repository is alerse-sync now; the binary, image and Go module keep the name
+arcomium-sync for now, and the protocol's
+identifiers never change with the product's name: the key derivation contexts
+(`arcomium-sync-login-id-v1`, `arcomium-sync-login-v1`, `arcomium-sync-token-v1`, ...),
+the `pw-v1` and `pair-v1` schemes and the switches `--arcomium-sync-url` and
+`--arcomium-sync-secret` are part of the wire format or of setups people have.
 It speaks the Chromium sync protocol (`POST /v2/command/`), with the protocol buffers of
 the Chromium tree we build, so every data type Chromium syncs works without server
 changes.
@@ -1359,7 +1460,7 @@ and it uploads everything again.
 
 No new sync data types are needed:
 
-| Arcomium data | Chromium sync type |
+| Alerse data | Chromium sync type |
 |---|---|
 | Pinned tree of each Space (nested folders), Space colors and icons | `BOOKMARKS` (the Space folders with `arcomium.*` meta info) |
 | Open tabs on other devices | `SESSIONS` |
@@ -1389,12 +1490,12 @@ Releases:
 
 | Platform | Repository | Based on |
 |---|---|---|
-| Windows | [arcomium-win](https://github.com/VizzleTF/arcomium-win) | ungoogled-chromium-windows |
-| macOS | [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | ungoogled-chromium-macos |
-| Linux | [arcomium-linux](https://github.com/VizzleTF/arcomium-linux) | ungoogled-chromium-portablelinux |
-| iPhone | [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) (experimental) | Chromium's iOS app (`ios/chrome`) |
+| Windows | [arcomium-win](https://github.com/VizzleTF/alerse-win) | ungoogled-chromium-windows |
+| macOS | [arcomium-mac](https://github.com/VizzleTF/alerse-mac) | ungoogled-chromium-macos |
+| Linux | [arcomium-linux](https://github.com/VizzleTF/alerse-linux) | ungoogled-chromium-portablelinux |
+| iPhone | [arcomium-ios](https://github.com/VizzleTF/alerse-ios) (experimental) | Chromium's iOS app (`ios/chrome`) |
 
-Arcomium follows ungoogled-chromium's releases, so it runs about one Chromium major
+Alerse follows ungoogled-chromium's releases, so it runs about one Chromium major
 version behind Chrome stable. The series on `main` is for Chromium 157; the branch
 `chromium-156` keeps the 156 series. Windows is on 157. Linux (release 0.1.1) and macOS
 (pre-release 0.1.0) were released from the 156 series and move to 157 when
@@ -1403,17 +1504,17 @@ repositories already pin the core's `main`, so they do not build until then. iOS
 the core at 0.1.1 (156). What came in 0.1.2 to 0.1.4 (own install identity,
 end-to-end-only sync, import, the update notice) is on Windows only until then.
 
-Install identity: on Windows Arcomium installs as itself, not as Chromium
-(`defaults/own-install-identity.patch`): `%LOCALAPPDATA%\Arcomium\Application`, its own
-registry key, app id, ProgIDs `ArcomiumHTM` and `ArcomiumPDF`, URL scheme `arcomium://`,
-Active Setup GUID and toast activator CLSID, so a Chromium install can neither
-overwrite it nor open its profile. On Linux the profile is `~/.config/arcomium` from
-the first release on 157 (0.1.1 keeps it in `~/.config/chromium`). On
-macOS Arcomium has its own bundle ID (`tools/rename_product.py`) and profile directory
-(`defaults/mac-own-profile-dir.patch`). On first start, a profile in Chromium's directory
-that Arcomium used (its Preferences have an `arcomium` key) is moved to Arcomium's; if
-the move fails, for example while an older Arcomium still runs, Arcomium keeps using it
-where it is.
+Install identity: on Windows Alerse installs as itself, not as Chromium or Arcomium
+(`defaults/own-install-identity.patch`): `%LOCALAPPDATA%\Alerse\Application`, its own
+registry key (`Software\Alerse`), app id `Alerse`, ProgIDs `AlerseHTM` and `AlersePDF`,
+direct-launch URL scheme `alerse://`, Active Setup GUID
+`{FB04E068-D560-40D7-BA8D-318A3484D91E}` and toast activator CLSID
+`{09758798-6B12-4B6E-8D92-273BF804BCC2}`, all new, so neither a Chromium nor an Arcomium
+install can overwrite it or open its profile. On Linux the profile is `~/.config/alerse`;
+on macOS Alerse has its own bundle ID, `io.github.vizzletf.alerse`
+(`tools/rename_product.py`), and profile directory, `~/Library/Application
+Support/Alerse` (CrProductDirName, `defaults/mac-own-profile-dir.patch`). See
+[Name](#name) for how Alerse takes over Arcomium's profile and installation.
 
 Platform differences: the Arc for Windows top bar, the logo menu, the 16 px command bar
 input and Alt+1 to Alt+9 are not on macOS, where Arc itself looks different (window
@@ -1447,7 +1548,7 @@ Routes of the form "site -> Space", set at **Link routing** in the app menu
 (`chrome://arcomium-links`). A site is a host with its subdomains, optionally with a path
 ("github.com/acme"); the longest match wins.
 
-Routes apply to links that arrive from outside the browser, with Arcomium as the default
+Routes apply to links that arrive from outside the browser, with Alerse as the default
 browser: `Navigate()` sees a new tab with no source tab and an `AUTO_TOPLEVEL` transition,
 opens it in the route's Space, in that Space's partition, and switches to the Space. A
 closed Space (its tab group is gone; an emptied Space keeps a hidden blank tab) is
@@ -1474,7 +1575,7 @@ too, and syncing routes is possible later.
 
 ## Defaults
 
-Arcomium keeps ungoogled-chromium's defaults (no Safe Browsing, preloading off), with
+Alerse keeps ungoogled-chromium's defaults (no Safe Browsing, preloading off), with
 these changes:
 
 - Vertical tabs on, so the sidebar shows (`defaults/vertical-tabs-by-default.patch`);
@@ -1495,16 +1596,16 @@ these changes:
   Accept-Language header; the Topics API off. Ctrl+Tab goes in most-recently-used
   order (the `kCtrlTabMru` pref on; the feature of that name is Chromium's default since
   157).
-- Arcomium's own browser commands (`IDC_ARCOMIUM_*`: Pin Tab and Ctrl+D, Copy URL as
+- Alerse's own browser commands (`IDC_ARCOMIUM_*`: Pin Tab and Ctrl+D, Copy URL as
   Markdown, the Space commands, Link routing, Import, the update) run on Chromium 157,
   whose browser commands go through actions (`kUseActionsForBrowserCommands`, on by
   default since 157; 156 has it off): there `CommandActionUpdater` knows only the
-  commands mapped to an action, so Arcomium's were neither supported nor enabled
+  commands mapped to an action, so Alerse's were neither supported nor enabled
   (Ctrl+D, Ctrl+Shift+Alt+C and the command bar's Pin Tab and Copy URL as Markdown did
   nothing, the logo menu's Import and Link routing were grey). Commands without an
   action are now kept by a `CommandUpdaterImpl` inside it and run by
   `BrowserCommandController` as before (`defaults/commands-without-actions.patch`).
-  Copy URL itself is an action there, which skipped Arcomium's check, so the action
+  Copy URL itself is an action there, which skipped Alerse's check, so the action
   also copies nothing on an empty Space's or a blank page (`chrome::
   GetArcomiumCopyableContents`), as the command does.
 - The dangling `raw_ptr` detector never stops the browser
@@ -1514,6 +1615,9 @@ these changes:
 
 ## Not there yet
 
+- The rename to Alerse left out, for now: the sidebar's logo button still draws
+  Arcomium's arch (`ArcLogoButton`), not the new "A"; the iOS app is renamed in its
+  strings, name and icon but was not built since; the sync server's Go module path.
 - Updates: no updater. The browser only tells about a newer release
   ([versioning](versioning.md)); the user downloads it.
 - Builds are not code-signed: Windows SmartScreen warns, and macOS builds are signed ad

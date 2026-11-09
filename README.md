@@ -1,13 +1,15 @@
-# Arcomium
+# Alerse
 
 A sidebar browser built on [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium)
 for people moving from Arc: a vertical sidebar, Spaces with separate logins in one window,
-a command bar, and sync you can host yourself.
+a command bar, and sync you can host yourself. Its name is a free spelling of alerce,
+the Chilean tree. Alerse was called Arcomium up to 0.1.7; see
+[Coming from Arcomium](#coming-from-arcomium).
 
 This repository holds what all platforms share: the Chromium patches, the design notes
 and a fallback Arc import script. Builds come from the platform repositories below.
 
-![Arcomium: the Personal Space with pinned items, nested folders and open tabs](docs/images/sidebar.png)
+![Alerse: the Personal Space with pinned items, nested folders and open tabs](docs/images/sidebar.png)
 
 ## Features
 
@@ -20,7 +22,7 @@ and a fallback Arc import script. Builds come from the platform repositories bel
 
   ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
-  [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
+  [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, end-to-end
   encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
   in the app menu. A free public server is planned.
 - **Command bar actions**: type a command's name in the command bar to run it, as in
@@ -52,14 +54,14 @@ and a fallback Arc import script. Builds come from the platform repositories bel
 
 | Platform | Builds |
 |---|---|
-| Windows (x64, arm64) | [arcomium-win releases](https://github.com/VizzleTF/arcomium-win/releases) |
-| macOS (Apple Silicon) | [arcomium-mac releases](https://github.com/VizzleTF/arcomium-mac/releases) |
-| iPhone | build from source: [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) |
-| Linux (x86_64, arm64) | [arcomium-linux releases](https://github.com/VizzleTF/arcomium-linux/releases) |
+| Windows (x64, arm64) | [alerse-win releases](https://github.com/VizzleTF/alerse-win/releases) |
+| macOS (Apple Silicon) | [alerse-mac releases](https://github.com/VizzleTF/alerse-mac/releases) |
+| iPhone | build from source: [alerse-ios](https://github.com/VizzleTF/alerse-ios) |
+| Linux (x86_64, arm64) | [alerse-linux releases](https://github.com/VizzleTF/alerse-linux/releases) |
 
 ## Move from Arc
 
-Open the Arcomium menu (the logo at the top of the sidebar; on macOS the app menu) and
+Open the Alerse menu (the logo at the top of the sidebar; on macOS the app menu) and
 pick **Import from Another Browser...**, or go to `chrome://arcomium-import`. The page
 lists what it finds on this computer, with an **Import** button for each:
 
@@ -70,28 +72,54 @@ lists what it finds on this computer, with an **Import** button for each:
   Linux), each profile on its own: the bookmarks go to a folder named after the browser
   (and the profile, when there are several), pinned in the current Space.
 
-Arcomium only reads the other browsers' files, so they can stay open. Importing a source
+Alerse only reads the other browsers' files, so they can stay open. Importing a source
 again replaces what it brought in before. For Firefox, Safari or an HTML bookmarks file,
 the page links to the standard importer.
 
-Fallback, for a profile Arcomium is not running on: close Arcomium and run
-`python tools\arc_import.py --profile "%LOCALAPPDATA%\Arcomium\User Data\Default"`
+Fallback, for a profile Alerse is not running on: close Alerse and run
+`python tools\arc_import.py --profile "%LOCALAPPDATA%\Alerse\User Data\Default"`
 (Python 3, Windows; without `--profile` it writes to Chromium's profile directory,
 where Arcomium kept its profile before 0.1.2). It writes the same Arc bookmarks
 straight into the profile's `Bookmarks` file, replacing what it or the import page
 imported before; each new Space you then create with "+" takes the next imported Arc
 Space.
 
+## Coming from Arcomium
+
+Alerse 0.1.8 is Arcomium under its new name and with a new icon. It installs as a new
+app, beside Arcomium, and on its first start takes over Arcomium's profile with
+everything in it: Spaces, pinned items, tabs, passwords, extensions and sync.
+
+| | Arcomium's profile | Alerse's |
+|---|---|---|
+| Windows | `%LOCALAPPDATA%\Arcomium\User Data` | `%LOCALAPPDATA%\Alerse\User Data` |
+| macOS | `~/Library/Application Support/Arcomium` | `~/Library/Application Support/Alerse` |
+| Linux | `~/.config/arcomium` | `~/.config/alerse` |
+
+Quit Arcomium before the first start of Alerse: while Arcomium runs, its profile stays
+where it is, Alerse opens Arcomium's windows instead of its own, and the move happens
+at a later start. On Windows, once the profile is taken over, Alerse removes Arcomium
+(shortcuts, taskbar pins, the entry in Installed apps and its files, not your data) a
+minute after it starts, so you do not end up with two browsers; then pick Alerse as the
+default browser in Windows' settings. On macOS, drag Arcomium to the Trash yourself;
+on Linux, delete its AppImage or folder.
+
+Arcomium's update check finds Alerse's releases (the repositories were renamed from
+`arcomium-*` to `alerse-*`, and GitHub redirects the old names), so Arcomium shows
+"Update to Arcomium 0.1.8" and opens the Alerse release. Internal names (the
+`chrome://arcomium-*` pages, the `arcomium.*` preferences, the source files) keep the
+old name for now.
+
 ## Repositories
 
 | Repository | Contents |
 |---|---|
-| arcomium (this one) | Patches, design notes, fallback Arc import script |
-| [arcomium-win](https://github.com/VizzleTF/arcomium-win) | Windows build and releases |
-| [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) | Sync server |
-| [arcomium-mac](https://github.com/VizzleTF/arcomium-mac) | macOS build on ungoogled-chromium-macos |
-| [arcomium-linux](https://github.com/VizzleTF/arcomium-linux) | Linux build on ungoogled-chromium-portablelinux |
-| [arcomium-ios](https://github.com/VizzleTF/arcomium-ios) | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
+| alerse (this one) | Patches, design notes, icon artwork, fallback Arc import script |
+| [alerse-win](https://github.com/VizzleTF/alerse-win) | Windows build and releases |
+| [alerse-sync](https://github.com/VizzleTF/alerse-sync) | Sync server |
+| [alerse-mac](https://github.com/VizzleTF/alerse-mac) | macOS build on ungoogled-chromium-macos |
+| [alerse-linux](https://github.com/VizzleTF/alerse-linux) | Linux build on ungoogled-chromium-portablelinux |
+| [alerse-ios](https://github.com/VizzleTF/alerse-ios) | iOS build on Chromium iOS (`patches/series-ios`): sync and branding |
 
 ## Status
 
@@ -112,7 +140,7 @@ Space.
 
 ## Privacy
 
-Arcomium keeps ungoogled-chromium's privacy defaults, with these exceptions:
+Alerse keeps ungoogled-chromium's privacy defaults, with these exceptions:
 
 | Exception | What reaches Google | Off by |
 |---|---|---|
@@ -120,17 +148,17 @@ Arcomium keeps ungoogled-chromium's privacy defaults, with these exceptions:
 | Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
 | The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
 
-Arcomium has no updater. A few minutes after it starts, and then once a day, it
+Alerse has no updater. A few minutes after it starts, and then once a day, it
 asks GitHub's API for the platform's latest release: a plain GET of
-`api.github.com/repos/VizzleTF/arcomium-<platform>/releases/latest`, without
+`api.github.com/repos/VizzleTF/alerse-<platform>/releases/latest`, without
 cookies. When the release is newer, the menu of the sidebar's logo (on macOS, the
-app menu) shows "Update to Arcomium X.Y.Z", which opens the release's page; nothing
-is downloaded by itself. To turn the check off, quit Arcomium and set
+app menu) shows "Update to Alerse X.Y.Z", which opens the release's page; nothing
+is downloaded by itself. To turn the check off, quit Alerse and set
 `"arcomium": {"update_check": {"enabled": false}}` in the `Local State` file of
-Arcomium's user data folder (`%LOCALAPPDATA%\Arcomium\User Data` on Windows).
+Alerse's user data folder (`%LOCALAPPDATA%\Alerse\User Data` on Windows).
 Headless mode and `--disable-background-networking` turn it off too.
 
-Besides these, the sync server you set up and the Web Store, Arcomium makes no network
+Besides these, the sync server you set up and the Web Store, Alerse makes no network
 requests of its own.
 
 ungoogled-chromium rewrites Google domains in the source after the patches apply. The
@@ -139,7 +167,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 ## Learn more
 
-- [How Arcomium works](docs/design.md): Spaces, the sidebar, sync, platforms.
+- [How Alerse works](docs/design.md): Spaces, the sidebar, sync, platforms.
 - [Writing and refreshing patches](docs/patching.md).
 - [Versions and releases](docs/versioning.md).
 
@@ -147,7 +175,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 BSD-3-Clause, as Chromium and ungoogled-chromium.
 
-Arcomium is an independent project. It is not affiliated with, endorsed by or sponsored by
+Alerse is an independent project. It is not affiliated with, endorsed by or sponsored by
 The Browser Company. Arc is a trademark of its owner and is named here only to say what
-Arcomium imports from and who it is meant for; Arcomium uses none of Arc's code, artwork
-or branding.
+Alerse imports from and who it is meant for; Alerse uses none of Arc's code, artwork
+or branding. The icon (`artwork/`) is Alerse's own.

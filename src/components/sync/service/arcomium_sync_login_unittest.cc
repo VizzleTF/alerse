@@ -105,6 +105,8 @@ TEST(ArcomiumSyncLoginTest, ChecksPasswords) {
             SyncPasswordProblem::kContainsLogin);
   EXPECT_EQ(CheckSyncPassword("my arcomium password!", kLogin),
             SyncPasswordProblem::kContainsLogin);
+  EXPECT_EQ(CheckSyncPassword("my Alerse password!!", kLogin),
+            SyncPasswordProblem::kContainsLogin);
   // No rules about character classes: a long phrase is fine.
   EXPECT_EQ(CheckSyncPassword("purple tractor sings at dawn", kLogin),
             SyncPasswordProblem::kNone);

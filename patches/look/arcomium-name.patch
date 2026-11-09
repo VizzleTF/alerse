@@ -7,11 +7,11 @@ index 87499190d76..3bd4b6a6507 100644
          <else>
            <message name="IDS_PRODUCT_NAME" desc="The Chrome application name" translateable="false">
 -            Chromium
-+            Arcomium
++            Alerse
            </message>
            <message name="IDS_SHORT_PRODUCT_NAME" desc="The Chrome application short name." translateable="false">
 -            Chromium
-+            Arcomium
++            Alerse
            </message>
          </else>
        </if>

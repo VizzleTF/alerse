@@ -1,10 +1,15 @@
-"""Draws Arcomium's app icon and writes it over Chromium's branding files.
+"""Writes Alerse's app icon over Chromium's branding files.
 
-The glyph is the sidebar's logo (an arch crossed by a swoosh, see
-ArcLogoButton) in white on a rounded square with a blue-violet gradient. The
-files land in branding/ at their paths in the Chromium tree; build.py copies
-them over the source tree after patching. macOS icons follow Apple's grid,
-and on macOS the script also compiles app.icns and Assets.car.
+The icon is drawn, not generated: artwork/ holds it as a 1024 px tile
+(alerse_1024.png, a rounded white square with the brown and green "A" of an
+alerce's trunk and branch), the same tile prepared at 16 to 512 px, and
+alerse.ico, the Windows icon with 16 to 256 px images. This script only puts
+them where Chromium's build looks: every file lands in branding/ at its path in
+the Chromium tree, and each platform's build copies branding/ over the source
+tree after patching. macOS icons follow Apple's grid (the tile takes 824 of
+1024 pixels), and on macOS the script also compiles app.icns (iconutil) and
+Assets.car (actool). iOS masks the corners itself, so its icons are the tile's
+inside, without the rounded corners.
 
 Usage:
   python tools/make_icons.py
@@ -16,90 +21,66 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
+ART = ROOT / 'artwork'
 OUT = ROOT / 'branding'
 THEME = 'chrome/app/theme'
 
-# The logo on its 16-unit grid: cubic Bezier segments, as in ArcLogoButton.
-ARCH = [((2.5, 14), (3.5, 4), (6, 1.5), (8, 1.5)),
-        ((8, 1.5), (10, 1.5), (12.5, 4), (13.5, 14))]
-SWOOSH = [((1, 10.5), (5, 6.5), (10, 6.5), (15, 9.5))]
-GLYPH_CENTER = (8, 7.75)
-
-TOP = (0x5B, 0x6C, 0xFF)
-BOTTOM = (0x8A, 0x4D, 0xFF)
-SUPERSAMPLE = 8
+# The sizes artwork/ has prepared; any other size is scaled from the nearest
+# larger one.
+PREPARED = (16, 24, 32, 48, 64, 128, 256, 512, 1024)
 
 
-def bezier(p0, p1, p2, p3, steps=200):
-    for i in range(steps + 1):
-        t = i / steps
-        u = 1 - t
-        yield (u ** 3 * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] +
-               t ** 3 * p3[0],
-               u ** 3 * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] +
-               t ** 3 * p3[1])
+def tile(size):
+    """The rounded tile at `size` px."""
+    for prepared in PREPARED:
+        if prepared >= size:
+            image = Image.open(ART / f'alerse_{prepared}.png').convert('RGBA')
+            return image if prepared == size else image.resize((size, size), Image.LANCZOS)
+    return Image.open(ART / 'alerse_1024.png').convert('RGBA').resize(
+        (size, size), Image.LANCZOS)
 
 
-def draw(size, radius=0.225, top=TOP, bottom=BOTTOM, glyph=(255, 255, 255, 255)):
-    big = size * min(SUPERSAMPLE, max(2, 4096 // size))
-    # The rounded square with a vertical gradient, stretched from one column.
-    column = Image.new('RGBA', (1, big))
-    for y in range(big):
-        f = y / (big - 1)
-        column.putpixel(
-            (0, y), tuple(round(a + (b - a) * f) for a, b in zip(top, bottom)) + (255,))
-    gradient = column.resize((big, big))
-    mask = Image.new('L', (big, big), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, big - 1, big - 1), radius=round(big * radius), fill=255)
-    icon = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-    icon.paste(gradient, (0, 0), mask)
-
-    # The glyph: 14 grid units across ~62% of the icon, strokes thickened a
-    # little at small sizes to stay legible.
-    scale = big * 0.62 / 14
-    stroke = big * (0.085 if size <= 24 else 0.07)
-    offset = (big / 2 - GLYPH_CENTER[0] * scale, big / 2 - GLYPH_CENTER[1] * scale)
-    pen = ImageDraw.Draw(icon)
-    for curve in (ARCH, SWOOSH):
-        for segment in curve:
-            for x, y in bezier(*segment):
-                cx, cy = offset[0] + x * scale, offset[1] + y * scale
-                r = stroke / 2
-                pen.ellipse((cx - r, cy - r, cx + r, cy + r), fill=glyph)
-    return icon.resize((size, size), Image.LANCZOS)
-
-
-def make_ios_icons():
-    """iOS masks the corners itself, so its icons fill the whole square."""
-    res = 'ios/chrome/app/resources'
-    legacy = f'{res}/ChromiumIconsLegacy.xcassets/AppIcon.appiconset'
-    save_png(f'{legacy}/Icon-1024.png', 1024, lambda s: draw(s, radius=0))
-    save_png(f'{legacy}/Icon-1024Dark.png', 1024,
-             lambda s: draw(s, radius=0, top=(0x26, 0x2A, 0x5C), bottom=(0x37, 0x1F, 0x66)))
-    save_png(f'{legacy}/Icon-1024Tinted.png', 1024,
-             lambda s: draw(s, radius=0, top=(0, 0, 0), bottom=(0, 0, 0)))
-    # The single layer of the iOS 26 icon, which Icon Composer files describe.
-    save_png(f'{res}/ChromiumIcons.xcassets/AppIcon.icon/Assets/arcomium.png', 1024,
-             lambda s: draw(s, radius=0))
-
-
-def draw_mac(size):
+def mac_tile(size):
     # Apple's icon grid: the shape takes 824 of 1024 pixels, centred.
     inner = round(size * 824 / 1024)
-    shape = draw(inner)
+    shape = tile(inner)
     canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     canvas.paste(shape, ((size - inner) // 2, (size - inner) // 2), shape)
     return canvas
 
 
-def save_png(path, size, painter=draw):
+def full_square(size):
+    """The tile without its rounded corners, filling the square (iOS)."""
+    big = Image.open(ART / 'alerse_1024.png').convert('RGBA')
+    # The corners' radius is about a fifth of the side; cutting 64 px from
+    # every side leaves no transparent corner and keeps the whole letter.
+    inside = big.crop((64, 64, 1024 - 64, 1024 - 64))
+    background = Image.new('RGBA', inside.size, (255, 255, 255, 255))
+    background.alpha_composite(inside)
+    return background.resize((size, size), Image.LANCZOS)
+
+
+def save(path, image):
     target = OUT / path
     target.parent.mkdir(parents=True, exist_ok=True)
-    painter(size).save(target)
+    image.save(target)
+
+
+def make_ios_icons():
+    res = 'ios/chrome/app/resources'
+    legacy = f'{res}/ChromiumIconsLegacy.xcassets/AppIcon.appiconset'
+    icon = full_square(1024)
+    save(f'{legacy}/Icon-1024.png', icon)
+    # The dark variant keeps the letter's colours; the tinted one is grey,
+    # which iOS colours with the user's tint.
+    save(f'{legacy}/Icon-1024Dark.png', icon)
+    save(f'{legacy}/Icon-1024Tinted.png', ImageOps.grayscale(icon).convert('RGBA'))
+    # The single layer of the iOS 26 icon, which Icon Composer files describe.
+    # The file keeps its name, which ios/arcomium-ios-icon.patch refers to.
+    save(f'{res}/ChromiumIcons.xcassets/AppIcon.icon/Assets/arcomium.png', icon)
 
 
 def make_mac_icons():
@@ -107,19 +88,20 @@ def make_mac_icons():
     mac = OUT / f'{THEME}/chromium/mac'
     appiconset = mac / 'Assets.xcassets/AppIcon.appiconset'
     for size in (16, 32, 64, 128, 256, 512, 1024):
-        save_png(appiconset.relative_to(OUT) / f'appicon_{size}.png', size, draw_mac)
+        save(appiconset.relative_to(OUT) / f'appicon_{size}.png', mac_tile(size))
     iconset = mac / 'Assets.xcassets/Icon.iconset'
-    save_png(iconset.relative_to(OUT) / 'icon_256x256.png', 256, draw_mac)
-    save_png(iconset.relative_to(OUT) / 'icon_256x256@2x.png', 512, draw_mac)
+    save(iconset.relative_to(OUT) / 'icon_256x256.png', mac_tile(256))
+    save(iconset.relative_to(OUT) / 'icon_256x256@2x.png', mac_tile(512))
     if sys.platform != 'darwin':
-        print('Not on macOS: app.icns and Assets.car left as they are')
+        print('Not on macOS: app.icns and Assets.car left as they are '
+              '(run this script on a Mac to make them)')
         return
     with tempfile.TemporaryDirectory() as tmp:
         full = Path(tmp) / 'AppIcon.iconset'
         full.mkdir()
         for size in (16, 32, 128, 256, 512):
-            draw_mac(size).save(full / f'icon_{size}x{size}.png')
-            draw_mac(size * 2).save(full / f'icon_{size}x{size}@2x.png')
+            mac_tile(size).save(full / f'icon_{size}x{size}.png')
+            mac_tile(size * 2).save(full / f'icon_{size}x{size}@2x.png')
         subprocess.run(['iconutil', '-c', 'icns', '-o', str(mac / 'app.icns'), str(full)],
                        check=True)
         compiled = Path(tmp) / 'compiled'
@@ -133,22 +115,20 @@ def make_mac_icons():
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == '--mac-only':
+        make_mac_icons()
+        return
     for size in (16, 24, 48, 64, 128, 256):
-        save_png(f'{THEME}/chromium/product_logo_{size}.png', size)
+        save(f'{THEME}/chromium/product_logo_{size}.png', tile(size))
     for scale, factor in (('default_100_percent', 1), ('default_200_percent', 2)):
         for size in (16, 32):
-            save_png(f'{THEME}/{scale}/chromium/product_logo_{size}.png',
-                     size * factor)
-    save_png(f'{THEME}/chromium/win/tiles/Logo.png', 600)
-    save_png(f'{THEME}/chromium/win/tiles/SmallLogo.png', 176)
-
-    sizes = (16, 24, 32, 48, 64, 128, 256)
-    images = [draw(size) for size in sizes]
+            save(f'{THEME}/{scale}/chromium/product_logo_{size}.png', tile(size * factor))
+    save(f'{THEME}/chromium/win/tiles/Logo.png', tile(600))
+    save(f'{THEME}/chromium/win/tiles/SmallLogo.png', tile(176))
     for name in ('chromium.ico', 'app_list.ico'):
         target = OUT / f'{THEME}/chromium/win/{name}'
         target.parent.mkdir(parents=True, exist_ok=True)
-        images[-1].save(target, sizes=[(s, s) for s in sizes],
-                        append_images=images[:-1])
+        shutil.copy(ART / 'alerse.ico', target)
     make_mac_icons()
     make_ios_icons()
     print(f'Wrote icons to {OUT}')

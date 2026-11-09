@@ -1,51 +1,134 @@
 diff --git a/chrome/common/chrome_paths_linux.cc b/chrome/common/chrome_paths_linux.cc
-index 5575c049b22..30af287b1af 100644
+index 5575c049b22..7809b48287f 100644
 --- a/chrome/common/chrome_paths_linux.cc
 +++ b/chrome/common/chrome_paths_linux.cc
-@@ -18,6 +18,10 @@
+@@ -8,6 +8,7 @@
+ #include <optional>
+ 
+ #include "base/base_paths.h"
++#include "base/command_line.h"
+ #include "base/environment.h"
+ #include "base/files/file_path.h"
+ #include "base/nix/xdg_util.h"
+@@ -18,6 +19,14 @@
  #include "chrome/common/channel_info.h"
  #include "chrome/common/chrome_paths_internal.h"
  
++#include <errno.h>
 +#include <fcntl.h>
++#include <signal.h>
++#include <stdlib.h>
++#include <string.h>
 +#include <sys/stat.h>
 +#include <unistd.h>
 +
  namespace chrome {
  
  using base::nix::GetXDGDirectory;
-@@ -95,9 +99,39 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
+@@ -25,6 +34,59 @@ using base::nix::GetXDGUserDirectory;
+ using base::nix::kDotConfigDir;
+ using base::nix::kXdgConfigHomeEnvVar;
+ 
++#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
++namespace {
++
++// Arcomium: helpers for taking over an older profile, below. Plain POSIX
++// calls: they run before blocking calls are checked.
++bool PathExistsNoFollow(const std::string& path) {
++  struct stat info;
++  return lstat(path.c_str(), &info) == 0;
++}
++
++// Whether `dir` holds a browser profile: it has a Local State.
++bool HasProfile(const base::FilePath& dir) {
++  return PathExistsNoFollow(dir.Append("Local State").value());
++}
++
++// Whether `dir` is Arcomium's: its default profile's preferences are a JSON
++// object with an "arcomium" member.
++bool IsArcomiumProfile(const base::FilePath& dir) {
++  const std::string prefs =
++      dir.Append("Default").Append("Preferences").value();
++  const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
++  if (fd < 0) {
++    return false;
++  }
++  std::string text;
++  char buffer[64 * 1024];
++  ssize_t size;
++  while (text.size() < 16 * 1024 * 1024 &&
++         (size = read(fd, buffer, sizeof(buffer))) > 0) {
++    text.append(buffer, static_cast<size_t>(size));
++  }
++  close(fd);
++  return text.find("\"arcomium\":") != std::string::npos;
++}
++
++// Whether a running browser has `dir` open: its SingletonLock is a symlink to
++// "hostname-pid" of a live process.
++bool ProfileInUse(const base::FilePath& dir) {
++  char target[256];
++  const ssize_t size = readlink(dir.Append("SingletonLock").value().c_str(),
++                                target, sizeof(target) - 1);
++  if (size <= 0) {
++    return false;
++  }
++  target[size] = '\0';
++  const char* dash = strrchr(target, '-');
++  const long pid = dash ? strtol(dash + 1, nullptr, 10) : 0;
++  return pid <= 0 || kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
++}
++
++}  // namespace
++#endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
++
+ namespace {
+ 
+ const char kDownloadsDir[] = "Downloads";
+@@ -95,9 +157,50 @@ bool GetDefaultUserDataDirectory(base::FilePath* result) {
  #elif BUILDFLAG(GOOGLE_CHROME_BRANDING)
    std::string data_dir_basename = "google-chrome";
  #else
 -  std::string data_dir_basename = "chromium";
-+  // Arcomium: its own directory, apart from Chromium's.
-+  std::string data_dir_basename = "arcomium";
++  // Arcomium: its own directory, apart from Chromium's (and from Arcomium's,
++  // as Alerse was called up to 0.1.7).
++  std::string data_dir_basename = "alerse";
  #endif
    *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
 +#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
-+  // Arcomium: before it had its own identity, Arcomium kept its profile in
-+  // ~/.config/chromium. The first start without ~/.config/arcomium moves that
-+  // profile there if it is Arcomium's; if it cannot be moved, it is used
-+  // where it is. Plain POSIX calls: this runs before blocking calls are
-+  // checked.
-+  struct stat info;
-+  if (stat(result->value().c_str(), &info) != 0) {
-+    const base::FilePath legacy =
++  // Arcomium: Alerse takes over the profile of the browser it was before:
++  // ~/.config/arcomium (0.1.1 on 157 to 0.1.7), or ~/.config/chromium, where
++  // 0.1.1 on 156 kept it (only if it is Arcomium's). The first start without
++  // a profile of its own moves that directory here. A profile another browser
++  // has open is not moved but used where it is; the move happens at a later
++  // start. Only the browser process that uses the default directory moves
++  // anything: never with --user-data-dir, which still asks for the default
++  // directory (crash reports live there).
++  const bool default_dir_in_use =
++      base::CommandLine::InitializedForCurrentProcess() &&
++      !base::CommandLine::ForCurrentProcess()->HasSwitch("user-data-dir") &&
++      !base::CommandLine::ForCurrentProcess()->HasSwitch("type");
++  if (default_dir_in_use && !HasProfile(*result)) {
++    const base::FilePath arcomium =
++        config_dir.Append("arcomium" + GetChannelSuffixForDataDir());
++    const base::FilePath chromium =
 +        config_dir.Append("chromium" + GetChannelSuffixForDataDir());
-+    const std::string prefs =
-+        legacy.Append("Default").Append("Preferences").value();
-+    const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
-+    if (fd >= 0) {
-+      std::string text;
-+      char buffer[64 * 1024];
-+      ssize_t size;
-+      while (text.size() < 16 * 1024 * 1024 &&
-+             (size = read(fd, buffer, sizeof(buffer))) > 0) {
-+        text.append(buffer, static_cast<size_t>(size));
-+      }
-+      close(fd);
-+      if (text.find("\"arcomium\":") != std::string::npos &&
-+          rename(legacy.value().c_str(), result->value().c_str()) != 0) {
++    base::FilePath legacy;
++    if (HasProfile(arcomium)) {
++      legacy = arcomium;
++    } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++      legacy = chromium;
++    }
++    if (!legacy.empty()) {
++      const std::string target = result->value();
++      const std::string aside = target + ".old";
++      // A directory without a profile goes if it is empty, or else is kept
++      // aside under another name.
++      if (ProfileInUse(legacy) ||
++          (PathExistsNoFollow(target) && rmdir(target.c_str()) != 0 &&
++           (PathExistsNoFollow(aside) ||
++            rename(target.c_str(), aside.c_str()) != 0)) ||
++          rename(legacy.value().c_str(), target.c_str()) != 0) {
 +        *result = legacy;
 +      }
 +    }
@@ -55,64 +138,71 @@ index 5575c049b22..30af287b1af 100644
  }
  
 diff --git a/chrome/install_static/chromium_install_modes.h b/chrome/install_static/chromium_install_modes.h
-index a6d969df56d..a6cff6e1d4d 100644
+index a6d969df56d..61deb634eed 100644
 --- a/chrome/install_static/chromium_install_modes.h
 +++ b/chrome/install_static/chromium_install_modes.h
-@@ -21,7 +21,8 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
+@@ -21,7 +21,9 @@ inline constexpr wchar_t kCompanyPathName[] = L"";
  
  // The brand-specific product name to be included as a component of the install
  // and user data directory paths.
 -inline constexpr wchar_t kProductPathName[] = L"Chromium";
-+// Arcomium: its own directories and registry keys, apart from Chromium's.
-+inline constexpr wchar_t kProductPathName[] = L"Arcomium";
++// Arcomium: its own directories and registry keys, apart from Chromium's
++// (and from Arcomium's, as Alerse was called up to 0.1.7).
++inline constexpr wchar_t kProductPathName[] = L"Alerse";
  
  // The brand-specific safe browsing client name.
  inline constexpr char kSafeBrowsingName[] = "chromium";
-@@ -54,23 +55,23 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
+@@ -54,23 +56,23 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
          .logo_suffix = L"",  // No logo suffix for the primary install mode.
          .app_guid =
              L"",  // Empty app_guid since no integration with Google Update.
 -        .base_app_name = L"Chromium",              // A distinct base_app_name.
 -        .base_app_id = L"Chromium",                // A distinct base_app_id.
 -        .browser_prog_id_prefix = L"ChromiumHTM",  // Browser ProgID prefix.
-+        .base_app_name = L"Arcomium",              // A distinct base_app_name.
-+        .base_app_id = L"Arcomium",                // A distinct base_app_id.
-+        .browser_prog_id_prefix = L"ArcomiumHTM",  // Browser ProgID prefix.
++        .base_app_name = L"Alerse",              // A distinct base_app_name.
++        .base_app_id = L"Alerse",                // A distinct base_app_id.
++        .browser_prog_id_prefix = L"AlerseHTM",  // Browser ProgID prefix.
          .browser_prog_id_description =
 -            L"Chromium HTML Document",  // Browser ProgID description.
 -        .direct_launch_url_scheme = "chromium",
 -        .pdf_prog_id_prefix = L"ChromiumPDF",  // PDF ProgID prefix.
-+            L"Arcomium HTML Document",  // Browser ProgID description.
-+        .direct_launch_url_scheme = "arcomium",
-+        .pdf_prog_id_prefix = L"ArcomiumPDF",  // PDF ProgID prefix.
++            L"Alerse HTML Document",  // Browser ProgID description.
++        .direct_launch_url_scheme = "alerse",
++        .pdf_prog_id_prefix = L"AlersePDF",  // PDF ProgID prefix.
          .pdf_prog_id_description =
 -            L"Chromium PDF Document",  // PDF ProgID description.
-+            L"Arcomium PDF Document",  // PDF ProgID description.
++            L"Alerse PDF Document",  // PDF ProgID description.
          .active_setup_guid =
 -            L"{7D2B3E1D-D096-4594-9D8F-A6667F12E0AC}",  // Active Setup
-+            L"{4C1E8A57-3B9D-4F62-A0D4-7E52B19C6F38}",  // Active Setup
++            L"{FB04E068-D560-40D7-BA8D-318A3484D91E}",  // Active Setup
                                                          // GUID.
 -        .toast_activator_clsid = {0x635EFA6F,
 -                                  0x08D6,
 -                                  0x4EC9,
 -                                  {0xBD, 0x14, 0x8A, 0x0F, 0xDE, 0x97, 0x51,
 -                                   0x59}},  // Toast Activator CLSID.
-+        .toast_activator_clsid = {0x9B6E2C41,
-+                                  0x5D7A,
-+                                  0x4E83,
-+                                  {0xB1, 0xF9, 0x2A, 0x0C, 0x6D, 0x84, 0xE5,
-+                                   0x17}},  // Toast Activator CLSID.
++        .toast_activator_clsid = {0x09758798,
++                                  0x6B12,
++                                  0x4B6E,
++                                  {0x8D, 0x92, 0x27, 0x3B, 0xF8, 0x04, 0xBC,
++                                   0xC2}},  // Toast Activator CLSID.
          .elevator_clsid = {0xD133B120,
                             0x6DB4,
                             0x4D6B,
 diff --git a/chrome/install_static/user_data_dir.cc b/chrome/install_static/user_data_dir.cc
-index 6b231841bf6..a07e01904a9 100644
+index 6b231841bf6..bab70225029 100644
 --- a/chrome/install_static/user_data_dir.cc
 +++ b/chrome/install_static/user_data_dir.cc
-@@ -76,6 +76,55 @@ bool GetUserDataDirectoryUsingProcessCommandLine(
+@@ -76,6 +76,95 @@ bool GetUserDataDirectoryUsingProcessCommandLine(
  // TODO(ananta)
  // http://crbug.com/604923
  // Unify this with the Browser Distribution code.
++// Arcomium: whether `dir` holds a browser profile: it has a Local State.
++bool HasProfile(const std::wstring& dir) {
++  return ::GetFileAttributesW((dir + L"\\Local State").c_str()) !=
++         INVALID_FILE_ATTRIBUTES;
++}
++
 +// Arcomium: whether `dir` holds an Arcomium profile: its default profile's
 +// preferences have Arcomium's own member.
 +bool IsArcomiumProfile(const std::wstring& dir) {
@@ -134,16 +224,31 @@ index 6b231841bf6..a07e01904a9 100644
 +  return text.find("\"arcomium\":") != std::string::npos;
 +}
 +
-+// Arcomium: before it had its own identity, Arcomium kept its profile in
-+// "Chromium\User Data". The first start without "Arcomium\User Data" moves
-+// that profile here if it is Arcomium's. If it cannot be moved (an older
-+// Arcomium still has it open), it is used where it is: nothing is lost.
-+void MaybeUseArcomiumLegacyUserDataDir(std::wstring* user_data_dir) {
-+  if (::GetFileAttributesW(user_data_dir->c_str()) !=
-+      INVALID_FILE_ATTRIBUTES) {
++// Arcomium: whether a running browser has `dir` open: it holds its lockfile
++// (ProcessSingleton) without sharing it.
++bool ProfileInUse(const std::wstring& dir) {
++  HANDLE file = ::CreateFileW((dir + L"\\lockfile").c_str(), GENERIC_READ, 0,
++                              nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
++                              nullptr);
++  if (file == INVALID_HANDLE_VALUE) {
++    return ::GetLastError() == ERROR_SHARING_VIOLATION;
++  }
++  ::CloseHandle(file);
++  return false;
++}
++
++// Arcomium: Alerse takes over the profile of the browser it was before:
++// "Arcomium\User Data" (0.1.2 to 0.1.7), or "Chromium\User Data", where
++// versions before Arcomium had its own identity kept it (only if it is
++// Arcomium's). The first start without a profile of its own moves that
++// directory here. A profile another browser has open is not moved but used
++// where it is, so nothing is lost; the move happens at a later start. This
++// runs only for the default directory, never with --user-data-dir.
++void TakeOverOldUserDataDir(std::wstring* user_data_dir) {
++  if (HasProfile(*user_data_dir)) {
 +    return;
 +  }
-+  const std::wstring suffix = L"\\Arcomium\\User Data";
++  const std::wstring suffix = L"\\Alerse\\User Data";
 +  if (user_data_dir->size() <= suffix.size() ||
 +      user_data_dir->compare(user_data_dir->size() - suffix.size(),
 +                             suffix.size(), suffix) != 0) {
@@ -151,25 +256,44 @@ index 6b231841bf6..a07e01904a9 100644
 +  }
 +  const std::wstring base =
 +      user_data_dir->substr(0, user_data_dir->size() - suffix.size());
-+  const std::wstring legacy = base + L"\\Chromium\\User Data";
-+  if (!IsArcomiumProfile(legacy)) {
++  const std::wstring arcomium = base + L"\\Arcomium\\User Data";
++  const std::wstring chromium = base + L"\\Chromium\\User Data";
++  std::wstring legacy;
++  if (HasProfile(arcomium)) {
++    legacy = arcomium;
++  } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++    legacy = chromium;
++  } else {
 +    return;
 +  }
-+  ::CreateDirectoryW((base + L"\\Arcomium").c_str(), nullptr);
-+  if (::MoveFileExW(legacy.c_str(), user_data_dir->c_str(), 0)) {
++  if (ProfileInUse(legacy)) {
++    *user_data_dir = legacy;
 +    return;
 +  }
-+  *user_data_dir = legacy;
++  ::CreateDirectoryW((base + L"\\Alerse").c_str(), nullptr);
++  // A directory without a profile goes if it is empty, or else is kept aside
++  // under another name.
++  if (::GetFileAttributesW(user_data_dir->c_str()) !=
++          INVALID_FILE_ATTRIBUTES &&
++      !::RemoveDirectoryW(user_data_dir->c_str()) &&
++      !::MoveFileExW(user_data_dir->c_str(),
++                     (*user_data_dir + L".old").c_str(), 0)) {
++    *user_data_dir = legacy;
++    return;
++  }
++  if (!::MoveFileExW(legacy.c_str(), user_data_dir->c_str(), 0)) {
++    *user_data_dir = legacy;
++  }
 +}
 +
  bool GetDefaultUserDataDirectory(const InstallConstants& mode,
                                   std::wstring* result) {
    // This environment variable should be set on Windows Vista and later
-@@ -100,6 +149,7 @@ bool GetDefaultUserDataDirectory(const InstallConstants& mode,
+@@ -100,6 +189,7 @@ bool GetDefaultUserDataDirectory(const InstallConstants& mode,
    AppendChromeInstallSubDirectory(mode, true /* include_suffix */, result);
    result->push_back(L'\\');
    result->append(L"User Data");
-+  MaybeUseArcomiumLegacyUserDataDir(result);
++  TakeOverOldUserDataDir(result);
    return true;
  }
  

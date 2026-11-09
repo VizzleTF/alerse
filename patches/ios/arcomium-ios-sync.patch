@@ -251,8 +251,8 @@ index 0000000000..43709ceb63
 +  wrongCode: ['bad', 'This device’s sync code does not open the chain’s ' +
 +      'data. Leave the sync chain and join again with the right code.'],
 +  refused: ['bad', 'The server refused this device. Check that the device’s ' +
-+      'clock is right, then restart Arcomium.'],
-+  error: ['bad', 'Sync stopped after an error. Restart Arcomium to try again.'],
++      'clock is right, then restart Alerse.'],
++  error: ['bad', 'Sync stopped after an error. Restart Alerse to try again.'],
 +};
 +
 +function formatTime(ms) {
@@ -284,8 +284,8 @@ index 0000000000..43709ceb63
 +
 +  $('restart').hidden = !state.restartNeeded;
 +  $('restart-text').textContent = configured ?
-+      'Close Arcomium and open it again to start syncing.' :
-+      'This device left its sync chain. Close Arcomium and open it again to finish.';
++      'Close Alerse and open it again to start syncing.' :
++      'This device left its sync chain. Close Alerse and open it again to finish.';
 +
 +  const [tone, text] = STATUS[state.status] || STATUS.off;
 +  $('status-dot').className = 'dot ' + tone;

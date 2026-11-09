@@ -36,8 +36,8 @@
     <message name="IDS_ARCOMIUM_MENU_CHECK_UPDATES" desc="Menu of the sidebar logo: open the page of the latest release.">
       Check for Updates
     </message>
-    <message name="IDS_ARCOMIUM_MENU_UPDATE_TO" desc="Top item of the sidebar logo's menu and the app menu when a newer Arcomium release is out: open that release's page to download it. $1 is its version.">
-      Update to Arcomium <ph name="VERSION">$1<ex>0.1.5</ex></ph>
+    <message name="IDS_ARCOMIUM_MENU_UPDATE_TO" desc="Top item of the sidebar logo's menu and the app menu when a newer Alerse release is out: open that release's page to download it. $1 is its version.">
+      Update to Alerse <ph name="VERSION">$1<ex>0.1.5</ex></ph>
     </message>
     <message name="IDS_ARCOMIUM_MENU_IMPORT" desc="Menu of the sidebar logo and the app menu: open the page that imports bookmarks and Spaces from other browsers on this computer.">
       Import from Another Browser...
@@ -47,7 +47,7 @@
       Import from another browser
     </message>
     <message name="IDS_ARCOMIUM_IMPORT_LEDE" desc="Introduction of the import page.">
-      Bring over bookmarks, pinned tabs and Spaces from the browsers on this computer. Arcomium only reads their files: nothing changes in those browsers.
+      Bring over bookmarks, pinned tabs and Spaces from the browsers on this computer. Alerse only reads their files: nothing changes in those browsers.
     </message>
     <message name="IDS_ARCOMIUM_IMPORT_SEARCHING" desc="Import page: shown while it looks for other browsers.">
       Looking for browsers on this computer...
@@ -224,7 +224,7 @@
       Print...
     </message>
     <message name="IDS_ARCOMIUM_MENU_ABOUT" desc="Menu of the sidebar logo: show the version and the about page.">
-      About Arcomium
+      About Alerse
     </message>
     <message name="IDS_ARCOMIUM_MENU_CLOSE_WINDOW" desc="Menu of the sidebar logo: close this window.">
       Close Window
@@ -405,7 +405,7 @@
     </message>
     <!-- Arcomium's changes to Chromium's views -->
     <message name="IDS_ARCOMIUM_ADD_TO_ARCOMIUM" desc="App menu item on a Chrome Web Store page: install its extension.">
-      Add to Arcomium
+      Add to Alerse
     </message>
     <message name="IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP" desc="Tooltip of the address bar button that opens the site's settings.">
       Site settings
@@ -431,8 +431,8 @@
     <message name="IDS_ARCOMIUM_SEARCH_ENGINE" desc="App menu item: pick the address bar's search engine or add one.">
       Search Engine
     </message>
-    <message name="IDS_ARCOMIUM_MENU" desc="Tooltip of the sidebar button that opens Arcomium's menu.">
-      Arcomium menu
+    <message name="IDS_ARCOMIUM_MENU" desc="Tooltip of the sidebar button that opens Alerse's menu.">
+      Alerse menu
     </message>
     <message name="IDS_ARCOMIUM_HIDE_SIDEBAR" desc="Tooltip of the button that hides the sidebar.">
       Hide sidebar
@@ -512,7 +512,7 @@
     <message name="IDS_ARCOMIUM_MENU_REVEAL_TAB" desc="macOS menu bar, Tabs menu, as Arc's: scrolls the sidebar to the shown tab's row.">
       Reveal Tab in Sidebar
     </message>
-    <message name="IDS_ARCOMIUM_MENU_SET_DEFAULT_BROWSER" desc="macOS menu bar, app menu, as Arc's: makes Arcomium the default browser.">
+    <message name="IDS_ARCOMIUM_MENU_SET_DEFAULT_BROWSER" desc="macOS menu bar, app menu, as Arc's: makes Alerse the default browser.">
       Set as Default Browser
     </message>
     <message name="IDS_ARCOMIUM_MENU_UPDATE_AVAILABLE" desc="macOS menu bar, app menu, as Arc's: shown when a newer release exists; opens its page.">

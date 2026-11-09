@@ -1,8 +1,8 @@
 # Writing and refreshing patches
 
-Arcomium patches are diffs against the Chromium tree after the ungoogled-chromium and
+Alerse patches are diffs against the Chromium tree after the ungoogled-chromium and
 platform patches. You edit them in a separate working tree, inside a platform checkout
-(the examples use [arcomium-win](https://github.com/VizzleTF/arcomium-win)), and export
+(the examples use [arcomium-win](https://github.com/VizzleTF/alerse-win)), and export
 them into this repository, which is that checkout's `arcomium` submodule.
 
 ## Set up a working tree
@@ -23,18 +23,18 @@ Then apply the patches listed in `arcomium\patches\series`, in order:
 git apply ..\arcomium\patches\spaces\space-sidebar.patch
 ```
 
-and copy Arcomium's own files over the tree:
+and copy Alerse's own files over the tree:
 
 ```cmd
 xcopy /e /y /q ..\arcomium\src .
 ```
 
-## Arcomium's own files
+## Alerse's own files
 
-Files Arcomium adds (the sidebar, Spaces, the command bar, sync) are not in patches.
+Files Alerse adds (the sidebar, Spaces, the command bar, sync) are not in patches.
 They live in `src/` at their paths in the Chromium tree, and each platform's build
 copies them over the source tree after the patches, as it does `branding/`. Patches
-change only Chromium's own files, including the `BUILD.gn` lines that build Arcomium's.
+change only Chromium's own files, including the `BUILD.gn` lines that build Alerse's.
 
 Edit these files in the working tree, then copy them back into `arcomium\src\`. A new
 file goes there too, never into a patch.
@@ -47,9 +47,9 @@ frames; a view reads them from its color provider instead of holding an `SkColor
 
 ## Add a patch
 
-Each hunk carries a `// Arcomium: ...` comment that says why. Keep logic in Arcomium's
-own files and only the hook in the patch: a large hunk in a Chromium file is what
-conflicts on the next Chromium.
+Each hunk carries a `// Arcomium: ...` comment that says why (the tag keeps the old
+name, as code identifiers do). Keep logic in Alerse's own files and only the hook in
+the patch: a large hunk in a Chromium file is what conflicts on the next Chromium.
 
 Never export a patch from the tree after ungoogled-chromium's domain substitution: its
 rewritten names (`9oo91e`, `qjz9zk`, `m1cr050ft`, `ch40m1um`) must not appear in a patch.
@@ -64,8 +64,8 @@ Check every new patch for them.
 
 3. Add `<area>/<name>.patch` to `arcomium\patches\series`.
 4. Check that the whole series still applies to a clean tree. In
-   [arcomium-linux](https://github.com/VizzleTF/arcomium-linux), `./check-patches.sh`
-   applies it to the Chromium release source in a few minutes, Arcomium's patches with
+   [arcomium-linux](https://github.com/VizzleTF/alerse-linux), `./check-patches.sh`
+   applies it to the Chromium release source in a few minutes, Alerse's patches with
    no fuzz; CI runs it on every push. In the working tree:
 
    ```cmd
@@ -79,7 +79,7 @@ Check every new patch for them.
 
 Let git replay the series with three-way merges:
 
-1. Set up the working tree on the new tag as above, without Arcomium's patches, and
+1. Set up the working tree on the new tag as above, without Alerse's patches, and
    commit it (the new base).
 2. Fetch the old base (the previous working tree's base commit) into the same
    repository.
@@ -106,7 +106,7 @@ feature on by default, so `defaults/feature-defaults.patch` lost that hunk; it s
 turns the pref of the same name on). When an
 API changed, adapt the hunk to it, not Chromium back to the old API.
 
-Arcomium follows ungoogled-chromium, so a new Chromium is possible only once
+Alerse follows ungoogled-chromium, so a new Chromium is possible only once
 ungoogled-chromium and the platform's port have released it. A port that is behind
 can build from the core's branch for its version (`chromium-156`). Today only
 arcomium-ios pins that branch; arcomium-linux and arcomium-mac pin `main` (0.1.4, the
@@ -122,10 +122,15 @@ series; keep that patch applying to both trees.
 
 ## Branding and the product name
 
-Binary files, such as the app icons from `tools/make_icons.py`, live in `branding/` at
-their paths in the Chromium tree; each platform's build copies them over the source tree
-after patching. `tools/rename_product.py` then renames Chromium to Arcomium in the
-strings and moves the translations to the new message IDs. Neither belongs in a patch.
+Binary files, such as the app icons, live in `branding/` at their paths in the Chromium
+tree; each platform's build copies them over the source tree after patching. The icon
+itself is drawn: `artwork/` holds it (`alerse_1024.png`, the same tile prepared at 16 to
+512 px, `alerse.ico`), and `tools/make_icons.py` writes every branding file from it
+(product logos, Windows tiles and `.ico`, macOS on Apple's grid, iOS without rounded
+corners). Run it on a Mac to compile `app.icns` (iconutil) and `Assets.car` (actool) too;
+`--mac-only` writes just those. `tools/rename_product.py` then renames Chromium (and
+Arcomium, in a tree renamed before 0.1.8) to Alerse in the strings and moves the
+translations to the new message IDs. Neither belongs in a patch.
 
 ## Building through a junction
 

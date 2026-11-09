@@ -28,17 +28,24 @@
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 
+#if BUILDFLAG(IS_WIN)
+#include "chrome/browser/arcomium_update/arcomium_legacy_install_win.h"
+#endif
+
 namespace arcomium {
 
 namespace {
 
-// The repository this platform's builds are released from.
+// The repository this platform's builds are released from. The repositories
+// were Arcomium's (VizzleTF/arcomium-win, ...); GitHub redirects the old names
+// (the API answers 301 to /repositories/ID/..., which SimpleURLLoader
+// follows), so Arcomium's builds, which ask for them, keep finding releases.
 #if BUILDFLAG(IS_WIN)
-constexpr char kRepository[] = "VizzleTF/arcomium-win";
+constexpr char kRepository[] = "VizzleTF/alerse-win";
 #elif BUILDFLAG(IS_MAC)
-constexpr char kRepository[] = "VizzleTF/arcomium-mac";
+constexpr char kRepository[] = "VizzleTF/alerse-mac";
 #else
-constexpr char kRepository[] = "VizzleTF/arcomium-linux";
+constexpr char kRepository[] = "VizzleTF/alerse-linux";
 #endif
 
 // The first check waits for startup to settle; later ones come once a day. A
@@ -54,9 +61,9 @@ constexpr size_t kMaxResponseSize = 1024 * 1024;
 constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
     net::DefineNetworkTrafficAnnotation("arcomium_update_check", R"(
         semantics {
-          sender: "Arcomium update check"
+          sender: "Alerse update check"
           description:
-            "Asks GitHub's API for the latest Arcomium release of this "
+            "Asks GitHub's API for the latest Alerse release of this "
             "platform, to tell the user in the browser's menu when a newer "
             "one is out."
           trigger:
@@ -73,7 +80,7 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
             "false, and in headless mode or with "
             "--disable-background-networking."
           policy_exception_justification:
-            "Arcomium has no enterprise policy for it."
+            "Alerse has no enterprise policy for it."
         })");
 
 // A version of exactly MAJOR.MINOR.PATCH.
@@ -145,6 +152,12 @@ UpdateChecker::UpdateChecker() = default;
 UpdateChecker::~UpdateChecker() = default;
 
 void UpdateChecker::PostBrowserStart() {
+#if BUILDFLAG(IS_WIN)
+  // Arcomium, which Alerse was, goes once Alerse took over its profile.
+  if (!headless::IsHeadlessMode()) {
+    RemoveLegacyInstallLater();
+  }
+#endif
   // A build that does not know its version has nothing to compare, and
   // automation asks for no background requests.
   if (!ParseVersion(ARCOMIUM_VERSION) || headless::IsHeadlessMode() ||
