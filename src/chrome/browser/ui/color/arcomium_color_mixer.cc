@@ -54,6 +54,8 @@ void AddArcomiumColorMixer(ui::ColorProvider* provider,
     mixer[kColorArcomiumSpaceIconHovered] = {ui::kColorSysOnSurface};
     mixer[kColorArcomiumSpaceIconActive] = {ui::kColorSysOnSurface};
     mixer[kColorArcomiumArchiveSlot] = {ui::kColorSysSurface};
+    mixer[kColorArcomiumSidebarPlaceholderHovered] = {kColorOmniboxTextDimmed};
+    mixer[kColorArcomiumSidebarPlaceholderInactive] = {kColorOmniboxTextDimmed};
     return;
   }
 #if BUILDFLAG(IS_MAC)
@@ -116,5 +118,14 @@ void AddArcomiumColorMixer(ui::ColorProvider* provider,
 #if BUILDFLAG(IS_MAC)
   // Arc for macOS' command bar placeholder (omnibox_view_views.cc).
   mixer[kColorOmniboxForegroundDisabled] = Ink(SkColorSetRGB(0x97, 0x97, 0x97));
+  // The sidebar field's "Search..." (#6F6F6F) under the pointer. In an
+  // inactive window it follows the lighter frame, set with that frame
+  // (chrome_color_mixers.cc).
+  mixer[kColorArcomiumSidebarPlaceholderHovered] =
+      Ink(SkColorSetRGB(0x75, 0x75, 0x76));
+  mixer[kColorArcomiumSidebarPlaceholderInactive] = {kColorOmniboxTextDimmed};
+#else
+  mixer[kColorArcomiumSidebarPlaceholderHovered] = {kColorOmniboxTextDimmed};
+  mixer[kColorArcomiumSidebarPlaceholderInactive] = {kColorOmniboxTextDimmed};
 #endif
 }

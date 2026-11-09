@@ -1,0 +1,840 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -309,6 +309,9 @@
+ #define IDC_ARCOMIUM_PIN_TAB 40398
+ #define IDC_ARCOMIUM_NEW_FOLDER 40399
+ #define IDC_ARCOMIUM_CLEAR_TODAY 40400
++#define IDC_ARCOMIUM_TOGGLE_PINNED 40401
++// Arcomium: Arc's Copy URL as Markdown.
++#define IDC_ARCOMIUM_COPY_URL_MARKDOWN 40402
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/views/location_bar/BUILD.gn
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -88,6 +88,8 @@ source_set("impl") {
+       "zoom_bubble_manager_views.h",
+     ]
+     sources += [
++      "arcomium_command_provider.cc",
++      "arcomium_command_provider.h",
+       "content_setting_image_view.cc",
+       "custom_tab_bar_view.cc",
+       "lens_overlay_homework_page_action_controller.cc",
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 3f7b71a..f0338d1 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -6,6 +6,8 @@
+ 
+ #include "ui/views/painter.h"
+ 
++#include "chrome/browser/ui/views/location_bar/arcomium_command_provider.h"
++
+ #include "cc/paint/paint_flags.h"
+ 
+ #include "base/strings/utf_string_conversions.h"
+@@ -375,6 +377,11 @@ void LocationBarView::Init() {
+   omnibox_controller_ =
+       std::make_unique<OmniboxController>(std::make_unique<ChromeOmniboxClient>(
+           /*location_bar=*/this, browser_, profile_));
++  // Arcomium: Arc's command bar actions, for a window's own location bar.
++  if (browser_ && !is_popup_mode_) {
++    omnibox_controller_->autocomplete_controller()->ArcomiumAddProvider(
++        base::MakeRefCounted<ArcomiumCommandProvider>(browser_));
++  }
+   auto omnibox_view = std::make_unique<OmniboxViewViews>(
+       is_popup_mode_, omnibox_controller_.get(),
+       /*location_bar_view=*/this, font_list);
+@@ -865,6 +872,21 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+   InvalidateLayout();
+ }
+ 
++namespace {
++// Arcomium: Arc's site search hint in the command bar: grey words, then a
++// "Tab" key cap (a dark plate with 5 px corners) ending 20 px from the
++// panel's end, where the (i) otherwise is.
++constexpr int kArcomiumHintEndInset = 20 - 6;
++constexpr int kArcomiumHintChipPadding = 7;
++constexpr int kArcomiumHintChipHeight = 22;
++constexpr int kArcomiumHintGap = 8;
++
++gfx::FontList ArcomiumHintFont(const gfx::FontList& base) {
++  return base.DeriveWithSizeDelta(13 - base.GetFontSize())
++      .DeriveWithWeight(gfx::Font::Weight::MEDIUM);
++}
++}  // namespace
++
+ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+   if (arcomium_command_bar_ == command_bar) {
+     return;
+@@ -873,10 +895,41 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+   // Arc for Windows' command bar sets what you type 16 px high, larger than
+   // its rows; Arc for macOS' 18 pt.
+ #if BUILDFLAG(IS_MAC)
+-  constexpr int kArcomiumCommandBarFontSize = 18;
++  // Arcomium: 15 pt in the compact one opened from the sidebar's field.
++  const int kArcomiumCommandBarFontSize =
++      arcomium_command_bar_compact_ ? 15 : 18;
++  // Arc for macOS' caret is the system's blue, not the text's color.
++  omnibox_view_->SetCursorColor(
++      command_bar ? std::optional<SkColor>(SkColorSetRGB(0x34, 0x78, 0xF6))
++                  : std::nullopt);
+ #else
+   constexpr int kArcomiumCommandBarFontSize = 16;
+ #endif
++  if (command_bar && !arcomium_info_button_) {
++    // Arc's (i): a dark disc with the info glyph, opening the site's
++    // controls.
++    auto info = views::CreateVectorImageButtonWithNativeTheme(
++        base::BindRepeating(&LocationBarView::ShowArcomiumSiteControls,
++                            base::Unretained(this)),
++        vector_icons::kInfoIcon, 16, kColorOmniboxText);
++    info->SetBackground(views::CreateRoundedRectBackground(
++        SkColorSetRGB(0x02, 0x02, 0x02), 12));
++    info->SetTooltipText(
++        l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
++    info->GetViewAccessibility().SetName(
++        l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
++    arcomium_info_button_ = AddChildView(std::move(info));
++  }
++  if (arcomium_info_button_) {
++    arcomium_info_button_->SetVisible(command_bar);
++  }
++  // A site's search chip is drawn into the panel's translucent widget, where
++  // text can not be drawn with subpixel antialiasing.
++  for (views::View* child : selected_keyword_view_->children()) {
++    if (auto* label = views::AsViewClass<views::Label>(child)) {
++      label->SetSubpixelRenderingEnabled(!command_bar);
++    }
++  }
+   if (command_bar) {
+     arcomium_command_bar_font_ = omnibox_view_->GetFontList();
+     const gfx::FontList base =
+@@ -896,6 +949,27 @@ bool LocationBarView::ArcomiumOpensNewTab() const {
+ }
+ 
+ void LocationBarView::ShowArcomiumSiteControls() {
++#if !BUILDFLAG(IS_MAC)
++  // Arcomium: Arc's (i) in the command bar closes it first, as its actions
++  // do (the page takes the keyboard), then the site controls open at the top
++  // bar's button, which shows again. Over the open command bar they took its
++  // focus and left it half closed, without its rows.
++  if (arcomium_command_bar_ && browser_) {
++    if (content::WebContents* contents =
++            browser_->GetTabStripModel()->GetActiveWebContents()) {
++      contents->Focus();
++      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE, base::BindOnce(
++                         [](base::WeakPtr<LocationBarView> view) {
++                           if (view && !view->arcomium_command_bar_) {
++                             view->ShowArcomiumSiteControls();
++                           }
++                         },
++                         weak_factory_.GetWeakPtr()));
++      return;
++    }
++  }
++#endif
+   // Arc's site controls, as the extensions button opens them; without that
+   // button, Chrome's page info.
+   BrowserView* browser_view =
+@@ -911,6 +985,87 @@ void LocationBarView::ShowArcomiumSiteControls() {
+   ShowPageInfoDialog();
+ }
+ 
++std::u16string LocationBarView::GetArcomiumKeywordHint() const {
++  if (!arcomium_command_bar_ || !omnibox_view_) {
++    return std::u16string();
++  }
++  const OmniboxEditModel* model = GetOmniboxController()->edit_model();
++  if (!model->is_keyword_hint() || model->keyword().empty()) {
++    return std::u16string();
++  }
++  const TemplateURLService* service =
++      profile_ ? TemplateURLServiceFactory::GetForProfile(profile_) : nullptr;
++  const TemplateURL* turl =
++      service ? service->GetTemplateURLForKeyword(model->keyword()) : nullptr;
++  if (!turl || turl->short_name().empty()) {
++    return std::u16string();
++  }
++  return l10n_util::GetStringFUTF16(IDS_ARCOMIUM_SEARCH_SITE,
++                                    turl->short_name());
++}
++
++int LocationBarView::GetArcomiumKeywordHintWidth() const {
++  const std::u16string hint = GetArcomiumKeywordHint();
++  if (hint.empty()) {
++    return 0;
++  }
++  const gfx::FontList font = ArcomiumHintFont(omnibox_view_->GetFontList());
++  return gfx::GetStringWidth(hint, font) + kArcomiumHintGap +
++         gfx::GetStringWidth(l10n_util::GetStringUTF16(IDS_ARCOMIUM_TAB_KEY),
++                             font) +
++         2 * kArcomiumHintChipPadding;
++}
++
++void LocationBarView::PaintArcomiumKeywordHint(gfx::Canvas* canvas) {
++  const std::u16string hint = GetArcomiumKeywordHint();
++  if (hint.empty()) {
++    return;
++  }
++  const ui::ColorProvider* colors = GetColorProvider();
++  const gfx::FontList font = ArcomiumHintFont(omnibox_view_->GetFontList());
++  const std::u16string key = l10n_util::GetStringUTF16(IDS_ARCOMIUM_TAB_KEY);
++  const int chip_width =
++      gfx::GetStringWidth(key, font) + 2 * kArcomiumHintChipPadding;
++  const gfx::Rect chip(width() - kArcomiumHintEndInset - chip_width,
++                       (height() - kArcomiumHintChipHeight) / 2, chip_width,
++                       kArcomiumHintChipHeight);
++  cc::PaintFlags flags;
++  flags.setAntiAlias(true);
++  flags.setColor(color_utils::BlendTowardMaxContrast(
++      colors->GetColor(kColorOmniboxResultsBackground), 0x0C));
++  canvas->DrawRoundRect(gfx::RectF(chip), 5, flags);
++  canvas->DrawStringRectWithFlags(key, font,
++                                  colors->GetColor(kColorOmniboxTextDimmed),
++                                  chip, gfx::Canvas::TEXT_ALIGN_CENTER);
++  const int text_width = gfx::GetStringWidth(hint, font);
++  canvas->DrawStringRect(
++      hint, font, colors->GetColor(kColorOmniboxTextDimmed),
++      gfx::Rect(chip.x() - kArcomiumHintGap - text_width, 0, text_width,
++                height()));
++}
++
++ui::ImageModel LocationBarView::GetArcomiumCommandBarIcon() {
++  OmniboxEditModel* model = GetOmniboxController()->edit_model();
++  if (!model->user_input_in_progress() || omnibox_view_->GetText().empty()) {
++    return ui::ImageModel();
++  }
++  const AutocompleteMatch match = model->CurrentMatch();
++  if (AutocompleteMatch::IsSearchType(match.type) &&
++      !model->is_keyword_selected()) {
++    return ui::ImageModel();
++  }
++  const SkColor color = GetColorProvider()->GetColor(kColorOmniboxText);
++  return omnibox_view_->GetIcon(
++      16, color, color, color, color,
++      base::BindOnce(&LocationBarView::OnArcomiumIconFetched,
++                     weak_factory_.GetWeakPtr()),
++      /*dark_mode=*/true);
++}
++
++void LocationBarView::OnArcomiumIconFetched(const gfx::Image& icon) {
++  SchedulePaint();
++}
++
+ bool LocationBarView::IsArcomiumCenteredIdle() const {
+   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ }
+@@ -998,17 +1153,26 @@ void LocationBarView::LayoutArcomiumCentered() {
+ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
+   views::View::OnPaintBackground(canvas);
+   if (arcomium_command_bar_) {
+-    // Arc's magnifier, 16 px wide, centred 27 px in.
+-    const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
+-        vector_icons::kArcomiumSearchIcon, 16,
+-        GetColorProvider()->GetColor(kColorOmniboxText));
++    // Arc's magnifier, 16 px wide, centred 27 px in; the site's favicon or
++    // the action's icon in its place for what the input completes to.
++    const ui::ImageModel icon = GetArcomiumCommandBarIcon();
++    const gfx::ImageSkia magnifier =
++        icon.IsEmpty()
++            ? gfx::CreateVectorIcon(
++                  vector_icons::kArcomiumSearchIcon, 16,
++                  GetColorProvider()->GetColor(kColorOmniboxText))
++            : icon.Rasterize(GetColorProvider());
++    PaintArcomiumKeywordHint(canvas);
++    // A site's search chip brings its own icon.
++    if (!selected_keyword_view_->GetVisible()) {
+ #if BUILDFLAG(IS_MAC)
+-    // Arcomium: Arc for macOS' sits 24 pt into the panel, a point below the
+-    // middle.
+-    canvas->DrawImageInt(magnifier, 24 - 6, (height() - 16) / 2 + 1);
++      // Arcomium: Arc for macOS' sits 24 pt into the panel, a point below
++      // the middle.
++      canvas->DrawImageInt(magnifier, 24 - 6, (height() - 16) / 2 + 1);
+ #else
+-    canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
++      canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
+ #endif
++    }
+   } else if (IsArcomiumSidebarSearch()) {
+     // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
+ #if BUILDFLAG(IS_MAC)
+@@ -1374,10 +1538,39 @@ void LocationBarView::Layout(PassKey) {
+     omnibox_view_->set_placeholder_font_list(omnibox_view_->GetFontList());
+ #endif
+     location_icon_view_->SetVisible(false);
+-    omnibox_view_->SetBounds(kTextInset, omnibox_view_->y(),
+-                             std::max(0, omnibox_view_->bounds().right() -
+-                                             kTextInset),
+-                             omnibox_view_->height());
++    // Arc's (i), a 24 px disc centred 32 px from the panel's end, gives way
++    // to the site search hint.
++    const int hint_width = GetArcomiumKeywordHintWidth();
++    constexpr int kInfoSize = 24;
++    const int info_x = width() - (32 - 6) - kInfoSize / 2;
++    if (arcomium_info_button_) {
++      arcomium_info_button_->SetVisible(hint_width == 0);
++      arcomium_info_button_->SetBounds(info_x, (height() - kInfoSize) / 2,
++                                       kInfoSize, kInfoSize);
++    }
++    const int text_end =
++        hint_width ? width() - kArcomiumHintEndInset - hint_width - 8
++                   : info_x - 8;
++    int text_x = kTextInset;
++    // In a site's search (after Tab) its chip comes first, its own icon in
++    // the magnifier's place (OnPaintBackground draws none then).
++    if (selected_keyword_view_->GetVisible()) {
++      const gfx::Size chip = selected_keyword_view_->GetPreferredSize();
++#if BUILDFLAG(IS_MAC)
++      constexpr int kIconX = 24 - 6;
++#else
++      constexpr int kIconX = 20 - 6;
++#endif
++      selected_keyword_view_->SetBounds(
++          kIconX - selected_keyword_view_->GetInsets().left(),
++          (height() - chip.height()) / 2, chip.width(), chip.height());
++      text_x = selected_keyword_view_->bounds().right() + 4;
++    }
++    omnibox_view_->SetBounds(
++        text_x, omnibox_view_->y(),
++        std::max(0, std::min(omnibox_view_->bounds().right(), text_end) -
++                        text_x),
++        omnibox_view_->height());
+   }
+ 
+   LayoutSuperclass<View>(this);
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -39,6 +39,7 @@
+ #include "ui/gfx/color_palette.h"
+ #include "ui/gfx/font.h"
+ #include "ui/gfx/geometry/rect.h"
++#include "ui/base/models/image_model.h"
+ #include "ui/gfx/image/image.h"
+ #include "ui/views/animation/animation_delegate_views.h"
+ #include "ui/views/controls/focus_ring.h"
+@@ -340,6 +341,11 @@ class LocationBarView
+   void SetArcomiumNewTab(bool new_tab) { arcomium_new_tab_ = new_tab; }
+   bool ArcomiumOpensNewTab() const override;
+   bool IsArcomiumCommandBar() const { return arcomium_command_bar_; }
++  // Arcomium: Arc for macOS' compact command bar, opened by clicking the
++  // sidebar's field: its input is smaller. Set before SetArcomiumCommandBar.
++  void SetArcomiumCommandBarCompact(bool compact) {
++    arcomium_command_bar_compact_ = compact;
++  }
+ 
+  private:
+   FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
+@@ -610,6 +616,19 @@ class LocationBarView
+   bool arcomium_hovered_ = false;
+   bool arcomium_centered_ = false;
+   bool arcomium_command_bar_ = false;
++  bool arcomium_command_bar_compact_ = false;
++  // Arc's (i) at the end of the command bar's input: the site's controls.
++  raw_ptr<views::ImageButton> arcomium_info_button_ = nullptr;
++  // Arc's "Search <site> [Tab]" at the end of the command bar's input while
++  // Tab would search the site the address completes to; empty otherwise.
++  std::u16string GetArcomiumKeywordHint() const;
++  // The hint's width, 0 without one.
++  int GetArcomiumKeywordHintWidth() const;
++  void PaintArcomiumKeywordHint(gfx::Canvas* canvas);
++  // The command bar's icon: the favicon of the site the input completes to,
++  // or the action's, as Arc's; a magnifier for searches.
++  ui::ImageModel GetArcomiumCommandBarIcon();
++  void OnArcomiumIconFetched(const gfx::Image& icon);
+   // The address's face before the command bar enlarged it.
+   std::optional<gfx::FontList> arcomium_command_bar_font_;
+   bool arcomium_new_tab_ = false;
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
+@@ -185,8 +185,9 @@ class OmniboxPopupPresenterBase
+   }
+ 
+   // Arcomium: the location bar may sit in the narrow Arc sidebar; the
+-  // suggestions then open at least this wide, over the page.
+-  static constexpr int kArcomiumMinimumPopupWidth = 560;
++  // suggestions then open at least this wide, over the page. Narrower than
++  // Arc for macOS' compact command bar (348 pt), which they match.
++  static constexpr int kArcomiumMinimumPopupWidth = 320;
+   gfx::Size get_minimum_size() const {
+     return gfx::Size(std::max(minimum_size_.width(), kArcomiumMinimumPopupWidth),
+                      minimum_size_.height());
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -1439,8 +1439,15 @@ int OmniboxViewViews::GetOmniboxTextLength() const {
+ }
+ 
+ void OmniboxViewViews::SetEmphasis(bool emphasize, const gfx::Range& range) {
+-  const SkColor color = GetColorProvider()->GetColor(
++  SkColor color = GetColorProvider()->GetColor(
+       emphasize ? kColorOmniboxText : kColorOmniboxTextDimmed);
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS sets what is typed in its command bar #E4E5E8.
++  if (emphasize && location_bar_view_ &&
++      location_bar_view_->IsArcomiumCommandBar()) {
++    color = SkColorSetRGB(0xE4, 0xE5, 0xE8);
++  }
++#endif
+   if (range.IsValid()) {
+     ApplyColor(color, range);
+   } else {
+@@ -2173,9 +2180,10 @@ bool OmniboxViewViews::ShouldShowPlaceholderText() const {
+   if (!Textfield::ShouldShowPlaceholderText()) {
+     return false;
+   }
+-  // Arcomium: Arc's command bar keeps its placeholder while typing starts.
++  // Arcomium: Arc's command bar keeps its placeholder while typing starts;
++  // a site's search chip stands alone, as in Arc.
+   if (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar()) {
+-    return true;
++    return !controller()->edit_model()->is_keyword_selected();
+   }
+ 
+   return omnibox::ShouldShowPlaceholderText(
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.h"
+ 
++#include "components/omnibox/browser/autocomplete_provider.h"
++
+ #include <algorithm>
+ #include <memory>
+ #include <optional>
+@@ -1015,8 +1017,13 @@ SearchboxHandler::CreateAutocompleteMatch(
+       match.associated_keyword.empty()
+           ? nullptr
+           : turl_service->GetTemplateURLForKeyword(match.associated_keyword);
+-  mojom_match->icon_path = AutocompleteIconToResourceName(
+-      match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
++  // Arcomium: the command bar's actions bring their own icons, which have no
++  // SVG resource (WebuiOmniboxHandler::OverrideIconPaths).
++  if (!match.provider || match.provider->type() !=
++                             AutocompleteProvider::Type::kArcomiumCommand) {
++    mojom_match->icon_path = AutocompleteIconToResourceName(
++        match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
++  }
+   OverrideIconPaths(match, mojom_match.get());
+   mojom_match->icon_url = match.icon_url;
+   // For featured enterprise search suggestions, use template url to generate
+diff --git a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+--- a/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
++++ b/chrome/browser/ui/webui/searchbox/webui_omnibox_handler.cc
+@@ -4,6 +4,12 @@
+ 
+ #include "chrome/browser/ui/webui/searchbox/webui_omnibox_handler.h"
+ 
++#include "components/omnibox/browser/actions/omnibox_action.h"
++#include "components/omnibox/browser/autocomplete_provider.h"
++#include "ui/base/webui/web_ui_util.h"
++#include "ui/gfx/image/image_skia.h"
++#include "ui/gfx/paint_vector_icon.h"
++
+ #include <memory>
+ #include <utility>
+ 
+@@ -485,6 +491,17 @@ void WebuiOmniboxHandler::OverrideIconPaths(
+       star != std::string::npos) {
+     mojom_match->icon_path.replace(star, kStar.size(), "/page_cr23");
+   }
++  // Arcomium: the command bar's actions bring their own icons, drawn twice
++  // the size they show at for sharp edges; the page tints them.
++  if (match.provider &&
++      match.provider->type() ==
++          AutocompleteProvider::Type::kArcomiumCommand &&
++      match.takeover_action) {
++    mojom_match->icon_path = webui::GetBitmapDataUrl(
++        *gfx::CreateVectorIcon(match.takeover_action->GetVectorIcon(), 32,
++                               SK_ColorWHITE)
++             .bitmap());
++  }
+ }
+ 
+ void WebuiOmniboxHandler::OnFocusChanged(bool focused) {
+diff --git a/components/omnibox/browser/autocomplete_controller.h b/components/omnibox/browser/autocomplete_controller.h
+--- a/components/omnibox/browser/autocomplete_controller.h
++++ b/components/omnibox/browser/autocomplete_controller.h
+@@ -299,6 +299,11 @@ class AutocompleteController : public AutocompleteProviderListener,
+   }
+   UpdateType last_update_type() const { return last_update_type_; }
+   const Providers& providers() const { return providers_; }
++  // Arcomium: a provider the embedder makes, as the command bar's actions,
++  // which need the window.
++  void ArcomiumAddProvider(scoped_refptr<AutocompleteProvider> provider) {
++    providers_.push_back(std::move(provider));
++  }
+ 
+   // Returns whether the given provider should be ran based on whether we're in
+   // keyword mode and which keyword we're searching. Currently runs all enabled
+diff --git a/components/omnibox/browser/autocomplete_provider.cc b/components/omnibox/browser/autocomplete_provider.cc
+--- a/components/omnibox/browser/autocomplete_provider.cc
++++ b/components/omnibox/browser/autocomplete_provider.cc
+@@ -95,6 +95,8 @@ const char* AutocompleteProvider::TypeToString(Type type) {
+       return "TabGroup";
+     case AutocompleteProvider::Type::kCrossDeviceTab:
+       return "CrossDeviceTab";
++    case AutocompleteProvider::Type::kArcomiumCommand:
++      return "ArcomiumCommand";
+     default:
+       DUMP_WILL_BE_NOTREACHED()
+           << "Unhandled AutocompleteProvider::Type " << static_cast<int>(type);
+@@ -213,6 +215,8 @@ AutocompleteProvider::AsOmniboxEventProviderType() const {
+       return metrics::OmniboxEventProto::TAB_GROUP_PROVIDER;
+     case AutocompleteProvider::Type::kCrossDeviceTab:
+       return metrics::OmniboxEventProto::CROSS_DEVICE_TAB;
++    case AutocompleteProvider::Type::kArcomiumCommand:
++      return metrics::OmniboxEventProto::UNKNOWN_PROVIDER;
+     default:
+       // TODO(crbug.com/40940012) This was a NOTREACHED that we converted to
+       //   help debug crbug.com/1499235 since NOTREACHED's don't log their
+diff --git a/components/omnibox/browser/autocomplete_provider.h b/components/omnibox/browser/autocomplete_provider.h
+--- a/components/omnibox/browser/autocomplete_provider.h
++++ b/components/omnibox/browser/autocomplete_provider.h
+@@ -185,6 +185,8 @@ class AutocompleteProvider
+     kContextualSearch = 1 << 25,
+     kTabGroup = 1 << 26,
+     kCrossDeviceTab = 1 << 27,
++    // Arcomium: Arc's command bar actions (arcomium_command_provider.h).
++    kArcomiumCommand = 1 << 28,
+ 
+     // When adding a value here, also update:
+     // - omnibox_event.proto
+diff --git a/ui/views/controls/textfield/textfield.cc b/ui/views/controls/textfield/textfield.cc
+--- a/ui/views/controls/textfield/textfield.cc
++++ b/ui/views/controls/textfield/textfield.cc
+@@ -634,7 +634,8 @@ size_t Textfield::GetCursorPosition() const {
+ 
+ void Textfield::SetColor(SkColor value) {
+   GetRenderText()->SetColor(value);
+-  cursor_view_->layer()->AsSolidColor()->SetColor(SkColor4f::FromColor(value));
++  cursor_view_->layer()->AsSolidColor()->SetColor(
++      SkColor4f::FromColor(cursor_color_.value_or(value)));
+   OnPropertyChanged(
+       ui::metadata::MakeUniquePropertyKey(&model_, kTextfieldTextColor),
+       PropertyEffects::kPaint);
+@@ -1281,7 +1282,15 @@ void Textfield::OnThemeChanged() {
+   render_text->set_selection_background_focused_color(
+       GetSelectionBackgroundColor());
+   cursor_view_->layer()->AsSolidColor()->SetColor(
+-      SkColor4f::FromColor(GetTextColor()));
++      SkColor4f::FromColor(cursor_color_.value_or(GetTextColor())));
++}
++
++void Textfield::SetCursorColor(std::optional<SkColor> color) {
++  cursor_color_ = color;
++  if (GetWidget()) {
++    cursor_view_->layer()->AsSolidColor()->SetColor(
++        SkColor4f::FromColor(cursor_color_.value_or(GetTextColor())));
++  }
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////
+diff --git a/ui/views/controls/textfield/textfield.h b/ui/views/controls/textfield/textfield.h
+--- a/ui/views/controls/textfield/textfield.h
++++ b/ui/views/controls/textfield/textfield.h
+@@ -335,6 +335,9 @@ class VIEWS_EXPORT Textfield : public View,
+   // Empty and invalid ranges are ignored.
+   void SetColor(SkColor value);
+   void ApplyColor(SkColor value, const gfx::Range& range);
++  // Arcomium: a caret color of its own, as Arc's blue one; nullopt for the
++  // text's color.
++  void SetCursorColor(std::optional<SkColor> color);
+ 
+   // Set various text styles over the entire text or a logical character range.
+   // The respective |style| is applied if |value| is true, or removed if false.
+@@ -978,6 +981,7 @@ class VIEWS_EXPORT Textfield : public View,
+ 
+   // View containing the text cursor.
+   raw_ptr<View> cursor_view_ = nullptr;
++  std::optional<SkColor> cursor_color_;
+ 
+ #if BUILDFLAG(IS_MAC)
+   // Used to track active password input sessions.
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+@@ -565,3 +565,67 @@
+   }
+ }
+ </if>
++
++/* Arcomium: a command bar action, as in Arc: its icon on a 24 px tile,
++ * #252525 with a light glyph, white with a dark one on the selected row, and
++ * its keyboard shortcut at the row's end on a key chip of the same colors. */
++:host([is-top-chrome-searchbox_]) .arcomium-action cr-searchbox-icon {
++  --color-searchbox-answer-icon-background: rgb(37, 37, 37);
++  --color-searchbox-answer-icon-foreground: rgb(181, 181, 181);
++  --cr-searchbox-icon-border-radius: 5px;
++  --cr-searchbox-icon-container-size: 24px;
++  margin-inline: 4px;
++}
++
++:host([is-top-chrome-searchbox_][selected]) .arcomium-action cr-searchbox-icon {
++  --color-searchbox-answer-icon-background: rgb(255, 255, 255);
++  --color-searchbox-answer-icon-foreground: rgb(93, 93, 93);
++}
++
++:host([is-top-chrome-searchbox_]) #arcomiumShortcut {
++  background-color: rgb(37, 37, 37);
++  border-radius: 5px;
++  color: rgb(181, 181, 181);
++  flex-shrink: 0;
++  font-size: 12px;
++  font-weight: 500;
++  height: 23px;
++  line-height: 23px;
++  margin-inline: auto 10px;
++  padding: 0 7px;
++  white-space: nowrap;
++}
++
++:host([is-top-chrome-searchbox_][selected]) #arcomiumShortcut {
++  background-color: rgb(255, 255, 255);
++  color: rgb(93, 93, 93);
++}
++
++<if expr="is_macosx">
++/* Arcomium: Arc for macOS' key chips space their glyphs (the shortcut text
++ * is AppKit's, as "⇧⌘C"); a row's address after the title is #656565,
++ * #989898 on the selected row; the selected row's magnifier is white. */
++@media all {
++  :host([is-top-chrome-searchbox_]) #arcomiumShortcut {
++    letter-spacing: 3px;
++    padding-inline: 7px 4px;
++  }
++
++  :host([is-top-chrome-searchbox_]) #secondaryText,
++  :host([is-top-chrome-searchbox_]) #secondaryText .url,
++  :host([is-top-chrome-searchbox_]) #secondaryText span {
++    color: rgb(101, 101, 101);
++  }
++
++  :host([is-top-chrome-searchbox_][selected]) #secondaryText,
++  :host([is-top-chrome-searchbox_][selected]) #secondaryText .url,
++  :host([is-top-chrome-searchbox_][selected]) #secondaryText span {
++    color: rgb(152, 152, 152);
++  }
++
++  /* The icon's own rule tints it with this on the selected row. */
++  :host([is-top-chrome-searchbox_][selected]) cr-searchbox-icon {
++    --color-searchbox-results-dim-selected: rgb(255, 255, 255);
++  }
++}
++</if>
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
+@@ -10,7 +10,7 @@ import type {SearchboxMatchElement} from './searchbox_match.js';
+ export function getHtml(this: SearchboxMatchElement) {
+   // clang-format off
+   return html`<!--_html_template_start_-->
+-<div class="container">
++<div class="container ${this.isArcomiumAction_() ? 'arcomium-action' : ''}">
+   <div class="aria-hidden-container" aria-hidden="true">
+     <div id="focusIndicator" class="${this.getFocusIndicatorCssClass_()}"></div>
+     <cr-searchbox-icon id="icon" .match="${this.match}"></cr-searchbox-icon>
+@@ -33,6 +33,9 @@ export function getHtml(this: SearchboxMatchElement) {
+         </span>
+       </span>
+     </div>
++    ${this.getArcomiumShortcut_() ? html`
++      <span id="arcomiumShortcut">${this.getArcomiumShortcut_()}</span>
++    ` : ''}
+   </div>
+ 
+   ${this.match.keywordModel?.type === KeywordType.kChip ? html`
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+@@ -553,10 +553,25 @@ export class SearchboxMatchElement extends CrLitElement {
+   // gets no empty span, which would still draw the dash before it.
+   private hidesSecondaryText_(): boolean {
+     return this.isTopChromeSearchbox_ &&
+-        (this.match?.isSearchType === true ||
++        (this.match?.isSearchType === true || this.isArcomiumAction_() ||
+          !this.match?.suggestTemplate.secondaryText.text);
+   }
+ 
++  // Arcomium: a command bar action (Copy URL, Edit Theme...), whose second
++  // text is its keyboard shortcut, shown as Arc's key chip instead. Known by
++  // the address the provider gives it: Chromium's own pedals are rows too.
++  protected isArcomiumAction_(): boolean {
++    return this.isTopChromeSearchbox_ && this.match?.type === 'pedal' &&
++        (this.match.destinationUrl || '')
++            .startsWith('chrome://arcomium-command/');
++  }
++
++  protected getArcomiumShortcut_(): string {
++    return this.isArcomiumAction_() ?
++        this.match.suggestTemplate.secondaryText.text :
++        '';
++  }
++
+   protected getFocusIndicatorCssClass_(): string {
+     return this.selection.line === this.matchIndex &&
+             this.selection.state !== SelectionLineState.kNormal &&
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1518,7 +1518,17 @@ void BrowserCommandController::HandleCommandWithDisposition(
+       break;
+     // Hosted App commands
+     case IDC_COPY_URL:
+-      CopyURL(browser_, browser_->tab_strip_model()->GetActiveWebContents());
++      // Arcomium: not an empty Space's or a blank page's address.
++      if (content::WebContents* contents =
++              GetArcomiumCopyableContents(browser_)) {
++        CopyURL(browser_, contents);
++      }
++      break;
++    case IDC_ARCOMIUM_COPY_URL_MARKDOWN:
++      if (content::WebContents* contents =
++              GetArcomiumCopyableContents(browser_)) {
++        ArcomiumCopyUrlAsMarkdown(browser_, contents);
++      }
+       break;
+     case IDC_OPEN_IN_CHROME:
+       OpenInChrome(browser_);
+@@ -2060,6 +2070,8 @@ void BrowserCommandController::InitCommandState() {
+       is_web_app_or_custom_tab ||
+       !sharing_hub::SharingIsDisabledByPolicy(browser_->GetProfile());
+   command_updater_->UpdateCommandEnabled(IDC_COPY_URL, enable_copy_url);
++  command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_COPY_URL_MARKDOWN,
++                                         enable_copy_url);
+   command_updater_->UpdateCommandEnabled(IDC_WEB_APP_SETTINGS,
+                                          is_web_app_or_custom_tab);
+   command_updater_->UpdateCommandEnabled(IDC_WEB_APP_MENU_APP_INFO,
+diff --git a/chrome/browser/ui/accelerator_table.cc b/chrome/browser/ui/accelerator_table.cc
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -53,7 +53,14 @@ const AcceleratorMapping kAcceleratorMap[] = {
+     {ui::VKEY_ESCAPE, ui::EF_NONE, IDC_CLOSE_FIND_OR_STOP},
+ 
+ #if !BUILDFLAG(IS_MAC)
+-    {ui::VKEY_D, ui::EF_PLATFORM_ACCELERATOR, IDC_BOOKMARK_THIS_TAB},
++    // Arcomium: Arc for Windows' Pin / Unpin Tab; bookmarks are the pinned
++    // tabs.
++    {ui::VKEY_D, ui::EF_PLATFORM_ACCELERATOR, IDC_ARCOMIUM_PIN_TAB},
++    // Arcomium: Arc for Windows' Copy URL and Copy URL as Markdown.
++    {ui::VKEY_C, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR, IDC_COPY_URL},
++    {ui::VKEY_C,
++     ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
++     IDC_ARCOMIUM_COPY_URL_MARKDOWN},
+     {ui::VKEY_D, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_BOOKMARK_ALL_TABS},
+     {ui::VKEY_W, ui::EF_PLATFORM_ACCELERATOR, IDC_CLOSE_TAB},
+@@ -274,8 +281,8 @@ const AcceleratorMapping kDevToolsAcceleratorMap[] = {
+     {ui::VKEY_I, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN, IDC_DEV_TOOLS},
+     {ui::VKEY_J, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
+      IDC_DEV_TOOLS_CONSOLE},
+-    {ui::VKEY_C, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
+-     IDC_DEV_TOOLS_INSPECT},
++    // Arcomium: Ctrl+Shift+C copies the address, as in Arc for Windows;
++    // DevTools' own window still inspects with it.
+     {ui::VKEY_U, ui::EF_CONTROL_DOWN, IDC_VIEW_SOURCE},
+ #endif  // !BUILDFLAG(IS_MAC)
+ };
+diff --git a/chrome/browser/ui/cocoa/accelerators_cocoa.mm b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+--- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
++++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+@@ -119,6 +119,8 @@ const struct AcceleratorMapping {
+     {IDC_TOGGLE_VERTICAL_TABS_COLLAPSE, ui::EF_COMMAND_DOWN, ui::VKEY_S},
+     // Arcomium: Arc's Copy URL.
+     {IDC_COPY_URL, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_C},
++    {IDC_ARCOMIUM_COPY_URL_MARKDOWN,
++     ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, ui::VKEY_C},
+     // Arcomium: Arc's Spaces and Tabs menus.
+     {IDC_ARCOMIUM_NEXT_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
+      ui::VKEY_RIGHT},
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -217,6 +217,10 @@ NSMenuItem* BuildEditMenu(NSApplication* nsapp,
+               Item(IDS_ARCOMIUM_MENU_COPY_URL)
+                   .command_id(IDC_COPY_URL)
+                   .remove_if(is_pwa),
++              // Arcomium: Arc's Copy URL as Markdown (Option-Shift-Command-C).
++              Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
++                  .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
++                  .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_EDIT_FIND_SUBMENU_MAC)
+                   .tag(IDC_FIND_MENU)
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -25,6 +25,8 @@
+ #include "base/metrics/histogram_macros.h"
+ #include "base/metrics/user_metrics.h"
+ #include "base/strings/escape.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/time/time.h"
+ #include "base/trace_event/trace_event.h"
+@@ -2982,6 +2984,38 @@ void CopyURL(BrowserWindowInterface* browser,
+ #endif
+ }
+ 
++content::WebContents* GetArcomiumCopyableContents(
++    BrowserWindowInterface* browser) {
++  content::WebContents* contents =
++      browser->GetTabStripModel()->GetActiveWebContents();
++  if (!contents || !contents->GetVisibleURL().is_valid() ||
++      contents->GetVisibleURL().IsAboutBlank() ||
++      TabStripModel::IsArcomiumEmptySpace(contents)) {
++    return nullptr;
++  }
++  return contents;
++}
++
++void ArcomiumCopyUrlAsMarkdown(BrowserWindowInterface* browser,
++                               content::WebContents* web_contents) {
++  // The title's brackets are escaped, so the link stays one.
++  std::u16string title = web_contents->GetTitle();
++  base::ReplaceChars(title, u"[", u"\\[", &title);
++  base::ReplaceChars(title, u"]", u"\\]", &title);
++  ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
++  scw.WriteText(base::StrCat(
++      {u"[", title, u"](",
++       base::UTF8ToUTF16(web_contents->GetVisibleURL().spec()), u")"}));
++#if !BUILDFLAG(IS_ANDROID)
++  if (toast_features::IsEnabled(toast_features::kLinkCopiedToast)) {
++    if (ToastController* const toast_controller =
++            ToastController::From(browser)) {
++      toast_controller->MaybeShowToast(ToastParams(ToastId::kLinkCopied));
++    }
++  }
++#endif
++}
++
+ bool CanCopyUrl(BrowserWindowInterface* browser) {
+   return IsWebAppOrCustomTab(browser) ||
+          !sharing_hub::SharingIsDisabledByPolicy(browser->GetProfile());
+diff --git a/chrome/browser/ui/browser_commands.h b/chrome/browser/ui/browser_commands.h
+--- a/chrome/browser/ui/browser_commands.h
++++ b/chrome/browser/ui/browser_commands.h
+@@ -366,6 +366,13 @@ bool IsDebuggerAttachedToCurrentTab(BrowserWindowInterface* browser);
+ void CopyURL(BrowserWindowInterface* browser,
+              content::WebContents* web_contents);
+ bool CanCopyUrl(BrowserWindowInterface* browser);
++// Arcomium: the active page whose address Copy URL takes, null for an empty
++// Space's hidden tab or a blank page, whose address means nothing.
++content::WebContents* GetArcomiumCopyableContents(
++    BrowserWindowInterface* browser);
++// Arcomium: Arc's Copy URL as Markdown: "[Title](url)".
++void ArcomiumCopyUrlAsMarkdown(BrowserWindowInterface* browser,
++                               content::WebContents* web_contents);
+ // Returns true if the browser window is for a web app or custom tab.
+ bool IsWebAppOrCustomTab(const BrowserWindowInterface* browser);
+ // Moves the WebContents of a hosted app Browser to a tabbed Browser. Returns

@@ -1,0 +1,557 @@
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -168,8 +168,11 @@
+                   .command_id(IDC_SET_BROWSER_AS_DEFAULT)
+                   .remove_if(is_pwa),
+               Item().is_separator(),
++              // Arcomium: not in Arc's menu; hidden, it keeps its
++              // Shift-Command-Delete.
+               Item(IDS_CLEAR_BROWSING_DATA_MAC)
+                   .command_id(IDC_CLEAR_BROWSING_DATA)
++                  .set_hidden(true)
+                   .remove_if(is_pwa),
+               // Arcomium: Arc's Import from Another Browser... (its Spaces
+               // too), and Update Available... once the update check found
+@@ -190,7 +193,7 @@
+                   .string_format_1(product_name)
+                   .tag(IDC_HIDE_APP)
+                   .action(@selector(hide:)),
+-              Item(IDS_HIDE_OTHERS_MAC)
++              Item(IDS_ARCOMIUM_MENU_HIDE_OTHERS)
+                   .action(@selector(hideOtherApplications:))
+                   .key_equivalent(@"h", NSEventModifierFlagCommand |
+                                             NSEventModifierFlagOption),
+@@ -229,7 +232,8 @@
+       Item(IDS_FILE_MENU_MAC)
+           .tag(IDC_FILE_MENU)
+           .submenu({
+-              Item(IDS_NEW_TAB_MAC)
++              // Arcomium: Arc's "New Tab..." (it opens the command bar).
++              Item(IDS_ARCOMIUM_MENU_NEW_TAB)
+                   .command_id(IDC_NEW_TAB)
+                   .remove_if(is_pwa),
+               Item(IDS_NEW_WINDOW_MAC)
+@@ -240,11 +244,18 @@
+               Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                   .command_id(IDC_NEW_ISOLATED_WINDOW)
+                   .remove_if(is_pwa),
+-              Item(IDS_REOPEN_CLOSED_TABS_MAC)
++              // Arcomium: Arc's File menu: its names, Open File hidden (it
++              // keeps Command-O), the command bar and the window's items in
++              // groups of their own. Close Tab stays: the app controller
++              // swaps it with Close Window on Command-W.
++              Item(IDS_ARCOMIUM_MENU_RESTORE_TAB)
+                   .command_id(IDC_RESTORE_TAB)
+                   .remove_if(is_pwa),
+               Item(IDS_OPEN_FILE_MAC)
+                   .command_id(IDC_OPEN_FILE)
++                  .set_hidden(true)
++                  .remove_if(is_pwa),
++              Item().is_separator()
+                   .remove_if(is_pwa),
+               // Arcomium: Arc's Command-L opens its command bar.
+               Item(IDS_ARCOMIUM_MENU_OPEN_COMMAND_BAR)
+@@ -262,14 +273,12 @@
+               Item(IDS_CLOSE_TAB_MAC)
+                   .command_id(IDC_CLOSE_TAB)
+                   .remove_if(is_pwa),
+-              Item(IDS_SAVE_PAGE_MAC)
+-                  .command_id(IDC_SAVE_PAGE),
+-              Item().is_separator()
+-                  .remove_if(is_pwa),
++              Item().is_separator(),
+               Item(IDS_SHARE_MAC)
+                   .remove_if(is_pwa),
+-              Item().is_separator(),
+-              Item(IDS_PRINT)
++              Item(IDS_ARCOMIUM_MENU_SAVE_PAGE)
++                  .command_id(IDC_SAVE_PAGE),
++              Item(IDS_ARCOMIUM_MENU_BAR_PRINT)
+                   .command_id(IDC_PRINT),
+               Item(IDS_PRINT_USING_SYSTEM_DIALOG_MAC)
+                   .command_id(IDC_BASIC_PRINT)
+@@ -305,6 +314,20 @@
+               Item(IDS_COPY_MAC)
+                   .tag(IDC_CONTENT_CONTEXT_COPY)
+                   .action(@selector(copy:)),
++              // Arcomium: Arc's copy items follow Copy.
++              // Arcomium: Arc's Copy URL (Shift-Command-C).
++              Item(IDS_ARCOMIUM_MENU_COPY_URL)
++                  .command_id(IDC_COPY_URL)
++                  .remove_if(is_pwa),
++              // Arcomium: Arc's Copy URL as Markdown (Option-Shift-Command-C).
++              Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
++                  .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
++                  .remove_if(is_pwa),
++              // Arcomium: Arc's Copy URL as Quote (Control-Shift-Command-C):
++              // the selected text quoted, then the page's link.
++              Item(IDS_ARCOMIUM_COPY_URL_QUOTE)
++                  .command_id(IDC_ARCOMIUM_COPY_URL_QUOTE)
++                  .remove_if(is_pwa),
+               Item(IDS_PASTE_MAC)
+                   .tag(IDC_CONTENT_CONTEXT_PASTE)
+                   .action(@selector(paste:)),
+@@ -322,19 +345,6 @@
+               Item(IDS_EDIT_SELECT_ALL_MAC)
+                   .tag(IDC_CONTENT_CONTEXT_SELECTALL)
+                   .action(@selector(selectAll:)),
+-              // Arcomium: Arc's Copy URL (Shift-Command-C).
+-              Item(IDS_ARCOMIUM_MENU_COPY_URL)
+-                  .command_id(IDC_COPY_URL)
+-                  .remove_if(is_pwa),
+-              // Arcomium: Arc's Copy URL as Markdown (Option-Shift-Command-C).
+-              Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
+-                  .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
+-                  .remove_if(is_pwa),
+-              // Arcomium: Arc's Copy URL as Quote (Control-Shift-Command-C):
+-              // the selected text quoted, then the page's link.
+-              Item(IDS_ARCOMIUM_COPY_URL_QUOTE)
+-                  .command_id(IDC_ARCOMIUM_COPY_URL_QUOTE)
+-                  .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_EDIT_FIND_SUBMENU_MAC)
+                   .tag(IDC_FIND_MENU)
+@@ -422,8 +432,6 @@
+               Item(IDS_ARCOMIUM_MENU_HIDE_SIDEBAR)
+                   .command_id(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE)
+                   .remove_if(is_pwa),
+-              Item(IDS_TOGGLE_FULLSCREEN_TOOLBAR_MAC)
+-                  .command_id(IDC_TOGGLE_FULLSCREEN_TOOLBAR),
+               // Arcomium: Arc's Collapse / Expand Pinned Tabs.
+               Item(IDS_ARCOMIUM_COLLAPSE_PINNED)
+                   .command_id(IDC_ARCOMIUM_TOGGLE_PINNED)
+@@ -451,14 +459,6 @@
+                   .command_id(IDC_ARCOMIUM_EXPAND_SPLIT)
+                   .remove_if(is_pwa),
+               Item().is_separator(),
+-              Item(IDS_ENTER_FULLSCREEN_MAC)
+-                  .tag(IDC_FULLSCREEN)
+-                  .action(@selector(toggleFullScreen:)),
+-              Item(IDS_ENTER_FULLSCREEN_MAC)
+-                  .action(@selector(toggleFullScreen:))
+-                  .is_alternate()
+-                  .key_equivalent(@"f", NSEventModifierFlagCommand |
+-                                            NSEventModifierFlagControl),
+               Item(IDS_TEXT_DEFAULT_MAC)
+                   .command_id(IDC_ZOOM_NORMAL),
+               Item(IDS_TEXT_BIGGER_MAC)
+@@ -483,6 +483,13 @@
+                       Item(IDS_ALLOW_JAVASCRIPT_APPLE_EVENTS_MAC)
+                           .command_id(IDC_TOGGLE_JAVASCRIPT_APPLE_EVENTS),
+                   }),
++              // Arcomium: full screen comes last, as in Arc's View menu.
++              Item().is_separator(),
++              // Arcomium: Arc's Control-Command-F, which is
++              // AcceleratorForEnterFullscreen() here, so no alternate.
++              Item(IDS_ENTER_FULLSCREEN_MAC)
++                  .tag(IDC_FULLSCREEN)
++                  .action(@selector(toggleFullScreen:)),
+         })
+         .Build();
+   // clang-format on
+@@ -500,9 +507,10 @@
+       Item(IDS_ARCOMIUM_ARCHIVE)
+           .tag(IDC_HISTORY_MENU)
+           .submenu({
+-              Item(IDS_HISTORY_BACK_MAC)
++              // Arcomium: Arc's names.
++              Item(IDS_ARCOMIUM_MENU_GO_BACK)
+                   .command_id(IDC_BACK),
+-              Item(IDS_HISTORY_FORWARD_MAC)
++              Item(IDS_ARCOMIUM_MENU_GO_FORWARD)
+                   .command_id(IDC_FORWARD),
+               Item().is_separator()
+                   .tag(HistoryMenuBridge::kRecentlyClosedSeparator)
+@@ -521,7 +529,7 @@
+               Item().is_separator()
+                   .tag(HistoryMenuBridge::kShowFullSeparator)
+                   .remove_if(is_pwa),
+-              Item(IDS_HISTORY_SHOWFULLHISTORY_MAC)
++              Item(IDS_ARCOMIUM_MENU_VIEW_HISTORY)
+                   .command_id(IDC_SHOW_HISTORY)
+                   .sf_symbol(
+                       @"clock.arrow.trianglehead.counterclockwise.rotate.90")
+@@ -590,24 +598,17 @@
+       Item(IDS_WINDOW_MENU_MAC)
+           .tag(IDC_WINDOW_MENU)
+           .submenu({
+-              Item(IDS_MINIMIZE_WINDOW_MAC)
++              // Arcomium: Arc's names; no Show As Tab or Name Window.
++              Item(IDS_ARCOMIUM_MENU_MINIMIZE)
+                   .tag(IDC_MINIMIZE_WINDOW)
+                   .action(@selector(performMiniaturize:)),
+               Item(IDS_ZOOM_WINDOW_MAC)
+                   .tag(IDC_MAXIMIZE_WINDOW)
+                   .action(@selector(performZoom:)),
+               Item().is_separator(),
+-              Item(IDS_SHOW_AS_TAB)
+-                  .command_id(IDC_SHOW_AS_TAB)
+-                  .remove_if(is_pwa),
+-               Item(IDS_NAME_WINDOW_MAC)
+-                   .command_id(IDC_NAME_WINDOW)
+-                   .remove_if(is_pwa),
+-              Item().is_separator()
+-                  .remove_if(is_pwa),
+               // Arcomium: as Arc's Window menu, Downloads only; extensions
+               // have their menu, the task manager is under Help.
+-              Item(IDS_SHOW_DOWNLOADS_MAC)
++              Item(IDS_ARCOMIUM_MENU_DOWNLOADS)
+                   .command_id(IDC_SHOW_DOWNLOADS)
+                   .remove_if(is_pwa),
+               Item().is_separator()
+@@ -642,11 +643,11 @@
+       Item(IDS_ARCOMIUM_MENU_TABS)
+           .tag(IDC_TAB_MENU)
+           .submenu({
+-              Item(IDS_NEW_TAB_MAC)
++              Item(IDS_ARCOMIUM_MENU_NEW_TAB)
+                   .command_id(IDC_NEW_TAB),
+               Item(IDS_ARCOMIUM_MENU_PIN_TAB)
+                   .command_id(IDC_ARCOMIUM_PIN_TAB),
+-              Item(IDS_ARCOMIUM_NEW_FOLDER)
++              Item(IDS_ARCOMIUM_MENU_NEW_FOLDER)
+                   .command_id(IDC_ARCOMIUM_NEW_FOLDER),
+               Item().is_separator(),
+               Item(IDS_ARCOMIUM_MENU_NEXT_TAB)
+@@ -679,11 +680,12 @@
+   NSMenuItem* item =
+       Item(IDS_ARCOMIUM_MENU_SPACES)
+           .submenu({
+-              Item(IDS_ARCOMIUM_NEW_SPACE)
++              // Arc's ellipses: New Space..., but Rename Space without.
++              Item(IDS_ARCOMIUM_MENU_NEW_SPACE)
+                   .command_id(IDC_ARCOMIUM_NEW_SPACE),
+               Item(IDS_ARCOMIUM_MENU_EDIT_THEME)
+                   .command_id(IDC_ARCOMIUM_EDIT_SPACE_THEME),
+-              Item(IDS_ARCOMIUM_RENAME_SPACE)
++              Item(IDS_ARCOMIUM_MENU_RENAME_SPACE)
+                   .command_id(IDC_ARCOMIUM_RENAME_SPACE),
+               Item().is_separator(),
+               Item(IDS_ARCOMIUM_MENU_NEXT_SPACE)
+@@ -785,6 +787,16 @@
+   AcceleratorsCocoa::CreateForPWA(is_pwa);
+ 
+   NSMenu* main_menu = [[NSMenu alloc] initWithTitle:@""];
++  // Arcomium: Arc's Edit menu has none of the items AppKit adds there
++  // (Start Dictation..., Emoji & Symbols, AutoFill).
++  if (!is_pwa) {
++    [NSUserDefaults.standardUserDefaults registerDefaults:@{
++      @"NSDisabledDictationMenuItem" : @YES,
++      @"NSDisabledCharacterPaletteMenuItem" : @YES,
++      @"NSAutoFillOrSystemInsertMenuEnabled" : @NO,
++      @"NSAutoFillSystemInsertMenuEnabled" : @NO,
++    }];
++  }
+   for (auto* builder : {
+            &BuildAppMenu,
+            &BuildFileMenu,
+@@ -889,6 +901,14 @@
+       key_equivalent_flags = equivalent.modifierMask;
+     }
+   }
++  // Arcomium: Arc writes its Split View keys as Shift with the key itself
++  // (Control-Shift-= and -Minus), not "+" and "_"; the presses are matched by
++  // key code in global_keyboard_shortcuts_mac.mm, as such an item is not.
++  if (tag_ == IDC_NEW_SPLIT_TAB || tag_ == IDC_ARCOMIUM_CLOSE_SPLIT_PANE) {
++    key_equivalent = tag_ == IDC_NEW_SPLIT_TAB ? @"=" : @"-";
++    key_equivalent_flags =
++        NSEventModifierFlagControl | NSEventModifierFlagShift;
++  }
+ 
+   SEL action = !submenu_.has_value() ? action_ : nil;
+ 
+diff --git a/chrome/browser/ui/startup/startup_tab_provider.cc b/chrome/browser/ui/startup/startup_tab_provider.cc
+--- a/chrome/browser/ui/startup/startup_tab_provider.cc
++++ b/chrome/browser/ui/startup/startup_tab_provider.cc
+@@ -16,6 +16,10 @@
+ #include "base/strings/string_util.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "build/build_config.h"
++
++#if BUILDFLAG(IS_MAC)
++#include <crt_externs.h>
++#endif
+ #include "chrome/browser/first_run/first_run.h"
+ #include "chrome/browser/prefs/session_startup_pref.h"
+ #include "chrome/browser/profile_resetter/triggered_profile_resetter.h"
+@@ -71,6 +75,40 @@
+ 
+ namespace {
+ 
++// Arcomium: the command line's loose arguments that are tab URLs. On macOS a
++// Cocoa argument-domain pair such as "-AppleLanguages (de)" (how a Mac app
++// is started in another language) reads as the switch "-AppleLanguages" and
++// a loose "(de)", which opened as http://(de)/; such values are skipped. The
++// process' own argv keeps the pairs together, which CommandLine reorders.
++base::CommandLine::StringVector GetTabArgs(
++    const base::CommandLine& command_line) {
++  base::CommandLine::StringVector args = command_line.GetArgs();
++#if BUILDFLAG(IS_MAC)
++  // Only this process' own command line (not one another launch handed
++  // over) matches its argv.
++  if (command_line.argv() != base::CommandLine::ForCurrentProcess()->argv()) {
++    return args;
++  }
++  char** argv = *_NSGetArgv();
++  const int argc = *_NSGetArgc();
++  for (int i = 1; i + 1 < argc; ++i) {
++    const std::string_view key(argv[i]);
++    if (key == "--") {
++      break;
++    }
++    if (!key.starts_with("--") &&
++        (key.starts_with("-Apple") || key.starts_with("-NS")) &&
++        argv[i + 1][0] != '-') {
++      if (auto it = std::ranges::find(args, argv[i + 1]); it != args.end()) {
++        args.erase(it);
++      }
++      ++i;
++    }
++  }
++#endif
++  return args;
++}
++
+ // Attempts to find an existing, non-empty tabbed browser for this profile.
+ bool ProfileHasOtherTabbedBrowser(Profile* profile) {
+   bool found = false;
+@@ -152,7 +190,7 @@
+     Profile* profile) const {
+   StartupTabs result;
+ 
+-  for (const auto& arg : command_line.GetArgs()) {
++  for (const auto& arg : GetTabArgs(command_line)) {
+     ParsedCommandLineTabArg parsed_arg =
+         ParseTabFromCommandLineArg(arg, cur_dir, profile);
+ 
+@@ -173,7 +211,7 @@
+     const base::CommandLine& command_line,
+     const base::FilePath& cur_dir) const {
+   bool is_unknown = false;
+-  for (const auto& arg : command_line.GetArgs()) {
++  for (const auto& arg : GetTabArgs(command_line)) {
+     ParsedCommandLineTabArg parsed_arg =
+         ParseTabFromCommandLineArg(arg, cur_dir, /*maybe_profile=*/nullptr);
+     if (parsed_arg.tab_parsed == CommandLineTabsPresent::kYes) {
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -121,6 +121,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_registry.h"
+ #include "chrome/browser/ui/side_panel/side_panel_ui.h"
+ #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
++#include "chrome/browser/ui/tabs/arcomium_menu_bar_hook.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_controller.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
+@@ -3724,6 +3725,14 @@
+ }
+ 
+ std::u16string BrowserView::GetWindowTitle() const {
++#if BUILDFLAG(IS_MAC)
++  // Arcomium: Arc for macOS names its window after the shown Space ("home")
++  // in the Window menu, Mission Control and the Dock, not after the page.
++  if (std::u16string space = arcomium::GetShownSpaceTitle(browser_.get());
++      !space.empty()) {
++    return space;
++  }
++#endif
+   std::u16string title =
+       WindowMetadataController::From(browser_.get())
+           ->GetWindowTitleForCurrentTab(true /* include_app_name */);
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -38,6 +38,7 @@
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
++#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
+ #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
+@@ -1322,6 +1323,18 @@
+   if (GetWidget()) {
+     arcomium::SetWindowControlsHidden(GetWidget(), hidden && !floating,
+                                       floating);
++#if BUILDFLAG(IS_MAC)
++    // What the sidebar shades off the frame then follows the floating
++    // panel's darker #0D0D0D (arcomium_frame_color.h), as Arc's glyphs do.
++    views::Widget* widget = GetWidget();
++    if (!!widget->GetNativeWindowProperty(
++            arcomium::kFloatingSidebarProperty) != floating) {
++      static char kMark;
++      widget->SetNativeWindowProperty(arcomium::kFloatingSidebarProperty,
++                                      floating ? &kMark : nullptr);
++      widget->ThemeChanged();
++    }
++#endif
+   }
+   InvalidateLayout();
+   SchedulePaint();
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -914,9 +914,11 @@
+   // Arcomium: 15 pt in the compact one opened from the sidebar's field.
+   const int kArcomiumCommandBarFontSize =
+       arcomium_command_bar_compact_ ? 15 : 18;
+-  // Arc for macOS' caret is the system's blue, not the text's color.
++  // Arc for macOS' caret is the system's blue, not the text's color: #3478F6
++  // as the screen shows it. Views colors are sRGB, which the display's color
++  // matching turned into #4676EE; this one comes out as Arc's.
+   omnibox_view_->SetCursorColor(
+-      command_bar ? std::optional<SkColor>(SkColorSetRGB(0x34, 0x78, 0xF6))
++      command_bar ? std::optional<SkColor>(SkColorSetRGB(0x0A, 0x7A, 0xFE))
+                   : std::nullopt);
+ #else
+   constexpr int kArcomiumCommandBarFontSize = 16;
+@@ -964,8 +966,17 @@
+     arcomium_command_bar_font_ = omnibox_view_->GetFontList();
+     const gfx::FontList base =
+         arcomium_default_font_.value_or(*arcomium_command_bar_font_);
++#if BUILDFLAG(IS_MAC)
++    // Arc for macOS types in medium weight: regular was 17% lighter and
++    // 4.5 pt narrower over "Search or Enter URL...".
++    omnibox_view_->SetFontList(
++        base.DeriveWithSizeDelta(kArcomiumCommandBarFontSize -
++                                 base.GetFontSize())
++            .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
++#else
+     omnibox_view_->SetFontList(base.DeriveWithSizeDelta(
+         kArcomiumCommandBarFontSize - base.GetFontSize()));
++#endif
+   } else if (arcomium_command_bar_font_) {
+     omnibox_view_->SetFontList(*arcomium_command_bar_font_);
+     arcomium_command_bar_font_.reset();
+@@ -1188,11 +1199,16 @@
+     // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
+ #if BUILDFLAG(IS_MAC)
+     // Arcomium: on macOS 10 pt in and a shade brighter than the text.
+-    // It follows an inactive window's lighter frame.
++    // It follows an inactive window's lighter frame, and brightens under
++    // the pointer as Arc's (#828282 to #898888).
+     const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
+         vector_icons::kArcomiumSearchIcon, 16,
+-        arcomium::InkOverFrame(
+-            this, GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)));
++        color_utils::AlphaBlend(
++            SK_ColorWHITE,
++            arcomium::InkOverFrame(
++                this,
++                GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)),
++            static_cast<SkAlpha>(arcomium_hovered_ ? 0x13 : 0x05)));
+     canvas->DrawImageInt(magnifier, 10, (height() - 16) / 2);
+ #else
+     const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
+@@ -1563,7 +1579,7 @@
+             : omnibox_view_->GetFontList());
+     // Arc for macOS' input sits lower in its row: the compact one's 2 pt,
+     // its (i) 3 pt; the centred one's (i) a point.
+-    const int arcomium_text_dy = arcomium_command_bar_compact_ ? 2 : 0;
++    const int arcomium_text_dy = arcomium_command_bar_compact_ ? 3 : 0;
+     const int arcomium_info_dy = arcomium_command_bar_compact_ ? 3 : 1;
+     // Its (i) is centred 33 pt from the panel's end.
+     constexpr int kInfoEndInset = 33;
+diff --git a/chrome/browser/ui/window_sizer/window_sizer_mac.mm b/chrome/browser/ui/window_sizer/window_sizer_mac.mm
+--- a/chrome/browser/ui/window_sizer/window_sizer_mac.mm
++++ b/chrome/browser/ui/window_sizer/window_sizer_mac.mm
+@@ -12,7 +12,9 @@
+ 
+ // How much horizontal and vertical offset there is between newly
+ // opened windows.
+-const int WindowSizer::kWindowTilePixels = 22;
++// Arcomium: Arc for macOS opens a new window 29 pt right of and below the
++// last one.
++const int WindowSizer::kWindowTilePixels = 29;
+ const int WindowSizer::kWindowMaxDefaultWidth = 1200;
+ 
+ // static
+diff --git a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm b/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
+--- a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
++++ b/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
+@@ -36,6 +36,8 @@
+ // go through to them.
+ @interface ArcomiumWindowControlsMask : NSView
+ @property(nonatomic) BOOL hovered;
++// In the floating sidebar the faces are darker, as over its #0D0D0D panel.
++@property(nonatomic) BOOL floating;
+ - (void)update;
+ @end
+ 
+@@ -164,9 +166,13 @@
+     NSRect face = b.type == NSWindowZoomButton
+                       ? NSInsetRect(disc, 2.5, 1.5)
+                       : NSInsetRect(disc, 1, 1);
+-    [[NSColor colorWithSRGBRed:(active ? 0x60 : 0x76) / 255.0
+-                         green:(active ? 0x60 : 0x76) / 255.0
+-                          blue:(active ? 0x5D : 0x74) / 255.0
++    // #595957 in the floating sidebar, as Arc's.
++    const uint32_t face_color = !active        ? 0x767674
++                                : self.floating ? 0x595957
++                                                : 0x60605D;
++    [[NSColor colorWithSRGBRed:((face_color >> 16) & 0xFF) / 255.0
++                         green:((face_color >> 8) & 0xFF) / 255.0
++                          blue:(face_color & 0xFF) / 255.0
+                          alpha:1] setFill];
+     [[NSBezierPath bezierPathWithOvalInRect:face] fill];
+   }
+@@ -276,6 +282,7 @@
+   }
+   _arcomiumMask.frame = NSUnionRect(close.frame, zoom.frame);
+   _arcomiumMask.hidden = _inFullScreen || close.hidden;
++  _arcomiumMask.floating = _arcomiumFloating;
+   [_arcomiumMask update];
+ }
+ 
+diff --git a/ui/gfx/harfbuzz_font_skia.cc b/ui/gfx/harfbuzz_font_skia.cc
+--- a/ui/gfx/harfbuzz_font_skia.cc
++++ b/ui/gfx/harfbuzz_font_skia.cc
+@@ -7,8 +7,10 @@
+ #include <stddef.h>
+ #include <stdint.h>
+ 
++#include <algorithm>
+ #include <limits>
+ #include <map>
++#include <vector>
+ 
+ #include "base/check_op.h"
+ #include "base/containers/heap_array.h"
+@@ -18,6 +20,7 @@
+ #include "base/no_destructor.h"
+ #include "base/numerics/safe_conversions.h"
+ #include "build/build_config.h"
++#include "third_party/skia/include/core/SkFontArguments.h"
+ #include "third_party/skia/include/core/SkData.h"
+ #include "third_party/skia/include/core/SkFont.h"
+ #include "third_party/skia/include/core/SkTypeface.h"
+@@ -335,6 +338,27 @@
+   // views text at other sizes was wider or tighter than AppKit draws it.
+   // Blink sets ptem the same way.
+   hb_font_set_ptem(harfbuzz_font, text_size);
++  // Arcomium: kerning comes from the font's tables at its default instance
++  // unless HarfBuzz is told the variation: SF Pro's tighter pairs ("Yo",
++  // "Tu", "Tw") made "YouTube" 2 pt narrower than AppKit draws it at 14 pt.
++  // CoreText picks the optical size from the point size; give HarfBuzz the
++  // typeface's axes (its weight) and that optical size.
++  constexpr hb_tag_t kOpticalSize = HB_TAG('o', 'p', 's', 'z');
++  std::vector<SkFontArguments::VariationPosition::Coordinate> axes(
++      std::max(0, skia_face->getVariationDesignPosition({})));
++  if (!axes.empty() && skia_face->getVariationDesignPosition(axes) !=
++                           static_cast<int>(axes.size())) {
++    axes.clear();
++  }
++  std::vector<hb_variation_t> variations;
++  for (const auto& axis : axes) {
++    if (axis.axis != kOpticalSize) {
++      variations.push_back({axis.axis, axis.value});
++    }
++  }
++  variations.push_back({kOpticalSize, text_size});
++  hb_font_set_variations(harfbuzz_font, variations.data(),
++                         static_cast<unsigned int>(variations.size()));
+ #endif
+   FontData* hb_font_data = new FontData(typeface_data->second.glyphs());
+   hb_font_data->font_.setTypeface(std::move(skia_face));

@@ -160,6 +160,35 @@ index 49011a92d85..15f854970de 100644
    if (!tabs_to_close.empty() && !closing_all_ &&
        static_cast<int>(tabs_to_close.size()) == count() &&
        delegate()->IsNormalWindow() &&
+@@ -3463,6 +3562,28 @@ void TabStripModel::ExecuteCloseTabsCommand(
+         get_tabs_to_close,
+     bool delete_groups) {
+   std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
++  // Arcomium: a Space outlives its last tab (ArcomiumKeepSpaces()), so no
++  // group is deleted and Chromium's delete-group dialog stays away. The tabs
++  // are fixed first: keeping the Space may select its blank tab.
++  const int count_before_keeping_spaces = count();
++  ArcomiumKeepSpaces(tabs_to_close);
++  if (count() != count_before_keeping_spaces) {
++    std::vector<tabs::TabInterface::Handle> handles;
++    for (tabs::TabInterface* tab : tabs_to_close) {
++      handles.push_back(tab->GetHandle());
++    }
++    get_tabs_to_close = base::BindRepeating(
++        [](const std::vector<tabs::TabInterface::Handle>& handles) {
++          std::vector<tabs::TabInterface*> tabs;
++          for (const tabs::TabInterface::Handle& handle : handles) {
++            if (tabs::TabInterface* tab = handle.Get()) {
++              tabs.push_back(tab);
++            }
++          }
++          return tabs;
++        },
++        std::move(handles));
++  }
+   std::vector<tab_groups::TabGroupId> groups_to_delete =
+       GetGroupsDestroyedFromRemovingTabs(get_tabs_to_close.Run());
+ 
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
 index 479fe42eb67..bd0f88b0c71 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.h

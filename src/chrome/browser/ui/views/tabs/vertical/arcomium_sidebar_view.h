@@ -11,8 +11,10 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/containers/flat_map.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -27,6 +29,7 @@
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/color/color_id.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/animation/animation_delegate.h"
@@ -38,6 +41,7 @@
 #include "ui/views/drag_controller.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
+#include "url/gurl.h"
 
 class ArcomiumAddressBar;
 class BrowserWindowInterface;
@@ -46,6 +50,10 @@ namespace bookmarks {
 class BookmarkModel;
 class BookmarkNode;
 }  // namespace bookmarks
+
+namespace content {
+class WebContents;
+}  // namespace content
 
 namespace ui {
 class DropTargetEvent;
@@ -94,17 +102,33 @@ class ArcomiumSidebarView : public views::View,
   // empty space below the rows offers Arc's "Edit Theme Color"; a left click
   // there does nothing.
   void OnThemeChanged() override;
+#if BUILDFLAG(IS_MAC)
+  // Rows recolor when the window turns active or not: Arc for macOS lightens
+  // an inactive window, and its shades follow (arcomium::InkOverFrame).
+  void AddedToWidget() override;
+  void RemovedFromWidget() override;
+#endif
 
   // A new folder at the top of the active Space's pinned items, as the plus
   // button's menu asks.
   void NewFolder() { AddFolder(nullptr); }
 
-  // The macOS menu bar's sidebar commands: IDC_ARCOMIUM_PIN_TAB,
-  // IDC_ARCOMIUM_NEW_FOLDER and IDC_ARCOMIUM_CLEAR_TODAY.
+  // The sidebar's commands, from the macOS menu bar and the command bar:
+  // IDC_ARCOMIUM_PIN_TAB (pins the shown tab, or unpins it, as Arc's
+  // Cmd+D), IDC_ARCOMIUM_NEW_FOLDER, IDC_ARCOMIUM_CLEAR_TODAY and
+  // IDC_ARCOMIUM_TOGGLE_PINNED (macOS: collapses or expands the pinned tabs).
   void RunMenuBarCommand(int command_id);
+  // Whether one can run now, and which way a toggle goes.
+  arcomium::SpaceCommandState GetMenuBarCommandState(int command_id);
 
   // Arc's theme color picker for the active Space, at `screen_point`.
   void EditSpaceColorAt(const gfx::Point& screen_point);
+
+  // The Space's name in the sidebar (screen coordinates) and where its icon
+  // is, for the Space icon picker; false while it is not shown.
+  bool GetSpaceTitleAnchor(gfx::Rect* bounds, int* arrow_x) const;
+  // Keeps the Space's name lit while its icon picker is open (macOS).
+  void SetSpaceTitleHighlighted(bool highlighted);
 
   // The command bar opened or closed; `new_tab` while it starts a new tab,
   // which Arc for macOS shows on the New Tab row.
@@ -117,9 +141,17 @@ class ArcomiumSidebarView : public views::View,
   // The browser's New Tab command (arcomium_command_bar_hook.h): opens the
   // command bar of `browser`'s sidebar, if one is drawn, for a new tab.
   static bool OpenNewTabCommandBar(BrowserWindowInterface* browser);
+  // Add Split View (arcomium_command_bar_hook.h): opens the command bar of
+  // `browser`'s sidebar, if one is drawn, for the pane just added.
+  static bool OpenSplitCommandBar(BrowserWindowInterface* browser);
+  // arcomium::SplitDraggedRowHook: a row dropped on the page's split zone.
+  static bool SplitDraggedRow(BrowserWindowInterface* browser,
+                              bool start,
+                              bool stacked);
 
   // bookmarks::BaseBookmarkModelObserver:
   void BookmarkModelChanged() override;
+  void BookmarkNodeChanged(const bookmarks::BookmarkNode* node) override;
 
   // gfx::AnimationDelegate:
   void AnimationProgressed(const gfx::Animation* animation) override;
@@ -207,6 +239,8 @@ class ArcomiumSidebarView : public views::View,
   void MoveToSpace(const SpaceTarget& target);
   void MoveTabToSpace(tabs::TabInterface* tab, const SpaceTarget& target);
   void DuplicateItem();
+  // The context menu's page: its link and title.
+  std::pair<GURL, std::u16string> GetMenuLink() const;
   void CopyLink();
   const bookmarks::BookmarkNode* GetNode(int64_t id) const;
   bool IsInActiveSpace(const tabs::TabInterface* tab) const;
@@ -251,15 +285,26 @@ class ArcomiumSidebarView : public views::View,
   void BuildRows();
   void HideSpacePreview();
   std::optional<tab_groups::TabGroupId> GetActiveGroup() const;
+  // Arc's Add Split View: `picked`, shown while `chooser` (the "Choose a
+  // tab" pane of a new split) was, takes the chooser's place in the split.
+  void FillSplitChooser(base::WeakPtr<content::WebContents> chooser,
+                        base::WeakPtr<content::WebContents> picked);
   void AddPinnedRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBoundTabRows(const bookmarks::BookmarkNode* folder, int depth);
   void AddBookmarkRow(const bookmarks::BookmarkNode* node, int depth);
   void AddTabRow(tabs::TabInterface* tab);
+  std::unique_ptr<Row> MakeTabRow(tabs::TabInterface* tab,
+                                  ui::ColorId color,
+                                  bool active);
+  // Arc's one row for a split's two pages, `start` on the start side.
+  void AddSplitRow(tabs::TabInterface* start, tabs::TabInterface* end);
   // The speaker of `tab` on its row, if it plays or is muted.
   void AddSpeaker(Row* row, tabs::TabInterface* tab);
   Row* AddRow(std::unique_ptr<Row> row,
               int64_t node = 0,
               tabs::TabInterface::Handle tab = tabs::TabInterface::Handle());
+  // Makes `row` a target for clicks, menus and drags.
+  void RegisterRow(Row* row, int64_t node, tabs::TabInterface::Handle tab);
 
   void OnBookmarkPressed(int64_t id);
   void OnFolderPressed(int64_t id);
@@ -301,13 +346,19 @@ class ArcomiumSidebarView : public views::View,
   // `tab` as a pinned tab outside the Spaces (in their default storage), or
   // its replacement opened there.
   tabs::TabInterface* PinAsFavoriteTab(tabs::TabInterface* tab);
+  // The links of `folder` and its subfolders, in the sidebar's order.
+  std::vector<GURL> GetFolderLinks(const bookmarks::BookmarkNode* folder) const;
   void CopyAllLinks(const bookmarks::BookmarkNode* folder);
+#if BUILDFLAG(IS_MAC)
+  // Arc's Share Folder...: the system's share picker for its links.
+  void ShareFolder(int64_t id);
+#endif
   // Makes `folder` a new Space of its own, its items the Space's pinned ones,
   // and switches to it, as Arc's Turn into Space.
   void TurnIntoSpace(const bookmarks::BookmarkNode* folder);
   // Edits the name (and address) of a pinned item or folder.
   void RenameNode(int64_t id);
-  // Arc for macOS' Change Icon...: a glyph picker where the menu was.
+  // Arc's Change Icon...: its glyph picker under the item's row.
   void ShowIconPicker(const bookmarks::BookmarkNode* node);
   // Sets the meta info `key` of node `id` to the glyph `name`, "" for none.
   void SetNodeIcon(int64_t id, const std::string& key, const std::string& name);
@@ -381,6 +432,14 @@ class ArcomiumSidebarView : public views::View,
     tabs::TabInterface::Handle tab;
   };
   base::flat_map<views::View*, RowTarget> row_targets_;
+#if BUILDFLAG(IS_MAC)
+  // Arc's sidebar items for Command-1 to -9: the rows and favorites that are
+  // pages, in the order drawn.
+  std::vector<RowTarget> GetSidebarItems() const;
+  // The row of the shown tab, for Reveal Tab in Sidebar; null when it has
+  // none drawn (a favorite's tab, an empty Space).
+  views::View* FindActiveTabRow() const;
+#endif
 
   // Where a dragged row would land.
   struct DropTarget {
@@ -395,6 +454,8 @@ class ArcomiumSidebarView : public views::View,
     bool into_folder = false;
     // Into the favorites instead, at `index`.
     bool favorite = false;
+    // Onto this tab's row instead: a split of the two, as in Arc.
+    tabs::TabInterface::Handle split_with;
   };
   std::optional<DropTarget> GetDropTarget(const gfx::Point& point);
   void ShowDropIndicator(const std::optional<DropTarget>& target);
@@ -404,6 +465,17 @@ class ArcomiumSidebarView : public views::View,
                    std::unique_ptr<ui::LayerTreeOwner> drag_image_layer_owner);
   // Moves `tab` so it lands before the tab now at `slot`.
   void MoveTabToSlot(tabs::TabInterface* tab, int slot);
+  // The dragged row's tab for a split: a tab's own, or a pinned item's,
+  // opened if it is not; nullptr for a folder or a favorite.
+  tabs::TabInterface* GetDraggedRowTab(bool open);
+  // Puts `tab` in a new split beside `with`, on the start side or below it,
+  // and shows it; `tab` leaves a split it is in. False when the two cannot
+  // share one: the same tab, `with` already in a split, or not of one Space.
+  bool SplitTabs(tabs::TabInterface* with,
+                 tabs::TabInterface* tab,
+                 bool start,
+                 bool stacked);
+  void EndRowDrag();
   void OnRowDragDone();
 
   gfx::SlideAnimation folder_animation_{this};
@@ -433,6 +505,13 @@ class ArcomiumSidebarView : public views::View,
   // Decoded icons imported from Arc ("arcomium.icon" meta info).
   base::flat_map<int64_t, ui::ImageModel> imported_icons_;
 
+  // The item Rename... is editing and its title before: a new one marks it.
+  int64_t renaming_node_ = 0;
+  std::u16string renaming_title_;
+  // The Space name's view, and whether the Space's icon picker is open.
+  raw_ptr<views::View> space_title_ = nullptr;
+  bool space_title_highlighted_ = false;
+
   // Context menu target, and where it opened (screen coordinates).
   int64_t menu_node_ = 0;
   gfx::Point menu_point_;
@@ -440,6 +519,9 @@ class ArcomiumSidebarView : public views::View,
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<ui::SimpleMenuModel> move_menu_model_;
   std::unique_ptr<ui::SimpleMenuModel> pinned_menu_model_;
+#if BUILDFLAG(IS_MAC)
+  std::unique_ptr<ui::SimpleMenuModel> share_menu_model_;
+#endif
   // The Spaces behind the "Move to" submenu's commands.
   std::vector<SpaceTarget> menu_spaces_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
@@ -455,6 +537,9 @@ class ArcomiumSidebarView : public views::View,
   base::OneShotTimer hover_timer_;
   // Coalesces the rebuilds a run of theme changes asks for.
   base::OneShotTimer theme_rebuild_timer_;
+#if BUILDFLAG(IS_MAC)
+  base::CallbackListSubscription paint_as_active_subscription_;
+#endif
   base::RepeatingTimer folder_popup_timer_;
   int folder_popup_outside_ticks_ = 0;
 #if BUILDFLAG(IS_MAC)
@@ -466,6 +551,8 @@ class ArcomiumSidebarView : public views::View,
   // The popup's rows' items, in order, and the selected one.
   std::vector<int64_t> folder_popup_items_;
   int folder_popup_selected_ = -1;
+  // The rows' height unfiltered: Arc's popup keeps it while a query filters.
+  int folder_popup_rows_height_ = 0;
   gfx::Point folder_popup_last_point_;
 #endif
 
@@ -476,6 +563,7 @@ class ArcomiumSidebarView : public views::View,
   base::WeakPtrFactory<ArcomiumSidebarView> weak_factory_{this};
   // Not invalidated by rebuilds, unlike `weak_factory_`.
   base::WeakPtrFactory<ArcomiumSidebarView> drop_weak_factory_{this};
+  base::WeakPtrFactory<ArcomiumSidebarView> split_weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_SIDEBAR_VIEW_H_

@@ -23,6 +23,17 @@ inline bool OpenNewTabCommandBar(BrowserWindowInterface* browser) {
   return NewTabCommandBarHook() && NewTabCommandBarHook()(browser);
 }
 
+// Opens the command bar for the shown tab, as Arc does for the pane Add
+// Split View adds; false when no sidebar shows there.
+inline OpenNewTabCommandBarFunction& CommandBarHook() {
+  static OpenNewTabCommandBarFunction hook = nullptr;
+  return hook;
+}
+
+inline bool OpenCommandBar(BrowserWindowInterface* browser) {
+  return CommandBarHook() && CommandBarHook()(browser);
+}
+
 }  // namespace arcomium
 
 #endif  // CHROME_BROWSER_UI_TABS_ARCOMIUM_COMMAND_BAR_HOOK_H_

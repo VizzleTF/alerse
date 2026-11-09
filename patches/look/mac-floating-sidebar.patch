@@ -94,7 +94,7 @@ index 85f1aaa..045da5a 100644
 +
  #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_VERTICAL_TAB_STRIP_REGION_VIEW_H_
 diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index fb01980..d92fcf9 100644
+index fb01980..5757fa9 100644
 --- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -16,7 +16,9 @@
@@ -121,7 +121,29 @@ index fb01980..d92fcf9 100644
  #include "ui/display/screen.h"
  #include "ui/events/event.h"
  #include "ui/gfx/geometry/point.h"
-@@ -465,8 +469,11 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+@@ -93,11 +97,21 @@ constexpr int kSnapDistance = 15;
+ // Shadow is used in expand-on-hover mode. Shadow radius and opacity are dynamic
+ // and set by the layout.
+ constexpr int kExpandOnHoverShadowElevation = 4;
++#if BUILDFLAG(IS_MAC)
++// Arcomium: Arc for macOS' floating sidebar casts a faint shadow, a few levels
++// off the page beside it (#2C2C2D by #2E2E2E), a quarter of Chromium's.
++constexpr ShadowFrameView::ShadowAlpha kExpandOnHoverShadowAlpha(
++    {.light_key = 0.3,
++     .light_ambient = 0.0,
++     .dark_key = 0.15,
++     .dark_ambient = 0.0});
++#else
+ constexpr ShadowFrameView::ShadowAlpha kExpandOnHoverShadowAlpha(
+     {.light_key = 0.3,
+      .light_ambient = 0.0,
+      .dark_key = 0.6,
+      .dark_ambient = 0.0});
++#endif
+ 
+ // This is the minimum time before EOH can be triggered.
+ constexpr base::TimeDelta kVerticalTabsExpandOnHoverVelocityHeuristicDelay =
+@@ -465,8 +479,11 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
  
    // Lay out the top button container. Arcomium: expanded, it spans the strip
    // and places the Arc header buttons on its own grid.
@@ -135,7 +157,7 @@ index fb01980..d92fcf9 100644
    layout.child_layouts.push_back(
        {.child_view = top_button_container_.get(),
         .visible = true,
-@@ -501,6 +508,15 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
+@@ -501,6 +518,15 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
                                      .bounds = organizer_bounds});
    }
  
@@ -151,7 +173,7 @@ index fb01980..d92fcf9 100644
    return layout;
  }
  
-@@ -936,6 +952,9 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -936,6 +962,9 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
    if (tab_strip_view()) {
      tab_strip_view()->SetCollapsedState(collapsed);
    }
@@ -161,7 +183,7 @@ index fb01980..d92fcf9 100644
  
    if ((state == tabs::VerticalTabStripCollapseState::kCollapsing) ||
        (state == tabs::VerticalTabStripCollapseState::kExpanded &&
-@@ -959,7 +978,16 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -959,7 +988,16 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
  
    if (state == tabs::VerticalTabStripCollapseState::kExpanded ||
        state == tabs::VerticalTabStripCollapseState::kCollapsed) {
@@ -178,7 +200,7 @@ index fb01980..d92fcf9 100644
    }
  }
  
-@@ -1145,6 +1173,9 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
+@@ -1145,6 +1183,9 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
  
  void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
    is_expanded_on_hover_ = expand;
@@ -188,7 +210,7 @@ index fb01980..d92fcf9 100644
    ResetExpandOnHoverTimers();
  
    if (expand) {
-@@ -1237,6 +1268,20 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
+@@ -1237,6 +1278,20 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
      const tabs::TabInterface* active_tab) {
    BaseTabStripRegionView::OnActiveTabChanged(active_tab);
    omnibox_tab_helper_observation_.Reset();
@@ -209,7 +231,7 @@ index fb01980..d92fcf9 100644
  
    if (active_tab) {
      OmniboxTabHelper* const tab_helper =
-@@ -1249,3 +1294,46 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
+@@ -1249,3 +1304,46 @@ void VerticalTabStripRegionView::OnActiveTabChanged(
  
  BEGIN_METADATA(VerticalTabStripRegionView)
  END_METADATA

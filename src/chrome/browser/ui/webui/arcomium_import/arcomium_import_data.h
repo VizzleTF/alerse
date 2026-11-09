@@ -59,6 +59,8 @@ inline constexpr char kSpaceIconMetaKey[] = "arcomium.space_icon";
 inline constexpr char kArcIconMetaKey[] = "arcomium.arc_icon";
 inline constexpr char kFolderIconMetaKey[] = "arcomium.folder_icon";
 inline constexpr char kIconMetaKey[] = "arcomium.icon";
+// A pinned item the user named: Arc's items with a title of their own.
+inline constexpr char kRenamedMetaKey[] = "arcomium.renamed";
 // The id of the Arc Space a folder was imported from, kept after a Space
 // adopts the folder so that importing again finds that Space. It counts only
 // with kArcSpaceMarkMetaKey: see ImportMark.

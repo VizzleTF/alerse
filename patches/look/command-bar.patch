@@ -1,5 +1,5 @@
 diff --git a/chrome/browser/resources/omnibox_popup/app.css b/chrome/browser/resources/omnibox_popup/app.css
-index 48ae23b..f9bb4c4 100644
+index 48ae23b..271bd36 100644
 --- a/chrome/browser/resources/omnibox_popup/app.css
 +++ b/chrome/browser/resources/omnibox_popup/app.css
 @@ -24,8 +24,9 @@
@@ -13,7 +13,7 @@ index 48ae23b..f9bb4c4 100644
  }
  
  /**
-@@ -35,3 +36,28 @@
+@@ -35,3 +36,36 @@
    display: block;
    width: 50%;
  }
@@ -39,6 +39,14 @@ index 48ae23b..f9bb4c4 100644
 +
 +  :host([has-visible-matches_]) .dropdownContainer {
 +    padding-bottom: 7px;
++  }
++}
++
++/* The compact command bar (348 pt, from the sidebar's field) has no line
++ * under its input. */
++@media (max-width: 400px) {
++  .dropdownContainer {
++    border-top: none;
 +  }
 +}
 +</if>
@@ -127,7 +135,7 @@ index e0018a3bb6f..b999df3e65a 100644
      autocomplete_controller_config.stop_timer_duration =
          autocomplete_stop_timer_duration.value();
 diff --git a/chrome/browser/ui/omnibox/omnibox_edit_model.cc b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
-index 7c03135..801a8b9 100644
+index e1d29a6..84a860b 100644
 --- a/chrome/browser/ui/omnibox/omnibox_edit_model.cc
 +++ b/chrome/browser/ui/omnibox/omnibox_edit_model.cc
 @@ -2273,6 +2273,20 @@ void OmniboxEditModel::OnPopupResultChanged() {
@@ -161,6 +169,21 @@ index 7c03135..801a8b9 100644
        match.type == omnibox::AutocompleteMatchType::kOpenTab;
    // Also switch the window disposition for tab switch actions. The action
    // itself will already open with SWITCH_TO_TAB disposition, but the change
+@@ -2730,6 +2744,14 @@ void OmniboxEditModel::OpenMatch(
+       completed_length, elapsed_time_since_last_change_to_default_match,
+       dropdown_ignored ? fake_single_entry_result : result, destination_url,
+       is_incognito, input.IsZeroSuggest(), match.session);
++  // Arcomium: the command bar opens with its rows (an empty field lists the
++  // open tabs) before the input starts, so the default match can predate
++  // the user's first change; Return then opens that row.
++  if (log.elapsed_time_since_last_change_to_default_match >
++      log.elapsed_time_since_user_first_modified_omnibox) {
++    log.elapsed_time_since_last_change_to_default_match =
++        log.elapsed_time_since_user_first_modified_omnibox;
++  }
+   DCHECK(dropdown_ignored ||
+          (log.elapsed_time_since_user_first_modified_omnibox >=
+           log.elapsed_time_since_last_change_to_default_match))
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
 index ed22ee0745b..0666e2dee87 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
@@ -296,7 +319,7 @@ index c8535ce284a..16840cd9eb2 100644
    gfx::Rect arcomium_pill_bounds_;
    raw_ptr<views::ImageButton> arcomium_copy_button_ = nullptr;
 diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
-index c0187113de1..7e028269ed6 100644
+index c018711..1e239a3 100644
 --- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
 +++ b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
 @@ -4,6 +4,12 @@
@@ -346,7 +369,7 @@ index c0187113de1..7e028269ed6 100644
    auto border = std::make_unique<views::BubbleBorder>(
        views::BubbleBorder::Arrow::NONE,
        elevation == 0 ? views::BubbleBorder::Shadow::NO_SHADOW
-@@ -386,7 +395,7 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+@@ -386,11 +395,26 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
  
    if (top_background_->GetVisible()) {
      gfx::Rect top_bounds(contents_host_->GetContentsBounds());
@@ -355,7 +378,26 @@ index c0187113de1..7e028269ed6 100644
      top_bounds.Inset(GetLocationBarAlignmentInsets());
      top_background_->SetBoundsRect(top_bounds);
    }
-@@ -409,7 +418,8 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+ 
++#if defined(USE_AURA)
++  // Arcomium: clicks reach the location bar through the whole of the
++  // cutout, under the shadow too. AddedToWidget() sets the insets once, from
++  // the cutout alone and the location bar the widget was made for; the
++  // command bar's taller input row then lost its lower part, and Arc's (i)
++  // at its end, to the results.
++  if (forward_mouse_events_ && GetWidget() && GetWidget()->GetNativeWindow() &&
++      GetWidget()->GetNativeWindow()->targeter()) {
++    GetWidget()->GetNativeWindow()->targeter()->SetInsets(gfx::Insets::TLBR(
++        contents_host_->bounds().y() + contents_host_->GetInsets().top() +
++            GetContentInsets().top(),
++        0, 0, 0));
++  }
++#endif  // USE_AURA
++
+   // `contents_` is null once it has been extracted during widget teardown (see
+   // `OmniboxPopupPresenterBase::OnWidgetClosed()`). The widget can still be
+   // laid out by the compositor between that point and its actual destruction,
+@@ -409,7 +433,8 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
    results_bounds.Inset(GetContentInsets());
  
    // Align webview horizontal bounds and positioning with the outer view.
@@ -365,7 +407,7 @@ index c0187113de1..7e028269ed6 100644
    results_bounds.set_width(contents_host_->GetContentsBounds().width());
  
    auto* webui_content = GetOmniboxPopupWebUIBaseContent();
-@@ -435,6 +445,17 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
+@@ -435,6 +460,17 @@ void RoundedOmniboxResultsFrame::Layout(PassKey) {
    contents_->SetBoundsRect(results_bounds);
  }
  
@@ -383,7 +425,7 @@ index c0187113de1..7e028269ed6 100644
  void RoundedOmniboxResultsFrame::AddedToWidget() {
  #if defined(USE_AURA)
    if (!forward_mouse_events_) {
-@@ -477,7 +498,18 @@ void RoundedOmniboxResultsFrame::OnMouseEvent(ui::MouseEvent* event) {
+@@ -477,7 +513,18 @@ void RoundedOmniboxResultsFrame::OnMouseEvent(ui::MouseEvent* event) {
  // Insets used to position |contents_| within |contents_host_|.
  gfx::Insets RoundedOmniboxResultsFrame::GetContentInsets() {
    return gfx::Insets::TLBR(

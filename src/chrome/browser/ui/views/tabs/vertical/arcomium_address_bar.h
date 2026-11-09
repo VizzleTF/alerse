@@ -143,6 +143,9 @@ class ArcomiumAddressBar : public views::View,
   base::RepeatingCallback<void(bool, bool)> command_bar_callback_;
   // A new tab's command bar asked for before the location bar was placed.
   bool pending_new_tab_ = false;
+  // The next command bar opens compact, anchored to the field (macOS: a
+  // click on the field).
+  bool compact_command_bar_ = false;
   // What the field showed when the command bar took the location bar.
   std::u16string field_text_;
   bool field_placeholder_ = false;

@@ -14,7 +14,9 @@
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/arcomium_split.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -64,15 +66,21 @@ constexpr int kCopyIconSize = 16;
 constexpr int kCopyButtonSize = 24;
 constexpr int kCopyButtonEndInset = 6;
 #if BUILDFLAG(IS_MAC)
-// Arc for macOS' command bar: 765 pt wide and centred on the window, its
-// 327 pt panel (five rows) 5 pt above the middle; the address row is its top
-// 63 pt; 12 pt corners and a grey rim.
-constexpr int kCommandBarWidth = 765;
+// Arc for macOS' command bar: 765 pt wide and centred on the window, rims
+// and all (the panel 764 pt and its dark outer ring), its 327 pt panel (five
+// rows) 5 pt above the middle; the address row is its top 63 pt; 12 pt
+// corners and a grey rim.
+constexpr int kCommandBarWidth = 764;
 constexpr int kCommandBarHeight = 327;
 constexpr int kCommandBarOffset = -5;
 constexpr int kCommandBarInputHeight = 63;
 constexpr int kCommandBarRadius = 12;
 constexpr SkAlpha kCommandBarRim = 0x3B;
+// Arc for macOS' compact command bar, opened by clicking the field: 348 pt
+// wide from the field's left edge, its top a point above the field's, a
+// 45 pt input row.
+constexpr int kCompactCommandBarWidth = 348;
+constexpr int kCompactCommandBarInputHeight = 45;
 #else
 // Arc's command bar: 722 px wide and centred on the window, its 318 px panel
 // 30 px below the middle; the address row is its top 52 px.
@@ -90,6 +98,14 @@ class ArcomiumCommandBarPanel : public views::View {
   METADATA_HEADER(ArcomiumCommandBarPanel, views::View)
 
  public:
+  // Arc for macOS' compact command bar has no line under its input.
+  void set_draws_divider(bool draws_divider) {
+    if (draws_divider_ != draws_divider) {
+      draws_divider_ = draws_divider;
+      SchedulePaint();
+    }
+  }
+
   void OnPaintBackground(gfx::Canvas* canvas) override {
     const SkColor background =
         GetColorProvider()->GetColor(kColorOmniboxResultsBackground);
@@ -101,6 +117,9 @@ class ArcomiumCommandBarPanel : public views::View {
 #if BUILDFLAG(IS_MAC)
     // Arc for macOS' line under the input: one device pixel, #313030 on
     // #191919.
+    if (!draws_divider_) {
+      return;
+    }
     gfx::ScopedCanvas scoped(canvas);
     const float scale = canvas->UndoDeviceScaleFactor();
     const int bottom = static_cast<int>(std::round(height() * scale));
@@ -110,6 +129,9 @@ class ArcomiumCommandBarPanel : public views::View {
         color_utils::BlendTowardMaxContrast(background, 0x1B));
 #endif
   }
+
+ private:
+  bool draws_divider_ = true;
 };
 
 BEGIN_METADATA(ArcomiumCommandBarPanel)
@@ -220,6 +242,7 @@ bool ArcomiumAddressBar::OnMousePressed(const ui::MouseEvent& event) {
 void ArcomiumAddressBar::OnMouseReleased(const ui::MouseEvent& event) {
 #if BUILDFLAG(IS_MAC)
   if (location_bar_ && !editing_ && HitTestPoint(event.location())) {
+    compact_command_bar_ = true;
     OpenCommandBar(/*new_tab=*/false);
   }
 #endif
@@ -237,8 +260,8 @@ void ArcomiumAddressBar::OnPaint(gfx::Canvas* canvas) {
   field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
   cc::PaintFlags flags;
   flags.setAntiAlias(true);
-  flags.setColor(color_utils::BlendTowardMaxContrast(
-      colors->GetColor(ui::kColorFrameActive), 0x1B));
+  flags.setColor(
+      color_utils::BlendTowardMaxContrast(arcomium::FrameColor(this), 0x1B));
   canvas->DrawRoundRect(gfx::RectF(field), 12, flags);
   canvas->DrawImageInt(
       gfx::CreateVectorIcon(vector_icons::kArcomiumSearchIcon, 16,
@@ -405,12 +428,31 @@ void ArcomiumAddressBar::StartEditing(LocationBarView* location_bar) {
       browser_view->ConvertRectToWidget(browser_view->GetLocalBounds());
   const int width =
       std::min(kCommandBarWidth, area.width() - 2 * kCommandBarMargin);
-  const gfx::Rect bounds(
+  gfx::Rect bounds(
       area.x() + (area.width() - width + 1) / 2,
       area.y() + std::max(kCommandBarMargin,
                           (area.height() - kCommandBarHeight) / 2 +
                               kCommandBarOffset),
       width, kCommandBarInputHeight);
+  const bool compact = std::exchange(compact_command_bar_, false) &&
+                       location_bar == location_bar_;
+#if BUILDFLAG(IS_MAC)
+  if (compact) {
+    // Over the field, in the panel's widget's coordinates.
+    gfx::Rect field(size());
+    field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
+    views::View::ConvertRectToScreen(this, &field);
+    const gfx::Vector2d to_area =
+        area.origin() - browser_view->GetBoundsInScreen().origin();
+    field += to_area;
+    // Its dark outer ring then lands where Arc's does: 8 pt in, 44 pt down.
+    bounds = gfx::Rect(field.x() + 1, field.y() - 2,
+                       std::min(kCompactCommandBarWidth,
+                                area.right() - kCommandBarMargin - field.x() -
+                                    1),
+                       kCompactCommandBarInputHeight);
+  }
+#endif
 
   if (location_bar == location_bar_) {
     // What the field shows stays drawn while it is away (OnPaint).
@@ -455,15 +497,22 @@ void ArcomiumAddressBar::StartEditing(LocationBarView* location_bar) {
   click_monitor_ = views::EventMonitor::CreateWindowMonitor(
       click_watcher_.get(), widget->GetNativeWindow(),
       {ui::EventType::kMousePressed, ui::EventType::kTouchPressed});
+  location_bar->SetArcomiumCommandBarCompact(compact);
   location_bar->SetArcomiumCommandBar(true);
+  static_cast<ArcomiumCommandBarPanel*>(editor_->GetContentsView())
+      ->set_draws_divider(!compact);
   UpdateCopyButton();
 
   location_bar->FocusLocation(/*is_user_initiated=*/true,
                               /*clear_focus_if_failed=*/false);
   // An empty field (a new tab, an empty Space) asks for rows itself: focus
-  // moved with the field to the panel drops the on-focus suggestions.
-  if (location_bar->ArcomiumOpensNewTab() ||
-      location_bar->omnibox_view()->GetText().empty()) {
+  // moved with the field to the panel drops the on-focus suggestions. Arc for
+  // macOS' compact command bar opens empty too, listing the open tabs.
+  // So does a new split's pane on "Choose a tab" (arcomium_split.h).
+  if (compact || location_bar->ArcomiumOpensNewTab() ||
+      location_bar->omnibox_view()->GetText().empty() ||
+      arcomium::IsSplitChooser(
+          browser_->GetTabStripModel()->GetActiveWebContents())) {
     location_bar->omnibox_view()->SetUserText(std::u16string());
   } else {
     location_bar->omnibox_view()->SelectAll(/*reversed=*/true);
@@ -484,7 +533,13 @@ void ArcomiumAddressBar::StopEditing() {
   LocationBarView* location_bar = editing_location_bar_;
   editing_location_bar_ = nullptr;
   location_bar->SetArcomiumCommandBar(false);
+  location_bar->SetArcomiumCommandBarCompact(false);
   location_bar->SetArcomiumNewTab(false);
+#if !BUILDFLAG(IS_MAC)
+  // The command bar dims the placeholder; the top bar's pill shows it bright
+  // again, as in Arc for Windows. The color is set only with the text.
+  location_bar->omnibox_view()->InstallPlaceholderText();
+#endif
   if (location_bar == location_bar_) {
     AddChildViewAt(location_bar, 0);
 #if BUILDFLAG(IS_MAC)

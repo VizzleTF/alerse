@@ -67,3 +67,10 @@ spaces/new-tab-command-bar.patch
 look/mac-menu-bar.patch
 look/mac-floating-sidebar.patch
 look/mac-arc-tooltips.patch
+look/command-bar-actions.patch
+look/mac-inactive-window.patch
+look/mac-arc-arrows.patch
+look/split-view.patch
+defaults/commands-without-actions.patch
+look/mac-menu-bar-arc.patch
+look/mac-arc-polish.patch

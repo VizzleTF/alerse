@@ -1,0 +1,156 @@
+diff --git a/chrome/browser/ui/actions/command_action_updater.h b/chrome/browser/ui/actions/command_action_updater.h
+index d9438fca442..df25cab6e48 100644
+--- a/chrome/browser/ui/actions/command_action_updater.h
++++ b/chrome/browser/ui/actions/command_action_updater.h
+@@ -13,11 +13,13 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/time/time.h"
+ #include "chrome/browser/command_updater.h"
++#include "chrome/browser/command_updater_impl.h"
+ #include "ui/actions/action_id.h"
+ #include "ui/actions/actions.h"
+ #include "ui/base/window_open_disposition.h"
+ 
+ class CommandObserver;
++class CommandUpdaterDelegate;
+ 
+ namespace actions {
+ class ActionItem;
+@@ -29,7 +31,10 @@ namespace chrome {
+ // API. Only used when features::ShouldUseActionsForBrowserCommands() is true.
+ class CommandActionUpdater : public CommandUpdater {
+  public:
+-  explicit CommandActionUpdater(actions::ActionItem* root_action_item);
++  // Arcomium: commands that have no action (Arcomium's IDC_ARCOMIUM_*) are
++  // kept as CommandUpdaterImpl keeps them and run through `delegate`.
++  explicit CommandActionUpdater(actions::ActionItem* root_action_item,
++                                CommandUpdaterDelegate* delegate = nullptr);
+   ~CommandActionUpdater() override;
+ 
+   // CommandUpdater implementation:
+@@ -66,6 +71,8 @@ class CommandActionUpdater : public CommandUpdater {
+ 
+   std::vector<ObserverEntry> observer_entries_;
+   const raw_ptr<actions::ActionItem> root_action_item_;
++  // Arcomium: the commands without an action.
++  CommandUpdaterImpl commands_without_action_;
+ };
+ 
+ }  // namespace chrome
+diff --git a/chrome/browser/ui/actions/command_action_updater.cc b/chrome/browser/ui/actions/command_action_updater.cc
+index 94c0404903f..9af1ec55be6 100644
+--- a/chrome/browser/ui/actions/command_action_updater.cc
++++ b/chrome/browser/ui/actions/command_action_updater.cc
+@@ -19,14 +19,19 @@ namespace chrome {
+ 
+ CommandActionUpdater::CommandActionUpdater(
+-    actions::ActionItem* root_action_item)
+-    : root_action_item_(root_action_item) {}
++    actions::ActionItem* root_action_item,
++    CommandUpdaterDelegate* delegate)
++    : root_action_item_(root_action_item), commands_without_action_(delegate) {}
+ 
+ CommandActionUpdater::~CommandActionUpdater() = default;
+ 
+ bool CommandActionUpdater::SupportsCommand(int id) const {
+-  return GetCommandIdToActionIdMap().contains(id);
++  return GetCommandIdToActionIdMap().contains(id) ||
++         commands_without_action_.SupportsCommand(id);
+ }
+ 
+ bool CommandActionUpdater::IsCommandEnabled(int id) const {
++  if (!GetActionId(id)) {
++    return commands_without_action_.IsCommandEnabled(id);
++  }
+   if (auto action_id = GetActionId(id)) {
+     if (auto* const action = FindAction(*action_id)) {
+@@ -42,4 +47,8 @@ bool CommandActionUpdater::ExecuteCommandWithDispositionAndContext(
+     std::optional<actions::ActionInvocationContext> context,
+     base::TimeTicks time_stamp) {
++  if (!GetActionId(id)) {
++    return commands_without_action_.ExecuteCommandWithDisposition(
++        id, disposition, std::move(context), time_stamp);
++  }
+   if (SupportsCommand(id) && IsCommandEnabled(id)) {
+     if (auto action_id = GetActionId(id)) {
+@@ -53,4 +62,8 @@ bool CommandActionUpdater::ExecuteCommandWithDispositionAndContext(
+ void CommandActionUpdater::AddCommandObserver(int id,
+                                               CommandObserver* observer) {
++  if (!GetActionId(id)) {
++    commands_without_action_.AddCommandObserver(id, observer);
++    return;
++  }
+   if (auto action_id = GetActionId(id)) {
+     if (auto* const action = FindAction(*action_id)) {
+@@ -65,4 +78,10 @@ void CommandActionUpdater::AddCommandObserver(int id,
+ void CommandActionUpdater::RemoveCommandObserver(int id,
+                                                  CommandObserver* observer) {
++  if (!GetActionId(id)) {
++    if (commands_without_action_.SupportsCommand(id)) {
++      commands_without_action_.RemoveCommandObserver(id, observer);
++    }
++    return;
++  }
+   std::erase_if(observer_entries_, [&](const auto& entry) {
+     return entry.id == id && entry.observer == observer;
+@@ -71,4 +90,5 @@ void CommandActionUpdater::RemoveCommandObserver(int id,
+ 
+ void CommandActionUpdater::RemoveCommandObserver(CommandObserver* observer) {
++  commands_without_action_.RemoveCommandObserver(observer);
+   std::erase_if(observer_entries_,
+                 [&](const auto& entry) { return entry.observer == observer; });
+@@ -76,4 +96,7 @@ void CommandActionUpdater::RemoveCommandObserver(CommandObserver* observer) {
+ 
+ bool CommandActionUpdater::UpdateCommandEnabled(int id, bool state) {
++  if (!GetActionId(id)) {
++    return commands_without_action_.UpdateCommandEnabled(id, state);
++  }
+   if (auto action_id = GetActionId(id)) {
+     if (auto* const action = FindAction(*action_id)) {
+@@ -86,4 +109,5 @@ bool CommandActionUpdater::UpdateCommandEnabled(int id, bool state) {
+ 
+ void CommandActionUpdater::DisableAllCommands() {
++  commands_without_action_.DisableAllCommands();
+   for (const auto& [idc, action_id] : GetCommandIdToActionIdMap()) {
+     if (auto* const action = FindAction(action_id)) {
+@@ -100,4 +124,7 @@ std::vector<int> CommandActionUpdater::GetAllIds() const {
+     result.push_back(idc);
+   }
++  for (int id : commands_without_action_.GetAllIds()) {
++    result.push_back(id);
++  }
+   return result;
+ }
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index 361769fe5e5..668189ad827 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -1963,7 +1963,12 @@ void BrowserActions::InitializeToolbarAndMiscActions() {
+               [](BrowserWindowInterface* bwi, TabStripModel* tab_strip_model,
+                  actions::ActionItem* item,
+                  actions::ActionInvocationContext context) {
+-                chrome::CopyURL(bwi, tab_strip_model->GetActiveWebContents());
++                // Arcomium: not an empty Space's or a blank page's address,
++                // as IDC_COPY_URL in BrowserCommandController.
++                if (content::WebContents* contents =
++                        chrome::GetArcomiumCopyableContents(bwi)) {
++                  chrome::CopyURL(bwi, contents);
++                }
+               },
+               bwi, tab_strip_model),
+           kActionCopyUrl, IDS_APP_MENU_COPY_LINK, IDS_APP_MENU_COPY_LINK,
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 7fa6e2e5b0b..12cf9efe3c2 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -3073,8 +3073,9 @@ bool BrowserCommandController::IsInLockedFullscreenMode(
+ std::unique_ptr<CommandUpdater>
+ BrowserCommandController::CreateCommandUpdater() {
+   if (features::ShouldUseActionsForBrowserCommands()) {
++    // Arcomium: its own commands have no action; `this` runs them.
+     return std::make_unique<CommandActionUpdater>(
+-        BrowserActions::From(browser_)->root_action_item());
++        BrowserActions::From(browser_)->root_action_item(), this);
+   }
+   return std::make_unique<CommandUpdaterImpl>(this);
+ }

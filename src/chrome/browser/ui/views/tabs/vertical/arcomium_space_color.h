@@ -89,7 +89,8 @@ class SpaceColorTransition : public gfx::AnimationDelegate {
 };
 
 // The sidebar's colors are drawn for a dark frame; on a light frame (a light
-// theme) they are inverted.
+// theme) they are inverted. In an inactive window on macOS opaque ones follow
+// the lighter frame (arcomium::InkOverFrame).
 SkColor SidebarInk(const views::View* view, SkColor dark_color);
 // The sidebar's color `id` (chrome/browser/ui/color/arcomium_color_mixer.cc).
 SkColor SidebarInk(const views::View* view, ui::ColorId id);

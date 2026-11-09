@@ -23,6 +23,7 @@
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/display/screen.h"
+#include "ui/gfx/geometry/point.h"
 #include "ui/events/event.h"
 #include "ui/events/event_handler.h"
 #include "ui/gfx/canvas.h"
@@ -40,8 +41,14 @@ namespace {
 
 // Arc for macOS' tooltips, measured on its sidebar (points).
 constexpr base::TimeDelta kShowDelay = base::Seconds(1);
-// Right after one hides, the next shows at once.
+// A sidebar row's, with its hint below the name: Arc's shows within 1.05 s
+// of the pointer reaching a row, also a folder's nested row.
+constexpr base::TimeDelta kDetailShowDelay = base::Milliseconds(900);
+// Right after one hides, the next shows as soon as the pointer stops (no
+// move for this long), where it stops, as Arc's.
 constexpr base::TimeDelta kWarmWindow = base::Milliseconds(500);
+constexpr base::TimeDelta kWarmSettle = base::Milliseconds(400);
+constexpr base::TimeDelta kSettlePoll = base::Milliseconds(50);
 constexpr base::TimeDelta kHoverPoll = base::Milliseconds(100);
 // From the pointer to the pill's corner; near the window's bottom, centred
 // 3 pt above the view instead.
@@ -55,6 +62,9 @@ constexpr float kLineHeight = 29;
 constexpr float kTwoLineHeight = 44.0f;
 constexpr float kTwoLineRadius = 12;
 constexpr float kTextInset = 11;
+// A two-line hint ends 9.5 pt after its longer line, as Arc's (141.5 pt for
+// "Double-click to rename"), where one-line pills keep 11.
+constexpr float kTwoLineEndInset = 9.5f;
 constexpr float kKeySize = 18;
 constexpr float kKeyHeight = 18.25f;
 constexpr float kKeyLip = 2.5f;
@@ -136,7 +146,7 @@ class Pill : public views::View {
                                                content_.detail, detail_font_));
     }
     if (content_.keys.empty()) {
-      width += kTextInset;
+      width += content_.detail.empty() ? kTextInset : kTwoLineEndInset;
     } else {
       width += kKeysInset + content_.keys.size() * (kKeySize + kKeyGap) -
                kKeyGap + kKeysEndInset;
@@ -168,8 +178,14 @@ class Pill : public views::View {
       corner -= 0.5f;
     }
     if (two_lines) {
-      canvas->DrawStringRect(content_.detail, detail_font_, kDetailColor,
-                             gfx::Rect(kTextInset, 22, width(), 16));
+      {
+        // Arc's second line sits half a point left of and above the name's
+        // inset.
+        gfx::ScopedCanvas detail_canvas(canvas);
+        canvas->sk_canvas()->translate(-0.5f, -0.5f);
+        canvas->DrawStringRect(content_.detail, detail_font_, kDetailColor,
+                               gfx::Rect(kTextInset, 22, width(), 16));
+      }
       gfx::ScopedCanvas scoped_canvas(canvas);
       canvas->sk_canvas()->translate(0, kTitleShift);
       canvas->DrawStringRect(content_.title, title_font_, kTitleColor,
@@ -217,6 +233,11 @@ TooltipHandler*& Showing() {
   return showing;
 }
 
+bool& Suppressed() {
+  static bool suppressed = false;
+  return suppressed;
+}
+
 base::TimeTicks& LastHidden() {
   static base::TimeTicks last_hidden;
   return last_hidden;
@@ -248,6 +269,8 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
 
   void SetBelowPointer() { below_pointer_ = true; }
 
+  void Dismiss() { Hide(); }
+
   void SetDetail(const std::u16string& detail) {
     Hide();
     content_.detail = detail;
@@ -259,12 +282,23 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
       case ui::EventType::kMouseEntered:
       case ui::EventType::kMouseMoved:
         if (!pressed_ && !widget_ && !show_timer_.IsRunning() &&
+            !settle_poll_.IsRunning() && !Suppressed() &&
             view_->IsMouseHovered()) {
-          const bool warm =
-              base::TimeTicks::Now() - LastHidden() < kWarmWindow;
-          show_timer_.Start(FROM_HERE, warm ? base::TimeDelta() : kShowDelay,
-                            base::BindOnce(&TooltipHandler::Show,
-                                           base::Unretained(this)));
+          if (base::TimeTicks::Now() - LastHidden() < kWarmWindow) {
+            // Polled: a disabled button (Back) sees only the pointer's entry,
+            // not its moves.
+            settle_point_ = display::Screen::Get()->GetCursorScreenPoint();
+            settled_since_ = base::TimeTicks::Now();
+            settle_poll_.Start(FROM_HERE, kSettlePoll,
+                               base::BindRepeating(&TooltipHandler::CheckSettled,
+                                                   base::Unretained(this)));
+          } else {
+            show_timer_.Start(FROM_HERE,
+                              content_.detail.empty() ? kShowDelay
+                                                      : kDetailShowDelay,
+                              base::BindOnce(&TooltipHandler::Show,
+                                             base::Unretained(this)));
+          }
         }
         break;
       case ui::EventType::kMouseExited:
@@ -292,6 +326,9 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
 
  private:
   void Show() {
+    if (Suppressed()) {
+      return;
+    }
     views::Widget* parent = view_->GetWidget();
     if (!parent || content_.title.empty() || !view_->IsMouseHovered()) {
       return;
@@ -309,6 +346,11 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
     if (below_pointer_) {
       // As macOS places Arc's Library tooltip, a little further off.
       bounds.Offset(1, 3);
+    } else if (!content_.detail.empty() &&
+               bounds.bottom() <= window.bottom() - kWindowMargin) {
+      // Arc's two-line row hint sits 11 pt right of and 5 pt below the
+      // pointer, not 7 and 7 as its one-line pills.
+      bounds.Offset(11 - kCursorOffset, 5 - kCursorOffset);
     } else if (bounds.bottom() > window.bottom() - kWindowMargin) {
       const gfx::Rect view_bounds = view_->GetBoundsInScreen();
       bounds.set_x(view_bounds.CenterPoint().x() - size.width() / 2);
@@ -340,6 +382,20 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
                                           base::Unretained(this)));
   }
 
+  // Shows the pill once the pointer has not moved for kWarmSettle.
+  void CheckSettled() {
+    const gfx::Point point = display::Screen::Get()->GetCursorScreenPoint();
+    if (point != settle_point_) {
+      settle_point_ = point;
+      settled_since_ = base::TimeTicks::Now();
+      return;
+    }
+    if (base::TimeTicks::Now() - settled_since_ >= kWarmSettle) {
+      settle_poll_.Stop();
+      Show();
+    }
+  }
+
   void CheckHover() {
     if (!view_->IsMouseHovered()) {
       pressed_ = false;
@@ -349,6 +405,7 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
 
   void Hide() {
     show_timer_.Stop();
+    settle_poll_.Stop();
     hover_poll_.Stop();
     if (widget_) {
       widget_.reset();
@@ -363,6 +420,11 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
   Content content_;
   bool below_pointer_ = false;
   bool pressed_ = false;
+  // Right after another pill hid: where the pointer was last seen, and since
+  // when it has stayed there.
+  gfx::Point settle_point_;
+  base::TimeTicks settled_since_;
+  base::RepeatingTimer settle_poll_;
   std::unique_ptr<views::Widget> widget_;
   base::OneShotTimer show_timer_;
   base::RepeatingTimer hover_poll_;
@@ -394,6 +456,13 @@ void SetArcTooltipDetail(views::View* view, const std::u16string& detail) {
   auto it = Handlers().find(view);
   if (it != Handlers().end()) {
     it->second->SetDetail(detail);
+  }
+}
+
+void SetArcTooltipsSuppressed(bool suppressed) {
+  Suppressed() = suppressed;
+  if (suppressed && Showing()) {
+    Showing()->Dismiss();
   }
 }
 

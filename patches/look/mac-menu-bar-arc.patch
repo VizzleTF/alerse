@@ -1,0 +1,586 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -318,6 +318,10 @@
+ #define IDC_ARCOMIUM_EXPAND_SPLIT 40405
+ #define IDC_ARCOMIUM_FOCUS_SPLIT_1 40406
+ #define IDC_ARCOMIUM_FOCUS_SPLIT_2 40407
++// Arcomium: the rest of Arc for macOS' menu bar: Copy URL as Quote and
++// Reveal Tab in Sidebar.
++#define IDC_ARCOMIUM_COPY_URL_QUOTE 40408
++#define IDC_ARCOMIUM_REVEAL_TAB 40409
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -1134,11 +1134,8 @@
+   _verticalTabSubscription = {};
+ 
+   if (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+-    if (!_tabMenuBridge) {
+-      _tabMenuBridge = std::make_unique<TabMenuBridge>(
+-          [[NSApp mainMenu] itemWithTag:IDC_TAB_MENU]);
+-    }
+-    _tabMenuBridge->SetTabStripModel(browser->GetTabStripModel());
++    // Arcomium: Arc's Tabs menu does not list the window's tabs (here
++    // every Space's), so there is no TabMenuBridge.
+ 
+     if (auto* vertical_tab_strip_state_controller =
+             tabs::VerticalTabStripStateController::From(browser)) {
+diff --git a/chrome/browser/ui/cocoa/accelerators_cocoa.mm b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+--- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
++++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
+@@ -121,6 +121,9 @@
+     {IDC_COPY_URL, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_C},
+     {IDC_ARCOMIUM_COPY_URL_MARKDOWN,
+      ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, ui::VKEY_C},
++    // Arcomium: Arc's Copy URL as Quote.
++    {IDC_ARCOMIUM_COPY_URL_QUOTE,
++     ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN, ui::VKEY_C},
+     // Arcomium: Arc's Spaces and Tabs menus.
+     {IDC_ARCOMIUM_NEXT_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
+      ui::VKEY_RIGHT},
+@@ -150,8 +153,8 @@
+ }
+ 
+ ui::Accelerator AcceleratorForEnterFullscreen() {
+-  return ui::Accelerator(ui::VKEY_F, ui::EF_COMMAND_DOWN | ui::EF_CONTROL_DOWN |
+-                                         ui::EF_FUNCTION_DOWN);
++  // Arcomium: Arc's Control-Command-F, without the Globe key.
++  return ui::Accelerator(ui::VKEY_F, ui::EF_COMMAND_DOWN | ui::EF_CONTROL_DOWN);
+ }
+ 
+ }  // namespace
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -16,6 +16,10 @@
+ #include "chrome/browser/feedback/report_unsafe_site_dialog.h"
+ #include "chrome/browser/ui/cocoa/accelerators_cocoa.h"
+ #include "chrome/browser/ui/cocoa/history_menu_bridge.h"
++#include "base/strings/sys_string_conversions.h"
++#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
++#include "chrome/browser/ui/tabs/arcomium_menu_bar_hook.h"
++#include "ui/gfx/image/image.h"
+ #include "chrome/browser/ui/toolbar/app_menu_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/common/chrome_features.h"
+@@ -29,11 +33,105 @@
+ #import "ui/base/l10n/l10n_util_mac.h"
+ #include "ui/strings/grit/ui_strings.h"
+ 
++// Arcomium: fills the part of a menu that follows the window each time it
++// opens, as Arc for macOS' Spaces menu lists the Spaces (after its own
++// items) and its Extensions menu the extensions (before them); see
++// arcomium_menu_bar_hook.h.
++@interface ArcomiumMenuListDelegate : NSObject <NSMenuDelegate>
++- (instancetype)initWithList:(arcomium::MenuBarList)list;
++@end
++
++@implementation ArcomiumMenuListDelegate {
++  arcomium::MenuBarList _list;
++}
++
++- (instancetype)initWithList:(arcomium::MenuBarList)list {
++  if ((self = [super init])) {
++    _list = list;
++  }
++  return self;
++}
++
++- (void)menuNeedsUpdate:(NSMenu*)menu {
++  // The list is what points here, and the separator next to it.
++  for (NSInteger i = menu.numberOfItems - 1; i >= 0; --i) {
++    NSMenuItem* item = [menu itemAtIndex:i];
++    if (item.target == self ||
++        [item.representedObject isEqual:@"arcomium-list"]) {
++      [menu removeItemAtIndex:i];
++    }
++  }
++  BrowserWindowInterface* browser =
++      GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser();
++  if (!browser) {
++    return;
++  }
++  const std::vector<arcomium::MenuBarEntry> entries =
++      arcomium::GetMenuBarList(browser, _list);
++  if (entries.empty()) {
++    return;
++  }
++  const bool spaces = _list == arcomium::MenuBarList::kSpaces;
++  NSInteger index = spaces ? menu.numberOfItems : 0;
++  NSMenuItem* separator = [NSMenuItem separatorItem];
++  separator.representedObject = @"arcomium-list";
++  if (spaces) {
++    [menu insertItem:separator atIndex:index++];
++  }
++  for (size_t i = 0; i < entries.size(); ++i) {
++    NSMenuItem* item =
++        [[NSMenuItem alloc] initWithTitle:base::SysUTF16ToNSString(entries[i].title)
++                                   action:@selector(runEntry:)
++                            keyEquivalent:@""];
++    item.target = self;
++    item.tag = static_cast<NSInteger>(i);
++    item.state = entries[i].checked ? NSControlStateValueOn
++                                    : NSControlStateValueOff;
++    // Arc's Control-1 to -9 for the first nine Spaces (the Space bar has
++    // them as well, before the menu was ever opened).
++    if (spaces && i < 9) {
++      item.keyEquivalent = [NSString stringWithFormat:@"%zu", i + 1];
++      item.keyEquivalentModifierMask = NSEventModifierFlagControl;
++    }
++    if (!entries[i].icon.isNull()) {
++      NSImage* image = gfx::Image(entries[i].icon).ToNSImage();
++      [image setTemplate:entries[i].icon_is_template];
++      item.image = image;
++    }
++    [menu insertItem:item atIndex:index++];
++  }
++  if (!spaces) {
++    [menu insertItem:separator atIndex:index];
++  }
++}
++
++- (BOOL)validateMenuItem:(NSMenuItem*)item {
++  return YES;
++}
++
++- (void)runEntry:(NSMenuItem*)sender {
++  if (BrowserWindowInterface* browser =
++          GlobalBrowserCollection::GetInstance()->GetLastActiveBrowser()) {
++    arcomium::RunMenuBarEntry(browser, _list,
++                              static_cast<size_t>(sender.tag));
++  }
++}
++
++@end
++
+ namespace chrome {
+ namespace {
+ 
+ using Item = internal::MenuItemBuilder;
+ 
++// Arcomium: the menus' list delegates; a menu holds its delegate weakly.
++ArcomiumMenuListDelegate* __strong& MenuListDelegate(
++    arcomium::MenuBarList list) {
++  static ArcomiumMenuListDelegate* __strong spaces;
++  static ArcomiumMenuListDelegate* __strong extensions;
++  return list == arcomium::MenuBarList::kSpaces ? spaces : extensions;
++}
++
+ // Capitalization Policy (go/chrome-capitalization):
+ // Native macOS system menu bar items follow Apple Human Interface
+ // Guidelines (HIG) and must use Title Case (via `_MAC` string variants or
+@@ -65,12 +163,23 @@
+               Item(IDS_PREFERENCES)
+                   .command_id(IDC_WEB_APP_SETTINGS)
+                   .remove_if(!is_pwa),
++              // Arcomium: Arc's Set as Default Browser.
++              Item(IDS_ARCOMIUM_MENU_SET_DEFAULT_BROWSER)
++                  .command_id(IDC_SET_BROWSER_AS_DEFAULT)
++                  .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_CLEAR_BROWSING_DATA_MAC)
+                   .command_id(IDC_CLEAR_BROWSING_DATA)
+                   .remove_if(is_pwa),
+-              Item(IDS_IMPORT_SETTINGS_MENU_MAC)
+-                  .command_id(IDC_IMPORT_SETTINGS)
++              // Arcomium: Arc's Import from Another Browser... (its Spaces
++              // too), and Update Available... once the update check found
++              // a newer release (browser_native_widget_mac.mm shows it).
++              Item(IDS_ARCOMIUM_MENU_IMPORT)
++                  .command_id(IDC_ARCOMIUM_IMPORT)
++                  .remove_if(is_pwa),
++              Item(IDS_ARCOMIUM_MENU_UPDATE_AVAILABLE)
++                  .command_id(IDC_ARCOMIUM_UPDATE)
++                  .set_hidden(true)
+                   .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_SERVICES_MAC)
+@@ -221,6 +330,11 @@
+               Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
+                   .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
+                   .remove_if(is_pwa),
++              // Arcomium: Arc's Copy URL as Quote (Control-Shift-Command-C):
++              // the selected text quoted, then the page's link.
++              Item(IDS_ARCOMIUM_COPY_URL_QUOTE)
++                  .command_id(IDC_ARCOMIUM_COPY_URL_QUOTE)
++                  .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_EDIT_FIND_SUBMENU_MAC)
+                   .tag(IDC_FIND_MENU)
+@@ -310,6 +424,10 @@
+                   .remove_if(is_pwa),
+               Item(IDS_TOGGLE_FULLSCREEN_TOOLBAR_MAC)
+                   .command_id(IDC_TOGGLE_FULLSCREEN_TOOLBAR),
++              // Arcomium: Arc's Collapse / Expand Pinned Tabs.
++              Item(IDS_ARCOMIUM_COLLAPSE_PINNED)
++                  .command_id(IDC_ARCOMIUM_TOGGLE_PINNED)
++                  .remove_if(is_pwa),
+               Item().is_separator(),
+               Item(IDS_STOP_MENU_MAC)
+                   .command_id(IDC_STOP),
+@@ -487,15 +605,11 @@
+                    .remove_if(is_pwa),
+               Item().is_separator()
+                   .remove_if(is_pwa),
++              // Arcomium: as Arc's Window menu, Downloads only; extensions
++              // have their menu, the task manager is under Help.
+               Item(IDS_SHOW_DOWNLOADS_MAC)
+                   .command_id(IDC_SHOW_DOWNLOADS)
+                   .remove_if(is_pwa),
+-              Item(IDS_SHOW_EXTENSIONS_MAC)
+-                  .command_id(IDC_MANAGE_EXTENSIONS)
+-                  .remove_if(is_pwa),
+-              Item(IDS_TASK_MANAGER_MAC)
+-                  .command_id(IDC_TASK_MANAGER_MAIN_MENU)
+-                  .remove_if(is_pwa),
+               Item().is_separator()
+                   .remove_if(is_pwa),
+               Item(IDS_ALL_WINDOWS_FRONT_MAC)
+@@ -521,8 +635,10 @@
+   // clang-format off
+   NSMenuItem* item =
+       // Arcomium: Arc's Tabs menu: New Tab, Pin Tab (Command-D), New Folder,
+-      // Option-Command-Down and -Up for the next and previous tab, Clear
+-      // Today (Shift-Command-K).
++      // Option-Command-Down and -Up for the next and previous tab, Reveal
++      // Tab in Sidebar, Clear Today (Shift-Command-K); not Chromium's tab
++      // items, nor the window's tabs (app_controller_mac.mm has no
++      // TabMenuBridge).
+       Item(IDS_ARCOMIUM_MENU_TABS)
+           .tag(IDC_TAB_MENU)
+           .submenu({
+@@ -537,59 +653,11 @@
+                   .command_id(IDC_SELECT_NEXT_TAB),
+               Item(IDS_ARCOMIUM_MENU_PREVIOUS_TAB)
+                   .command_id(IDC_SELECT_PREVIOUS_TAB),
++              Item(IDS_ARCOMIUM_MENU_REVEAL_TAB)
++                  .command_id(IDC_ARCOMIUM_REVEAL_TAB),
+               Item().is_separator(),
+               Item(IDS_ARCOMIUM_MENU_CLEAR_TODAY)
+                   .command_id(IDC_ARCOMIUM_CLEAR_TODAY),
+-              Item().is_separator(),
+-              Item(is_rtl ? IDS_TAB_CXMENU_NEWTABTOLEFT
+-                          : IDS_TAB_CXMENU_NEWTABTORIGHT)
+-                  .command_id(IDC_NEW_TAB_TO_RIGHT),
+-              Item(IDS_TAB_CXMENU_NEWTABBELOW)
+-                  .command_id(IDC_NEW_TAB_TO_RIGHT)
+-                  .set_hidden(true),
+-              Item(IDS_NEXT_TAB_MAC)
+-                  .command_id(IDC_CYCLE_TO_NEXT_TAB),
+-              Item(IDS_PREV_TAB_MAC)
+-                  .command_id(IDC_CYCLE_TO_PREV_TAB),
+-              Item(IDS_DUPLICATE_TAB_MAC)
+-                  .command_id(IDC_DUPLICATE_TAB),
+-              Item(IDS_DUPLICATE_TARGET_TAB_MAC)
+-                  .command_id(IDC_DUPLICATE_TARGET_TAB)
+-                  .is_alternate()
+-                  .key_equivalent(@"", NSEventModifierFlagOption),
+-              Item(IDS_MUTE_SITE_MAC)
+-                  .command_id(IDC_WINDOW_MUTE_SITE),
+-              Item(IDS_MUTE_TARGET_SITE_MAC)
+-                  .command_id(IDC_MUTE_TARGET_SITE)
+-                  .is_alternate()
+-                  .key_equivalent(@"", NSEventModifierFlagOption),
+-              Item(IDS_PIN_TAB_MAC)
+-                  .command_id(IDC_WINDOW_PIN_TAB),
+-              Item(IDS_PIN_TARGET_TAB_MAC)
+-                  .command_id(IDC_PIN_TARGET_TAB)
+-                  .is_alternate()
+-                  .key_equivalent(@"", NSEventModifierFlagOption),
+-              Item(IDS_GROUP_TAB_MAC)
+-                  .command_id(IDC_WINDOW_GROUP_TAB),
+-              Item(IDS_GROUP_TARGET_TAB_MAC)
+-                  .command_id(IDC_GROUP_TARGET_TAB)
+-                  .is_alternate()
+-                  .key_equivalent(@"", NSEventModifierFlagOption),
+-              Item(IDS_TAB_CXMENU_CLOSEOTHERTABS)
+-                  .command_id(IDC_WINDOW_CLOSE_OTHER_TABS),
+-              Item(is_rtl ? IDS_TAB_CXMENU_CLOSETABSTOLEFT
+-                          : IDS_TAB_CXMENU_CLOSETABSTORIGHT)
+-                  .command_id(IDC_WINDOW_CLOSE_TABS_TO_RIGHT),
+-              Item(IDS_TAB_CXMENU_CLOSETABSBELOW)
+-                  .command_id(IDC_WINDOW_CLOSE_TABS_TO_RIGHT)
+-                  .set_hidden(true),
+-              Item(IDS_MOVE_TAB_TO_NEW_WINDOW)
+-                  .command_id(IDC_MOVE_TAB_TO_NEW_WINDOW),
+-              Item(IDS_TAB_CXMENU_ADD_TAB_TO_NEW_SPLIT)
+-                  .command_id(IDC_NEW_SPLIT_TAB),
+-              Item(IDS_SEARCH_TABS)
+-                  .command_id(IDC_TAB_SEARCH),
+-              Item().is_separator(),
+           })
+           .Build();
+   // clang-format on
+@@ -597,8 +665,8 @@
+ }
+ 
+ // Arcomium: Arc's Spaces menu: a new Space, the shown Space's theme and
+-// name, the next and the previous one (Option-Command-Right and -Left).
+-// Control-1 to -9 pick a Space from the Space bar.
++// name, the next and the previous one (Option-Command-Right and -Left), then
++// the Spaces with their icons, the shown one checked, Control-1 to -9.
+ NSMenuItem* BuildSpacesMenu(NSApplication* nsapp,
+                             id app_delegate,
+                             const std::u16string& product_name,
+@@ -625,10 +693,17 @@
+           })
+           .Build();
+   // clang-format on
++  ArcomiumMenuListDelegate* __strong& delegate =
++      MenuListDelegate(arcomium::MenuBarList::kSpaces);
++  delegate = [[ArcomiumMenuListDelegate alloc]
++      initWithList:arcomium::MenuBarList::kSpaces];
++  item.submenu.delegate = delegate;
+   return item;
+ }
+ 
+-// Arcomium: Arc's Extensions menu.
++// Arcomium: Arc's Extensions menu: the extensions by name (a click runs
++// one, as its toolbar button would), Add Extension... and Manage
++// Extensions...
+ NSMenuItem* BuildExtensionsMenu(NSApplication* nsapp,
+                                 id app_delegate,
+                                 const std::u16string& product_name,
+@@ -641,11 +716,18 @@
+   NSMenuItem* item =
+       Item(IDS_ARCOMIUM_EXTENSIONS)
+           .submenu({
+-              Item(IDS_SHOW_EXTENSIONS_MAC)
++              Item(IDS_ARCOMIUM_MENU_ADD_EXTENSION)
++                  .command_id(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE),
++              Item(IDS_ARCOMIUM_MENU_MANAGE_EXTENSIONS)
+                   .command_id(IDC_MANAGE_EXTENSIONS),
+           })
+           .Build();
+   // clang-format on
++  ArcomiumMenuListDelegate* __strong& delegate =
++      MenuListDelegate(arcomium::MenuBarList::kExtensions);
++  delegate = [[ArcomiumMenuListDelegate alloc]
++      initWithList:arcomium::MenuBarList::kExtensions];
++  item.submenu.delegate = delegate;
+   return item;
+ }
+ 
+@@ -675,6 +757,14 @@
+   items.push_back(Item(IDS_HELP_MAC)
+                       .string_format_1(product_name)
+                       .command_id(IDC_HELP_PAGE_VIA_MENU));
++  // Arcomium: Arc's Troubleshooting > Open Task Manager.
++  items.push_back(Item().is_separator());
++  items.push_back(
++      Item(IDS_ARCOMIUM_MENU_TROUBLESHOOTING)
++          .submenu({
++              Item(IDS_ARCOMIUM_MENU_OPEN_TASK_MANAGER)
++                  .command_id(IDC_TASK_MANAGER_MAIN_MENU),
++          }));
+   NSMenuItem* item =
+       Item(IDS_HELP_MENU_MAC)
+           .submenu(items)
+@@ -715,8 +805,9 @@
+     }
+   }
+   // Arcomium: Arc's menu bar has no Bookmarks menu; it stays, hidden, for
+-  // the code that fills it by tag. Profiles stays: its controller expects
+-  // it (without it, rebuilding it never ends) and shows it itself.
++  // the code that fills it by tag. Profiles stays too, as its controller
++  // expects it (without it, rebuilding it never ends), and that controller
++  // keeps it hidden (profile_menu_controller.mm).
+   if (!is_pwa) {
+     [main_menu itemWithTag:AppMenuModel::kBookmarksMenuPlaceholder].hidden =
+         YES;
+diff --git a/chrome/browser/ui/cocoa/profiles/profile_menu_controller.mm b/chrome/browser/ui/cocoa/profiles/profile_menu_controller.mm
+--- a/chrome/browser/ui/cocoa/profiles/profile_menu_controller.mm
++++ b/chrome/browser/ui/cocoa/profiles/profile_menu_controller.mm
+@@ -302,7 +302,10 @@
+ 
+   BOOL hasContent = [self insertItemsIntoMenu:menu atOffset:0 fromDock:NO];
+ 
+-  _mainMenuItem.hidden = !hasContent;
++  // Arcomium: Arc's menu bar has no Profiles menu (profiles are in
++  // Settings); the menu is still filled, for the Dock menu's profiles.
++  (void)hasContent;
++  _mainMenuItem.hidden = YES;
+ }
+ 
+ - (NSMenuItem*)createItemWithTitle:(NSString*)title action:(SEL)sel {
+diff --git a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -15,6 +15,16 @@
+ #include "base/metrics/user_metrics_action.h"
+ #include "base/notimplemented.h"
+ #include "chrome/app/chrome_command_ids.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_split.h"
++#include "base/strings/string_util.h"
++#include "base/strings/utf_string_conversions.h"
++#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/ui/tabs/arcomium_space_command_hook.h"
++#include "content/public/browser/render_widget_host_view.h"
++#include "content/public/browser/web_contents.h"
++#include "ui/base/clipboard/scoped_clipboard_writer.h"
+ #include "chrome/browser/app_controller_mac.h"
+ #include "chrome/browser/apps/app_shim/app_shim_host_mac.h"
+ #include "chrome/browser/apps/app_shim/app_shim_manager_mac.h"
+@@ -412,11 +422,78 @@
+   NativeWidgetMac::OnWidgetDestroyed(widget);
+ }
+ 
++namespace {
++
++// Arcomium: Arc for macOS' Copy URL as Quote: the page's selected text as a
++// Markdown quote, then the page's link; empty without a selection.
++std::u16string GetArcomiumQuote(BrowserWindowInterface* browser) {
++  content::WebContents* contents = chrome::GetArcomiumCopyableContents(browser);
++  content::RenderWidgetHostView* view =
++      contents ? contents->GetRenderWidgetHostView() : nullptr;
++  if (!view) {
++    return std::u16string();
++  }
++  const std::u16string selection(
++      base::TrimWhitespace(view->GetSelectedText(), base::TRIM_ALL));
++  if (selection.empty()) {
++    return std::u16string();
++  }
++  std::u16string quote;
++  for (std::u16string_view line :
++       base::SplitStringPiece(selection, u"\n", base::TRIM_WHITESPACE,
++                              base::SPLIT_WANT_ALL)) {
++    base::StrAppend(&quote, {u"> ", line, u"\n"});
++  }
++  // The title's brackets are escaped, so the link stays one.
++  std::u16string title = contents->GetTitle();
++  base::ReplaceChars(title, u"[", u"\\[", &title);
++  base::ReplaceChars(title, u"]", u"\\]", &title);
++  base::StrAppend(&quote,
++                  {u"\n[", title, u"](",
++                   base::UTF8ToUTF16(contents->GetVisibleURL().spec()), u")"});
++  return quote;
++}
++
++// Arcomium: menu bar items that are no browser command: answered here, true
++// when `tag` is one of them.
++bool ValidateArcomiumMenuItem(
++    BrowserWindowInterface* browser,
++    int32_t tag,
++    remote_cocoa::mojom::ValidateUserInterfaceItemResult* result) {
++  using arcomium::SpaceCommandState;
++  switch (tag) {
++    case IDC_ARCOMIUM_COPY_URL_QUOTE:
++      result->enable = !GetArcomiumQuote(browser).empty();
++      return true;
++    case IDC_ARCOMIUM_REVEAL_TAB:
++      result->enable = arcomium::GetSpaceCommandState(browser, tag) !=
++                       SpaceCommandState::kUnavailable;
++      return true;
++    case IDC_ARCOMIUM_TOGGLE_PINNED: {
++      // Arc's Collapse Pinned Tabs, Expand Pinned Tabs while collapsed.
++      const SpaceCommandState state =
++          arcomium::GetSpaceCommandState(browser, tag);
++      result->enable = state != SpaceCommandState::kUnavailable;
++      result->new_title.emplace(l10n_util::GetStringUTF16(
++          state == SpaceCommandState::kOn ? IDS_ARCOMIUM_EXPAND_PINNED
++                                          : IDS_ARCOMIUM_COLLAPSE_PINNED));
++      return true;
++    }
++    default:
++      return false;
++  }
++}
++
++}  // namespace
++
+ void BrowserNativeWidgetMac::ValidateUserInterfaceItem(
+     int32_t tag,
+     remote_cocoa::mojom::ValidateUserInterfaceItemResult* result) {
+   BrowserWindowInterface* const browser =
+       browser_view_ ? browser_view_->browser() : nullptr;
++  if (browser && ValidateArcomiumMenuItem(browser, tag, result)) {
++    return;
++  }
+   if (!browser || !chrome::SupportsCommand(browser, tag)) {
+     result->enable = false;
+     return;
+@@ -438,6 +515,26 @@
+                                                : IDS_ENTER_FULLSCREEN_MAC));
+       break;
+     }
++    case IDC_ARCOMIUM_PIN_TAB:
++      // Arcomium: Arc's Pin Tab says Unpin Tab for a pinned tab.
++      result->new_title.emplace(l10n_util::GetStringUTF16(
++          arcomium::GetSpaceCommandState(browser, tag) ==
++                  arcomium::SpaceCommandState::kOn
++              ? IDS_ARCOMIUM_UNPIN_TAB
++              : IDS_ARCOMIUM_MENU_PIN_TAB));
++      break;
++    case IDC_ARCOMIUM_UPDATE: {
++      // Arcomium: Update Available... shows once the update check found a
++      // newer release, as Arc's.
++      const bool available =
++          g_browser_process &&
++          !arcomium::GetAvailableUpdate(g_browser_process->local_state())
++               .empty();
++      result->enable = available;
++      result->set_hidden_state = true;
++      result->new_hidden_state = !available;
++      break;
++    }
+     case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE: {
+       // Arcomium: Arc's View menu says Hide Sidebar or Show Sidebar.
+       const tabs::VerticalTabStripStateController* controller =
+@@ -678,6 +775,27 @@
+ 
+   BrowserWindowInterface* browser = browser_view_->browser();
+ 
++  // Arcomium: Arc's Command-1 to -9 go to the sidebar's items, not to the
++  // tab strip's tabs (every Space's); the sidebar also reveals the shown
++  // tab and collapses the pinned tabs. Copy URL as Quote is done here.
++  if ((command >= IDC_SELECT_TAB_0 && command <= IDC_SELECT_LAST_TAB) ||
++      command == IDC_ARCOMIUM_REVEAL_TAB ||
++      command == IDC_ARCOMIUM_TOGGLE_PINNED) {
++    // Without a sidebar, Command-1 to -9 keep Chromium's tabs.
++    const bool select_tab =
++        command >= IDC_SELECT_TAB_0 && command <= IDC_SELECT_LAST_TAB;
++    if (arcomium::RunSpaceCommand(browser, command) || !select_tab) {
++      return true;
++    }
++  } else if (command == IDC_ARCOMIUM_COPY_URL_QUOTE) {
++    const std::u16string quote = GetArcomiumQuote(browser);
++    if (!quote.empty()) {
++      ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
++          .WriteText(quote);
++    }
++    return true;
++  }
++
+   if (command == IDC_TOGGLE_VERTICAL_TABS) {
+     if (auto* controller =
+             tabs::VerticalTabStripStateController::From(browser)) {
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+index bdbc16f..a499d44 100644
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -138,6 +138,18 @@ source_set("impl") {
+     "//chrome/browser/ui/tabs/alert:tab_alert",
+     "//chrome/browser/ui/views/tabs/common:impl",
+   ]
++
++  # Arcomium: Arc for macOS' Share in the sidebar's menus, and its popovers'
++  # windows (arcomium_window_mac.h).
++  if (is_mac) {
++    sources += [
++      "arcomium_share_mac.h",
++      "arcomium_share_mac.mm",
++      "arcomium_window_mac.h",
++      "arcomium_window_mac.mm",
++    ]
++    frameworks = [ "AppKit.framework" ]
++  }
+ }
+ 
+ source_set("browser_tests") {

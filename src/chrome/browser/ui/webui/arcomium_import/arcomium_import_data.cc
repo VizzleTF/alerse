@@ -255,6 +255,9 @@ class ArcTree {
                            : saved_title ? *saved_title
                                          : spec);
         node.url = std::move(url);
+        if (title) {
+          node.meta[kRenamedMetaKey] = "1";
+        }
         if (child_id.GetString().size() <= kMaxArcIdBytes) {
           node.arc_item = child_id.GetString();
         }

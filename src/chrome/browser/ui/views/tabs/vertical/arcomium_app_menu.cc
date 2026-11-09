@@ -112,8 +112,15 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
 
     tabs_.AddItem(IDC_FOCUS_LOCATION,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_COMMAND_BAR));
+    // Arc's Split View items, which its View menu holds on macOS.
     tabs_.AddItem(IDC_NEW_SPLIT_TAB,
-                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPLIT_VIEW));
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_SPLIT_VIEW));
+    tabs_.AddItem(IDC_ARCOMIUM_CLOSE_SPLIT_PANE,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_CLOSE_SPLIT_PANE));
+    tabs_.AddItem(IDC_ARCOMIUM_SEPARATE_SPLIT,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEPARATE_SPLIT));
+    tabs_.AddItem(IDC_ARCOMIUM_EXPAND_SPLIT,
+                  l10n_util::GetStringUTF16(IDS_ARCOMIUM_EXPAND_SPLIT));
     tabs_.AddItem(IDC_SELECT_NEXT_TAB,
                   l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU_NEXT_TAB));
     tabs_.AddItem(IDC_SELECT_PREVIOUS_TAB,
@@ -181,6 +188,9 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   // ui::SimpleMenuModel::Delegate:
   bool IsCommandIdEnabled(int command_id) const override {
     switch (command_id) {
+      // The submenus (Spaces, Tabs, Extensions, Developer) have no command;
+      // the browser's says 0 is disabled, which greyed them out.
+      case 0:
       case kCheckForUpdates:
       case kNewSpace:
       case kMore:

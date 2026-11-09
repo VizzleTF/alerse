@@ -33,6 +33,10 @@ void SetArcTooltipBelowPointer(views::View* view);
 // Changes only the second line of `view`'s Arc tooltip, if it has one.
 void SetArcTooltipDetail(views::View* view, const std::u16string& detail);
 
+// Hides any Arc tooltip and keeps new ones away while `suppressed`: a
+// popover (the icon picker) opens over the view the pointer rests on.
+void SetArcTooltipsSuppressed(bool suppressed);
+
 }  // namespace arcomium
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_TOOLTIP_H_

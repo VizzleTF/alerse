@@ -139,8 +139,47 @@
     <message name="IDS_ARCOMIUM_MENU_EDIT_THEME" desc="macOS menu bar, Spaces menu: open the current Space's theme color picker.">
       Edit Theme…
     </message>
+    <message name="IDS_ARCOMIUM_MENU_NEW_TAB" desc="macOS menu bar, File and Tabs menus: open the command bar for a new tab.">
+      New Tab…
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEW_FOLDER" desc="macOS menu bar, Tabs menu: create a folder of pinned tabs, then name it.">
+      New Folder…
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_NEW_SPACE" desc="macOS menu bar, Spaces menu: create a Space, a set of tabs with its own pinned tabs.">
+      New Space…
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_RENAME_SPACE" desc="macOS menu bar, Spaces menu: rename the current Space in place.">
+      Rename Space
+    </message>
     <message name="IDS_ARCOMIUM_MENU_OPEN_COMMAND_BAR" desc="macOS menu bar, File menu: open the command bar, where an address or a search is typed.">
       Open Command Bar
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_HIDE_OTHERS" desc="macOS menu bar, App menu: hide the other applications, as Arc names it.">
+      Hide Other Windows
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_RESTORE_TAB" desc="macOS menu bar, File menu: reopen the tab closed last, as Arc names it.">
+      Restore Last Closed Tab
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SAVE_PAGE" desc="macOS menu bar, File menu: save the page to a file, as Arc names it.">
+      Save Page As
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_BAR_PRINT" desc="macOS menu bar, File menu: print the page, as Arc names it.">
+      Print
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_GO_BACK" desc="macOS menu bar, Archive menu: go back in the tab's history, as Arc names it.">
+      Go Back
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_GO_FORWARD" desc="macOS menu bar, Archive menu: go forward in the tab's history, as Arc names it.">
+      Go Forward
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_VIEW_HISTORY" desc="macOS menu bar, Archive menu: open the full history, as Arc names it.">
+      View History
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_MINIMIZE" desc="macOS menu bar, Window menu: minimize the window to the Dock, as Arc names it.">
+      Minimize Window
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_DOWNLOADS" desc="macOS menu bar, Window menu: show the downloads, as Arc names it.">
+      View Downloads…
     </message>
     <message name="IDS_ARCOMIUM_MENU_NEXT_TAB" desc="Menu of the sidebar logo: select the next tab.">
       Next Tab
@@ -397,14 +436,89 @@
     <message name="IDS_ARCOMIUM_NEW_SPLIT" desc="macOS: item of the Space bar's plus popover that splits the current tab with a new one.">
       New Split
     </message>
-    <message name="IDS_ARCOMIUM_CHANGE_SPACE_ICON" desc="macOS: Space menu item that opens the icon picker for the Space.">
+    <message name="IDS_ARCOMIUM_CHANGE_SPACE_ICON" desc="Space menu item that opens the icon picker for the Space.">
       Change Space Icon…
     </message>
     <message name="IDS_ARCOMIUM_DELETE_SPACE_MAC" desc="macOS: Space menu item: delete the Space after asking.">
       Delete Space
     </message>
-    <message name="IDS_ARCOMIUM_CHANGE_ICON" desc="macOS: sidebar menu item that opens the icon picker for a pinned tab, favorite or folder.">
+    <message name="IDS_ARCOMIUM_CHANGE_ICON" desc="Sidebar menu item that opens the icon picker for a pinned tab, favorite or folder.">
       Change Icon…
+    </message>
+    <message name="IDS_ARCOMIUM_COPY_URL_MARKDOWN" desc="Command bar action: copies the current page as a Markdown link, [title](address).">
+      Copy URL as Markdown
+    </message>
+    <message name="IDS_ARCOMIUM_UNPIN_TAB" desc="Command bar action: unpins the current tab, which stays open.">
+      Unpin Tab
+    </message>
+    <message name="IDS_ARCOMIUM_ADD_SPLIT_VIEW" desc="Command bar action: splits the current tab with a new one.">
+      Add Split View
+    </message>
+    <message name="IDS_ARCOMIUM_VIEW_HISTORY" desc="Command bar action: opens the browsing history, as Arc's View History.">
+      View History
+    </message>
+    <message name="IDS_ARCOMIUM_SEARCH_SITE" desc="Command bar: hint at the end of the input that Tab searches the site the address completes to, as Arc's 'Search YouTube'.">
+      Search <ph name="SITE">$1<ex>YouTube</ex></ph>
+    </message>
+    <message name="IDS_ARCOMIUM_TAB_KEY" desc="Command bar: the Tab key, shown as a key cap after the site search hint.">
+      Tab
+    </message>
+    <message name="IDS_ARCOMIUM_CLOSE_SPLIT_PANE" desc="Menu item, as Arc's: closes the shown pane of a split view; the other pane fills the window.">
+      Close this Split Pane
+    </message>
+    <message name="IDS_ARCOMIUM_SEPARATE_SPLIT" desc="Menu item, as Arc's: takes the shown page out of its split view, leaving separate tabs.">
+      Separate Page from Split View
+    </message>
+    <message name="IDS_ARCOMIUM_EXPAND_SPLIT" desc="Menu item, as Arc's: gives the shown pane of a split view most of the window, or evens the panes again.">
+      Expand Current Split
+    </message>
+    <message name="IDS_ARCOMIUM_ICON_PICKER_TITLE" desc="Title of the icon picker, and its page of icons (as opposed to emoji), as Arc's.">
+      Icon
+    </message>
+    <message name="IDS_ARCOMIUM_ICON_PICKER_EMOJI" desc="The icon picker's page of emoji for a Space, as Arc's.">
+      Emoji
+    </message>
+    <message name="IDS_ARCOMIUM_ICON_PICKER_SEARCH" desc="Placeholder and accessible name of the search field over the icon picker's emoji, as Arc's.">
+      Search
+    </message>
+    <message name="IDS_ARCOMIUM_RESET_PINNED_TAB" desc="Sidebar menu item, as Arc's: loads a pinned tab's saved page again after it has navigated away.">
+      Reset Tab to Original URL
+    </message>
+    <message name="IDS_ARCOMIUM_COLLAPSE_ALL_FOLDERS" desc="Space menu item: closes every folder of the Space's pinned tabs.">
+      Collapse All Folders
+    </message>
+    <message name="IDS_ARCOMIUM_EXPAND_ALL_FOLDERS" desc="Space menu item: opens every folder of the Space's pinned tabs.">
+      Expand All Folders
+    </message>
+    <message name="IDS_ARCOMIUM_SHARE" desc="Sidebar menu item on macOS, as Arc's: a submenu of the system's sharing services (AirDrop, Mail, Messages...) for the item's link.">
+      Share
+    </message>
+    <message name="IDS_ARCOMIUM_SHARE_FOLDER" desc="Folder menu item on macOS, as Arc's: opens the system's share picker for the links in the folder.">
+      Share Folder...
+    </message>
+    <message name="IDS_ARCOMIUM_COPY_URL_QUOTE" desc="macOS menu bar, Edit menu, as Arc's: copies the selected text as a quote followed by a link to the page.">
+      Copy URL as Quote
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_REVEAL_TAB" desc="macOS menu bar, Tabs menu, as Arc's: scrolls the sidebar to the shown tab's row.">
+      Reveal Tab in Sidebar
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_SET_DEFAULT_BROWSER" desc="macOS menu bar, app menu, as Arc's: makes Arcomium the default browser.">
+      Set as Default Browser
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_UPDATE_AVAILABLE" desc="macOS menu bar, app menu, as Arc's: shown when a newer release exists; opens its page.">
+      Update Available...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_ADD_EXTENSION" desc="macOS menu bar, Extensions menu, as Arc's: opens the extension store.">
+      Add Extension...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_MANAGE_EXTENSIONS" desc="macOS menu bar, Extensions menu, as Arc's: opens the extensions page.">
+      Manage Extensions...
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_TROUBLESHOOTING" desc="macOS menu bar, Help menu, as Arc's: submenu with tools for when something goes wrong.">
+      Troubleshooting
+    </message>
+    <message name="IDS_ARCOMIUM_MENU_OPEN_TASK_MANAGER" desc="macOS menu bar, Help menu, Troubleshooting submenu, as Arc's: opens the task manager.">
+      Open Task Manager
     </message>
   </if>
 </grit-part>

@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
 
+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -546,18 +548,23 @@ void SpaceColorTransition::AnimationEnded(const gfx::Animation* animation) {
 
 SkColor SidebarInk(const views::View* view, SkColor dark_color) {
   const ui::ColorProvider* provider = view ? view->GetColorProvider() : nullptr;
-  if (!provider ||
-      color_utils::IsDark(provider->GetColor(ui::kColorFrameActive))) {
+  if (!provider) {
     return dark_color;
   }
-  return SkColorSetARGB(SkColorGetA(dark_color), 255 - SkColorGetR(dark_color),
-                        255 - SkColorGetG(dark_color),
-                        255 - SkColorGetB(dark_color));
+  if (color_utils::IsDark(provider->GetColor(ui::kColorFrameActive))) {
+    return InkOverFrame(view, dark_color);
+  }
+  return InkOverFrame(
+      view, SkColorSetARGB(SkColorGetA(dark_color), 255 - SkColorGetR(dark_color),
+                           255 - SkColorGetG(dark_color),
+                           255 - SkColorGetB(dark_color)));
 }
 
 SkColor SidebarInk(const views::View* view, ui::ColorId id) {
   const ui::ColorProvider* provider = view ? view->GetColorProvider() : nullptr;
-  return provider ? provider->GetColor(id) : gfx::kPlaceholderColor;
+  // An inactive window's frame is lighter on macOS; the shade follows it.
+  return provider ? InkOverFrame(view, provider->GetColor(id))
+                  : gfx::kPlaceholderColor;
 }
 
 std::unique_ptr<views::View> CreateSpaceColorPicker(

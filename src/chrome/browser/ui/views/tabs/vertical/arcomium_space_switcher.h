@@ -10,6 +10,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
@@ -17,7 +18,10 @@
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "base/uuid.h"
+#include "build/build_config.h"
 #include "chrome/browser/ui/simple_message_box.h"
+#include "chrome/browser/ui/tabs/arcomium_menu_bar_hook.h"
+#include "chrome/browser/ui/tabs/arcomium_space_command_hook.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
@@ -50,11 +54,13 @@ class SpaceColorTransition;
 // without one; `folder` may be null.
 std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
                              const std::string& space);
-// Draws the Space icon `name` centered on `center`.
+// Draws the Space icon `name` centered on `center`; an emoji icon ignores
+// `color` and is drawn at `emoji_alpha`.
 void PaintSpaceIcon(gfx::Canvas* canvas,
                     const gfx::PointF& center,
                     const std::string& name,
-                    SkColor color);
+                    SkColor color,
+                    uint8_t emoji_alpha = 255);
 // The names of the icons a Space can have, in the picker's order.
 std::vector<std::string> GetSpaceIconNames();
 }  // namespace arcomium
@@ -93,6 +99,23 @@ class ArcomiumSpaceSwitcher : public views::View,
   // Runs IDC_ARCOMIUM_NEW_SPACE, _NEXT_SPACE or _PREVIOUS_SPACE in `browser`'s
   // Space bar (arcomium_space_command_hook.h); false without one.
   static bool RunSpaceCommand(BrowserWindowInterface* browser, int command_id);
+  // Whether such a command can run in `browser` now, and which way a toggle
+  // goes (arcomium_space_command_hook.h).
+  static arcomium::SpaceCommandState GetSpaceCommandState(
+      BrowserWindowInterface* browser,
+      int command_id);
+#if BUILDFLAG(IS_MAC)
+  // macOS' menu bar lists: the Space bar's Spaces and the window's
+  // extensions (arcomium_menu_bar_hook.h).
+  static std::vector<arcomium::MenuBarEntry> GetMenuBarList(
+      BrowserWindowInterface* browser,
+      arcomium::MenuBarList list);
+  static void RunMenuBarEntry(BrowserWindowInterface* browser,
+                              arcomium::MenuBarList list,
+                              size_t index);
+  // The shown Space's name, the window's title as in Arc for macOS.
+  static std::u16string GetShownSpaceTitle(BrowserWindowInterface* browser);
+#endif
   // Opens the active Space's menu of `browser`'s Space bar at `point`.
   static void ShowActiveSpaceMenuIn(BrowserWindowInterface* browser,
                                     const gfx::Point& point,
@@ -138,6 +161,7 @@ class ArcomiumSpaceSwitcher : public views::View,
 
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override;
+  void MenuClosed(ui::SimpleMenuModel* source) override;
 
   // Arc's Space menu for the Space shown, at `point` (screen coordinates), as
   // the sidebar opens it from its own empty places.
@@ -170,6 +194,14 @@ class ArcomiumSpaceSwitcher : public views::View,
   std::vector<base::RepeatingClosure> space_actions_;
   std::vector<ArcomiumSpaceRef> space_refs_;
   int active_space_ = -1;
+  // Each icon's name, the icon it shows and its theme's light shade (Arc
+  // tints a themed Space's glyph with it), for macOS' Spaces menu.
+  struct MenuBarSpace {
+    std::u16string title;
+    std::string icon;
+    std::optional<SkColor> tint;
+  };
+  std::vector<MenuBarSpace> menu_bar_spaces_;
   void SwitchTo(const tab_groups::TabGroupId& group);
   // Opens a saved Space that has no tab group here, then switches to it.
   void OpenSavedSpace(const base::Uuid& sync_id);
@@ -202,8 +234,11 @@ class ArcomiumSpaceSwitcher : public views::View,
   const bookmarks::BookmarkNode* GetOrAddMenuSpaceFolder();
   // Edits the name of the menu's Space in its folder.
   void RenameMenuSpace();
-  // Arc for macOS' Change Space Icon...: a picker where the menu was.
+  // Change Space Icon...: Arc's picker under the Space's name or button.
   void ShowMenuSpaceIconPicker();
+  // Collapse / Expand All Folders: closes every folder of the menu's Space
+  // while one is open, else opens them all.
+  void ToggleMenuSpaceFolders();
   // Switches to the Space of the icon menu, opening it if it is closed.
   void ActivateMenuSpace();
   // Opens the sidebar's theme color picker for the Space of the icon menu.
@@ -244,7 +279,6 @@ class ArcomiumSpaceSwitcher : public views::View,
   std::string menu_sync_id_;
   gfx::Point menu_point_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
-  std::unique_ptr<ui::SimpleMenuModel> icon_menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
   // The plus button at the row's end.
   raw_ptr<views::View> add_button_ = nullptr;

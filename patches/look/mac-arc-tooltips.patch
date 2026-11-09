@@ -2,20 +2,22 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/
 index 7f4c3ec..946f1fa 100644
 --- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
-@@ -12,7 +12,9 @@ source_set("vertical") {
+@@ -12,7 +12,10 @@ source_set("vertical") {
      "arcomium_address_bar.h",
      "arcomium_sidebar_view.h",
      "arcomium_space_color.h",
++    "arcomium_glyphs.h",
 +    "arcomium_popover.h",
      "arcomium_space_switcher.h",
 +    "arcomium_tooltip.h",
      "top_container_button.h",
      "vertical_tab_strip_bottom_container.h",
      "vertical_tab_strip_expand_on_hover_lock.h",
-@@ -48,7 +50,9 @@ source_set("impl") {
+@@ -48,7 +51,10 @@ source_set("impl") {
      "arcomium_address_bar.cc",
      "arcomium_sidebar_view.cc",
      "arcomium_space_color.cc",
++    "arcomium_glyphs.cc",
 +    "arcomium_popover.cc",
      "arcomium_space_switcher.cc",
 +    "arcomium_tooltip.cc",

@@ -54,3 +54,27 @@ index ac2ba9e..9bdd9f2 100644
    if (browser->GetTabStripModel()->empty()) {
      AddTabAt(browser, GURL(), -1, true);
    }
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index 3c891426113..361769fe5e5 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -51,6 +51,7 @@
+ #include "chrome/browser/ui/page_action/page_action_icon_type.h"
+ #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_manager.h"
+ #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_prefs.h"
++#include "chrome/browser/ui/tabs/arcomium_command_bar_hook.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_menu_utils.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
+@@ -1261,6 +1262,11 @@ void BrowserActions::InitializeChromeMenuActions() {
+           base::BindRepeating(
+               [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                  actions::ActionInvocationContext context) {
++                // Arcomium: IDC_NEW_TAB runs this action, not
++                // BrowserCommandController's case: open the command bar too.
++                if (arcomium::OpenNewTabCommandBar(bwi)) {
++                  return;
++                }
+                 chrome::NewTab(bwi, NewTabTypes::kNewTabCommand);
+               },
+               bwi))

@@ -13,7 +13,7 @@
 #include "ui/base/accelerators/accelerator.h"
 
 namespace gfx {
-class Point;
+class Rect;
 }  // namespace gfx
 
 namespace views {
@@ -55,7 +55,7 @@ struct PopoverItem {
 // Arc for macOS' popover menu, as its header's "..." and its Space bar's "+"
 // open: a black panel with 12 pt corners and an arrow at `anchor`'s middle,
 // below it or, with `above`, over it. Rows are 40 pt: a 20 pt glyph, the
-// label in 13 pt semibold and the shortcut in grey at the right. The row
+// label in 13 pt medium and the shortcut in grey at the right. The row
 // nearest the arrow that can be used starts selected. A row runs its action
 // once the popover is gone; `on_closed` runs when it closes either way.
 void ShowArcPopover(views::View* anchor,
@@ -64,14 +64,28 @@ void ShowArcPopover(views::View* anchor,
                     int width,
                     base::OnceClosure on_closed);
 
-// Arc's icon picker: a black panel with a grid of Space glyphs `names` (""
-// for none) at `screen_point`, in `anchor`'s window. `picked` gets the name
-// clicked; Escape or a click elsewhere picks nothing.
+// Which of Arc's icon pickers: a pinned item's or favorite's Emoji and Icon
+// pages (18 glyphs), a folder's 18 glyphs under an "Icon" title, or a
+// Space's glyphs and emoji with a trash button.
+enum class IconPickerKind {
+  kItem,
+  kFolder,
+  kSpace,
+};
+
+// Arc's icon picker under `anchor_bounds` (a row, in screen coordinates),
+// its arrow at `arrow_x`, or above it when there is no room below; in
+// `anchor`'s window. `picked` gets the glyph's name, "emoji:" and the emoji,
+// or "" to go back to no icon of its own (a Space's trash, or an item's
+// current glyph picked again). Escape or a click elsewhere picks nothing;
+// `on_closed` runs when it closes either way.
 void ShowArcIconPicker(views::View* anchor,
-                       const gfx::Point& screen_point,
-                       std::vector<std::string> names,
+                       const gfx::Rect& anchor_bounds,
+                       int arrow_x,
+                       IconPickerKind kind,
                        const std::string& current,
-                       base::OnceCallback<void(const std::string&)> picked);
+                       base::OnceCallback<void(const std::string&)> picked,
+                       base::OnceClosure on_closed);
 
 // Whether a popover of `anchor` closed just now: the press on the anchor
 // that closed it should not open it again.

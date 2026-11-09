@@ -111,7 +111,7 @@ index 317211c69c5..c3868a045d7 100644
    // Views to show inline autocompletion when an IME is active.  In this case,
    // we shouldn't change the text or selection inside the OmniboxView itself,
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
-index fb3f3f03054..8b77524ed7b 100644
+index fb3f3f03054..fe0cc542706 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
 @@ -387,7 +387,7 @@ void OmniboxPopupPresenterBase::SynchronizePopupBounds() {
@@ -123,6 +123,19 @@ index fb3f3f03054..8b77524ed7b 100644
      widget_bounds.set_height(
          std::max(minimum_size_.height(), widget_bounds.height()));
  
+@@ -518,6 +518,12 @@ void OmniboxPopupPresenterBase::EnsureWidgetCreated() {
+     return;
+   }
+   views::Widget* parent_widget = presenter_delegate_->GetLocationBarWidget();
++#if defined(USE_AURA)
++  // Arcomium: in the command bar the location bar sits in a child widget of
++  // the browser window. A popup parented to it is no transient child of the
++  // window, which then stacks itself over the popup whenever it activates.
++  parent_widget = parent_widget->GetTopLevelWidget();
++#endif
+   widget_ = std::make_unique<ThemeCopyingWidget>(parent_widget);
+ 
+   views::Widget::InitParams params(
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h
 index e5c5f1bf505..636680d7a29 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.h

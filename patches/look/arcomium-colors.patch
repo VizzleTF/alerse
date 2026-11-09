@@ -12,7 +12,7 @@ index a73bb082108..fe4198922a1 100644
      "chrome_color_mixer.h",
      "chrome_color_mixers.cc",
 diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
-index c79d9496b31..1e666aaf95f 100644
+index c79d949..5f7d145 100644
 --- a/chrome/browser/ui/color/chrome_color_id.h
 +++ b/chrome/browser/ui/color/chrome_color_id.h
 @@ -57,6 +57,24 @@
@@ -36,7 +36,7 @@ index c79d9496b31..1e666aaf95f 100644
 +  E_CPONLY(kColorArcomiumSpaceIcon) \
 +  E_CPONLY(kColorArcomiumSpaceIconHovered) \
 +  E_CPONLY(kColorArcomiumSpaceIconActive) \
-+  E_CPONLY(kColorArcomiumArchiveSlot) \
++  E_CPONLY(kColorArcomiumArchiveSlot)   E_CPONLY(kColorArcomiumSidebarPlaceholderHovered)   E_CPONLY(kColorArcomiumSidebarPlaceholderInactive) \
    E_CPONLY(kColorAvatarButtonHighlightDefault) \
    E_CPONLY(kColorAvatarButtonHighlightGuest) \
    E_CPONLY(kColorAvatarButtonHighlightSyncError) \

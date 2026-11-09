@@ -1,0 +1,153 @@
+diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
+--- a/components/vector_icons/BUILD.gn
++++ b/components/vector_icons/BUILD.gn
+@@ -19,6 +19,8 @@
+       "arcomium_download.icon",
+       "arcomium_forward.icon",
+       "arcomium_link.icon",
++      "arcomium_mac_back.icon",
++      "arcomium_mac_forward.icon",
+       "arcomium_reload.icon",
+       "arcomium_search.icon",
+       "arcomium_sidebar.icon",
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index a9a6182..9a6a761 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -154,23 +154,21 @@ class ArcMoreButton : public views::Button,
+   void PaintButtonContents(gfx::Canvas* canvas) override {
+     cc::PaintFlags flags;
+     flags.setAntiAlias(true);
+-    // Arc's plates: #262626 on hover, 27 pt square; #2A2A2A and half a
+-    // point taller while open. Its dots and cross sit 0.5 pt above centre.
+-    if (open_ || IsMouseHovered()) {
++    // Arc's plates, only under the pointer (none in an inactive window, nor
++    // while the pointer is in the open popover): #262626, 27 pt square;
++    // #2A2A2A and half a point taller while open. Its dots and cross sit
++    // 0.5 pt above centre.
++    if (IsMouseHovered()) {
+       flags.setColor(open_ ? SkColorSetRGB(0x2A, 0x2A, 0x2A)
+                            : SkColorSetRGB(0x26, 0x26, 0x26));
+       canvas->DrawRoundRect(
+           gfx::RectF(0.5f, open_ ? -0.5f : 0, 27, open_ ? 28 : 27), 6, flags);
+-    } else if (GetWidget() && !GetWidget()->ShouldPaintAsActive()) {
+-      // An inactive window shows it faintly: #484848 on Arc's #393939.
+-      flags.setColor(color_utils::BlendTowardMaxContrast(
+-          arcomium::FrameColor(this), 0x13));
+-      canvas->DrawRoundRect(gfx::RectF(0.5f, 0, 27, 27), 6, flags);
+     }
+     const gfx::PointF center =
+         gfx::RectF(GetLocalBounds()).CenterPoint() + gfx::Vector2dF(0, -0.5f);
+     if (open_) {
+-      flags.setColor(SkColorSetRGB(0xA8, 0xA8, 0xA8));
++      // The cross is brighter than the dots, #DCDCDC as Arc's.
++      flags.setColor(SkColorSetRGB(0xDC, 0xDC, 0xDC));
+       flags.setStyle(cc::PaintFlags::kStroke_Style);
+       flags.setStrokeWidth(1.7f);
+       flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+@@ -197,6 +195,54 @@ class ArcMoreButton : public views::Button,
+ 
+ BEGIN_METADATA(ArcMoreButton)
+ END_METADATA
++
++// Arc for macOS' arrows, larger than its other header icons: the icon color;
++// dimmed, white at 25% over the frame (#525252 on #161616, #6A6A6A on an
++// inactive window's #393939), where Chromium's disabled grey is brighter.
++class ArcMacArrowButton : public views::ImageButton {
++  METADATA_HEADER(ArcMacArrowButton, views::ImageButton)
++
++ public:
++  ArcMacArrowButton(PressedCallback callback, const gfx::VectorIcon& icon)
++      : views::ImageButton(std::move(callback)), icon_(icon) {
++    views::ConfigureVectorImageButton(this);
++  }
++
++  void AddedToWidget() override {
++    views::ImageButton::AddedToWidget();
++    paint_as_active_subscription_ =
++        GetWidget()->RegisterPaintAsActiveChangedCallback(base::BindRepeating(
++            &ArcMacArrowButton::UpdateImages, base::Unretained(this)));
++  }
++
++  void RemovedFromWidget() override {
++    paint_as_active_subscription_ = {};
++    views::ImageButton::RemovedFromWidget();
++  }
++
++  void OnThemeChanged() override {
++    views::ImageButton::OnThemeChanged();
++    UpdateImages();
++  }
++
++ private:
++  void UpdateImages() {
++    if (!GetColorProvider()) {
++      return;
++    }
++    views::SetImageFromVectorIconWithColor(
++        this, *icon_, kArcMacIconSize,
++        {GetColorProvider()->GetColor(ui::kColorIcon),
++         color_utils::BlendTowardMaxContrast(arcomium::FrameColor(this),
++                                             0x40)});
++  }
++
++  const raw_ref<const gfx::VectorIcon> icon_;
++  base::CallbackListSubscription paint_as_active_subscription_;
++};
++
++BEGIN_METADATA(ArcMacArrowButton)
++END_METADATA
+ #endif
+ 
+ #if !BUILDFLAG(IS_MAC)
+@@ -365,6 +411,13 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+   // The toolbar's icons.
+   const bool rounded = features::IsRoundedIconsEnabled();
+   const NavButton nav_buttons[] = {
++#if BUILDFLAG(IS_MAC)
++      // Arc for macOS' own arrows, thinner and with smaller heads.
++      {IDC_BACK, vector_icons::kArcomiumMacBackIcon, IDS_ARCOMIUM_BACK,
++       &arc_back_button_},
++      {IDC_FORWARD, vector_icons::kArcomiumMacForwardIcon,
++       IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
++#else
+       {IDC_BACK,
+        rounded ? vector_icons::kArrowBackIcon
+                : vector_icons::kBackArrowChromeRefreshOldIcon,
+@@ -373,26 +426,25 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+        rounded ? vector_icons::kArrowForwardIcon
+                : vector_icons::kForwardArrowChromeRefreshOldIcon,
+        IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
++#endif
+       {IDC_RELOAD,
+        rounded ? vector_icons::kRefreshIcon
+                : vector_icons::kReloadChromeRefreshOldIcon,
+        IDS_ARCOMIUM_RELOAD, &arc_reload_button_},
+   };
+   for (const NavButton& nav : nav_buttons) {
+-    auto button = views::CreateVectorImageButtonWithNativeTheme(
+-        base::BindRepeating(
+-            [](BrowserWindowInterface* browser, int command) {
+-              chrome::ExecuteCommand(browser, command);
+-            },
+-            base::Unretained(browser_), nav.command),
+-        nav.icon,
++    auto pressed = base::BindRepeating(
++        [](BrowserWindowInterface* browser, int command) {
++          chrome::ExecuteCommand(browser, command);
++        },
++        base::Unretained(browser_), nav.command);
+ #if BUILDFLAG(IS_MAC)
+-        // Arc for macOS' arrows are larger than its other header icons.
+-        kArcMacIconSize
++    std::unique_ptr<views::ImageButton> button =
++        std::make_unique<ArcMacArrowButton>(std::move(pressed), nav.icon);
+ #else
+-        kArcHeaderIconSize
++    auto button = views::CreateVectorImageButtonWithNativeTheme(
++        std::move(pressed), nav.icon, kArcHeaderIconSize);
+ #endif
+-    );
+     StyleArcHeaderButton(button.get());
+ #if BUILDFLAG(IS_MAC)
+     // Arc for macOS' pill: "Go back" with Cmd [ as keycaps, as the menu

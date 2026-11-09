@@ -13,6 +13,8 @@ and a fallback Arc import script. Builds come from the platform repositories bel
 
 - **The sidebar**: Space name, pinned items in nested folders, open tabs under
   collapsed folders, a popup of a folder's links on hover, New Tab, then the Space's tabs.
+  Arc's icon pickers give pinned items, folders and Spaces a glyph (Spaces also an
+  emoji), and the Space menu collapses or expands all folders at once.
 - **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
   logged into different accounts side by side. Spaces survive restarts.
 
@@ -21,6 +23,23 @@ and a fallback Arc import script. Builds come from the platform repositories bel
   [arcomium-sync](https://github.com/VizzleTF/arcomium-sync) server, end-to-end
   encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
   in the app menu. A free public server is planned.
+- **Command bar actions**: type a command's name in the command bar to run it, as in
+  Arc: Copy URL, Copy URL as Markdown, Pin or Unpin Tab, New Space, Rename Space,
+  Edit Theme, New Folder, View History, Settings and more, each with its
+  shortcut. Arc's keys too: Ctrl+Shift+C (Shift+Cmd+C) copies the address,
+  Ctrl+Shift+Alt+C (Option+Shift+Cmd+C) copies it as a Markdown link, Ctrl+D (Cmd+D)
+  pins or unpins the tab.
+- **Split View**: two pages side by side, as in Arc. Ctrl+Shift+= (Control+Shift+= on
+  a Mac) adds a pane and opens the command bar to fill it; Ctrl+Shift+- closes the
+  shown pane, Ctrl+Shift+1 and 2 switch panes. Drag a tab onto another tab in the
+  sidebar, or onto the page's edge, to split the two; the sidebar shows a split as
+  one row, and dragging a pane out of it separates it. Also Open in Split View in the
+  sidebar's menus and the split items of the View menu (macOS) or the logo menu.
+- **Arc's menu bar on macOS**: File, Edit, View, Spaces, Tabs, Archive, Extensions,
+  Window and Help with Arc's items and keys: the Spaces menu lists your Spaces
+  (Control+1 to 9), the Extensions menu your extensions, Cmd+1 to 9 open the sidebar's
+  items, Copy URL as Quote copies a selection with its link. The sidebar's menus have
+  Arc's Share (AirDrop, Mail, Messages...) and a folder's Share Folder....
 - **Link routing**: links from other apps open in the Space you choose for their site,
   such as github.com in Work.
 - **Media**: a mini player at the bottom of the sidebar for media playing in another

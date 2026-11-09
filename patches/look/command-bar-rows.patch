@@ -23,11 +23,11 @@ index 15214db..a68f14d 100644
    }
    SearchboxHandler::OverrideIconPaths(match, mojom_match);
 +  // Arcomium: the command bar shows a site's own icon, and a plain page where
-+  // it has none, never a bookmark star.
-+  if (mojom_match->icon_path ==
-+      "//resources/cr_components/searchbox/icons/bookmark_cr23.svg") {
-+    mojom_match->icon_path =
-+        "//resources/cr_components/searchbox/icons/page_cr23.svg";
++  // it has none, never a bookmark star (in either icon set).
++  constexpr std::string_view kStar = "/bookmark_cr23";
++  if (const size_t star = mojom_match->icon_path.find(kStar);
++      star != std::string::npos) {
++    mojom_match->icon_path.replace(star, kStar.size(), "/page_cr23");
 +  }
  }
  
@@ -314,7 +314,7 @@ index 27ac410c2a3..5008461d8d5 100644
        return window.trustedTypes!.emptyHTML;
      }
      return this.sanitizeInnerHtml_(
-@@ -542,9 +542,18 @@ export class SearchboxMatchElement extends CrLitElement {
+@@ -542,9 +542,21 @@ export class SearchboxMatchElement extends CrLitElement {
    }
  
    private getMatchSecondaryText_(): string {
@@ -325,9 +325,12 @@ index 27ac410c2a3..5008461d8d5 100644
    }
  
 +  // Arcomium: in the command bar a search reads as just its words, without
-+  // the engine's name after them.
++  // the engine's name after them; a row with no second text (a sidebar item)
++  // gets no empty span, which would still draw the dash before it.
 +  private hidesSecondaryText_(): boolean {
-+    return this.isTopChromeSearchbox_ && this.match?.isSearchType === true;
++    return this.isTopChromeSearchbox_ &&
++        (this.match?.isSearchType === true ||
++         !this.match?.suggestTemplate.secondaryText.text);
 +  }
 +
    protected getFocusIndicatorCssClass_(): string {

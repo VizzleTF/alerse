@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
 
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_glyphs.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_tooltip.h"
@@ -49,7 +50,16 @@
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_group_theme.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#if BUILDFLAG(IS_MAC)
+#include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
+#include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "ui/gfx/image/image_skia.h"
+#endif
 #include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
@@ -84,7 +94,9 @@
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 #include "url/url_constants.h"
 
@@ -93,18 +105,21 @@ namespace {
 // Arc's Space bar: the archive at the left, the Spaces' icons in the middle
 // (the active one bright), "+" at the right edge.
 #if BUILDFLAG(IS_MAC)
-// Arc for macOS' Space bar: 33x32 pt Space buttons 34 pt apart, centred on
+// Arc for macOS' Space bar: 34x32 pt Space buttons side by side, centred on
 // the sidebar; the archive and "+" centred 24 pt from its sides (the region
-// already keeps 12 pt), 13 pt icons; a hovered button gets a faint plate.
-constexpr gfx::Size kButtonBox(33, 32);
+// already keeps 12 pt), 13 pt icons; a hovered button gets a faint plate as
+// wide as the button.
+constexpr gfx::Size kButtonBox(34, 32);
 // The archive's and "+"'s plates are 32x32 pt, as tall as the Spaces'.
 constexpr gfx::Size kSideButtonBox(32, 32);
 // The bar spans the sidebar but for 8 pt at each side (the region's bottom
 // padding there), where Arc's plates end.
 constexpr gfx::Insets kBarInsets = gfx::Insets::TLBR(2, 0, 0, 0);
-constexpr int kIconGap = 1;
+constexpr int kIconGap = 0;
 // The sun, rays and all, is 16.8 wide drawn for the sidebar.
 constexpr float kIconScale = 13 / 16.8f;
+// The Spaces menu's icons, about 12.5 pt as Arc's, not the sidebar's 14.5.
+constexpr float kMenuIconScale = 0.87f;
 constexpr float kHoverPlateRadius = 8;
 constexpr SkColor kHoverPlate = SkColorSetARGB(0x11, 0xFF, 0xFF, 0xFF);
 #else
@@ -125,8 +140,7 @@ constexpr ui::ColorId kArchiveSlotColor = kColorArcomiumArchiveSlot;
 // Space icons a folder records; home is a sun until chosen otherwise.
 constexpr char kSpaceIconMetaKey[] = "arcomium.space_icon";
 constexpr char kDefaultSpace[] = "default";
-// Context menu commands: kIconCommandFirst + index into kSpaceIcons.
-constexpr int kIconCommandFirst = 100;
+// Context menu commands.
 constexpr int kEditColorCommand = 1;
 constexpr int kDeleteSpaceCommand = 2;
 // The plus button's menu.
@@ -136,6 +150,9 @@ constexpr int kNewTabCommand = 5;
 constexpr int kRenameSpaceCommand = 6;
 constexpr int kNewSplitCommand = 7;
 constexpr int kChangeIconCommand = 8;
+constexpr int kToggleFoldersCommand = 9;
+// A folder's open state (arcomium_sidebar_view.cc).
+constexpr char kFolderOpenMetaKey[] = "arcomium.open";
 #if BUILDFLAG(IS_MAC)
 constexpr int kAddPopoverWidth = 210;
 #endif
@@ -176,6 +193,53 @@ const SpaceIconChoice kSpaceIcons[] = {
     {"flight", IDS_ARCOMIUM_SPACE_ICON_TRAVEL, &vector_icons::kFlightIcon},
     {"dot", IDS_ARCOMIUM_SPACE_ICON_DOT, nullptr},
 };
+
+// Whether a Space's pinned tree has folders, and whether one is open.
+struct FolderState {
+  bool any = false;
+  bool any_open = false;
+};
+
+FolderState GetFolderState(const bookmarks::BookmarkNode* space) {
+  FolderState state;
+  if (!space) {
+    return state;
+  }
+  std::vector<const bookmarks::BookmarkNode*> folders = {space};
+  while (!folders.empty()) {
+    const bookmarks::BookmarkNode* folder = folders.back();
+    folders.pop_back();
+    for (const auto& child : folder->children()) {
+      if (child->is_folder()) {
+        state.any = true;
+        std::string open;
+        state.any_open |=
+            child->GetMetaInfo(kFolderOpenMetaKey, &open) && open == "1";
+        folders.push_back(child.get());
+      }
+    }
+  }
+  return state;
+}
+
+// The sidebar in `widget`'s window.
+ArcomiumSidebarView* FindSidebar(views::Widget* widget) {
+  std::vector<views::View*> views;
+  if (widget && widget->GetRootView()) {
+    views.push_back(widget->GetRootView());
+  }
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    if (auto* sidebar = views::AsViewClass<ArcomiumSidebarView>(view)) {
+      return sidebar;
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+  return nullptr;
+}
 
 const SpaceIconChoice* FindSpaceIcon(const std::string& name) {
   for (const SpaceIconChoice& choice : kSpaceIcons) {
@@ -238,6 +302,18 @@ void PaintSpaceIcon(gfx::Canvas* canvas,
   canvas->DrawCircle(center, kDotDiameter / 2.0f, flags);
 }
 
+// The menu bar's commands that the sidebar runs; the others are the Space
+// bar's. Command-1 to -9 (IDC_SELECT_TAB_0 to _LAST_TAB) go to its items on
+// macOS, as in Arc.
+bool IsSidebarCommand(int command_id) {
+  return command_id == IDC_ARCOMIUM_PIN_TAB ||
+         command_id == IDC_ARCOMIUM_NEW_FOLDER ||
+         command_id == IDC_ARCOMIUM_CLEAR_TODAY ||
+         command_id == IDC_ARCOMIUM_TOGGLE_PINNED ||
+         command_id == IDC_ARCOMIUM_REVEAL_TAB ||
+         (command_id >= IDC_SELECT_TAB_0 && command_id <= IDC_SELECT_LAST_TAB);
+}
+
 // The shortcut that shows the Space at `index` in the row.
 ui::Accelerator SpaceAccelerator(size_t index) {
   return ui::Accelerator(
@@ -251,6 +327,16 @@ ui::Accelerator SpaceAccelerator(size_t index) {
 }
 
 #if BUILDFLAG(IS_MAC)
+// The Space bar's icons: Arc for macOS dims them in an inactive window to
+// half their contrast with its lighter frame (#A0A0A0 to #747474, the shown
+// Space's #F0F0F1 to #969696).
+SkColor IconInk(const views::View* view, ui::ColorId id) {
+  const SkColor ink = arcomium::SidebarInk(view, id);
+  return arcomium::PaintsInactiveFrame(view)
+             ? color_utils::AlphaBlend(ink, arcomium::FrameColor(view), 0.5f)
+             : ink;
+}
+
 void PaintHoverPlate(const views::Button* button, gfx::Canvas* canvas) {
   if (!button->IsMouseHovered()) {
     return;
@@ -297,19 +383,27 @@ class SpaceIcon : public views::Button {
     const ui::ColorId color = active_            ? kActiveIconColor
                               : IsMouseHovered() ? kHoveredIconColor
                                                  : kIconColor;
+#if BUILDFLAG(IS_MAC)
+    const SkColor ink = !active_ && IsMouseHovered() && hover_tint_
+                            ? *hover_tint_
+                            : IconInk(this, color);
+#else
     const SkColor ink = !active_ && IsMouseHovered() && hover_tint_
                             ? *hover_tint_
                             : arcomium::SidebarInk(this, color);
+#endif
     const gfx::PointF center = gfx::RectF(GetContentsBounds()).CenterPoint();
+    // An emoji fades like the glyphs do on the dark theme, on every theme.
+    const uint8_t emoji_alpha = active_ ? 255 : IsMouseHovered() ? 150 : 90;
 #if BUILDFLAG(IS_MAC)
     PaintHoverPlate(this, canvas);
     // Arc for macOS' Space icons are 13 pt, smaller than the sidebar's.
     gfx::ScopedCanvas scoped_canvas(canvas);
     canvas->sk_canvas()->translate(center.x(), center.y());
     canvas->sk_canvas()->scale(kIconScale, kIconScale);
-    PaintSpaceIcon(canvas, gfx::PointF(), icon_, ink);
+    arcomium::PaintSpaceIcon(canvas, gfx::PointF(), icon_, ink, emoji_alpha);
 #else
-    PaintSpaceIcon(canvas, center, icon_, ink);
+    arcomium::PaintSpaceIcon(canvas, center, icon_, ink, emoji_alpha);
 #endif
   }
 
@@ -357,7 +451,7 @@ class ArchiveButton : public views::Button {
     // spilling out of it, traced from Arc's 14x16.5 pt icon.
     PaintHoverPlate(this, canvas);
     // Arc keeps it grey under the pointer; the plate shows the hover.
-    flags.setColor(arcomium::SidebarInk(this, kHoveredIconColor));
+    flags.setColor(IconInk(this, kHoveredIconColor));
     // The box's lid, then its body 1 pt below.
     canvas->DrawRoundRect(gfx::RectF(c.x() - 6.75f, c.y() - 3.6f, 12.5f, 1.6f),
                           0.6f, flags);
@@ -412,8 +506,18 @@ class AddButton : public views::Button {
   }
 
   // While its popover is open the "+" is a cross on the plate, as in Arc.
+  // The popover has the pointer's events meanwhile, so whether the pointer
+  // is on the button (its plate) is polled.
   void SetOpen(bool open) {
     open_ = open;
+    if (open) {
+      hovered_ = IsMouseHovered();
+      hover_poll_.Start(FROM_HERE, base::Milliseconds(50),
+                        base::BindRepeating(&AddButton::PollHover,
+                                            base::Unretained(this)));
+    } else {
+      hover_poll_.Stop();
+    }
     SchedulePaint();
   }
 
@@ -427,11 +531,11 @@ class AddButton : public views::Button {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     if (open_) {
-      flags.setColor(arcomium::SidebarInk(this, kHoverPlate));
-      canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kHoverPlateRadius,
-                            flags);
-      // An 11 pt cross.
-      flags.setColor(arcomium::SidebarInk(this, kHoveredIconColor));
+      // The plate only while the pointer is on it: Arc's goes once the
+      // pointer is off the button or in the popover.
+      PaintHoverPlate(this, canvas);
+      // An 11 pt cross, a shade brighter than the "+": #A8A8A8, as Arc's.
+      flags.setColor(arcomium::SidebarInk(this, SkColorSetRGB(0xA8, 0xA8, 0xA8)));
       flags.setStyle(cc::PaintFlags::kStroke_Style);
       flags.setStrokeWidth(1.7f);
       flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
@@ -442,7 +546,7 @@ class AddButton : public views::Button {
       return;
     }
     PaintHoverPlate(this, canvas);
-    flags.setColor(arcomium::SidebarInk(this, kHoveredIconColor));
+    flags.setColor(IconInk(this, kHoveredIconColor));
     canvas->DrawRoundRect(gfx::RectF(c.x() - 6.75f, c.y() - 0.85f, 13.5f, 1.7f),
                           0.85f, flags);
     canvas->DrawRoundRect(gfx::RectF(c.x() - 0.85f, c.y() - 6.75f, 1.7f, 13.5f),
@@ -452,7 +556,16 @@ class AddButton : public views::Button {
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
 
  private:
+  void PollHover() {
+    if (const bool hovered = IsMouseHovered(); hovered != hovered_) {
+      hovered_ = hovered;
+      SchedulePaint();
+    }
+  }
+
   bool open_ = false;
+  bool hovered_ = false;
+  base::RepeatingTimer hover_poll_;
   base::WeakPtrFactory<AddButton> weak_factory_{this};
 };
 
@@ -468,7 +581,8 @@ std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
                              const std::string& space) {
   std::string icon;
   if (folder && folder->GetMetaInfo(kSpaceIconMetaKey, &icon) &&
-      FindSpaceIcon(icon)) {
+      (FindSpaceIcon(icon) || arcomium::IsArcGlyph(icon) ||
+       arcomium::IsEmojiIcon(icon))) {
     return icon;
   }
   return space == kDefaultSpace ? "sunny" : "dot";
@@ -477,10 +591,19 @@ std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
 void PaintSpaceIcon(gfx::Canvas* canvas,
                     const gfx::PointF& center,
                     const std::string& name,
-                    SkColor color) {
-  // Arc's imported folder glyph, drawn as the chat icon in the picker.
-  ::PaintSpaceIcon(canvas, center,
-                   name == "chatBubbleEllipses" ? "chat" : name, color);
+                    SkColor color,
+                    uint8_t emoji_alpha) {
+  if (arcomium::IsEmojiIcon(name)) {
+    arcomium::PaintEmojiIcon(canvas, center, name, emoji_alpha);
+    return;
+  }
+  // Arc's sun and (on macOS) book are drawn here already; the rest of Arc's
+  // set by the glyph painter, and Arcomium's first icons as before.
+  if (name != "sunny" && name != "book" &&
+      arcomium::PaintArcGlyph(canvas, center, name, color)) {
+    return;
+  }
+  ::PaintSpaceIcon(canvas, center, name, color);
 }
 
 std::vector<std::string> GetSpaceIconNames() {
@@ -499,6 +622,13 @@ ArcomiumSpaceSwitcher::ArcomiumSpaceSwitcher(BrowserWindowInterface* browser)
       views::BoxLayout::Orientation::kHorizontal, kBarInsets));
   model_->AddObserver(this);
   arcomium::SpaceCommandHook() = &ArcomiumSpaceSwitcher::RunSpaceCommand;
+  arcomium::SpaceCommandStateHook() =
+      &ArcomiumSpaceSwitcher::GetSpaceCommandState;
+#if BUILDFLAG(IS_MAC)
+  arcomium::MenuBarListHook() = &ArcomiumSpaceSwitcher::GetMenuBarList;
+  arcomium::MenuBarRunHook() = &ArcomiumSpaceSwitcher::RunMenuBarEntry;
+  arcomium::ShownSpaceTitleHook() = &ArcomiumSpaceSwitcher::GetShownSpaceTitle;
+#endif
   if (!browser->GetProfile()->IsOffTheRecord()) {
     sync_service_ = tab_groups::TabGroupSyncServiceFactory::GetForProfile(
         browser->GetProfile());
@@ -527,9 +657,7 @@ bool ArcomiumSpaceSwitcher::RunSpaceCommand(BrowserWindowInterface* browser,
           BrowserView::GetBrowserViewForBrowser(browser)) {
     views.push_back(browser_view);
   }
-  const bool sidebar_command = command_id == IDC_ARCOMIUM_PIN_TAB ||
-                               command_id == IDC_ARCOMIUM_NEW_FOLDER ||
-                               command_id == IDC_ARCOMIUM_CLEAR_TODAY;
+  const bool sidebar_command = IsSidebarCommand(command_id);
   while (!views.empty()) {
     views::View* view = views.back();
     views.pop_back();
@@ -551,6 +679,9 @@ bool ArcomiumSpaceSwitcher::RunSpaceCommand(BrowserWindowInterface* browser,
         switcher->menu_space_ =
             switcher->space_refs_[switcher->active_space_].space;
         switcher->menu_sync_id_.clear();
+        // No menu was opened: the theme picker opens over the Space bar, not
+        // at a stale point (the screen's corner).
+        switcher->menu_point_ = switcher->GetBoundsInScreen().origin();
         if (command_id == IDC_ARCOMIUM_RENAME_SPACE) {
           switcher->RenameMenuSpace();
         } else {
@@ -570,6 +701,196 @@ bool ArcomiumSpaceSwitcher::RunSpaceCommand(BrowserWindowInterface* browser,
   }
   return false;
 }
+
+// static
+arcomium::SpaceCommandState ArcomiumSpaceSwitcher::GetSpaceCommandState(
+    BrowserWindowInterface* browser,
+    int command_id) {
+  using arcomium::SpaceCommandState;
+  if (browser->GetProfile()->IsOffTheRecord()) {
+    return SpaceCommandState::kUnavailable;
+  }
+  if (command_id == IDC_ARCOMIUM_NEW_SPACE) {
+    return SpaceCommandState::kAvailable;
+  }
+  const bool sidebar_command = IsSidebarCommand(command_id);
+  std::vector<views::View*> views;
+  if (BrowserView* browser_view =
+          BrowserView::GetBrowserViewForBrowser(browser)) {
+    views.push_back(browser_view);
+  }
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    if (auto* sidebar = views::AsViewClass<ArcomiumSidebarView>(view);
+        sidebar && sidebar_command) {
+      return sidebar->GetMenuBarCommandState(command_id);
+    }
+    if (auto* switcher = views::AsViewClass<ArcomiumSpaceSwitcher>(view);
+        switcher && !sidebar_command) {
+      if (!switcher->IsDrawn()) {
+        return SpaceCommandState::kUnavailable;
+      }
+      if (command_id == IDC_ARCOMIUM_RENAME_SPACE ||
+          command_id == IDC_ARCOMIUM_EDIT_SPACE_THEME) {
+        return switcher->active_space_ >= 0 &&
+                       switcher->active_space_ <
+                           static_cast<int>(switcher->space_refs_.size())
+                   ? SpaceCommandState::kAvailable
+                   : SpaceCommandState::kUnavailable;
+      }
+      return switcher->CanRotateSpace(command_id == IDC_ARCOMIUM_NEXT_SPACE)
+                 ? SpaceCommandState::kAvailable
+                 : SpaceCommandState::kUnavailable;
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+  return SpaceCommandState::kUnavailable;
+}
+
+#if BUILDFLAG(IS_MAC)
+namespace {
+
+ArcomiumSpaceSwitcher* FindSpaceSwitcherIn(BrowserWindowInterface* browser) {
+  std::vector<views::View*> views;
+  if (BrowserView* browser_view =
+          BrowserView::GetBrowserViewForBrowser(browser)) {
+    views.push_back(browser_view);
+  }
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    if (auto* switcher = views::AsViewClass<ArcomiumSpaceSwitcher>(view)) {
+      return switcher;
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+  return nullptr;
+}
+
+ExtensionsToolbarViewModel* GetExtensionsModel(
+    BrowserWindowInterface* browser) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  ExtensionsToolbarDesktop* container =
+      browser_view && browser_view->toolbar()
+          ? browser_view->toolbar()->extensions_container()
+          : nullptr;
+  return container ? container->GetToolbarViewModel() : nullptr;
+}
+
+// The window's extensions by name, as Arc's Extensions menu lists them.
+std::vector<ToolbarActionsModel::ActionId> GetSortedExtensions(
+    ExtensionsToolbarViewModel* model) {
+  std::vector<ToolbarActionsModel::ActionId> ids;
+  if (!model || !model->AreActionsInitialized()) {
+    return ids;
+  }
+  for (const auto& id : model->GetAllActionIds()) {
+    if (model->GetActionModelForId(id)) {
+      ids.push_back(id);
+    }
+  }
+  std::ranges::sort(ids, [model](const auto& a, const auto& b) {
+    return model->GetActionModelForId(a)->GetActionName() <
+           model->GetActionModelForId(b)->GetActionName();
+  });
+  return ids;
+}
+
+}  // namespace
+
+// static
+std::vector<arcomium::MenuBarEntry> ArcomiumSpaceSwitcher::GetMenuBarList(
+    BrowserWindowInterface* browser,
+    arcomium::MenuBarList list) {
+  std::vector<arcomium::MenuBarEntry> entries;
+  if (list == arcomium::MenuBarList::kSpaces) {
+    ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcherIn(browser);
+    if (!switcher || browser->GetProfile()->IsOffTheRecord()) {
+      return entries;
+    }
+    for (size_t i = 0; i < switcher->menu_bar_spaces_.size(); ++i) {
+      const MenuBarSpace& space = switcher->menu_bar_spaces_[i];
+      arcomium::MenuBarEntry entry;
+      entry.title = space.title;
+      entry.checked = static_cast<int>(i) == switcher->active_space_;
+      // Arc's menu shows each Space with its icon, smaller than the
+      // sidebar's (about 12 pt): a glyph in the menu's ink, or in the light
+      // shade of the Space's theme (Arc's Work book is light blue); an emoji
+      // in its own colors.
+      gfx::Canvas canvas(gfx::Size(16, 16), 2.0f, /*is_opaque=*/false);
+      {
+        gfx::ScopedCanvas scoped(&canvas);
+        canvas.sk_canvas()->translate(8, 8);
+        canvas.sk_canvas()->scale(kMenuIconScale, kMenuIconScale);
+        arcomium::PaintSpaceIcon(&canvas, gfx::PointF(), space.icon,
+                                 space.tint.value_or(SK_ColorBLACK));
+      }
+      entry.icon = gfx::ImageSkia::CreateFromBitmap(canvas.GetBitmap(), 2.0f);
+      entry.icon_is_template =
+          !arcomium::IsEmojiIcon(space.icon) && !space.tint;
+      entries.push_back(std::move(entry));
+    }
+    return entries;
+  }
+  ExtensionsToolbarViewModel* model = GetExtensionsModel(browser);
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  content::WebContents* contents =
+      browser->GetTabStripModel()->GetActiveWebContents();
+  for (const auto& id : GetSortedExtensions(model)) {
+    ToolbarActionViewModel* action = model->GetActionModelForId(id);
+    arcomium::MenuBarEntry entry;
+    entry.title = action->GetActionName();
+    const ui::ImageModel image = action->GetIcon(contents, gfx::Size(16, 16));
+    if (!image.IsEmpty() && browser_view && browser_view->GetColorProvider()) {
+      entry.icon = image.Rasterize(browser_view->GetColorProvider());
+    }
+    entries.push_back(std::move(entry));
+  }
+  return entries;
+}
+
+// static
+std::u16string ArcomiumSpaceSwitcher::GetShownSpaceTitle(
+    BrowserWindowInterface* browser) {
+  ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcherIn(browser);
+  if (!switcher || browser->GetProfile()->IsOffTheRecord() ||
+      switcher->active_space_ < 0 ||
+      switcher->active_space_ >=
+          static_cast<int>(switcher->menu_bar_spaces_.size())) {
+    return std::u16string();
+  }
+  return switcher->menu_bar_spaces_[switcher->active_space_].title;
+}
+
+// static
+void ArcomiumSpaceSwitcher::RunMenuBarEntry(BrowserWindowInterface* browser,
+                                            arcomium::MenuBarList list,
+                                            size_t index) {
+  if (list == arcomium::MenuBarList::kSpaces) {
+    ArcomiumSpaceSwitcher* switcher = FindSpaceSwitcherIn(browser);
+    if (switcher && index < switcher->space_actions_.size() &&
+        static_cast<int>(index) != switcher->active_space_) {
+      // A copy: switching rebuilds the row and its callbacks.
+      base::RepeatingClosure action = switcher->space_actions_[index];
+      action.Run();
+    }
+    return;
+  }
+  // As the site controls run an extension: its popup or its action.
+  ExtensionsToolbarViewModel* model = GetExtensionsModel(browser);
+  const std::vector<ToolbarActionsModel::ActionId> ids =
+      GetSortedExtensions(model);
+  if (index < ids.size()) {
+    model->ExecuteUserAction(
+        ids[index], ToolbarActionViewModel::InvocationSource::kMenuEntry);
+  }
+}
+#endif  // BUILDFLAG(IS_MAC)
 
 // static
 void ArcomiumSpaceSwitcher::ShowActiveSpaceMenuIn(
@@ -855,6 +1176,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
 
   space_actions_.clear();
   space_refs_.clear();
+  menu_bar_spaces_.clear();
   active_space_ = -1;
   auto add_icon = [&](base::RepeatingClosure callback,
                       std::string icon, bool active,
@@ -866,6 +1188,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
     space_actions_.push_back(callback);
     space_refs_.push_back(ArcomiumSpaceRef{
         space, space == kDefaultSpace ? std::u16string() : title, std::nullopt});
+    menu_bar_spaces_.push_back({title, icon, std::nullopt});
     auto* view = icons->AddChildView(std::make_unique<SpaceIcon>(
         views::Button::PressedCallback(std::move(callback)), std::move(icon),
         active, title, std::move(space),
@@ -892,6 +1215,7 @@ void ArcomiumSpaceSwitcher::Rebuild() {
         hsl.s = 0.45 * std::clamp(space_color->saturation, 0.0, 1.0);
         hsl.l = 0.66;
         view->SetHoverTint(color_utils::HSLToSkColor(hsl, 255));
+        menu_bar_spaces_.back().tint = color_utils::HSLToSkColor(hsl, 255);
       }
     }
 #endif
@@ -1000,6 +1324,12 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   add_button_->set_context_menu_controller(this);
 
   PreferredSizeChanged();
+#if BUILDFLAG(IS_MAC)
+  // The window is named after the shown Space (BrowserView::GetWindowTitle).
+  if (GetWidget()) {
+    GetWidget()->UpdateWindowTitle();
+  }
+#endif
 }
 
 const bookmarks::BookmarkNode* ArcomiumSpaceSwitcher::FindSpaceFolder(
@@ -1128,33 +1458,14 @@ void ArcomiumSpaceSwitcher::ShowSpaceMenu(
   menu_runner_.reset();
   menu_space_ = space;
   menu_sync_id_ = sync_id;
-  icon_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
-  for (size_t i = 0; i < std::size(kSpaceIcons); ++i) {
-    const SpaceIconChoice& choice = kSpaceIcons[i];
-    const int command = kIconCommandFirst + static_cast<int>(i);
-    if (choice.icon) {
-      icon_menu_model_->AddItemWithIcon(
-          command, l10n_util::GetStringUTF16(choice.label),
-          ui::ImageModel::FromVectorIcon(*choice.icon, ui::kColorMenuIcon,
-                                         kSpaceIconSize));
-    } else {
-      icon_menu_model_->AddItem(command,
-                                l10n_util::GetStringUTF16(choice.label));
-    }
-  }
   menu_point_ = point;
   menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   // Arc's Space menu, wherever it opens.
-#if BUILDFLAG(IS_MAC)
-  // Arc for macOS: Change Space Icon... opens a picker; its Set Profile,
+  // Change Space Icon... opens Arc's picker. Arc for macOS' Set Profile,
   // Live Folders, Share, Export and Manage Spaces are left out (Arc's
   // account and services), but not the separators around them.
   menu_model_->AddItem(kChangeIconCommand,
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_CHANGE_SPACE_ICON));
-#else
-  menu_model_->AddSubMenu(0, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SPACE_ICON),
-                           icon_menu_model_.get());
-#endif
   menu_model_->AddItem(kRenameSpaceCommand,
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_RENAME_SPACE));
   menu_model_->AddItem(kEditColorCommand,
@@ -1164,6 +1475,16 @@ void ArcomiumSpaceSwitcher::ShowSpaceMenu(
 #endif
   menu_model_->AddItem(kNewFolderCommand,
                        l10n_util::GetStringUTF16(IDS_ARCOMIUM_NEW_FOLDER));
+  // Collapse All Folders while one is open, else Expand All Folders; dimmed
+  // without folders.
+  const FolderState folders =
+      GetFolderState(FindSpaceFolder(menu_space_, menu_sync_id_));
+  menu_model_->AddItem(
+      kToggleFoldersCommand,
+      l10n_util::GetStringUTF16(folders.any_open
+                                    ? IDS_ARCOMIUM_COLLAPSE_ALL_FOLDERS
+                                    : IDS_ARCOMIUM_EXPAND_ALL_FOLDERS));
+  menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1, folders.any);
   // home is where tabs outside any Space go; it cannot be deleted, so the
   // item Arc always has is dimmed there.
   menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
@@ -1259,6 +1580,24 @@ void ArcomiumSpaceSwitcher::ShowAddMenu(const ui::Event& event) {
 #endif
 }
 
+void ArcomiumSpaceSwitcher::MenuClosed(ui::SimpleMenuModel* source) {
+  // The context menu took the pointer's events: the button it opened on
+  // never saw the pointer leave and would keep its hover plate.
+  std::vector<views::View*> views = {this};
+  while (!views.empty()) {
+    views::View* view = views.back();
+    views.pop_back();
+    if (auto* button = views::AsViewClass<views::Button>(view)) {
+      button->SetState(button->IsMouseHovered() ? views::Button::STATE_HOVERED
+                                                : views::Button::STATE_NORMAL);
+      button->SchedulePaint();
+    }
+    for (views::View* child : view->children()) {
+      views.push_back(child);
+    }
+  }
+}
+
 void ArcomiumSpaceSwitcher::ExecuteCommand(int command_id, int event_flags) {
   if (command_id == kNewSpaceCommand) {
     CreateSpace(browser_);
@@ -1308,15 +1647,36 @@ void ArcomiumSpaceSwitcher::ExecuteCommand(int command_id, int event_flags) {
     ShowMenuSpaceIconPicker();
     return;
   }
-  const int index = command_id - kIconCommandFirst;
-  if (index < 0 || index >= static_cast<int>(std::size(kSpaceIcons))) {
+  if (command_id == kToggleFoldersCommand) {
+    ToggleMenuSpaceFolders();
+  }
+}
+
+void ArcomiumSpaceSwitcher::ToggleMenuSpaceFolders() {
+  const bookmarks::BookmarkNode* space =
+      FindSpaceFolder(menu_space_, menu_sync_id_);
+  bookmarks::BookmarkModel* bookmarks =
+      BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
+  if (!space || !bookmarks) {
     return;
   }
-  if (const bookmarks::BookmarkNode* folder = GetOrAddMenuSpaceFolder()) {
-    bookmarks::BookmarkModel* bookmarks =
-        BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
-    bookmarks->SetNodeMetaInfo(folder, kSpaceIconMetaKey,
-                               kSpaceIcons[index].name);
+  // As the menu said: closes them all while one is open, else opens all.
+  const std::string value = GetFolderState(space).any_open ? "0" : "1";
+  std::vector<const bookmarks::BookmarkNode*> folders = {space};
+  while (!folders.empty()) {
+    const bookmarks::BookmarkNode* folder = folders.back();
+    folders.pop_back();
+    for (const auto& child : folder->children()) {
+      if (!child->is_folder()) {
+        continue;
+      }
+      folders.push_back(child.get());
+      std::string open;
+      child->GetMetaInfo(kFolderOpenMetaKey, &open);
+      if ((open == "1") != (value == "1")) {
+        bookmarks->SetNodeMetaInfo(child.get(), kFolderOpenMetaKey, value);
+      }
+    }
   }
 }
 
@@ -1418,12 +1778,42 @@ ArcomiumSpaceSwitcher::GetOrAddMenuSpaceFolder() {
 
 void ArcomiumSpaceSwitcher::ShowMenuSpaceIconPicker() {
   const bookmarks::BookmarkNode* folder = GetOrAddMenuSpaceFolder();
-  if (!folder) {
+  if (!folder || !GetWidget()) {
     return;
   }
-  // Where the menu was; the icon goes on the Space's folder.
+  // As in Arc, under the Space's name in the sidebar when that is the shown
+  // Space; else over the Space's button in the bar, else where the menu was.
+  gfx::Rect anchor(menu_point_, gfx::Size());
+  int arrow_x = menu_point_.x();
+  auto sidebar = std::make_unique<views::ViewTracker>();
+  const bool shown = active_space_ >= 0 &&
+                     active_space_ < static_cast<int>(space_refs_.size()) &&
+                     space_refs_[active_space_].space == menu_space_;
+  ArcomiumSidebarView* sidebar_view = FindSidebar(GetWidget());
+  if (shown && sidebar_view &&
+      sidebar_view->GetSpaceTitleAnchor(&anchor, &arrow_x)) {
+    // Arc does not light the name for its picker, nor shows its tooltip.
+    sidebar->SetView(sidebar_view);
+    sidebar_view->SetSpaceTitleHighlighted(true);
+  } else {
+    std::vector<views::View*> views = {this};
+    while (!views.empty()) {
+      views::View* view = views.back();
+      views.pop_back();
+      if (const auto* icon = views::AsViewClass<SpaceIcon>(view);
+          icon && (menu_space_.empty() ? icon->sync_id() == menu_sync_id_
+                                       : icon->space() == menu_space_)) {
+        anchor = icon->GetBoundsInScreen();
+        arrow_x = anchor.CenterPoint().x();
+        break;
+      }
+      for (views::View* child : view->children()) {
+        views.push_back(child);
+      }
+    }
+  }
   arcomium::ShowArcIconPicker(
-      this, menu_point_, arcomium::GetSpaceIconNames(),
+      this, anchor, arrow_x, arcomium::IconPickerKind::kSpace,
       arcomium::GetSpaceIconName(folder, menu_space_),
       base::BindOnce(
           [](base::WeakPtr<ArcomiumSpaceSwitcher> switcher, int64_t id,
@@ -1437,11 +1827,25 @@ void ArcomiumSpaceSwitcher::ShowMenuSpaceIconPicker() {
             const bookmarks::BookmarkNode* node =
                 bookmarks ? bookmarks::GetBookmarkNodeByID(bookmarks, id)
                           : nullptr;
-            if (node) {
+            if (!node) {
+              return;
+            }
+            // The trash: home goes back to its sun, others to the dot.
+            if (name.empty()) {
+              bookmarks->DeleteNodeMetaInfo(node, kSpaceIconMetaKey);
+            } else {
               bookmarks->SetNodeMetaInfo(node, kSpaceIconMetaKey, name);
             }
           },
-          weak_factory_.GetWeakPtr(), folder->id()));
+          weak_factory_.GetWeakPtr(), folder->id()),
+      base::BindOnce(
+          [](std::unique_ptr<views::ViewTracker> sidebar) {
+            if (auto* view =
+                    views::AsViewClass<ArcomiumSidebarView>(sidebar->view())) {
+              view->SetSpaceTitleHighlighted(false);
+            }
+          },
+          std::move(sidebar)));
 }
 
 void ArcomiumSpaceSwitcher::RenameMenuSpace() {
