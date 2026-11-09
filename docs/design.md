@@ -201,7 +201,12 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
   field's menu), the empty space below the rows, a Space's button and "+" in the Space
   bar, and on macOS the header's "...". It holds Change Space Icon... (Arc's picker,
   see [Icon pickers](#icon-pickers)), Rename Space (the Space's folder's name, which
-  its tab group takes on save), Edit Theme Color, New Folder, Collapse All Folders
+  its tab group takes on save; Chromium's bookmark editor opens on the folder titled
+  "Edit Space name", "Edit Space Name" in macOS' title case, instead of "Edit folder
+  name": `EditDetails::arcomium_title_id`, `look/space-rename-title.patch`, set only
+  by `ArcomiumSpaceSwitcher::RenameMenuSpace`, which the Space menu, the command
+  bar's Rename Space and the macOS menu bar all run; renaming a folder and New
+  Folder keep Chromium's titles), Edit Theme Color, New Folder, Collapse All Folders
   (while any folder of the Space's pinned tree is open; else Expand All Folders,
   dimmed when the Space has no folders) and Delete Space. Collapse / Expand All
   Folders writes every folder's open state (`arcomium.open`) at once, nested ones

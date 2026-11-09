@@ -1857,9 +1857,13 @@ void ArcomiumSpaceSwitcher::RenameMenuSpace() {
   // (BookmarkNodeChanged).
   renaming_folder_ = folder->id();
   renaming_space_ = menu_space_;
+  // Titled for the Space, not Chromium's "Edit folder name"
+  // (look/space-rename-title.patch).
+  BookmarkEditor::EditDetails details =
+      BookmarkEditor::EditDetails::EditNode(folder);
+  details.arcomium_title_id = IDS_ARCOMIUM_SPACE_EDITOR_TITLE;
   BookmarkEditor::Show(GetWidget()->GetNativeWindow(), browser_->GetProfile(),
-                       BookmarkEditor::EditDetails::EditNode(folder),
-                       BookmarkEditor::NO_TREE);
+                       details, BookmarkEditor::NO_TREE);
 }
 
 void ArcomiumSpaceSwitcher::BookmarkNodeChanged(

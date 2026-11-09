@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/bookmarks/bookmark_editor.cc b/chrome/browser/ui/bookmarks/bookmark_editor.cc
+index bb0cb1d508a..4a8d170f44f 100644
+--- a/chrome/browser/ui/bookmarks/bookmark_editor.cc
++++ b/chrome/browser/ui/bookmarks/bookmark_editor.cc
+@@ -127,6 +127,10 @@ bool BookmarkEditor::EditDetails::CanChangeUrl() const {
+ }
+ 
+ int BookmarkEditor::EditDetails::GetWindowTitleId() const {
++  // Arcomium: the caller's title (Rename Space).
++  if (arcomium_title_id) {
++    return arcomium_title_id;
++  }
+   int dialog_title = IDS_BOOKMARK_EDITOR_TITLE;
+   switch (type) {
+     case EditDetails::EXISTING_NODE:
+diff --git a/chrome/browser/ui/bookmarks/bookmark_editor.h b/chrome/browser/ui/bookmarks/bookmark_editor.h
+index 78362274209..3346edfd816 100644
+--- a/chrome/browser/ui/bookmarks/bookmark_editor.h
++++ b/chrome/browser/ui/bookmarks/bookmark_editor.h
+@@ -139,6 +139,10 @@ class BookmarkEditor {
+     // folders it should contain.
+     BookmarkData bookmark_data;
+ 
++    // Arcomium: a window title of the caller's (a Space's folder is renamed
++    // as "Edit Space name"), used instead of the type's when not 0.
++    int arcomium_title_id = 0;
++
+    private:
+     explicit EditDetails(Type node_type);
+   };

@@ -271,6 +271,16 @@
     <message name="IDS_ARCOMIUM_RENAME_SPACE" desc="Space menu item: rename the Space.">
       Rename Space…
     </message>
+    <if expr="use_titlecase">
+      <message name="IDS_ARCOMIUM_SPACE_EDITOR_TITLE" desc="In Title Case: window title of the dialog that renames a Space (Rename Space).">
+        Edit Space Name
+      </message>
+    </if>
+    <if expr="not use_titlecase">
+      <message name="IDS_ARCOMIUM_SPACE_EDITOR_TITLE" desc="Window title of the dialog that renames a Space (Rename Space).">
+        Edit Space name
+      </message>
+    </if>
     <message name="IDS_ARCOMIUM_COLLAPSE_PINNED" desc="Tooltip of the chevron on the Space's name: hide the Space's pinned tabs.">
       Collapse Pinned Tabs
     </message>
