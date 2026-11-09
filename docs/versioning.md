@@ -36,6 +36,7 @@ before).
 | 0.1.5 | Windows | 157.0.8103.3805 | Tabs opened from pinned items stay on them across restarts, reopened tabs and restored groups |
 | 0.1.6 | Windows | 157.0.8103.3806 | Command bar actions and shortcuts, Split View (keys, menus, drag a tab onto a tab or the page edge), Arc's icon pickers for Spaces, pinned items, folders and favorites; macOS look and menus matched to Arc |
 | 0.1.7 | macOS (pre-release) | 156.0.8078.7907 | Last release named Arcomium. First official macOS build (ThinLTO, PGO) since 0.1.0, with the changes of 0.1.1 to 0.1.6 that apply to it; Rename Space titled "Edit Space name", the Space bar's Downloads button in place of the archive |
+| 0.1.8 | Windows, macOS (pre-release) | 157.0.8103.3808 (Windows), 156.0.8078.7908 (macOS) | First release named Alerse, with its icon and install identity; takes over Arcomium's profile. Windows looks like Arc for macOS but for the top bar (sidebar, Space bar and popovers, page card, floating hidden sidebar, command bar); the logo menu lists the Spaces and has Copy URL as Quote, Reveal Tab and Collapse Pinned Tabs; the window is named after its Space. Sync sign-in with a login and password, pairing by code, recovery sheet |
 
 Linux and macOS get the changes of 0.1.2 to 0.1.4 with their first release on Chromium 157.
 
