@@ -102,15 +102,15 @@
 
 namespace {
 
-// Arc's Space bar: the archive at the left, the Spaces' icons in the middle
-// (the active one bright), "+" at the right edge.
+// Arc's Space bar: Downloads at the left (where Arc has its archive), the
+// Spaces' icons in the middle (the active one bright), "+" at the right edge.
 #if BUILDFLAG(IS_MAC)
 // Arc for macOS' Space bar: 34x32 pt Space buttons side by side, centred on
-// the sidebar; the archive and "+" centred 24 pt from its sides (the region
+// the sidebar; Downloads and "+" centred 24 pt from its sides (the region
 // already keeps 12 pt), 13 pt icons; a hovered button gets a faint plate as
 // wide as the button.
 constexpr gfx::Size kButtonBox(34, 32);
-// The archive's and "+"'s plates are 32x32 pt, as tall as the Spaces'.
+// Downloads' and "+"'s plates are 32x32 pt, as tall as the Spaces'.
 constexpr gfx::Size kSideButtonBox(32, 32);
 // The bar spans the sidebar but for 8 pt at each side (the region's bottom
 // padding there), where Arc's plates end.
@@ -136,7 +136,6 @@ constexpr int kSpaceIconSize = 16;
 constexpr ui::ColorId kActiveIconColor = kColorArcomiumSpaceIconActive;
 constexpr ui::ColorId kHoveredIconColor = kColorArcomiumSpaceIconHovered;
 constexpr ui::ColorId kIconColor = kColorArcomiumSpaceIcon;
-constexpr ui::ColorId kArchiveSlotColor = kColorArcomiumArchiveSlot;
 // Space icons a folder records; home is a sun until chosen otherwise.
 constexpr char kSpaceIconMetaKey[] = "arcomium.space_icon";
 constexpr char kDefaultSpace[] = "default";
@@ -420,24 +419,32 @@ class SpaceIcon : public views::Button {
 BEGIN_METADATA(SpaceIcon)
 END_METADATA
 
-// Arc's archive button: a box with a lid. Opens the history.
-class ArchiveButton : public views::Button {
-  METADATA_HEADER(ArchiveButton, views::Button)
+// The Space bar's left button: Downloads (where Arc has its archive, which
+// Arcomium does not keep). An arrow down into a tray, in the stroke, size
+// and grey of the "+" beside it; opens chrome://downloads as
+// IDC_SHOW_DOWNLOADS does.
+class DownloadsButton : public views::Button {
+  METADATA_HEADER(DownloadsButton, views::Button)
 
  public:
-  explicit ArchiveButton(PressedCallback callback)
+  explicit DownloadsButton(PressedCallback callback)
       : views::Button(std::move(callback)) {
+    const std::u16string name =
+        l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS);
 #if BUILDFLAG(IS_MAC)
-    // Named with its shortcut in Arc for macOS' pill.
-    arcomium::SetArcTooltip(this, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ARCHIVE),
-                            std::u16string(),
-                            ui::Accelerator(ui::VKEY_Y, ui::EF_COMMAND_DOWN));
-    // Arc's Library button keeps its pill under the pointer.
+    // Named with its shortcut (Shift-Command-J) in Arc for macOS' pill.
+    arcomium::SetArcTooltip(
+        this, name, std::u16string(),
+        ui::Accelerator(ui::VKEY_J, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN));
+    // Kept under the pointer at the window's bottom, as Arc's Library pill.
     arcomium::SetArcTooltipBelowPointer(this);
 #else
-    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_ARCHIVE));
+    SetTooltipText(
+        name + u" (" +
+        ui::Accelerator(ui::VKEY_J, ui::EF_CONTROL_DOWN).GetShortcutText() +
+        u")");
 #endif
-    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_ARCHIVE));
+    GetViewAccessibility().SetName(name);
     SetPreferredSize(kSideButtonBox);
   }
 
@@ -445,56 +452,53 @@ class ArchiveButton : public views::Button {
     const gfx::PointF c = gfx::RectF(GetContentsBounds()).CenterPoint();
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+    flags.setStrokeJoin(cc::PaintFlags::kRound_Join);
 #if BUILDFLAG(IS_MAC)
-    // Arc for macOS' archive is as bright as its "+", not dim like the other
-    // Spaces, and is its Library: a box with a paper, a ball and a cone
-    // spilling out of it, traced from Arc's 14x16.5 pt icon.
     PaintHoverPlate(this, canvas);
-    // Arc keeps it grey under the pointer; the plate shows the hover.
+    // Grey under the pointer too, as the "+"; the plate shows the hover.
     flags.setColor(IconInk(this, kHoveredIconColor));
-    // The box's lid, then its body 1 pt below.
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 6.75f, c.y() - 3.6f, 12.5f, 1.6f),
-                          0.6f, flags);
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 6.75f, c.y() - 1, 12.5f, 8.5f),
-                          2.2f, flags);
-    SkPathBuilder paper;
-    paper.moveTo(c.x() - 7.2f, c.y() - 2.9f)
-        .lineTo(c.x() - 4.9f, c.y() - 6.9f)
-        .lineTo(c.x() - 1.4f, c.y() - 4.8f)
-        .lineTo(c.x() - 0.9f, c.y() - 2.9f)
-        .close();
-    canvas->DrawPath(paper.detach(), flags);
-    canvas->DrawCircle(gfx::PointF(c.x() + 1.5f, c.y() - 7.8f), 1.0f, flags);
-    SkPathBuilder cone;
-    cone.moveTo(c.x() + 3.1f, c.y() - 2.9f)
-        .lineTo(c.x() + 4.9f, c.y() - 6.4f)
-        .lineTo(c.x() + 6.4f, c.y() - 2.9f)
-        .close();
-    canvas->DrawPath(cone.detach(), flags);
-    flags.setColor(arcomium::SidebarInk(this, kArchiveSlotColor));
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 3, c.y() + 0.4f, 5, 1.7f), 0.85f,
-                          flags);
+    // The "+"'s 1.7 pt stroke over a 13.5 pt square.
+    flags.setStrokeWidth(1.7f);
+    constexpr float kHalf = 6.75f;
+    constexpr float kHead = 3.4f;
+    const float arrow_top = c.y() - kHalf;
+    const float arrow_tip = c.y() + 2.2f;
+    const float tray_top = c.y() + 1.2f;
 #else
     flags.setColor(arcomium::SidebarInk(
         this, IsMouseHovered() ? kHoveredIconColor : kIconColor));
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 7, c.y() - 6, 14, 4), 1.2f,
-                          flags);
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 6, c.y() - 1, 12, 8), 1.5f,
-                          flags);
-    flags.setColor(arcomium::SidebarInk(this, kArchiveSlotColor));
-    canvas->DrawRoundRect(gfx::RectF(c.x() - 2.5f, c.y() + 1, 5, 1.6f), 0.8f,
-                          flags);
+    flags.setStrokeWidth(2.0f);
+    constexpr float kHalf = 7.0f;
+    constexpr float kHead = 3.8f;
+    const float arrow_top = c.y() - kHalf;
+    const float arrow_tip = c.y() + 2.5f;
+    const float tray_top = c.y() + 1.5f;
 #endif
+    SkPathBuilder arrow;
+    arrow.moveTo(c.x(), arrow_top)
+        .lineTo(c.x(), arrow_tip)
+        .moveTo(c.x() - kHead, arrow_tip - kHead)
+        .lineTo(c.x(), arrow_tip)
+        .lineTo(c.x() + kHead, arrow_tip - kHead);
+    canvas->DrawPath(arrow.detach(), flags);
+    SkPathBuilder tray;
+    tray.moveTo(c.x() - kHalf, tray_top)
+        .lineTo(c.x() - kHalf, c.y() + kHalf)
+        .lineTo(c.x() + kHalf, c.y() + kHalf)
+        .lineTo(c.x() + kHalf, tray_top);
+    canvas->DrawPath(tray.detach(), flags);
   }
 
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
 };
 
-BEGIN_METADATA(ArchiveButton)
+BEGIN_METADATA(DownloadsButton)
 END_METADATA
 
 #if BUILDFLAG(IS_MAC)
-// Arc for macOS' "+": a 13.5 pt cross 1.7 pt thick in the archive's grey,
+// Arc for macOS' "+": a 13.5 pt cross 1.7 pt thick in Downloads' grey,
 // on the Space bar's hover plate.
 class AddButton : public views::Button {
   METADATA_HEADER(AddButton, views::Button)
@@ -1164,8 +1168,8 @@ void ArcomiumSpaceSwitcher::Rebuild() {
   const std::optional<tab_groups::TabGroupId> focused =
       model_->GetFocusedGroup();
 
-  AddChildView(std::make_unique<ArchiveButton>(base::BindRepeating(
-      [](BrowserWindowInterface* browser) { chrome::ShowHistory(browser); },
+  AddChildView(std::make_unique<DownloadsButton>(base::BindRepeating(
+      [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
       base::Unretained(browser_.get()))));
   views::View* icons = AddChildView(std::make_unique<views::View>());
   icons->SetLayoutManager(std::make_unique<views::BoxLayout>(

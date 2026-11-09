@@ -70,8 +70,9 @@ Implementation (patches in `patches/spaces/`):
   user out in every Space. Chromium's partition cleanup always keeps
   `Storage/ext/arcomium`, so a closed Space keeps its logins. A tab Memory Saver
   discarded comes back in its Space's partition (`spaces/space-data-lifecycle.patch`).
-- UI: `ArcomiumSpaceSwitcher`, the Space bar at the bottom of the sidebar: the archive
-  at the left (opens the history), an icon per Space (the active one bright), "+" at the
+- UI: `ArcomiumSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
+  at the left (where Arc has its archive; opens `chrome://downloads`, as Ctrl+J and
+  Shift+Cmd+J), an icon per Space (the active one bright), "+" at the
   right. A Space's icon is picked from its menu and stored in its bookmark folder as
   `arcomium.space_icon`, so it syncs; Home is a sun until another is picked. The same
   menu has Edit Theme Color and Delete Space (after a question; it closes the tabs and
@@ -222,7 +223,9 @@ The expanded sidebar is Arc's, measured pixel by pixel on Arc for Windows at 100
 - When the sidebar is collapsed, Chromium's own vertical tab list shows, with its expand
   button (Windows, Linux; macOS floats Arc's sidebar instead, see On macOS).
 - The page is a card with 10 px corners next to the sidebar; the Space bar sits at the
-  bottom.
+  bottom. Its left button is Downloads (tooltip "Downloads (Ctrl+J)"): an arrow down
+  into a tray, 14 px wide in 2 px strokes, grey and brighter under the pointer, as the
+  Space icons; it replaced the archive box that opened the history.
 - A row rebuilt under the pointer (rows are rebuilt on every tab change) takes the hover
   state without its fade-in, so it draws its highlight at once rather than none, and
   checks every 100 ms whether the pointer has left, since the root view, which saw the
@@ -345,12 +348,12 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   plate's middle). A button's plate goes once its context menu closes: the
   menu took the pointer's events, so the button never saw it leave (the Space
   bar's `MenuClosed` repaints them);
-  the archive and "+" on 32x32 pt plates 8 pt from the sidebar's sides in Arc's
+  Downloads and "+" on 32x32 pt plates 8 pt from the sidebar's sides in Arc's
   #A0A0A0, which stays under the pointer; Space icons 13 pt; Spaces other than the
   shown one in #3F3F3F, as dim as Arc's. The plates end 9 pt above the window's bottom
-  (`kVerticalTabStripUncollapsedVerticalPadding`, 12 elsewhere). The archive is Arc's
-  Library glyph (a box with a paper, a ball and a cone spilling out, its lid apart from
-  the box by 1 pt) and "+" its 13.5 pt cross, 1.7 pt thick. The book Space icon is
+  (`kVerticalTabStripUncollapsedVerticalPadding`, 12 elsewhere). Downloads (Arc's
+  Library button until 0.1.7) is an arrow down into a tray in the "+"'s stroke, over
+  the same 13.5 pt square, and "+" is Arc's 13.5 pt cross, 1.7 pt thick. The book Space icon is
   Arc's filled open book, two pages at a spine gap, not the outlined one. "+" has no
   tooltip, as Arc's.
 - While the rows overflow, a 1 pt line, barely off the frame (#212121 on
@@ -488,7 +491,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   #1B1B1B and a #3B3B3C hairline, the name in 12 pt medium #DADADA 11 pt in, the
   shortcut as #CDCDCD keycaps (18 by 18.25 pt with a 2.5 pt #777777 lip at the bottom,
   4 pt apart, 6 pt after the name and 11.5 pt before the end) at the end: "Go back" Cmd [, "Go forward" Cmd ], "More options", "home" Control 1,
-  "Archive" Cmd Y. A pinned tab's has a second line, "Double-click to rename" in 11 pt
+  "Downloads" Shift Cmd J. A pinned tab's has a second line, "Double-click to rename" in 11 pt
   #909090, 44 pt high, half a point left of and above the name's inset, ending 9.5 pt
   after its longer line (141.5 pt for "Double-click to rename"), as Arc's, unless the
   item has a name of its own: Arc's renamed pinned tabs (its items with a title, as
@@ -501,9 +504,8 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   above the button; if another hid within half a second, as soon as the pointer
   stops (400 ms without a move), where it stops, as Arc's (shown at once, it sat
   where the pointer entered the button); they hide when it
-  leaves or clicks. The archive button's stays under the pointer, reaching out of the
-  window, as Arc's Library button's does; it says Archive (Cmd+Y opens the history),
-  not Arc's View Library, which Arcomium does not have. Favorites, folders, New Tab
+  leaves or clicks. Downloads' stays under the pointer, reaching out of the
+  window, as Arc's Library button's does. Favorites, folders, New Tab
   and "+" have none, as in Arc. The rows' cross is 11 pt (a 24 pt icon), centred 18 pt
   from the highlight's end.
 - A hovered Space button other than the shown one takes a light shade of its Space's
@@ -546,7 +548,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   as Arc's), holding
   the whole sidebar, its header and the window controls. What the sidebar shades
   off the frame is then shaded off that darker panel, as Arc's: the field #262626,
-  the dimmed arrows #4A4A4A, "..." #9D9D9D, archive and "+" #9C9C9C, the other
+  the dimmed arrows #4A4A4A, "..." #9D9D9D, Downloads and "+" #9C9C9C, the other
   Spaces #383838, the window controls' faces #595957 (the window property
   `arcomium::kFloatingSidebarProperty`, read by `FrameColor` and `InkOverFrame`
   in `arcomium_frame_color.h`; the window's theme is refreshed when it floats or
@@ -571,7 +573,7 @@ Chromium side of the header row, address field, command bar panel and Space bar 
   Space name), and the sidebar rebuilds its rows when the window turns active or
   not. "Search..." takes #838383 (`kColorArcomiumSidebarPlaceholderInactive`, set
   with the inactive frame). The Space bar's icons are dimmed to half that contrast,
-  as Arc's (archive and "+" #747474, the shown Space #969696, the others #4A4A4A).
+  as Arc's (Downloads and "+" #747474, the shown Space #969696, the others #4A4A4A).
   The blank page lightens with the frame (#2B2B2B to #4B4B4B, Arc's #4C4C4C): the
   page card and the page's own background (`contents_web_view.cc`) follow it. "..."
   shows no plate (Arc's #474747 had been its hover stuck), and the window controls
@@ -655,9 +657,9 @@ the submenu up by. Arc's Edit menu dims Undo, Redo, Cut, Paste, Paste and Match 
 Delete and Select All while no text has the focus; Chromium's (and so Arcomium's)
 keep them enabled, as the page decides. The Archive menu keeps Chromium's recently
 closed and visited lists, which Arc's has not (Chromium's history menu fills them by
-tag). The archive button has no "Show media from" menu (Arc's Library
-media is left out): as at 9b03cf8, its tooltip is "Archive" Cmd+Y and it opens the
-history.
+tag). The Space bar's left button, Arc's Library (archive and media), is
+Downloads since 0.1.7: tooltip "Downloads" Shift+Cmd+J, it opens `chrome://downloads`,
+and it has no menu (Arc's "Show media from" is left out).
 
 Known gaps: no keyboard navigation of the sidebar (rows draw no focus ring and have no
 tree roles); Arcomium's own text is English only: most of it is in
@@ -1050,7 +1052,8 @@ The user decided against these Arc features, so they are deliberately not built:
   auto-archiving after 12 hours, Archive Tab, View Archive, Clear Archive): the
   user's choice (2026-11-08). A closed tab is closed, as in Chromium (Reopen Closed
   Tab and the history bring it back), and an unused one stays open. The Space bar's
-  archive button opens the history, as before; Clear Today (macOS' Tabs menu,
+  left button, Arc's archive, is Downloads (since 0.1.7; it opened the history
+  before); Clear Today (macOS' Tabs menu,
   Shift+Cmd+K) closes the Space's unpinned tabs. There is no archive page, setting,
   command or key.
 - **Peek**, Arc's floating preview of a link over the page: Shift+click opens a
