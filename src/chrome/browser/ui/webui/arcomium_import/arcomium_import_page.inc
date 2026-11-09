@@ -62,8 +62,6 @@ inline constexpr char kArcomiumImportHtml[] = R"HTML(<!doctype html>
 )HTML";
 
 inline constexpr char kArcomiumImportCss[] = R"CSS(
-/* base.css shows sections and cards as grids, over the hidden attribute. */
-[hidden] { display: none !important; }
 .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .source { gap: 8px; }
 .source-head { display: flex; align-items: center; gap: 12px; }

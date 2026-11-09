@@ -1043,7 +1043,14 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   (id 0), so the menu says they are enabled itself: the browser's command state calls
   0 disabled, which greyed them out and kept them shut. On macOS the logo opens Chromium's app menu,
   which carries Alerse's items (Sync, Link routing; Update and Import come with the
-  first macOS build on 157), and the menu bar stays.
+  first macOS build on 157), and the menu bar stays. The logo button
+  (`ArcomiumLogoButton`, `look/sidebar-logo-menu.patch`, all platforms) draws
+  Alerse's "A" from `artwork/` as strokes in the header's icon color on a 16 px
+  grid: the left leg a trunk (1.8 px) with a short branch off it to the upper left
+  (1.2 px), the right leg (1.5 px), and the crossbar (1.3 px) rising from the left
+  leg and curling up into the right leg, as the icon's bowl does. Strokes rather
+  than an `.icon` file, so it keeps the color logic the arch had (`kColorIcon` on
+  macOS, `GetArcHeaderIconColor` elsewhere).
 - **Extensions** sit at the end of the address row, sized like its buttons. The sliders
   button opens the site controls (`arcomium_site_controls.cc`): Copy Link, Find,
   Screenshot, Reading mode; every extension as a tile (click runs it, right click pins
@@ -1418,6 +1425,17 @@ and the iOS app do not hold data back until the passphrase is set, so a chain st
 on one of them may upload its first data unencrypted: start a chain on Windows 0.1.2 or
 later and only join it from the others.
 
+The page shows one state at a time with the `hidden` attribute: the setup forms
+(start or join a chain) on a profile with no server, the status on a syncing one,
+and the banner "This device left its sync chain. Restart Alerse to finish." only
+once a profile has left its chain and its sync service still runs. The pages'
+shared style (`arcomium_page_style.inc`, also the import and link-routing pages)
+makes every section a grid, and an author `display` beats the user agent's
+`[hidden]` rule, so the same style carries `[hidden] { display: none !important; }`
+(so does the iOS page's own CSS). The macOS 156 build's older Sync page did not
+have that rule, so a fresh profile showed the left banner and the status block,
+hidden but drawn, above the setup forms.
+
 ### Server: alerse-sync (arcomium-sync)
 
 Written for Alerse in Go: [arcomium-sync](https://github.com/VizzleTF/alerse-sync). The
@@ -1623,9 +1641,11 @@ these changes:
 
 ## Not there yet
 
-- The rename to Alerse left out, for now: the sidebar's logo button still draws
-  Arcomium's arch (`ArcLogoButton`), not the new "A"; the iOS app is renamed in its
+- The rename to Alerse left out, for now: the iOS app is renamed in its
   strings, name and icon but was not built since; the sync server's Go module path.
+- The macOS build on 156 has the older Sync page (no email and password sign-in,
+  no pairing, no recovery sheet): `arcomium_sync_login*`, `arcomium_sync_pairing*`
+  and the handler and page of that change are not in its tree yet.
 - Updates: no updater. The browser only tells about a newer release
   ([versioning](versioning.md)); the user downloads it.
 - Builds are not code-signed: Windows SmartScreen warns, and macOS builds are signed ad

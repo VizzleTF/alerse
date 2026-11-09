@@ -54,6 +54,9 @@ h2 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
 p { margin: 0; }
 .lede, .card > p, #code > p { color: var(--muted); }
 section, .card { display: grid; gap: 12px; }
+/* Author display rules such as the one above beat the user agent's
+   [hidden] rule, so a hidden section would still show. */
+[hidden] { display: none !important; }
 .card, #status, #code, .banner {
   background: var(--panel);
   border: 1px solid var(--line);

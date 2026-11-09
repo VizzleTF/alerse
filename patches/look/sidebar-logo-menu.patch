@@ -48,8 +48,76 @@ index ddc5bc9eec3..493bf206bc5 100644
        : views::Button(std::move(callback)) {
      SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
      GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
-@@ -147,7 +149,7 @@ class ArcLogoButton : public views::Button {
+@@ -120,34 +122,49 @@ class ArcLogoButton : public views::Button {
    }
+ 
+-  void PaintButtonContents(gfx::Canvas* canvas) override {
+-    const gfx::PointF origin((width() - kArcHeaderIconSize) / 2.0f,
+-                             (height() - kArcHeaderIconSize) / 2.0f);
+-    SkPathBuilder arch;
+-    arch.moveTo(origin.x() + 2.5f, origin.y() + 14);
+-    arch.cubicTo(origin.x() + 3.5f, origin.y() + 4, origin.x() + 6,
+-                 origin.y() + 1.5f, origin.x() + 8, origin.y() + 1.5f);
+-    arch.cubicTo(origin.x() + 10, origin.y() + 1.5f, origin.x() + 12.5f,
+-                 origin.y() + 4, origin.x() + 13.5f, origin.y() + 14);
+-    SkPathBuilder swoosh;
+-    swoosh.moveTo(origin.x() + 1, origin.y() + 10.5f);
+-    swoosh.cubicTo(origin.x() + 5, origin.y() + 6.5f, origin.x() + 10,
+-                   origin.y() + 6.5f, origin.x() + 15, origin.y() + 9.5f);
+-    cc::PaintFlags flags;
+-    flags.setAntiAlias(true);
+-    flags.setStyle(cc::PaintFlags::kStroke_Style);
+-    flags.setStrokeWidth(1.4f);
+-    flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+-#if BUILDFLAG(IS_MAC)
+-    flags.setColor(GetColorProvider()->GetColor(ui::kColorIcon));
+-#else
+-    flags.setColor(GetArcHeaderIconColor(*this));
+-#endif
+-    canvas->DrawPath(arch.detach(), flags);
+-    canvas->DrawPath(swoosh.detach(), flags);
+-  }
++  // Arcomium: Alerse's "A" (artwork/alerse_1024.png) in the header's icon
++  // color: a trunk for the left leg with a small branch off it, the right
++  // leg, and a crossbar that curls up into the right leg.
++  void PaintButtonContents(gfx::Canvas* canvas) override {
++    const gfx::PointF origin((width() - kArcHeaderIconSize) / 2.0f,
++                             (height() - kArcHeaderIconSize) / 2.0f);
++    const auto at = [&origin](float x, float y) {
++      return SkPoint::Make(origin.x() + x, origin.y() + y);
++    };
++    SkPathBuilder trunk;
++    trunk.moveTo(at(3.2f, 14.5f));
++    trunk.cubicTo(at(4.4f, 10.4f), at(6, 4.2f), at(8.4f, 2));
++    SkPathBuilder branch;
++    branch.moveTo(at(4.8f, 8));
++    branch.cubicTo(at(4.5f, 7.1f), at(4.1f, 6.3f), at(3.6f, 5.6f));
++    SkPathBuilder right_leg;
++    right_leg.moveTo(at(8.4f, 2));
++    right_leg.cubicTo(at(9.6f, 2.4f), at(11.6f, 9), at(13, 14.5f));
++    SkPathBuilder crossbar;
++    crossbar.moveTo(at(3.8f, 11.2f));
++    crossbar.cubicTo(at(6.2f, 9.8f), at(9, 10.6f), at(10.4f, 9));
++    crossbar.cubicTo(at(11, 8.2f), at(10.8f, 7), at(10, 6.4f));
++    cc::PaintFlags flags;
++    flags.setAntiAlias(true);
++    flags.setStyle(cc::PaintFlags::kStroke_Style);
++    flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
++#if BUILDFLAG(IS_MAC)
++    flags.setColor(GetColorProvider()->GetColor(ui::kColorIcon));
++#else
++    flags.setColor(GetArcHeaderIconColor(*this));
++#endif
++    // The trunk is the heaviest stroke, the branch the lightest.
++    const auto stroke = [&](SkPathBuilder& path, float stroke_width) {
++      flags.setStrokeWidth(stroke_width);
++      canvas->DrawPath(path.detach(), flags);
++    };
++    stroke(trunk, 1.8f);
++    stroke(branch, 1.2f);
++    stroke(right_leg, 1.5f);
++    stroke(crossbar, 1.3f);
++  }
  };
  
 -BEGIN_METADATA(ArcLogoButton)
@@ -57,7 +125,8 @@ index ddc5bc9eec3..493bf206bc5 100644
  END_METADATA
  
  #if !BUILDFLAG(IS_MAC)
-@@ -202,8 +204,19 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+ #if !BUILDFLAG(IS_MAC)
+@@ -202,8 +219,19 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
      unfocus_button_->SetVisible(false);
    }
  

@@ -208,8 +208,6 @@ inline constexpr char kArcomiumSyncHtml[] = R"HTML(<!doctype html>
 )HTML";
 
 inline constexpr char kArcomiumSyncCss[] = R"CSS(
-/* The page's own display rules would otherwise show hidden blocks. */
-[hidden] { display: none !important; }
 #sheet { display: none; }
 @media print {
   body { background: #fff; color: #111; }
