@@ -1,0 +1,34 @@
+# Checks that need no Chromium tree, in a minute: the patch series is
+# complete, no patch has a domain-substituted name or creates a file, and a
+# new patch says why it is there. Whether the series applies and builds is
+# checked by the platform repositories. Actions are pinned by commit.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  patches:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: check the patch series
+        env:
+          # The commit a pull request or a push started from.
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          new=()
+          # A first push has no commit before it.
+          if git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            mapfile -t new < <(git diff --name-only --diff-filter=A "$BASE" HEAD -- 'patches/*.patch')
+          fi
+          python3 tools/check_patches.py "${new[@]}"
+      - name: tools compile
+        run: python3 -m compileall -q tools
