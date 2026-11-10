@@ -17,6 +17,7 @@
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "build/build_config.h"
 #include "cc/paint/paint_flags.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkRRect.h"
@@ -102,6 +103,10 @@ gfx::FontList Font(int size, gfx::Font::Weight weight) {
 
 // The keys of `shortcut` as Arc's keycaps: the modifiers, then the key.
 std::vector<std::u16string> KeysOf(const ui::Accelerator& shortcut) {
+#if !BUILDFLAG(IS_MAC)
+  // Elsewhere the platform's own text, "Ctrl+J", as one key as wide as it.
+  return {shortcut.GetShortcutText()};
+#else
   std::vector<std::u16string> keys;
   const std::u16string kModifiers = u"⌃⌥⇧⌘";
   if (shortcut.IsCtrlDown()) {
@@ -124,6 +129,7 @@ std::vector<std::u16string> KeysOf(const ui::Accelerator& shortcut) {
     keys.push_back(key);
   }
   return keys;
+#endif
 }
 
 class Pill : public views::View {
@@ -148,8 +154,7 @@ class Pill : public views::View {
     if (content_.keys.empty()) {
       width += content_.detail.empty() ? kTextInset : kTwoLineEndInset;
     } else {
-      width += kKeysInset + content_.keys.size() * (kKeySize + kKeyGap) -
-               kKeyGap + kKeysEndInset;
+      width += kKeysInset + KeysWidth() + kKeysEndInset;
     }
     return gfx::Size(std::ceil(width),
                      std::ceil(content_.detail.empty() ? kLineHeight
@@ -195,26 +200,40 @@ class Pill : public views::View {
     const int line = std::round(kLineHeight);
     canvas->DrawStringRect(content_.title, title_font_, kTitleColor,
                            gfx::Rect(kTextInset, 0, width(), line));
-    float x = width() - kKeysEndInset -
-              content_.keys.size() * (kKeySize + kKeyGap) + kKeyGap;
+    float x = width() - kKeysEndInset - KeysWidth();
     const float y = (kLineHeight - kKeyHeight) / 2;
     for (const std::u16string& key : content_.keys) {
+      const float key_width = KeyWidth(key);
       flags.setColor(kKeyLipColor);
-      canvas->DrawRoundRect(gfx::RectF(x, y, kKeySize, kKeyHeight), kKeyRadius,
-                            flags);
+      canvas->DrawRoundRect(gfx::RectF(x, y, key_width, kKeyHeight),
+                            kKeyRadius, flags);
       flags.setColor(kKeyColor);
-      canvas->DrawRoundRect(gfx::RectF(x, y, kKeySize, kKeyHeight - kKeyLip),
+      canvas->DrawRoundRect(gfx::RectF(x, y, key_width, kKeyHeight - kKeyLip),
                             kKeyRadius, flags);
       canvas->DrawStringRectWithFlags(
           key, key_font_, kKeyTextColor,
-          gfx::Rect(std::round(x), std::round(y), std::round(kKeySize),
+          gfx::Rect(std::round(x), std::round(y), std::round(key_width),
                     std::round(kKeyHeight - kKeyLip)),
           gfx::Canvas::TEXT_ALIGN_CENTER);
-      x += kKeySize + kKeyGap;
+      x += key_width + kKeyGap;
     }
   }
 
  private:
+  // A keycap is 18 pt wide, or as wide as a key with a longer name needs.
+  float KeyWidth(const std::u16string& key) const {
+    return std::max(kKeySize,
+                    std::ceil(gfx::GetStringWidthF(key, key_font_)) + 8);
+  }
+
+  // The keycaps with the gaps between them.
+  float KeysWidth() const {
+    float width = 0;
+    for (const std::u16string& key : content_.keys) {
+      width += KeyWidth(key) + kKeyGap;
+    }
+    return content_.keys.empty() ? 0 : width - kKeyGap;
+  }
   const Content content_;
   const bool at_pointer_;
   const gfx::FontList title_font_;

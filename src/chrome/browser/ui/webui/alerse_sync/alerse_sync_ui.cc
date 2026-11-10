@@ -39,6 +39,11 @@ std::string_view FindFile(const std::string& path) {
 
 }  // namespace
 
+bool AlerseSyncUIConfig::IsWebUIEnabled(
+    content::BrowserContext* browser_context) {
+  return Profile::FromBrowserContext(browser_context)->IsRegularProfile();
+}
+
 AlerseSyncUI::AlerseSyncUI(content::WebUI* web_ui)
     : content::WebUIController(web_ui) {
   Profile* profile = Profile::FromWebUI(web_ui);

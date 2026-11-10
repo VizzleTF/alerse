@@ -20,6 +20,10 @@ class AlerseSyncUIConfig
   AlerseSyncUIConfig()
       : DefaultWebUIConfig(content::kChromeUIScheme,
                            kChromeUIAlerseSyncHost) {}
+
+  // Not in incognito or guest windows, whose preferences are not kept: a
+  // chain set up there would be gone at the next start.
+  bool IsWebUIEnabled(content::BrowserContext* browser_context) override;
 };
 
 // chrome://alerse-sync: sets up sync with an Alerse sync server.

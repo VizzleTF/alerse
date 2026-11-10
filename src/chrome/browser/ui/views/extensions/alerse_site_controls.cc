@@ -465,15 +465,14 @@ class SiteControlsView : public views::View,
       ids = model->GetPinnedActionIds();
       std::vector<ToolbarActionsModel::ActionId> rest;
       for (const auto& id : model->GetAllActionIds()) {
-        if (!std::ranges::contains(ids, id)) {
+        // Only ones with a model: the comparator below needs every name.
+        if (!std::ranges::contains(ids, id) && model->GetActionModelForId(id)) {
           rest.push_back(id);
         }
       }
       std::ranges::sort(rest, [model](const auto& a, const auto& b) {
-        ToolbarActionViewModel* action_a = model->GetActionModelForId(a);
-        ToolbarActionViewModel* action_b = model->GetActionModelForId(b);
-        return action_a && action_b &&
-               action_a->GetActionName() < action_b->GetActionName();
+        return model->GetActionModelForId(a)->GetActionName() <
+               model->GetActionModelForId(b)->GetActionName();
       });
       ids.insert(ids.end(), rest.begin(), rest.end());
     }

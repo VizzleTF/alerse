@@ -104,6 +104,8 @@
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/events/event.h"
 #include "ui/display/screen.h"
+#include "ui/accessibility/ax_enums.mojom.h"
+#include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/tween.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
@@ -233,6 +235,11 @@ constexpr ui::ColorId kActiveColor = kColorAlerseSidebarActive;
 // Animations: folders opening and closing, the folder popup fading in.
 constexpr base::TimeDelta kFolderAnimationDuration = base::Milliseconds(150);
 constexpr base::TimeDelta kPopupFadeDuration = base::Milliseconds(120);
+
+// `duration`, or none where the system asks for reduced motion.
+base::TimeDelta Motion(base::TimeDelta duration) {
+  return gfx::Animation::PrefersReducedMotion() ? base::TimeDelta() : duration;
+}
 
 // Folder popup: hover delay, size, color and pointer polling.
 // Arc for macOS shows a folder's links 0.3 to 0.6 s into the hover.
@@ -581,6 +588,8 @@ class SpaceTitle : public views::View {
         title, ArcFont(kSpaceTitleFontSize, gfx::Font::Weight::SEMIBOLD),
         kSubtleColor));
     label_->SetCanProcessEventsWithinSubtree(false);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
+    GetViewAccessibility().SetName(title);
     SetPreferredSize(gfx::Size(0, static_cast<int>(kRowPitch)));
   }
 
@@ -1246,6 +1255,8 @@ class AlerseSidebarView::Row : public views::Button {
     // Arc for macOS' black pill (alerse_tooltip.h).
     alerse::SetArcTooltip(this, title);
     GetViewAccessibility().SetName(title);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kListItem);
+    GetViewAccessibility().SetIsSelected(active);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON |
                              ui::EF_MIDDLE_MOUSE_BUTTON);
     SetInstallFocusRingOnFocus(false);
@@ -1386,6 +1397,7 @@ class AlerseSidebarView::Row : public views::Button {
   void SetSelected(bool selected) {
     if (selected_ != selected) {
       selected_ = selected;
+      GetViewAccessibility().SetIsSelected(selected);
       SchedulePaint();
     }
   }
@@ -1394,6 +1406,23 @@ class AlerseSidebarView::Row : public views::Button {
   void SetHoverLabelColor(SkColor color) { hover_label_color_ = color; }
 
   std::u16string title() const { return std::u16string(label_->GetText()); }
+
+  // A tab's new title and icon, on a row nothing else of which changed.
+  void UpdateTab(const std::u16string& title, const ui::ImageModel& icon) {
+    if (label_->GetText() != title) {
+      label_->SetText(title);
+      alerse::SetArcTooltip(this, title);
+      GetViewAccessibility().SetName(title);
+    }
+    if (auto* image = views::AsViewClass<views::ImageView>(icon_.get())) {
+      image->SetImage(icon);
+    }
+  }
+
+  // Whether the row's speaker shows the tab muted; nullopt without one.
+  std::optional<bool> speaker_muted() const {
+    return speaker_ ? std::optional<bool>(speaker_muted_) : std::nullopt;
+  }
 
   void SetDragDoneCallback(base::RepeatingClosure callback) {
     drag_done_callback_ = std::move(callback);
@@ -1763,6 +1792,8 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
   rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
   rows->set_context_menu_controller(this);
+  // A screen reader reads the rows as a list and counts them.
+  rows->GetViewAccessibility().SetRole(ax::mojom::Role::kList);
   // And the empty space below them: Arc's "Edit Theme Color".
   set_context_menu_controller(this);
   rows_ = scroll->SetContents(std::move(rows));
@@ -1776,7 +1807,7 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
     model_->AddObserver(this);
   }
   browser_->GetTabStripModel()->AddObserver(this);
-  folder_animation_.SetSlideDuration(kFolderAnimationDuration);
+  folder_animation_.SetSlideDuration(Motion(kFolderAnimationDuration));
   folder_animation_.SetTweenType(gfx::Tween::LINEAR);
   alerse::NewTabCommandBarHook() = &AlerseSidebarView::OpenNewTabCommandBar;
   alerse::CommandBarHook() = &AlerseSidebarView::OpenSplitCommandBar;
@@ -1911,7 +1942,46 @@ void AlerseSidebarView::OnTabChangedAt(tabs::TabInterface* tab,
       return;
     }
   }
+  // A page that ticks in its title would otherwise rebuild every row several
+  // times a second.
+  if (tab && UpdateTabRows(tab)) {
+    return;
+  }
   ScheduleRebuild();
+}
+
+bool AlerseSidebarView::UpdateTabRows(tabs::TabInterface* tab) {
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return false;
+  }
+  const tabs::TabInterface::Handle handle = tab->GetHandle();
+  const std::optional<bool> speaker =
+      ShowsSpeaker(tab) ? std::optional<bool>(contents->IsAudioMuted())
+                        : std::nullopt;
+  std::vector<Row*> rows;
+  for (const auto& [view, target] : row_targets_) {
+    if (!(target.tab == handle)) {
+      continue;
+    }
+    // Only a plain tab's row is its title and icon alone: a pinned item's
+    // also shows whether the tab left its address, a favorite is a tile, and
+    // a speaker that comes or goes changes the row's layout.
+    Row* row = views::AsViewClass<Row>(view);
+    if (target.node || !row || row->speaker_muted() != speaker) {
+      return false;
+    }
+    rows.push_back(row);
+  }
+  if (rows.empty()) {
+    return false;
+  }
+  const std::u16string title = TabUIHelper::From(tab)->GetTitle();
+  const ui::ImageModel icon = GetTabIcon(tab);
+  for (Row* row : rows) {
+    row->UpdateTab(title, icon);
+  }
+  return true;
 }
 
 void AlerseSidebarView::OnTabGroupChanged(const TabGroupChange& change) {
@@ -2318,9 +2388,15 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpacePreview(
   auto bound = bound_;
   const double pitch_offset = row_pitch_offset_;
   row_pitch_offset_ = 0;
+  // BuildRows() points these into the rows it builds; the preview's are
+  // deleted with it while the active Space's live on.
+  views::View* const space_title = space_title_;
+  auto folder_anim = folder_anim_;
   preview_space_ = space;
   BuildRows();
   preview_space_.reset();
+  space_title_ = space_title;
+  folder_anim_ = std::move(folder_anim);
   row_pitch_offset_ = pitch_offset;
   bound_ = std::move(bound);
   row_targets_ = std::move(targets);
@@ -2408,7 +2484,7 @@ void AlerseSidebarView::EndSpaceSwipe(bool commit,
       std::abs(scroll_->layer()->transform().To2dTranslation().x()) / width;
   const float left = commit ? 1.0f - done : done;
   const base::TimeDelta duration =
-      base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f));
+      Motion(base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f)));
   gfx::Transform rows_to;
   gfx::Transform preview_to;
   if (commit) {
@@ -2486,7 +2562,7 @@ void AlerseSidebarView::RunPendingSlide() {
       .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
                                  IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
       .Once()
-      .SetDuration(kSlideDuration)
+      .SetDuration(Motion(kSlideDuration))
       .SetTransform(scroll_.get(), gfx::Transform(), gfx::Tween::EASE_OUT)
       .SetOpacity(scroll_.get(), 1.0f, gfx::Tween::EASE_OUT);
 }
@@ -3300,7 +3376,7 @@ void AlerseSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
   folder_popup_->Show();
   if (layer) {
     ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
-    fade.SetTransitionDuration(kPopupFadeDuration);
+    fade.SetTransitionDuration(Motion(kPopupFadeDuration));
     fade.SetTweenType(gfx::Tween::EASE_OUT);
     layer->SetOpacity(1);
   }
@@ -3926,7 +4002,10 @@ void AlerseSidebarView::DuplicateItem() {
   TabStripModel* tabs = browser_->GetTabStripModel();
   if (tab) {
     // Keeps the page's history.
-    chrome::DuplicateTabAt(browser_, tabs->GetIndexOfTab(tab));
+    if (const int index = tabs->GetIndexOfTab(tab);
+        index != TabStripModel::kNoTab) {
+      chrome::DuplicateTabAt(browser_, index);
+    }
     return;
   }
   if (node && node->is_url()) {
@@ -4068,8 +4147,10 @@ void AlerseSidebarView::ExecuteCommand(int command_id, int event_flags) {
       }
       break;
     case kPinTab:
-      PinTab(tab ? tab : browser_->GetTabStripModel()->GetActiveTab(),
-             node && node->is_folder() ? node : nullptr);
+      // The menu's tab may have closed while the menu was open.
+      if (tab) {
+        PinTab(tab, node && node->is_folder() ? node : nullptr);
+      }
       break;
     case kNewFolder:
       AddFolder(node && node->is_folder() ? node : nullptr);
@@ -4639,6 +4720,7 @@ void AlerseSidebarView::PerformDrop(
       if (parent == node || parent->HasAncestor(node)) {
         return;
       }
+      UnpinBoundTab(node);
       model_->Move(node, parent, target.index);
     } else if (tab) {
       // Pins the tab where it was dropped.
@@ -4663,6 +4745,7 @@ void AlerseSidebarView::PerformDrop(
       return;
     }
     tabs::TabInterface* bound = GetBoundTab(node->id());
+    UnpinBoundTab(node);
     bound_.erase(node->id());
     if (bound) {
       MoveTabToSlot(bound, *target.tab_index);
@@ -5002,16 +5085,21 @@ void AlerseSidebarView::AddFavorite(tabs::TabInterface* tab,
 }
 
 void AlerseSidebarView::RemoveFavorite(const bookmarks::BookmarkNode* node) {
-  tabs::TabInterface* tab = GetBoundTab(node->id());
+  UnpinBoundTab(node);
   bound_.erase(node->id());
   model_->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
                  FROM_HERE);
+}
+
+void AlerseSidebarView::UnpinBoundTab(const bookmarks::BookmarkNode* node) {
+  tabs::TabInterface* tab = GetBoundTab(node->id());
+  if (!tab || !tab->IsPinned()) {
+    return;
+  }
   TabStripModel* tabs = browser_->GetTabStripModel();
-  if (tab && tab->IsPinned()) {
-    const int index = tabs->GetIndexOfTab(tab);
-    if (index != TabStripModel::kNoTab) {
-      tabs->SetTabPinned(index, false);
-    }
+  const int index = tabs->GetIndexOfTab(tab);
+  if (index != TabStripModel::kNoTab) {
+    tabs->SetTabPinned(index, false);
   }
 }
 
@@ -5087,7 +5175,8 @@ void AlerseSidebarView::DuplicateFolder(
   // A copy of titles, addresses and icons; not of what binds items to tabs.
   auto meta_of = [](const bookmarks::BookmarkNode* node) {
     bookmarks::BookmarkNode::MetaInfoMap meta;
-    for (const char* key : {kIconMetaKey, kFolderIconMetaKey, kOpenMetaKey}) {
+    for (const char* key : {kIconMetaKey, kGlyphMetaKey, kFolderIconMetaKey,
+                            kOpenMetaKey, kRenamedMetaKey}) {
       std::string value;
       if (node->GetMetaInfo(key, &value)) {
         meta[key] = value;

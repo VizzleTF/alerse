@@ -227,7 +227,7 @@ inline constexpr char kAlerseSyncCss[] = R"CSS(
 #login, #pair {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 20px;
 }
 .sub, .group, .login-fields { display: grid; gap: 12px; }

@@ -45,8 +45,9 @@ class AlerseSyncAccount {
   static GURL GetServerURL(const PrefService& prefs);
 
   // Saves a profile's setup: the server and the chain's secret, encrypted.
-  // Sync starts with it at the next browser start.
-  static void Save(PrefService* prefs,
+  // Sync starts with it at the next browser start. Returns false and saves
+  // nothing when the OS keystore cannot encrypt the secret.
+  static bool Save(PrefService* prefs,
                    const os_crypt_async::Encryptor& encryptor,
                    const GURL& server_url,
                    const SyncChainSecret& secret);

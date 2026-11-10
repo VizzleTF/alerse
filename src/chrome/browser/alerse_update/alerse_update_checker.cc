@@ -206,6 +206,9 @@ void UpdateChecker::Check() {
   request->headers.SetHeader("Accept", "application/vnd.github+json");
   loader_ =
       network::SimpleURLLoader::Create(std::move(request), kTrafficAnnotation);
+  // An answer that stalls would otherwise never reach OnResponse, which
+  // schedules the next check.
+  loader_->SetTimeoutDuration(base::Seconds(30));
   // Only a successful answer has a body; an HTTP error comes back as nullopt
   // with its status in ResponseInfo().
   loader_->DownloadToString(

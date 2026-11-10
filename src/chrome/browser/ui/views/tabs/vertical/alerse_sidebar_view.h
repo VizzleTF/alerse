@@ -343,6 +343,11 @@ class AlerseSidebarView : public views::View,
                    size_t index);
   // The favorite's tab stays open, as an ordinary tab of home.
   void RemoveFavorite(const bookmarks::BookmarkNode* node);
+  // Unpins the browser-pinned tab of a favorite that stops being one.
+  void UnpinBoundTab(const bookmarks::BookmarkNode* node);
+  // Updates the title and icon of `tab`'s rows in place. False when its rows
+  // show more of the tab than that, or it has none: then they are rebuilt.
+  bool UpdateTabRows(tabs::TabInterface* tab);
   // `tab` as a pinned tab outside the Spaces (in their default storage), or
   // its replacement opened there.
   tabs::TabInterface* PinAsFavoriteTab(tabs::TabInterface* tab);

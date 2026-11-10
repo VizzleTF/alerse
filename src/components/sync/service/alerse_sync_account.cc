@@ -84,20 +84,21 @@ GURL AlerseSyncAccount::GetServerURL(const PrefService& prefs) {
 }
 
 // static
-void AlerseSyncAccount::Save(PrefService* prefs,
+bool AlerseSyncAccount::Save(PrefService* prefs,
                                const os_crypt_async::Encryptor& encryptor,
                                const GURL& server_url,
                                const SyncChainSecret& secret) {
   std::string ciphertext;
-  // Encryption fails only when the OS keystore is unavailable; then the
-  // secret is not kept and sync does not start.
+  // Encryption fails only when the OS keystore is unavailable; then nothing
+  // is kept, so the profile is not left with a server and no secret.
   if (!encryptor.EncryptString(std::string(secret.begin(), secret.end()),
                                &ciphertext)) {
     LOG(ERROR) << "Cannot encrypt the Alerse sync secret";
-    ciphertext.clear();
+    return false;
   }
   prefs->SetString(kSecretPref, base::Base64Encode(ciphertext));
   prefs->SetString(kServerURLPref, server_url.spec());
+  return true;
 }
 
 // static

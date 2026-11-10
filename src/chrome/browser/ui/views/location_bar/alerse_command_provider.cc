@@ -267,6 +267,15 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
         }
         break;
       case Kind::kSidebar: {
+        // Its state costs a walk of the window's views: only for a command
+        // the typed text can name, under either of its names.
+        if (MatchQuality(query, l10n_util::GetStringUTF16(command.name_id),
+                         command.aliases) <= 0 &&
+            (!command.on_name_id ||
+             MatchQuality(query, l10n_util::GetStringUTF16(command.on_name_id),
+                          command.aliases) <= 0)) {
+          continue;
+        }
         const alerse::SpaceCommandState state =
             alerse::GetSpaceCommandState(browser, command.command_id);
         if (state == alerse::SpaceCommandState::kUnavailable) {

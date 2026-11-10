@@ -20,6 +20,11 @@ inline constexpr char kAlersePageBaseCss[] = R"CSS(
   --ok: #1f8a4c;
   --warn: #b26a00;
   --bad: #c62f3a;
+  /* What a control under the pointer is tinted with, and the focus ring. */
+  --hover: rgb(0 0 0 / .05);
+  --ring: var(--accent);
+  --radius: 8px;
+  --radius-lg: 12px;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -34,6 +39,7 @@ inline constexpr char kAlersePageBaseCss[] = R"CSS(
     --ok: #4cc27f;
     --warn: #e2a443;
     --bad: #f0707a;
+    --hover: rgb(255 255 255 / .07);
   }
 }
 body {
@@ -60,34 +66,42 @@ section, .card { display: grid; gap: 12px; }
 .card, #status, #code, .banner {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 20px;
 }
 #setup { gap: 16px; }
 label { font-weight: 500; margin-bottom: -6px; }
-input, textarea {
+input, textarea, select {
   font: inherit;
   color: inherit;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 8px 10px;
 }
 textarea { resize: vertical; }
-input:focus-visible, textarea:focus-visible, button:focus-visible {
-  outline: 2px solid var(--accent);
+::placeholder { color: var(--muted); opacity: 1; }
+/* One ring for everything the keyboard reaches. */
+:focus-visible {
+  outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
+summary:focus-visible, a:focus-visible { border-radius: 4px; }
+input:disabled, textarea:disabled, select:disabled { opacity: .6; }
 button {
   font: inherit;
   font-weight: 500;
   color: var(--fg);
   background: transparent;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius);
   padding: 7px 14px;
   cursor: pointer;
   justify-self: start;
+}
+button:hover:not(:disabled) { background: var(--hover); }
+button.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--fg));
 }
 button.primary {
   background: var(--accent);
@@ -97,6 +111,9 @@ button.primary {
 button.danger { color: var(--bad); border-color: var(--bad); }
 button.quiet { color: var(--muted); }
 button:disabled { opacity: .6; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
 .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .error { color: var(--bad); }
 .note { color: var(--muted); }

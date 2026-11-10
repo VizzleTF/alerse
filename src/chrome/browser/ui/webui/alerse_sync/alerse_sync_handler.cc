@@ -68,6 +68,9 @@ GURL NormalizeServerURL(const std::string& typed) {
     return GURL();
   }
   GURL::Replacements clean;
+  // A "user:password@" would be kept in prefs and shown in the QR code.
+  clean.ClearUsername();
+  clean.ClearPassword();
   clean.ClearQuery();
   clean.ClearRef();
   if (url.path() == "/" || url.path().empty()) {
@@ -474,8 +477,14 @@ void AlerseSyncHandler::OnEncryptorForSave(
     std::optional<NewLogin> login,
     base::DictValue result,
     scoped_refptr<os_crypt_async::Encryptor> encryptor) {
-  syncer::AlerseSyncAccount::Save(profile_->GetPrefs(), *encryptor, server,
-                                    secret);
+  if (!syncer::AlerseSyncAccount::Save(profile_->GetPrefs(), *encryptor,
+                                       server, secret)) {
+    RejectJavascriptCallback(
+        callback_id,
+        base::Value("Alerse could not save the sync code: the system's "
+                    "keychain is not available. Unlock it and try again."));
+    return;
+  }
   if (login) {
     syncer::AlerseSyncAccount::SetLogin(profile_->GetPrefs(), login->login);
   } else {

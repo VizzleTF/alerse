@@ -59,14 +59,7 @@ inline constexpr char kAlerseLinksCss[] = R"CSS(
 @media (max-width: 30rem) { .fields { grid-template-columns: 1fr; } }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field label { margin: 0; }
-select {
-  font: inherit;
-  color: inherit;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 7px 8px;
-}
+select { padding: 7px 8px; }
 .routes { list-style: none; margin: 0; padding: 0; display: grid; }
 .routes li {
   display: grid;

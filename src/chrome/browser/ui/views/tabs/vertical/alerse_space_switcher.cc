@@ -900,7 +900,7 @@ void AlerseSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser) {
     for (const auto& folder : bookmarks->other_node()->children()) {
       std::string value;
       if (folder->is_folder() &&
-          folder->GetMetaInfo("arcomium.space", &value) &&
+          folder->GetMetaInfo(kSpaceMetaKey, &value) &&
           value.starts_with("arc:")) {
         title = folder->GetTitle();
         break;

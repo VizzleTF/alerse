@@ -31,6 +31,10 @@ constexpr size_t kNonceSize = 12;
 constexpr size_t kSaltSize = 32;
 constexpr size_t kMaxLoginBytes = 254;
 constexpr SyncLoginKdf kDefaultKdf;
+// The least cost a server may ask for. It stays where it is when the default
+// rises, so that logins made with an older default still unlock and are
+// wrapped again with the new one.
+constexpr SyncLoginKdf kMinKdf{.n = 1u << 17, .r = 8, .p = 1};
 
 // Long passwords people pick often, from public breach lists. Shorter ones
 // are refused for their length.
@@ -112,8 +116,8 @@ std::string SyncLoginId(std::string_view normalized_login) {
 }
 
 bool IsAcceptableSyncLoginKdf(const SyncLoginKdf& kdf) {
-  return kdf.n >= kDefaultKdf.n && kdf.n <= (1u << 20) &&
-         (kdf.n & (kdf.n - 1)) == 0 && kdf.r >= kDefaultKdf.r && kdf.r <= 32 &&
+  return kdf.n >= kMinKdf.n && kdf.n <= (1u << 20) &&
+         (kdf.n & (kdf.n - 1)) == 0 && kdf.r >= kMinKdf.r && kdf.r <= 32 &&
          kdf.p >= 1 && kdf.p <= 16 && 128 * kdf.r * kdf.n <= (1u << 30);
 }
 

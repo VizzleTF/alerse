@@ -383,6 +383,9 @@ AlerseAddressBar::AlerseAddressBar(BrowserWindowInterface* browser)
 }
 
 AlerseAddressBar::~AlerseAddressBar() {
+  // Where the command bar edits the toolbar's own bar, `location_bar_` is
+  // null and ReturnLocationBar() alone would leave that bar in the editor.
+  StopEditing();
   ReturnLocationBar();
   if (focus_manager_) {
     focus_manager_->RemoveFocusChangeListener(this);
@@ -504,6 +507,7 @@ void AlerseAddressBar::PollSidebarHover() {
 
 void AlerseAddressBar::RemovedFromWidget() {
   sidebar_hover_poll_.Stop();
+  StopEditing();
   ReturnLocationBar();
   if (focus_manager_) {
     focus_manager_->RemoveFocusChangeListener(this);
@@ -592,11 +596,11 @@ void AlerseAddressBar::OnViewIsDeleting(views::View* observed_view) {
     extensions_container_gone_ = true;
     extensions_observation_.Reset();
     extensions_model_ = nullptr;
-    // The menus point at the model's actions: they go with it.
-    for (views::View* tile : extension_tiles_) {
+    // The menus point at the model's actions: they go with it. Emptied
+    // first: a raw_ptr must not outlive its view.
+    for (views::View* tile : std::exchange(extension_tiles_, {})) {
       RemoveChildViewT(tile);
     }
-    extension_tiles_.clear();
     pinned_button_->set_context_menu_controller(nullptr);
     pinned_button_->SetCallback(views::Button::PressedCallback());
     extension_menus_.clear();
@@ -1052,10 +1056,10 @@ void AlerseAddressBar::UpdateExtensions() {
       browser_->GetTabStripModel()->GetActiveWebContents();
   const int rows_before = GetTileRows();
   pinned_ids_ = ids;
-  for (views::View* tile : extension_tiles_) {
+  // Emptied first: a raw_ptr must not outlive its view.
+  for (views::View* tile : std::exchange(extension_tiles_, {})) {
     RemoveChildViewT(tile);
   }
-  extension_tiles_.clear();
   pinned_button_->set_context_menu_controller(nullptr);
   extension_menus_.clear();
   if (ids.size() == 1) {

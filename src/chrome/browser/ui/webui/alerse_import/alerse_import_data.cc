@@ -305,14 +305,23 @@ class ArcTree {
   size_t bytes_left_ = kMaxArcBytes;
 };
 
+// More bookmarks than sync lets a profile have; a file with more is not a
+// profile's own, and adding them all would hang the browser.
+constexpr int kMaxChromiumItems = 200000;
+
+// `items_left` is the budget of kMaxChromiumItems the whole file shares.
 void AddChromiumChildren(const base::DictValue& folder,
                          std::vector<Node>& out,
-                         int depth) {
+                         int depth,
+                         int& items_left) {
   const base::ListValue* children = folder.FindList("children");
   if (!children || depth > kMaxDepth) {
     return;
   }
   for (const base::Value& child : *children) {
+    if (items_left <= 0) {
+      return;
+    }
     if (!child.is_dict()) {
       continue;
     }
@@ -324,19 +333,23 @@ void AddChromiumChildren(const base::DictValue& folder,
     }
     if (*type == "url") {
       const std::string* spec = dict.FindString("url");
-      GURL url(spec ? *spec : std::string());
+      if (!spec || spec->size() > url::kMaxURLChars) {
+        continue;
+      }
+      GURL url(*spec);
       if (!url.is_valid()) {
         continue;
       }
       Node node;
-      node.title =
-          base::UTF8ToUTF16(name && !name->empty() ? *name : url.spec());
+      node.title = Title(name && !name->empty() ? *name : url.spec());
       node.url = std::move(url);
+      --items_left;
       out.push_back(std::move(node));
     } else if (*type == "folder") {
       Node node;
-      node.title = base::UTF8ToUTF16(name ? *name : std::string());
-      AddChromiumChildren(dict, node.children, depth + 1);
+      node.title = Title(name ? *name : std::string());
+      --items_left;
+      AddChromiumChildren(dict, node.children, depth + 1, items_left);
       out.push_back(std::move(node));
     }
   }
@@ -594,8 +607,9 @@ std::optional<Node> ParseChromiumBookmarks(const base::Value& bookmarks,
     return std::nullopt;
   }
   Node root;
+  int items_left = kMaxChromiumItems;
   if (const base::DictValue* bar = roots->FindDict("bookmark_bar")) {
-    AddChromiumChildren(*bar, root.children, 0);
+    AddChromiumChildren(*bar, root.children, 0, items_left);
   }
   const std::pair<const char*, const std::u16string*> folders[] = {
       {"other", &other_title}, {"synced", &mobile_title}};
@@ -607,7 +621,7 @@ std::optional<Node> ParseChromiumBookmarks(const base::Value& bookmarks,
     Node node;
     const std::string* name = folder->FindString("name");
     node.title = name && !name->empty() ? base::UTF8ToUTF16(*name) : *fallback;
-    AddChromiumChildren(*folder, node.children, 0);
+    AddChromiumChildren(*folder, node.children, 0, items_left);
     if (!node.children.empty()) {
       root.children.push_back(std::move(node));
     }

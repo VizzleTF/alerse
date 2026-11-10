@@ -56,6 +56,11 @@ inline constexpr char kSpacePartitionDomain[] = "arcomium";
 inline constexpr char kSpacesWindowExtraDataKey[] = "arcomium.spaces";
 // Tab extra data handed from session restore to the restored tab factory.
 inline constexpr char kSpaceTabExtraDataKey[] = "arcomium.space";
+
+// The bookmark meta info of a Space's folder: the Space's id and, from
+// before group ids were derived from it, its saved tab group.
+inline constexpr char kSpaceFolderMetaKey[] = "arcomium.space";
+inline constexpr char kSavedGroupFolderMetaKey[] = "arcomium.group";
 // Tab extra data: uuid of the sidebar's pinned item (a bookmark) the tab is
 // bound to, "" once unbound. A uuid, unlike a node id, survives sync.
 inline constexpr char kPinnedTabExtraDataKey[] = "arcomium.pinned";
@@ -176,7 +181,7 @@ inline std::optional<std::string> GetSpaceOfSavedGroup(
   for (const auto& folder : bookmarks->other_node()->children()) {
     std::string space;
     if (!folder->is_folder() ||
-        !folder->GetMetaInfo("arcomium.space", &space) ||
+        !folder->GetMetaInfo(kSpaceFolderMetaKey, &space) ||
         !IsGroupSpace(space)) {
       continue;
     }
@@ -184,7 +189,7 @@ inline std::optional<std::string> GetSpaceOfSavedGroup(
       return space;
     }
     std::string group;
-    if (!legacy && folder->GetMetaInfo("arcomium.group", &group) &&
+    if (!legacy && folder->GetMetaInfo(kSavedGroupFolderMetaKey, &group) &&
         group == id) {
       legacy = space;
     }
@@ -246,15 +251,21 @@ inline std::optional<std::string> GetSpaceOfGroupOrFolder(
   if (title.empty() || !bookmarks || !bookmarks->loaded()) {
     return std::nullopt;
   }
+  // Titles are not unique ("Space 2" closed and made again): a title two
+  // Spaces share names neither, rather than the first one found.
+  std::optional<std::string> found;
   for (const auto& folder : bookmarks->other_node()->children()) {
     std::string space;
     if (folder->is_folder() && folder->GetTitle() == title &&
-        folder->GetMetaInfo("arcomium.space", &space) && !space.empty() &&
-        space != "default" && !space.starts_with("arc:")) {
-      return space;
+        folder->GetMetaInfo(kSpaceFolderMetaKey, &space) &&
+        IsGroupSpace(space)) {
+      if (found && *found != space) {
+        return std::nullopt;
+      }
+      found = space;
     }
   }
-  return std::nullopt;
+  return found;
 }
 
 // SiteInstance that pins a new tab to the partition of `space`. Only web

@@ -71,8 +71,9 @@ std::string NormalizeSyncLogin(std::string_view login);
 std::string SyncLoginId(std::string_view normalized_login);
 
 // Whether a server's parameters are ones this device derives keys with: at
-// least the default cost, so a server cannot make it send an authentication
-// key that is cheap to attack, and at most 1 GiB.
+// least a fixed minimum cost (the default of the first release), so a server
+// cannot make it send an authentication key that is cheap to attack, and at
+// most 1 GiB.
 bool IsAcceptableSyncLoginKdf(const SyncLoginKdf& kdf);
 
 // Length counts characters, not bytes.
