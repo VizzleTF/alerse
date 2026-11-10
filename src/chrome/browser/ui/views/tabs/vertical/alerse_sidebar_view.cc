@@ -336,6 +336,9 @@ std::unique_ptr<views::Label> MakeLabel(const std::u16string& text,
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   label->SetElideBehavior(gfx::ELIDE_TAIL);
   label->SetSubpixelRenderingEnabled(false);
+  // An elided label would add the system's tooltip under Arc's pill, which
+  // its row shows already.
+  label->SetHandlesTooltips(false);
   return label;
 }
 
