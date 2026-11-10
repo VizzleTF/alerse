@@ -83,6 +83,7 @@ class AlerseAddressBar : public views::View,
   // views::ViewObserver: a placeholder goes with the toolbar when the window
   // closes; the location bar then stays where it is and goes with it.
   void OnViewIsDeleting(views::View* observed_view) override;
+  void OnViewRemovedFromWidget(views::View* observed_view) override;
 
   // views::FocusChangeListener: the floating field opens when the address gets
   // focus and closes when something else does.
@@ -126,6 +127,8 @@ class AlerseAddressBar : public views::View,
   void CopyAddress();
   // The copy button's check mark after a copy, or its link again.
   void ShowCopied(bool copied);
+  // Stops observing the extensions model, telling it so while it exists.
+  void ReleaseExtensions(bool model_exists);
   void ShowSiteControls();
   // Watches the extensions of the window's toolbar once it is there.
   void ObserveExtensions();
@@ -166,12 +169,13 @@ class AlerseAddressBar : public views::View,
   std::vector<std::unique_ptr<alerse_site_controls::ExtensionMenu>>
       extension_menus_;
   std::vector<std::string> pinned_ids_;
+  // Observed by hand, not with a ScopedObservation: the model can be gone
+  // before this view learns it, and then it must not be told anything.
   raw_ptr<ExtensionsToolbarViewModel> extensions_model_ = nullptr;
-  base::ScopedObservation<ExtensionsToolbarViewModel,
-                          ExtensionsToolbarViewModel::Observer>
-      extensions_observation_{this};
-  // The toolbar's extensions container owns the model and goes before this
-  // view when the window closes: the model is let go of as it is deleted.
+  // The toolbar's extensions container owns the model and can go before this
+  // view when the window closes: the model is let go of as the container
+  // leaves the window (the model still exists then) or, failing that, as it
+  // is deleted (the model is already gone: nothing is removed from it).
   raw_ptr<views::View> extensions_container_ = nullptr;
   base::ScopedObservation<views::View, views::ViewObserver>
       extensions_container_observation_{this};

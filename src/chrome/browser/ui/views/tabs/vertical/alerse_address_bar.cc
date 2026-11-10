@@ -393,6 +393,9 @@ AlerseAddressBar::~AlerseAddressBar() {
   if (editor_) {
     editor_->RemoveObserver(this);
   }
+  if (extensions_model_) {
+    extensions_model_->RemoveObserver(this);
+  }
 }
 
 gfx::Size AlerseAddressBar::CalculatePreferredSize(
@@ -589,22 +592,38 @@ void AlerseAddressBar::OnPaint(gfx::Canvas* canvas) {
 #endif
 }
 
+void AlerseAddressBar::OnViewRemovedFromWidget(views::View* observed_view) {
+  // As the window closes, or as fullscreen moves the toolbar to another
+  // widget: the field takes the model again when it next takes the location
+  // bar.
+  if (observed_view == extensions_container_) {
+    ReleaseExtensions(/*model_exists=*/true);
+  }
+}
+
+void AlerseAddressBar::ReleaseExtensions(bool model_exists) {
+  if (model_exists && extensions_model_) {
+    extensions_model_->RemoveObserver(this);
+  }
+  extensions_model_ = nullptr;
+  extensions_container_observation_.Reset();
+  extensions_container_ = nullptr;
+  // The menus point at the model's actions: they go with it. Emptied first:
+  // a raw_ptr must not outlive its view.
+  for (views::View* tile : std::exchange(extension_tiles_, {})) {
+    RemoveChildViewT(tile);
+  }
+  pinned_button_->set_context_menu_controller(nullptr);
+  pinned_button_->SetCallback(views::Button::PressedCallback());
+  extension_menus_.clear();
+  pinned_ids_.clear();
+}
+
 void AlerseAddressBar::OnViewIsDeleting(views::View* observed_view) {
   if (observed_view == extensions_container_) {
-    extensions_container_observation_.Reset();
-    extensions_container_ = nullptr;
+    // The container's destructor has freed the model already.
+    ReleaseExtensions(/*model_exists=*/false);
     extensions_container_gone_ = true;
-    extensions_observation_.Reset();
-    extensions_model_ = nullptr;
-    // The menus point at the model's actions: they go with it. Emptied
-    // first: a raw_ptr must not outlive its view.
-    for (views::View* tile : std::exchange(extension_tiles_, {})) {
-      RemoveChildViewT(tile);
-    }
-    pinned_button_->set_context_menu_controller(nullptr);
-    pinned_button_->SetCallback(views::Button::PressedCallback());
-    extension_menus_.clear();
-    pinned_ids_.clear();
     return;
   }
   if (observed_view == edit_placeholder_) {
@@ -1037,7 +1056,7 @@ void AlerseAddressBar::ObserveExtensions() {
   if (!extensions_model_) {
     return;
   }
-  extensions_observation_.Observe(extensions_model_);
+  extensions_model_->AddObserver(this);
   extensions_container_ = container;
   extensions_container_observation_.Observe(container);
   UpdateExtensions();
