@@ -129,7 +129,22 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
    }
    if (arcomium_pill_bounds_.IsEmpty()) {
      return;
-@@ -1264,12 +1240,10 @@
+@@ -1252,9 +1228,12 @@
+ 
+ void LocationBarView::UpdateArcomiumAlignment() {
+   if (omnibox_view_) {
++    // Arc for Windows' top bar centres the idle address; Arc for macOS'
++    // sidebar field keeps it at its start.
+     omnibox_view_->SetHorizontalAlignment(
+-        arcomium_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
+-                                                        : gfx::ALIGN_LEFT);
++        arcomium_compact_ && arcomium_centered_ && !omnibox_view_->HasFocus()
++            ? gfx::ALIGN_CENTER
++            : gfx::ALIGN_LEFT);
+   }
+ }
+ 
+@@ -1264,12 +1243,10 @@
    }
    arcomium_hovered_ = hovered;
    InvalidateLayout();
@@ -142,7 +157,17 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
  }
  
  void LocationBarView::Layout(PassKey) {
-@@ -1562,7 +1536,6 @@
+@@ -1371,7 +1348,8 @@
+         vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
+         /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
+     selected_keyword_view_->SetKeyword(keyword);
+-  } else if (arcomium_compact_ && !arcomium_hovered_ &&
++  } else if (arcomium_compact_ &&
++             (!arcomium_hovered_ || !arcomium_centered_) &&
+              !omnibox_view_->HasFocus() &&
+              GetLocationBarModel()->GetSecurityLevel() !=
+                  security_state::WARNING &&
+@@ -1562,7 +1540,6 @@
      LayoutArcomiumCentered();
    } else if (IsArcomiumSidebarSearch()) {
      // The text 36 px in, after the magnifier (OnPaintBackground).
@@ -150,7 +175,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      // Arcomium: Arc for macOS' "Search..." starts 34 pt into the field, a
      // point smaller than the address and grey.
      constexpr int kTextInset = 34;
-@@ -1577,9 +1550,6 @@
+@@ -1577,9 +1554,6 @@
      omnibox_view_->set_placeholder_font_list(
          omnibox_view_->GetFontList().DeriveWithSizeDelta(-1).DeriveWithWeight(
              gfx::Font::Weight::MEDIUM));
@@ -160,7 +185,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      location_icon_view_->SetVisible(false);
      omnibox_view_->SetBounds(kTextInset, omnibox_view_->y(),
                               std::max(0, omnibox_view_->bounds().right() -
-@@ -1589,7 +1559,6 @@
+@@ -1589,7 +1563,6 @@
      // Arc's command bar: a magnifier 20 px into the panel (OnPaintBackground)
      // and the address 51 px in; this row sits 6 px into the panel.
      constexpr int kTextInset = 51 - 6;
@@ -168,7 +193,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      omnibox_view_->SetPlaceholderTextColorId(kColorOmniboxForegroundDisabled);
      // The compact one's "Search or Enter URL..." is 13 pt, smaller than what
      // is typed there.
-@@ -1604,11 +1573,6 @@
+@@ -1604,11 +1577,6 @@
      const int arcomium_info_dy = arcomium_command_bar_compact_ ? 3 : 1;
      // Its (i) is centred 33 pt from the panel's end.
      constexpr int kInfoEndInset = 33;
@@ -180,7 +205,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      location_icon_view_->SetVisible(false);
      // Arc's (i), a 24 px disc centred 32 px from the panel's end, gives way
      // to the site search hint.
-@@ -1629,11 +1593,7 @@
+@@ -1629,11 +1597,7 @@
      // the magnifier's place (OnPaintBackground draws none then).
      if (selected_keyword_view_->GetVisible()) {
        const gfx::Size chip = selected_keyword_view_->GetPreferredSize();
@@ -192,7 +217,46 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
        selected_keyword_view_->SetBounds(
            kIconX - selected_keyword_view_->GetInsets().left(),
            (height() - chip.height()) / 2, chip.width(), chip.height());
-@@ -2070,7 +2030,6 @@
+@@ -1646,9 +1610,38 @@
+         omnibox_view_->height());
+   }
+ 
++  // Arcomium: Arc for macOS' sidebar field sets its address 13 pt in, with no
++  // site icon before it (but a warning).
++  if (arcomium_compact_ && !arcomium_centered_ && !arcomium_command_bar_ &&
++      !omnibox_view_->HasFocus() && !location_icon_view_->GetVisible()) {
++    constexpr int kArcomiumFieldTextX = 13;
++    omnibox_view_->SetBounds(
++        kArcomiumFieldTextX, omnibox_view_->y(),
++        std::max(0, omnibox_view_->bounds().right() - kArcomiumFieldTextX),
++        omnibox_view_->height());
++  }
++  // Arcomium: the sidebar's field ends its address before the buttons the
++  // sidebar's hover shows (ArcomiumAddressBar), which fades it out there.
++  if (arcomium_trailing_inset_ > 0 && arcomium_compact_ &&
++      !arcomium_centered_ && !arcomium_command_bar_) {
++    omnibox_view_->SetBounds(
++        omnibox_view_->x(), omnibox_view_->y(),
++        std::max(0, std::min(omnibox_view_->bounds().right(),
++                             width() - arcomium_trailing_inset_) -
++                        omnibox_view_->x()),
++        omnibox_view_->height());
++  }
++
+   LayoutSuperclass<View>(this);
+ }
+ 
++void LocationBarView::SetArcomiumTrailingInset(int inset) {
++  if (arcomium_trailing_inset_ != inset) {
++    arcomium_trailing_inset_ = inset;
++    InvalidateLayout();
++  }
++}
++
+ void LocationBarView::OnThemeChanged() {
+   views::View::OnThemeChanged();
+   // ToolbarView::Init() adds |this| to the view hierarchy before initializing,
+@@ -2070,7 +2063,6 @@
      // In Arc's command bar the panel behind paints the row.
      background_color_ = color_provider->GetColor(kColorOmniboxResultsBackground);
      SetBackground(nullptr);
@@ -200,7 +264,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
    } else if (arcomium_compact_ && !arcomium_centered_) {
      // Arcomium: Arc for macOS' sidebar field, a shade off the frame with
      // 12 pt corners (#2F2F2F on #161616), #39393A under the pointer.
-@@ -2078,7 +2037,6 @@
+@@ -2078,7 +2070,6 @@
          arcomium::FrameColor(this), arcomium_hovered_ ? 0x26 : 0x1B);
      SetBackground(
          views::CreateRoundedRectBackground(background_color_, 12));
@@ -208,3 +272,25 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
    } else if (is_popup_mode_) {
      SetBackground(views::CreateSolidBackground(background_color_));
    } else {
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -328,6 +328,10 @@
+   // actions, and the site settings icon only while hovered or editing.
+   void SetArcomiumCompact(bool compact);
+   void SetArcomiumHovered(bool hovered);
++  // Arcomium: room kept at the field's end for the sidebar's hover buttons.
++  void SetArcomiumTrailingInset(int inset);
++  // Arcomium: Arc's site controls, as the field's sliders open them.
++  void ShowArcomiumSiteControlsForField() { ShowArcomiumSiteControls(); }
+   // The site sits centered in the compact location bar until it is edited.
+   void UpdateArcomiumAlignment();
+   // Arcomium: as in Arc for Windows' top bar, while not edited the address is
+@@ -614,6 +618,7 @@
+   raw_ptr<LocationIconView> location_icon_view_ = nullptr;
+   bool arcomium_compact_ = false;
+   bool arcomium_hovered_ = false;
++  int arcomium_trailing_inset_ = 0;
+ #if BUILDFLAG(IS_MAC)
+   base::CallbackListSubscription arcomium_paint_as_active_subscription_;
+ #endif

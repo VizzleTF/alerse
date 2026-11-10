@@ -406,6 +406,20 @@ Windows' numbers for those:
   no mouse events until edited: a click opens the command bar and a right click Arc's
   Space menu, not the text field's menu. Windows and Linux keep the location bar's own
   events: its site icon and "Not secure" chip, shown on hover, stay clickable there.
+- The field's address starts 13 pt in, left-aligned, as Arc for macOS'. While the
+  pointer is anywhere on the sidebar (polled every 80 ms, `ArcomiumAddressBar`), the
+  field shows Arc's buttons from its end: the site controls (sliders, centred 20 pt
+  from the end), Copy Link 28 pt before it, and, with exactly one pinned extension,
+  that extension 28 pt before Copy Link; the address fades out over 16 pt before
+  them. The link and sliders are Arc's SF Symbols traced and drawn (#ACACAC, 1.2 pt
+  strokes), with Arc's pill tooltips and no plate. A release on a button runs it (the
+  field takes the press). The sliders open the site controls under themselves.
+- Two or more pinned extensions are tiles under the field, always shown, as Arc for
+  macOS draws them: 27 pt high in the field's shade, 8 pt apart and 9 pt below the
+  field, up to four in a row with the rows evened out (five are three and two). A
+  click runs the extension, a right click opens its menu (Pin/Unpin, Options,
+  Remove...). Measured on Arc for macOS on 2026-11-10 with one to five pinned
+  extensions.
 - Rows 41 pt apart; the highlight is 148x36 with 12 pt corners, 10% white on hover and
   20% for the active row; favicons at x = 18, folders 19 pt, nested rows 16 pt in, their
   highlight too (it starts where the row does, as Arc's). Tab
@@ -1077,8 +1091,9 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   macOS, `GetArcHeaderIconColor` elsewhere).
 - **Extensions** sit at the end of the address row, sized like its buttons. The sliders
   button opens the site controls (`arcomium_site_controls.cc`): Copy Link, Find,
-  Screenshot, Reading mode; every extension as a tile (click runs it, right click pins
-  it); the site's permissions; the connection (opens page info); and a menu with site
+  Screenshot, Reading mode; every extension as a tile (click runs it, right click opens its menu with Pin and Unpin,
+  `arcomium_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
+  runs only from a menu button and crashed on a tile); the site's permissions; the connection (opens page info); and a menu with site
   settings, extension site access and extension management. They close when their tab
   closes or leaves the page.
 

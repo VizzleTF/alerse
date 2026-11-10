@@ -6,11 +6,16 @@
 #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ARCOMIUM_ADDRESS_BAR_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/timer/timer.h"
+#include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
+#include "chrome/browser/ui/views/extensions/arcomium_site_controls.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/events/event_observer.h"
 #include "ui/views/focus/focus_manager.h"
@@ -38,7 +43,8 @@ class Widget;
 class ArcomiumAddressBar : public views::View,
                            public views::ViewObserver,
                            public views::FocusChangeListener,
-                           public views::WidgetObserver {
+                           public views::WidgetObserver,
+                           public ExtensionsToolbarViewModel::Observer {
   METADATA_HEADER(ArcomiumAddressBar, views::View)
 
  public:
@@ -89,6 +95,16 @@ class ArcomiumAddressBar : public views::View,
   // location bar must not go with it.
   void OnWidgetDestroying(views::Widget* widget) override;
 
+  // ExtensionsToolbarViewModel::Observer: Arc's pinned extensions, in the
+  // field (one) or as tiles under it (two or more).
+  void OnActionsInitialized() override;
+  void OnActionAdded(const ToolbarActionsModel::ActionId& action_id) override;
+  void OnActionRemoved(const ToolbarActionsModel::ActionId& action_id) override;
+  void OnActionUpdated(const ToolbarActionsModel::ActionId& action_id) override;
+  void OnPinnedActionsChanged() override;
+  void OnActiveWebContentsChanged(bool is_same_document,
+                                  content::WebContents* web_contents) override;
+
  private:
   class ClickWatcher;
 
@@ -103,8 +119,22 @@ class ArcomiumAddressBar : public views::View,
   void UpdatePlacement();
   void TakeLocationBar();
   void ReturnLocationBar();
+  // Shows the field's hover buttons (site controls, Copy Link and a single
+  // pinned extension) while the pointer is anywhere on the sidebar, as Arc
+  // for macOS does.
   void UpdateCopyButton();
   void CopyAddress();
+  void ShowSiteControls();
+  // Watches the extensions of the window's toolbar once it is there.
+  void ObserveExtensions();
+  // Rebuilds the pinned extensions' button and tiles.
+  void UpdateExtensions();
+  void RunExtension(const ToolbarActionsModel::ActionId& id);
+  // Polls whether the pointer is over the sidebar.
+  void PollSidebarHover();
+  // The field's rect, and how many rows of extension tiles go under it.
+  gfx::Rect GetFieldBounds() const;
+  int GetTileRows() const;
   // Move the location bar into the floating field and back. Posted: focus
   // changes arrive while the focus manager is busy.
   void ScheduleUpdateEditing();
@@ -123,7 +153,25 @@ class ArcomiumAddressBar : public views::View,
   base::ScopedObservation<views::View, views::ViewObserver>
       placeholder_observation_{this};
   raw_ptr<views::ImageButton> copy_button_ = nullptr;
+  raw_ptr<views::ImageButton> site_button_ = nullptr;
+  // The single pinned extension, in the field.
+  raw_ptr<views::ImageButton> pinned_button_ = nullptr;
+  // Fades the address out before the hover buttons.
+  raw_ptr<views::View> text_fade_ = nullptr;
+  // Two or more pinned extensions, as tiles under the field.
+  std::vector<raw_ptr<views::View>> extension_tiles_;
+  // The tiles' and the field button's context menus.
+  std::vector<std::unique_ptr<arcomium_site_controls::ExtensionMenu>>
+      extension_menus_;
+  std::vector<std::string> pinned_ids_;
+  raw_ptr<ExtensionsToolbarViewModel> extensions_model_ = nullptr;
+  base::ScopedObservation<ExtensionsToolbarViewModel,
+                          ExtensionsToolbarViewModel::Observer>
+      extensions_observation_{this};
+  base::RepeatingTimer sidebar_hover_poll_;
+  // The pointer is on the field itself, and anywhere on the sidebar.
   bool hovered_ = false;
+  bool sidebar_hovered_ = false;
   // The floating field and whether the location bar is in it now.
   std::unique_ptr<views::Widget> editor_;
   bool editing_ = false;

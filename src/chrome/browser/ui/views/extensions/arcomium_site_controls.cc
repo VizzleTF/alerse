@@ -62,6 +62,9 @@
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/context_menu_controller.h"
+#include "ui/views/controls/menu/menu_item_view.h"
+#include "ui/views/controls/menu/menu_model_adapter.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/box_layout.h"
@@ -70,6 +73,37 @@
 #include "ui/views/widget/widget.h"
 
 namespace arcomium_site_controls {
+
+ExtensionMenu::ExtensionMenu(ToolbarActionViewModel* action,
+                             base::RepeatingClosure on_closed)
+    : action_(action), on_closed_(std::move(on_closed)) {}
+
+ExtensionMenu::~ExtensionMenu() = default;
+
+void ExtensionMenu::ShowContextMenuForViewImpl(
+    views::View* source,
+    const gfx::Point& point,
+    ui::mojom::MenuSourceType source_type) {
+  // The toolbar button's menu, which has Pin and Unpin.
+  ui::MenuModel* model = action_->GetContextMenu(
+      extensions::ExtensionContextMenuModel::ContextMenuSource::kToolbarAction);
+  if (!model || !source->GetWidget()) {
+    return;
+  }
+  adapter_ = std::make_unique<views::MenuModelAdapter>(model, on_closed_);
+  runner_ = std::make_unique<views::MenuRunner>(
+      adapter_->CreateMenu(),
+      views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU);
+  runner_->RunMenuAt(source->GetWidget(), nullptr,
+                     gfx::Rect(point, gfx::Size()),
+                     views::MenuAnchorPosition::kTopLeft, source_type);
+}
+
+std::unique_ptr<ExtensionMenu> CreateExtensionMenu(
+    ToolbarActionViewModel* action,
+    base::RepeatingClosure on_closed) {
+  return std::make_unique<ExtensionMenu>(action, std::move(on_closed));
+}
 
 namespace {
 
@@ -462,9 +496,9 @@ class SiteControlsView : public views::View,
           action->GetActionName()));
       tile->SetImageModel(views::Button::STATE_NORMAL,
                           action->GetIcon(contents, gfx::Size(28, 28)));
-      auto menu = std::make_unique<ExtensionContextMenuController>(
-          action, this,
-          extensions::ExtensionContextMenuModel::ContextMenuSource::kMenuItem);
+      auto menu = CreateExtensionMenu(
+          action, base::BindRepeating(&SiteControlsView::OnContextMenuClosed,
+                                      base::Unretained(this)));
       tile->set_context_menu_controller(menu.get());
       context_menus_.push_back(std::move(menu));
       extension_tiles_.emplace_back(id, tile);
@@ -612,7 +646,7 @@ class SiteControlsView : public views::View,
   raw_ptr<views::ImageButton> more_button_ = nullptr;
   std::vector<std::pair<ToolbarActionsModel::ActionId, raw_ptr<Tile>>>
       extension_tiles_;
-  std::vector<std::unique_ptr<ExtensionContextMenuController>> context_menus_;
+  std::vector<std::unique_ptr<ExtensionMenu>> context_menus_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
 };

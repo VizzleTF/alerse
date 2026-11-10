@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
+#include "base/time/time.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "build/build_config.h"
@@ -36,6 +38,18 @@
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
 #include "chrome/browser/ui/views/theme_copying_widget.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
+#include "chrome/browser/ui/views/extensions/arcomium_site_controls.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_tooltip.h"
+#include "ui/views/animation/ink_drop.h"
+#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_color.h"
+#include "ui/base/models/image_model.h"
+#include "ui/display/screen.h"
+#include "ui/gfx/image/canvas_image_source.h"
+#include "ui/gfx/skia_paint_util.h"
+#include "ui/views/controls/button/button.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/base/clipboard/clipboard_buffer.h"
@@ -64,7 +78,26 @@ constexpr int kHorizontalInset = 4;
 constexpr int kVerticalInset = 4;
 constexpr int kCopyIconSize = 16;
 constexpr int kCopyButtonSize = 24;
-constexpr int kCopyButtonEndInset = 6;
+// Arc for macOS' hover buttons in the sidebar's field, measured: site
+// controls centred 20 pt from the field's end, Copy Link and a single pinned
+// extension 28 pt apart before it, glyphs #ACACAC; the address fades out
+// before them.
+constexpr int kHoverButtonPitch = 28;
+constexpr int kHoverButtonEndCenter = 20;
+constexpr SkColor kHoverIconColor = SkColorSetRGB(0xAC, 0xAC, 0xAC);
+constexpr int kTextFadeWidth = 16;
+// Two or more pinned extensions are tiles under the field, as in Arc for
+// macOS: 27 pt high, 8 apart and 9 below the field, up to four in a row,
+// the rows evened out (five are three and two); the field's shade.
+constexpr int kTileHeight = 27;
+constexpr int kTileGap = 8;
+constexpr int kTileRowGap = 9;
+constexpr int kTilesPerRow = 4;
+constexpr float kTileRadius = 8;
+constexpr SkAlpha kTileShade = 0x1B;
+constexpr SkAlpha kTileHoverShade = 0x25;
+constexpr int kExtensionIconSize = 16;
+constexpr base::TimeDelta kSidebarHoverPoll = base::Milliseconds(80);
 #if BUILDFLAG(IS_MAC)
 // Arc for macOS' command bar: 765 pt wide and centred on the window, rims
 // and all (the panel 764 pt and its dark outer ring), its 327 pt panel (five
@@ -137,6 +170,163 @@ class ArcomiumCommandBarPanel : public views::View {
 BEGIN_METADATA(ArcomiumCommandBarPanel)
 END_METADATA
 
+// A shade off the frame, as the field and Arc's tiles are.
+SkColor FieldShade(const views::View* view, SkAlpha alpha) {
+  return color_utils::BlendTowardMaxContrast(arcomium::FrameColor(view),
+                                              alpha);
+}
+
+// A pinned extension's tile under the field.
+class ExtensionTile : public views::Button {
+  METADATA_HEADER(ExtensionTile, views::Button)
+
+ public:
+  ExtensionTile(PressedCallback callback,
+                const std::u16string& name,
+                ui::ImageModel icon)
+      : views::Button(std::move(callback)), icon_(std::move(icon)) {
+    SetTooltipText(name);
+    GetViewAccessibility().SetName(name);
+    SetInstallFocusRingOnFocus(false);
+  }
+
+  void PaintButtonContents(gfx::Canvas* canvas) override {
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setColor(
+        FieldShade(this, IsMouseHovered() ? kTileHoverShade : kTileShade));
+    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kTileRadius, flags);
+    if (icon_.IsEmpty() || !GetColorProvider()) {
+      return;
+    }
+    const gfx::ImageSkia image = icon_.Rasterize(GetColorProvider());
+    canvas->DrawImageInt(image, (width() - image.width()) / 2,
+                         (height() - image.height()) / 2);
+  }
+
+  void StateChanged(ButtonState old_state) override { SchedulePaint(); }
+
+ private:
+  const ui::ImageModel icon_;
+};
+
+BEGIN_METADATA(ExtensionTile)
+END_METADATA
+
+// Fades the field's address out into its shade before the hover buttons.
+class TextFade : public views::View {
+  METADATA_HEADER(TextFade, views::View)
+
+ public:
+  void set_shade(SkAlpha shade) {
+    if (shade_ != shade) {
+      shade_ = shade;
+      SchedulePaint();
+    }
+  }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    const SkColor color = FieldShade(this, shade_);
+    cc::PaintFlags flags;
+    flags.setShader(gfx::CreateGradientShader(
+        gfx::Point(), gfx::Point(kTextFadeWidth, 0), SkColorSetA(color, 0),
+        color));
+    canvas->DrawRect(gfx::Rect(0, 0, kTextFadeWidth, height()), flags);
+    canvas->FillRect(gfx::Rect(kTextFadeWidth, 0,
+                               std::max(0, width() - kTextFadeWidth), height()),
+                     color);
+  }
+
+ private:
+  SkAlpha shade_ = kTileShade;
+};
+
+BEGIN_METADATA(TextFade)
+END_METADATA
+
+// Arc for macOS' glyphs on the field's hover buttons, traced from its
+// screen: SF Symbols' link (two chain links at 45 degrees) and
+// slider.horizontal.below.square (a 15.3 pt rounded square, two slider
+// lines with hollow knobs), 1.2 pt strokes.
+enum class HoverGlyph { kLink, kSliders };
+
+class HoverGlyphSource : public gfx::CanvasImageSource {
+ public:
+  HoverGlyphSource(HoverGlyph glyph, SkColor color)
+      : gfx::CanvasImageSource(gfx::Size(18, 18)),
+        glyph_(glyph),
+        color_(color) {}
+
+  void Draw(gfx::Canvas* canvas) override {
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(1.2f);
+    flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+    flags.setColor(color_);
+    if (glyph_ == HoverGlyph::kSliders) {
+      const gfx::RectF square(1.35f, 1.35f, 15.3f, 15.3f);
+      canvas->DrawRoundRect(square, 3.4f, flags);
+      const float left = square.x() + 3.75f;
+      const float right = square.x() + 11.9f;
+      for (const auto [y, knob] : {std::pair(square.y() + 5.6f, 9.0f),
+                                   std::pair(square.y() + 9.9f, 6.6f)}) {
+        const float knob_x = square.x() + knob;
+        canvas->DrawLine(gfx::PointF(left, y), gfx::PointF(knob_x - 1.5f, y),
+                         flags);
+        canvas->DrawLine(gfx::PointF(knob_x + 1.5f, y), gfx::PointF(right, y),
+                         flags);
+        canvas->DrawCircle(gfx::PointF(knob_x, y), 1.5f, flags);
+      }
+      return;
+    }
+    // Two links, each a capsule, along the rising diagonal and overlapping
+    // at the middle.
+    gfx::ScopedCanvas scoped(canvas);
+    canvas->sk_canvas()->translate(9, 9);
+    canvas->sk_canvas()->rotate(-45);
+    for (const float offset : {-2.9f, 2.9f}) {
+      canvas->DrawRoundRect(gfx::RectF(offset - 4.75f, -2.8f, 9.5f, 5.6f),
+                            2.8f, flags);
+    }
+  }
+
+ private:
+  const HoverGlyph glyph_;
+  const SkColor color_;
+};
+
+std::unique_ptr<views::ImageButton> MakeHoverButton(
+    views::Button::PressedCallback callback,
+    const gfx::VectorIcon& icon,
+    int name_id) {
+  auto button = std::make_unique<views::ImageButton>(std::move(callback));
+  views::ConfigureVectorImageButton(button.get());
+  ui::ImageModel glyph =
+      ui::ImageModel::FromVectorIcon(icon, kHoverIconColor, kCopyIconSize);
+  if (&icon == &vector_icons::kArcomiumLinkIcon ||
+      &icon == &vector_icons::kArcomiumTuneIcon) {
+    glyph = ui::ImageModel::FromImageSkia(
+        gfx::CanvasImageSource::MakeImageSkia<HoverGlyphSource>(
+            &icon == &vector_icons::kArcomiumLinkIcon ? HoverGlyph::kLink
+                                                      : HoverGlyph::kSliders,
+            kHoverIconColor));
+  }
+  for (const auto state : {views::Button::STATE_NORMAL,
+                           views::Button::STATE_HOVERED,
+                           views::Button::STATE_PRESSED}) {
+    button->SetImageModel(state, glyph);
+  }
+  // No plate under the pointer, and Arc's pill for the name, as Arc's.
+  views::InkDrop::Get(button.get())
+      ->SetMode(views::InkDropHost::InkDropMode::OFF);
+  const std::u16string name = l10n_util::GetStringUTF16(name_id);
+  arcomium::SetArcTooltip(button.get(), name);
+  button->GetViewAccessibility().SetName(name);
+  button->SetVisible(false);
+  return button;
+}
+
 }  // namespace
 
 class ArcomiumAddressBar::ClickWatcher : public ui::EventObserver {
@@ -153,15 +343,29 @@ class ArcomiumAddressBar::ClickWatcher : public ui::EventObserver {
 ArcomiumAddressBar::ArcomiumAddressBar(BrowserWindowInterface* browser)
     : browser_(browser) {
   SetNotifyEnterExitOnChild(true);
-  auto copy = views::CreateVectorImageButtonWithNativeTheme(
+  // The location bar paints to a layer; so do these, to show over it.
+  auto fade = std::make_unique<TextFade>();
+  fade->SetPaintToLayer();
+  fade->layer()->SetFillsBoundsOpaquely(false);
+  fade->SetCanProcessEventsWithinSubtree(false);
+  fade->SetVisible(false);
+  text_fade_ = AddChildView(std::move(fade));
+  pinned_button_ = AddChildView(MakeHoverButton(
+      views::Button::PressedCallback(), vector_icons::kArcomiumLinkIcon,
+      IDS_ARCOMIUM_EXTENSIONS));
+  copy_button_ = AddChildView(MakeHoverButton(
       base::BindRepeating(&ArcomiumAddressBar::CopyAddress,
                           base::Unretained(this)),
-      vector_icons::kContentCopyIcon, kCopyIconSize);
-  copy->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
-  copy->GetViewAccessibility().SetName(
-      l10n_util::GetStringUTF16(IDS_ARCOMIUM_COPY_LINK));
-  copy->SetVisible(false);
-  copy_button_ = AddChildView(std::move(copy));
+      vector_icons::kArcomiumLinkIcon, IDS_ARCOMIUM_COPY_LINK));
+  site_button_ = AddChildView(MakeHoverButton(
+      base::BindRepeating(&ArcomiumAddressBar::ShowSiteControls,
+                          base::Unretained(this)),
+      vector_icons::kArcomiumTuneIcon, IDS_ARCOMIUM_SITE_CONTROLS));
+  for (views::ImageButton* button :
+       {pinned_button_.get(), copy_button_.get(), site_button_.get()}) {
+    button->SetPaintToLayer();
+    button->layer()->SetFillsBoundsOpaquely(false);
+  }
 }
 
 ArcomiumAddressBar::~ArcomiumAddressBar() {
@@ -182,22 +386,70 @@ gfx::Size ArcomiumAddressBar::CalculatePreferredSize(
   const int height = location_bar_ ? location_bar_->GetPreferredSize().height()
                                    : 0;
 #endif
-  return gfx::Size(0, location_bar_ ? height + 2 * kVerticalInset : 0);
+  return gfx::Size(
+      0, location_bar_ ? height + 2 * kVerticalInset +
+                             GetTileRows() * (kTileRowGap + kTileHeight)
+                       : 0);
+}
+
+gfx::Rect ArcomiumAddressBar::GetFieldBounds() const {
+#if BUILDFLAG(IS_MAC)
+  const int field_height = kFieldHeight;
+#else
+  const int field_height =
+      location_bar_ ? location_bar_->GetPreferredSize().height() : 0;
+#endif
+  return gfx::Rect(kHorizontalInset, kVerticalInset,
+                   std::max(0, width() - 2 * kHorizontalInset), field_height);
+}
+
+int ArcomiumAddressBar::GetTileRows() const {
+  const int count = static_cast<int>(extension_tiles_.size());
+  return count < 2 ? 0 : (count + kTilesPerRow - 1) / kTilesPerRow;
 }
 
 void ArcomiumAddressBar::Layout(PassKey) {
   if (!location_bar_) {
     return;
   }
-  gfx::Rect field(size());
-  field.Inset(gfx::Insets::VH(kVerticalInset, kHorizontalInset));
+  const gfx::Rect field = GetFieldBounds();
   if (!editing_) {
     location_bar_->SetBoundsRect(field);
   }
-  copy_button_->SetBounds(
-      field.right() - kCopyButtonEndInset - kCopyButtonSize,
-      field.y() + (field.height() - kCopyButtonSize) / 2, kCopyButtonSize,
-      kCopyButtonSize);
+  // From the field's end: site controls, Copy Link, a single pinned
+  // extension.
+  int center_x = field.right() - kHoverButtonEndCenter;
+  const int button_y = field.y() + (field.height() - kCopyButtonSize) / 2;
+  int leftmost = field.right();
+  for (views::ImageButton* button :
+       {site_button_.get(), copy_button_.get(), pinned_button_.get()}) {
+    button->SetBounds(center_x - kCopyButtonSize / 2, button_y,
+                      kCopyButtonSize, kCopyButtonSize);
+    if (button->GetVisible()) {
+      leftmost = button->x();
+    }
+    center_x -= kHoverButtonPitch;
+  }
+  // The fade runs from before the leftmost button to the field's rounded end.
+  text_fade_->SetBounds(leftmost - kTextFadeWidth, field.y() + 4,
+                        field.right() - 6 - (leftmost - kTextFadeWidth),
+                        std::max(0, field.height() - 8));
+  // The tiles, rows evened out.
+  const int count = static_cast<int>(extension_tiles_.size());
+  const int rows = GetTileRows();
+  if (rows > 0) {
+    const int columns = (count + rows - 1) / rows;
+    const int tile_width =
+        (field.width() - (columns - 1) * kTileGap) / columns;
+    for (int i = 0; i < count; ++i) {
+      const int row = i / columns;
+      const int column = i % columns;
+      extension_tiles_[i]->SetBounds(
+          field.x() + column * (tile_width + kTileGap),
+          field.bottom() + kTileRowGap + row * (kTileHeight + kTileRowGap),
+          tile_width, kTileHeight);
+    }
+  }
 }
 
 void ArcomiumAddressBar::VisibilityChanged(views::View* starting_from,
@@ -211,9 +463,33 @@ void ArcomiumAddressBar::AddedToWidget() {
     focus_manager_->AddFocusChangeListener(this);
   }
   ScheduleUpdatePlacement();
+  sidebar_hover_poll_.Start(FROM_HERE, kSidebarHoverPoll,
+                            base::BindRepeating(
+                                &ArcomiumAddressBar::PollSidebarHover,
+                                base::Unretained(this)));
+}
+
+void ArcomiumAddressBar::PollSidebarHover() {
+  // The sidebar: the vertical tab strip's region this field sits in.
+  const views::View* sidebar = this;
+  for (const views::View* view = parent(); view; view = view->parent()) {
+    if (view->GetClassName() == "VerticalTabStripRegionView") {
+      sidebar = view;
+      break;
+    }
+  }
+  const bool hovered =
+      GetWidget() && GetWidget()->IsVisible() && sidebar->IsDrawn() &&
+      sidebar->GetBoundsInScreen().Contains(
+          display::Screen::Get()->GetCursorScreenPoint());
+  if (hovered != sidebar_hovered_) {
+    sidebar_hovered_ = hovered;
+    UpdateCopyButton();
+  }
 }
 
 void ArcomiumAddressBar::RemovedFromWidget() {
+  sidebar_hover_poll_.Stop();
   ReturnLocationBar();
   if (focus_manager_) {
     focus_manager_->RemoveFocusChangeListener(this);
@@ -241,7 +517,26 @@ bool ArcomiumAddressBar::OnMousePressed(const ui::MouseEvent& event) {
 
 void ArcomiumAddressBar::OnMouseReleased(const ui::MouseEvent& event) {
 #if BUILDFLAG(IS_MAC)
-  if (location_bar_ && !editing_ && HitTestPoint(event.location())) {
+  // The field takes the press (its location bar takes no events); a release
+  // on one of its hover buttons runs that button instead of the command bar.
+  if (location_bar_ && !editing_) {
+    if (site_button_->GetVisible() &&
+        site_button_->bounds().Contains(event.location())) {
+      ShowSiteControls();
+      return;
+    }
+    if (copy_button_->GetVisible() &&
+        copy_button_->bounds().Contains(event.location())) {
+      CopyAddress();
+      return;
+    }
+    if (pinned_button_->GetVisible() && pinned_ids_.size() == 1 &&
+        pinned_button_->bounds().Contains(event.location())) {
+      RunExtension(pinned_ids_[0]);
+      return;
+    }
+  }
+  if (location_bar_ && !editing_ && GetFieldBounds().Contains(event.location())) {
     compact_command_bar_ = true;
     OpenCommandBar(/*new_tab=*/false);
   }
@@ -624,6 +919,8 @@ void ArcomiumAddressBar::TakeLocationBar() {
 #endif
   location_bar_->SetArcomiumCompact(true);
   location_bar_->SetArcomiumHovered(hovered_);
+  ObserveExtensions();
+  UpdateCopyButton();
   PreferredSizeChanged();
 }
 
@@ -647,20 +944,168 @@ void ArcomiumAddressBar::ReturnLocationBar() {
   }
   toolbar->AddChildViewAt(location_bar, *toolbar->GetIndexOf(placeholder));
   toolbar->RemoveChildViewT(placeholder);
-  copy_button_->SetVisible(false);
+  location_bar->SetArcomiumTrailingInset(0);
+  UpdateCopyButton();
   PreferredSizeChanged();
 }
 
 void ArcomiumAddressBar::UpdateCopyButton() {
-  // As in Arc: not while the command bar has the field, nor on an empty
-  // Space's blank page, which has no address to copy.
+  // As in Arc: while the pointer is anywhere on the sidebar; not while the
+  // command bar has the field, nor on an empty Space's blank page, which has
+  // no address to copy.
   content::WebContents* contents =
       browser_->GetTabStripModel()->GetActiveWebContents();
-  copy_button_->SetVisible(
-      hovered_ && location_bar_ && !editing_ && contents &&
-      !TabStripModel::IsArcomiumEmptySpace(contents));
+  const bool show = (hovered_ || sidebar_hovered_) && location_bar_ &&
+                    !editing_ && contents &&
+                    !TabStripModel::IsArcomiumEmptySpace(contents);
+  copy_button_->SetVisible(show);
+  site_button_->SetVisible(show);
+  pinned_button_->SetVisible(show && pinned_ids_.size() == 1);
+  text_fade_->SetVisible(show);
+  static_cast<TextFade*>(text_fade_.get())
+      ->set_shade(hovered_ ? kTileHoverShade : kTileShade);
+  InvalidateLayout();
   if (location_bar_) {
     location_bar_->SetArcomiumHovered(hovered_);
+    // The address runs on under the fade rather than eliding before it.
+    location_bar_->SetArcomiumTrailingInset(0);
+  }
+}
+
+void ArcomiumAddressBar::ShowSiteControls() {
+  // Anchored to the sliders, as Arc's; through the extensions button, which
+  // owns the panel, else the location bar's own way (page info).
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+  ExtensionsToolbarDesktop* container =
+      browser_view && browser_view->toolbar()
+          ? browser_view->toolbar()->extensions_container()
+          : nullptr;
+  if (container && container->GetExtensionsButton()) {
+    container->GetExtensionsButton()->ToggleArcomiumSiteControls(site_button_);
+    return;
+  }
+  if (location_bar_) {
+    location_bar_->ShowArcomiumSiteControlsForField();
+  }
+}
+
+void ArcomiumAddressBar::ObserveExtensions() {
+  if (extensions_model_) {
+    return;
+  }
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser_);
+  ExtensionsToolbarDesktop* container =
+      browser_view && browser_view->toolbar()
+          ? browser_view->toolbar()->extensions_container()
+          : nullptr;
+  extensions_model_ = container ? container->GetToolbarViewModel() : nullptr;
+  if (!extensions_model_) {
+    return;
+  }
+  extensions_observation_.Observe(extensions_model_);
+  UpdateExtensions();
+}
+
+void ArcomiumAddressBar::UpdateExtensions() {
+  std::vector<std::string> ids;
+  if (extensions_model_ && extensions_model_->AreActionsInitialized()) {
+    for (const auto& id : extensions_model_->GetPinnedActionIds()) {
+      if (extensions_model_->GetActionModelForId(id)) {
+        ids.push_back(id);
+      }
+    }
+  }
+  content::WebContents* contents =
+      browser_->GetTabStripModel()->GetActiveWebContents();
+  const int rows_before = GetTileRows();
+  pinned_ids_ = ids;
+  for (views::View* tile : extension_tiles_) {
+    RemoveChildViewT(tile);
+  }
+  extension_tiles_.clear();
+  pinned_button_->set_context_menu_controller(nullptr);
+  extension_menus_.clear();
+  if (ids.size() == 1) {
+    ToolbarActionViewModel* action =
+        extensions_model_->GetActionModelForId(ids[0]);
+    const ui::ImageModel icon = action->GetIcon(
+        contents, gfx::Size(kExtensionIconSize, kExtensionIconSize));
+    for (const auto state : {views::Button::STATE_NORMAL,
+                             views::Button::STATE_HOVERED,
+                             views::Button::STATE_PRESSED}) {
+      pinned_button_->SetImageModel(state, icon);
+    }
+    pinned_button_->SetCallback(
+        base::BindRepeating(&ArcomiumAddressBar::RunExtension,
+                            base::Unretained(this), ids[0]));
+    arcomium::SetArcTooltip(pinned_button_, action->GetActionName());
+    // Its menu on a right click (Unpin, Options, Remove...), as Arc's.
+    extension_menus_.push_back(
+        arcomium_site_controls::CreateExtensionMenu(action, base::DoNothing()));
+    pinned_button_->set_context_menu_controller(extension_menus_.back().get());
+    pinned_button_->GetViewAccessibility().SetName(action->GetActionName());
+  } else if (ids.size() > 1) {
+    for (const auto& id : ids) {
+      ToolbarActionViewModel* action =
+          extensions_model_->GetActionModelForId(id);
+      auto tile = std::make_unique<ExtensionTile>(
+          base::BindRepeating(&ArcomiumAddressBar::RunExtension,
+                              base::Unretained(this), id),
+          action->GetActionName(),
+          action->GetIcon(contents,
+                          gfx::Size(kExtensionIconSize, kExtensionIconSize)));
+      extension_menus_.push_back(
+          arcomium_site_controls::CreateExtensionMenu(action, base::DoNothing()));
+      tile->set_context_menu_controller(extension_menus_.back().get());
+      extension_tiles_.push_back(AddChildView(std::move(tile)));
+    }
+  }
+  UpdateCopyButton();
+  if (GetTileRows() != rows_before) {
+    PreferredSizeChanged();
+  }
+  InvalidateLayout();
+  SchedulePaint();
+}
+
+void ArcomiumAddressBar::RunExtension(const ToolbarActionsModel::ActionId& id) {
+  if (extensions_model_) {
+    extensions_model_->ExecuteUserAction(
+        id, ToolbarActionViewModel::InvocationSource::kMenuEntry);
+  }
+}
+
+void ArcomiumAddressBar::OnActionsInitialized() {
+  UpdateExtensions();
+}
+
+void ArcomiumAddressBar::OnActionAdded(
+    const ToolbarActionsModel::ActionId& action_id) {
+  UpdateExtensions();
+}
+
+void ArcomiumAddressBar::OnActionRemoved(
+    const ToolbarActionsModel::ActionId& action_id) {
+  UpdateExtensions();
+}
+
+void ArcomiumAddressBar::OnActionUpdated(
+    const ToolbarActionsModel::ActionId& action_id) {
+  // The icon follows the page (an extension's badge or its disabled look).
+  if (std::ranges::contains(pinned_ids_, action_id)) {
+    UpdateExtensions();
+  }
+}
+
+void ArcomiumAddressBar::OnPinnedActionsChanged() {
+  UpdateExtensions();
+}
+
+void ArcomiumAddressBar::OnActiveWebContentsChanged(
+    bool is_same_document,
+    content::WebContents* web_contents) {
+  if (!is_same_document && !pinned_ids_.empty()) {
+    UpdateExtensions();
   }
 }
 
