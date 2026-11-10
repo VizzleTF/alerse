@@ -370,10 +370,7 @@ diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/c
  #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
-@@ -1322,9 +1323,19 @@
-   if (GetWidget()) {
- #if BUILDFLAG(IS_MAC)
-     // Elsewhere the window controls stay in the top bar.
+@@ -1325,6 +1326,16 @@
      alerse::SetWindowControlsHidden(GetWidget(), hidden && !floating,
                                        floating);
  #endif

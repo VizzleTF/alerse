@@ -144,9 +144,7 @@ index 5407bd717cc..f95a865c8db 100644
  #include <memory>
  #include <optional>
  #include <utility>
-@@ -204,8 +214,9 @@ void ContentsContainerView::UpdateBorderAndOverlay(bool is_in_split,
- 
-   if (!is_in_split) {
+@@ -206,6 +216,7 @@
      if (split_changed) {
        SetBorder(nullptr);
        UpdateBorderRoundedCorners();
