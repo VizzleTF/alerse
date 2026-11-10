@@ -22,6 +22,7 @@ import hashlib
 import hmac
 import json
 import secrets
+import shutil
 import os
 import sys
 import time
@@ -29,7 +30,8 @@ import uuid
 from pathlib import Path
 
 LOCAL = Path(os.environ.get('LOCALAPPDATA', ''))
-DEFAULT_PROFILE = LOCAL / 'Chromium' / 'User Data' / 'Default'
+# Alerse's own directory (defaults/own-install-identity.patch), not Chromium's.
+DEFAULT_PROFILE = LOCAL / 'Alerse' / 'User Data' / 'Default'
 
 
 def find_arc_dir():
@@ -388,6 +390,9 @@ def main():
                      'arcomium.arc_icon'):
             set_meta(folder, name, '')
 
+    if bookmarks_path.exists():
+        # The bookmarks as they were, should the import go wrong.
+        shutil.copy2(bookmarks_path, bookmarks_path.with_name('Bookmarks.before-arc-import'))
     bookmarks_path.write_text(json.dumps(bookmarks, ensure_ascii=False,
                                          indent=3), 'utf-8')
     print(f'Imported {importer.counts["folders"]} folders, '

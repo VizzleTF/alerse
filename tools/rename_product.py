@@ -79,16 +79,28 @@ def rename(grd):
     if renamed == texts:
         return 0
     before = message_ids(grd)
-    for f, text in renamed.items():
-        f.write_text(text, encoding='utf-8', newline='\n')
-    after = message_ids(grd)
-    if [name for name, _ in before] != [name for name, _ in after]:
+    # Until the translations have moved, a failure puts the texts back: a
+    # tree left renamed would look done to the next run, which would then
+    # leave every translation behind.
+    try:
+        for f, text in renamed.items():
+            f.write_text(text, encoding='utf-8', newline='\n')
+        after = message_ids(grd)
+        if [name for name, _ in before] != [name for name, _ in after]:
+            sys.exit(f'{grd}: messages changed order while renaming')
+        moved = {old: new for (_, old), (_, new) in zip(before, after) if old != new}
+        move_translations(grd, original, moved)
+    except BaseException:
         for f, text in texts.items():
             f.write_text(text, encoding='utf-8', newline='\n')
-        sys.exit(f'{grd}: messages changed order while renaming')
-    moved = {old: new for (_, old), (_, new) in zip(before, after) if old != new}
+        raise
+    return len(moved)
 
-    # The grd's own translation files.
+
+def move_translations(grd, original, moved):
+    """Moves the translations in the grd's .xtb files to the IDs in `moved`."""
+    # Written only once all of them are read and changed.
+    changed = {}
     for path in re.findall(r'<file path="([^"]+\.xtb)"', original):
         xtb = grd.parent / path
         if not xtb.exists():
@@ -103,8 +115,9 @@ def rename(grd):
                 return m.group(0)
             return f'<translation id="{new}">{rename_text(m.group(2))}</translation>'
 
-        xtb.write_text(TRANSLATION.sub(move, text), encoding='utf-8', newline='\n')
-    return len(moved)
+        changed[xtb] = TRANSLATION.sub(move, text)
+    for xtb, text in changed.items():
+        xtb.write_text(text, encoding='utf-8', newline='\n')
 
 
 def write_if_changed(path, text):
