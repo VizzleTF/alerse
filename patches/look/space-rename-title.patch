@@ -6,9 +6,9 @@ index bb0cb1d508a..4a8d170f44f 100644
  }
  
  int BookmarkEditor::EditDetails::GetWindowTitleId() const {
-+  // Arcomium: the caller's title (Rename Space).
-+  if (arcomium_title_id) {
-+    return arcomium_title_id;
++  // Alerse: the caller's title (Rename Space).
++  if (alerse_title_id) {
++    return alerse_title_id;
 +  }
    int dialog_title = IDS_BOOKMARK_EDITOR_TITLE;
    switch (type) {
@@ -21,9 +21,9 @@ index 78362274209..3346edfd816 100644
      // folders it should contain.
      BookmarkData bookmark_data;
  
-+    // Arcomium: a window title of the caller's (a Space's folder is renamed
++    // Alerse: a window title of the caller's (a Space's folder is renamed
 +    // as "Edit Space name"), used instead of the type's when not 0.
-+    int arcomium_title_id = 0;
++    int alerse_title_id = 0;
 +
     private:
      explicit EditDetails(Type node_type);

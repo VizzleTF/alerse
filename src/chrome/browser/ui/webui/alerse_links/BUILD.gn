@@ -1,0 +1,23 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("alerse_links") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_links_page.inc",
+    "alerse_links_ui.cc",
+    "alerse_links_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/prefs",
+    "//components/tab_groups",
+    "//components/tabs:public",
+    "//url",
+  ]
+}

@@ -7,7 +7,7 @@ index 9a855747c23..ce0f8199ea7 100644
    registry->RegisterBooleanPref(prefs::kEverythingMenuPinnedToTabstrip, true);
    registry->RegisterBooleanPref(prefs::kTabScrollButtonsPinnedToTabstrip, true);
 -  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, false);
-+  // Arcomium: the sidebar is the primary tab strip, so vertical tabs are on by
++  // Alerse: the sidebar is the primary tab strip, so vertical tabs are on by
 +  // default and the "try vertical tabs" promo never shows.
 +  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, true);
    registry->RegisterBooleanPref(prefs::kVerticalTabsExpandOnHoverEnabled, true);

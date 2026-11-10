@@ -7,7 +7,7 @@ index 65af28275b1..be3430ddd91 100644
  
      // TODO(dubroy): Figure out the proper way to handle an error here.
 -    if (web_history && local_history_) {
-+    // Arcomium: syncs history without Google's web history, so the directive
++    // Alerse: syncs history without Google's web history, so the directive
 +    // goes out whenever history delete directives sync.
 +    if (local_history_) {
        local_history_->ProcessLocalDeleteDirective(delete_directive);
@@ -21,7 +21,7 @@ index f3058ade218..8ffe1bf3047 100644
      base::CancelableTaskTracker* tracker) {
    // TODO(crbug.com/41439580): This should be factored out into a separate class
    // that dispatches deletions to the proper places.
-+  // Arcomium: the directive also syncs without Google's web history.
++  // Alerse: the directive also syncs without Google's web history.
 +  delete_directive_handler_->CreateTimeRangeDeleteDirective(begin_time,
 +                                                            end_time);
    if (web_history) {
@@ -35,7 +35,7 @@ index f3058ade218..8ffe1bf3047 100644
    DCHECK(url.is_valid());
    // TODO(crbug.com/41439580): This should be factored out into a separate class
    // that dispatches deletions to the proper places.
-+  // Arcomium: the directive also syncs without Google's web history.
++  // Alerse: the directive also syncs without Google's web history.
 +  delete_directive_handler_->CreateUrlDeleteDirective(url);
    if (web_history) {
 -    delete_directive_handler_->CreateUrlDeleteDirective(url);
@@ -51,7 +51,7 @@ index fd2ff8758f0..29f1979e42f 100644
            /*delegate_for_transport_mode=*/
            GetDelegateFromHistoryService(history_service,
                                          /*for_transport_mode=*/true)),
-+      // Arcomium: there is no Google account whose enterprise status could
++      // Alerse: there is no Google account whose enterprise status could
 +      // be checked, so history syncs for every sync chain.
        helper_(syncer::HISTORY,
                sync_service,
@@ -71,7 +71,7 @@ index fd2ff8758f0..29f1979e42f 100644
 -    return PreconditionState::kMustStopAndClearData;
 -  }
 -
-+  // Arcomium: the chain encrypts history with its passphrase, so history
++  // Alerse: the chain encrypts history with its passphrase, so history
 +  // syncs with a custom passphrase too.
    return helper_.GetPreconditionState(context);
  }
@@ -87,7 +87,7 @@ index 154bd84a1c6..743a8f0403a 100644
 -  if (helper_.sync_service()->GetUserSettings()->IsEncryptEverythingEnabled()) {
 -    return PreconditionState::kMustStopAndClearData;
 -  }
-+  // Arcomium: the chain encrypts history with its passphrase, so history
++  // Alerse: the chain encrypts history with its passphrase, so history
 +  // syncs with a custom passphrase too.
    return helper_.GetPreconditionState(context);
  }
@@ -102,7 +102,7 @@ index 23a494f2739..345bf120a4c 100644
              .stable_lowercase_string = "history_delete_directives",
 -            // History Sync is disabled if encryption is enabled.
 -            .encryption_policy = EncryptionPolicy::kNeverEncrypted,
-+            // Arcomium: encrypted with the sync chain's passphrase, like the
++            // Alerse: encrypted with the sync chain's passphrase, like the
 +            // other types, so history syncs too.
 +            .encryption_policy =
 +                EncryptionPolicy::kEncryptedIfCustomPassphraseSet,
@@ -113,7 +113,7 @@ index 23a494f2739..345bf120a4c 100644
                  UnsyncedDataCheckOnSignoutPolicy::kNone,
              .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
 -            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
-+            // Arcomium syncs through the local sync mode.
++            // Alerse syncs through the local sync mode.
 +            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
          },
          {
@@ -123,7 +123,7 @@ index 23a494f2739..345bf120a4c 100644
                  UnsyncedDataCheckOnSignoutPolicy::kNone,
              .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
 -            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
-+            // Arcomium syncs through the local sync mode.
++            // Alerse syncs through the local sync mode.
 +            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
          },
          {
@@ -134,7 +134,7 @@ index 23a494f2739..345bf120a4c 100644
              .stable_lowercase_string = "history",
 -            // History Sync is disabled if encryption is enabled.
 -            .encryption_policy = EncryptionPolicy::kNeverEncrypted,
-+            // Arcomium: encrypted with the sync chain's passphrase, like the
++            // Alerse: encrypted with the sync chain's passphrase, like the
 +            // other types, so history syncs too.
 +            .encryption_policy =
 +                EncryptionPolicy::kEncryptedIfCustomPassphraseSet,
@@ -145,7 +145,7 @@ index 23a494f2739..345bf120a4c 100644
                  UnsyncedDataCheckOnSignoutPolicy::kNone,
              .cross_user_sharing_policy = CrossUserSharingPolicy::kNone,
 -            .local_sync_support_policy = LocalSyncSupportPolicy::kUnsupported,
-+            // Arcomium syncs through the local sync mode.
++            // Alerse syncs through the local sync mode.
 +            .local_sync_support_policy = LocalSyncSupportPolicy::kSupported,
          },
          {

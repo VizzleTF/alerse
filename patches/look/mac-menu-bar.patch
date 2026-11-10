@@ -3,19 +3,19 @@ index 9a30ee4..b30debd 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -299,6 +299,16 @@
- #define IDC_ARCOMIUM_IMPORT 40391
- // Arcomium: opens the page of the newer release the update check found.
- #define IDC_ARCOMIUM_UPDATE 40392
-+// Arcomium: the Space bar's commands, for the macOS menu bar.
-+#define IDC_ARCOMIUM_NEW_SPACE 40393
-+#define IDC_ARCOMIUM_NEXT_SPACE 40394
-+#define IDC_ARCOMIUM_PREVIOUS_SPACE 40395
-+#define IDC_ARCOMIUM_RENAME_SPACE 40396
-+#define IDC_ARCOMIUM_EDIT_SPACE_THEME 40397
-+// Arcomium: the sidebar's commands, for the macOS menu bar.
-+#define IDC_ARCOMIUM_PIN_TAB 40398
-+#define IDC_ARCOMIUM_NEW_FOLDER 40399
-+#define IDC_ARCOMIUM_CLEAR_TODAY 40400
+ #define IDC_ALERSE_IMPORT 40391
+ // Alerse: opens the page of the newer release the update check found.
+ #define IDC_ALERSE_UPDATE 40392
++// Alerse: the Space bar's commands, for the macOS menu bar.
++#define IDC_ALERSE_NEW_SPACE 40393
++#define IDC_ALERSE_NEXT_SPACE 40394
++#define IDC_ALERSE_PREVIOUS_SPACE 40395
++#define IDC_ALERSE_RENAME_SPACE 40396
++#define IDC_ALERSE_EDIT_SPACE_THEME 40397
++// Alerse: the sidebar's commands, for the macOS menu bar.
++#define IDC_ALERSE_PIN_TAB 40398
++#define IDC_ALERSE_NEW_FOLDER 40399
++#define IDC_ALERSE_CLEAR_TODAY 40400
  
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
@@ -25,39 +25,39 @@ index 5411484..5179f31 100644
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -28,6 +28,7 @@
  #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
- #include "chrome/browser/arcomium_update/arcomium_update_checker.h"
- #include "chrome/browser/ui/tabs/arcomium_command_bar_hook.h"
-+#include "chrome/browser/ui/tabs/arcomium_space_command_hook.h"
+ #include "chrome/browser/alerse_update/alerse_update_checker.h"
+ #include "chrome/browser/ui/tabs/alerse_command_bar_hook.h"
++#include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
  #include "chrome/browser/bookmarks/bookmark_model_factory.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
 @@ -1000,6 +1001,17 @@ void BrowserCommandController::HandleCommandWithDisposition(
-     case IDC_ARCOMIUM_LINK_ROUTING:
-       ShowSingletonTab(browser_, GURL("chrome://arcomium-links/"));
+     case IDC_ALERSE_LINK_ROUTING:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-links/"));
        break;
-+    // Arcomium: the Space bar's commands, from the macOS menu bar.
-+    case IDC_ARCOMIUM_NEW_SPACE:
-+    case IDC_ARCOMIUM_NEXT_SPACE:
-+    case IDC_ARCOMIUM_PREVIOUS_SPACE:
-+    case IDC_ARCOMIUM_RENAME_SPACE:
-+    case IDC_ARCOMIUM_EDIT_SPACE_THEME:
-+    case IDC_ARCOMIUM_PIN_TAB:
-+    case IDC_ARCOMIUM_NEW_FOLDER:
-+    case IDC_ARCOMIUM_CLEAR_TODAY:
-+      arcomium::RunSpaceCommand(browser_, id);
++    // Alerse: the Space bar's commands, from the macOS menu bar.
++    case IDC_ALERSE_NEW_SPACE:
++    case IDC_ALERSE_NEXT_SPACE:
++    case IDC_ALERSE_PREVIOUS_SPACE:
++    case IDC_ALERSE_RENAME_SPACE:
++    case IDC_ALERSE_EDIT_SPACE_THEME:
++    case IDC_ALERSE_PIN_TAB:
++    case IDC_ALERSE_NEW_FOLDER:
++    case IDC_ALERSE_CLEAR_TODAY:
++      alerse::RunSpaceCommand(browser_, id);
 +      break;
-     // Arcomium: imports Arc's Spaces and other browsers' bookmarks.
-     case IDC_ARCOMIUM_IMPORT:
-       ShowSingletonTab(browser_, GURL("chrome://arcomium-import/"));
+     // Alerse: imports Arc's Spaces and other browsers' bookmarks.
+     case IDC_ALERSE_IMPORT:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-import/"));
 @@ -1969,6 +1981,14 @@ void BrowserCommandController::InitCommandState() {
    command_updater_->UpdateCommandEnabled(
-       IDC_ARCOMIUM_IMPORT, !guest_session && !profile()->IsOffTheRecord());
-   command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_UPDATE, true);
+       IDC_ALERSE_IMPORT, !guest_session && !profile()->IsOffTheRecord());
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
 +  for (int command :
-+       {IDC_ARCOMIUM_NEW_SPACE, IDC_ARCOMIUM_NEXT_SPACE,
-+        IDC_ARCOMIUM_PREVIOUS_SPACE, IDC_ARCOMIUM_RENAME_SPACE,
-+        IDC_ARCOMIUM_EDIT_SPACE_THEME, IDC_ARCOMIUM_PIN_TAB,
-+        IDC_ARCOMIUM_NEW_FOLDER, IDC_ARCOMIUM_CLEAR_TODAY}) {
++       {IDC_ALERSE_NEW_SPACE, IDC_ALERSE_NEXT_SPACE,
++        IDC_ALERSE_PREVIOUS_SPACE, IDC_ALERSE_RENAME_SPACE,
++        IDC_ALERSE_EDIT_SPACE_THEME, IDC_ALERSE_PIN_TAB,
++        IDC_ALERSE_NEW_FOLDER, IDC_ALERSE_CLEAR_TODAY}) {
 +    command_updater_->UpdateCommandEnabled(command,
 +                                           !profile()->IsOffTheRecord());
 +  }
@@ -73,15 +73,15 @@ index 12d6be6..00f686b 100644
      {IDC_PRINT, ui::EF_COMMAND_DOWN, ui::VKEY_P},
      {IDC_RESTORE_TAB, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_T},
 -    {IDC_SAVE_PAGE, ui::EF_COMMAND_DOWN, ui::VKEY_S},
-+    // Arcomium: Arc's Save Page As; Cmd+S hides the sidebar, as in Arc.
++    // Alerse: Arc's Save Page As; Cmd+S hides the sidebar, as in Arc.
 +    {IDC_SAVE_PAGE, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_S},
      {IDC_SHOW_BOOKMARK_BAR, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
       ui::VKEY_B},
      {IDC_SHOW_BOOKMARK_MANAGER, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
       ui::VKEY_B},
 -    {IDC_BOOKMARK_THIS_TAB, ui::EF_COMMAND_DOWN, ui::VKEY_D},
-+    // Arcomium: Arc's Pin Tab; bookmarks are the pinned tabs.
-+    {IDC_ARCOMIUM_PIN_TAB, ui::EF_COMMAND_DOWN, ui::VKEY_D},
++    // Alerse: Arc's Pin Tab; bookmarks are the pinned tabs.
++    {IDC_ALERSE_PIN_TAB, ui::EF_COMMAND_DOWN, ui::VKEY_D},
      {IDC_SHOW_DOWNLOADS, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_J},
      {IDC_SHOW_HISTORY, ui::EF_COMMAND_DOWN, ui::VKEY_Y},
      {IDC_VIEW_SOURCE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN, ui::VKEY_U},
@@ -93,19 +93,19 @@ index 12d6be6..00f686b 100644
 -     ui::VKEY_L},
 -    {IDC_NEW_SPLIT_TAB, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN, ui::VKEY_N},
 +    {IDC_TOGGLE_VERTICAL_TABS_COLLAPSE, ui::EF_COMMAND_DOWN, ui::VKEY_S},
-+    // Arcomium: Arc's Copy URL.
++    // Alerse: Arc's Copy URL.
 +    {IDC_COPY_URL, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN, ui::VKEY_C},
-+    // Arcomium: Arc's Spaces and Tabs menus.
-+    {IDC_ARCOMIUM_NEXT_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
++    // Alerse: Arc's Spaces and Tabs menus.
++    {IDC_ALERSE_NEXT_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
 +     ui::VKEY_RIGHT},
-+    {IDC_ARCOMIUM_PREVIOUS_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
++    {IDC_ALERSE_PREVIOUS_SPACE, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
 +     ui::VKEY_LEFT},
-+    {IDC_ARCOMIUM_CLEAR_TODAY, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
++    {IDC_ALERSE_CLEAR_TODAY, ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN,
 +     ui::VKEY_K},
 +    {IDC_SELECT_NEXT_TAB, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN, ui::VKEY_DOWN},
 +    {IDC_SELECT_PREVIOUS_TAB, ui::EF_COMMAND_DOWN | ui::EF_ALT_DOWN,
 +     ui::VKEY_UP},
-+    // Arcomium: Arc's Add Split View.
++    // Alerse: Arc's Add Split View.
 +    {IDC_NEW_SPLIT_TAB, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN,
 +     ui::VKEY_OEM_PLUS},
  };
@@ -120,8 +120,8 @@ index 0476742..c1c1e7a 100644
                    .command_id(IDC_OPEN_FILE)
                    .remove_if(is_pwa),
 -              Item(IDS_OPEN_LOCATION_MAC)
-+              // Arcomium: Arc's Command-L opens its command bar.
-+              Item(IDS_ARCOMIUM_MENU_OPEN_COMMAND_BAR)
++              // Alerse: Arc's Command-L opens its command bar.
++              Item(IDS_ALERSE_MENU_OPEN_COMMAND_BAR)
                    .command_id(IDC_FOCUS_LOCATION)
                    .remove_if(is_pwa),
                Item().is_separator(),
@@ -129,8 +129,8 @@ index 0476742..c1c1e7a 100644
                Item(IDS_EDIT_SELECT_ALL_MAC)
                    .tag(IDC_CONTENT_CONTEXT_SELECTALL)
                    .action(@selector(selectAll:)),
-+              // Arcomium: Arc's Copy URL (Shift-Command-C).
-+              Item(IDS_ARCOMIUM_MENU_COPY_URL)
++              // Alerse: Arc's Copy URL (Shift-Command-C).
++              Item(IDS_ALERSE_MENU_COPY_URL)
 +                  .command_id(IDC_COPY_URL)
 +                  .remove_if(is_pwa),
                Item().is_separator(),
@@ -142,10 +142,10 @@ index 0476742..c1c1e7a 100644
            .submenu({
 -              Item(IDS_BOOKMARK_BAR_ALWAYS_SHOW_MAC)
 -                  .command_id(IDC_SHOW_BOOKMARK_BAR)
-+              // Arcomium: Arc's View menu starts with Hide Sidebar (Cmd+S);
++              // Alerse: Arc's View menu starts with Hide Sidebar (Cmd+S);
 +              // Chromium's bars and the switch away from vertical tabs, on
 +              // which the sidebar depends, are not there.
-+              Item(IDS_ARCOMIUM_MENU_HIDE_SIDEBAR)
++              Item(IDS_ALERSE_MENU_HIDE_SIDEBAR)
 +                  .command_id(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE)
                    .remove_if(is_pwa),
                Item(IDS_TOGGLE_FULLSCREEN_TOOLBAR_MAC)
@@ -177,8 +177,8 @@ index 0476742..c1c1e7a 100644
    // clang-format off
    NSMenuItem* item =
 -      Item(IDS_HISTORY_MENU_MAC)
-+      // Arcomium: Arc calls it Archive.
-+      Item(IDS_ARCOMIUM_ARCHIVE)
++      // Alerse: Arc calls it Archive.
++      Item(IDS_ALERSE_ARCHIVE)
            .tag(IDC_HISTORY_MENU)
            .submenu({
 -              Item(IDS_HISTORY_HOME_MAC)
@@ -192,26 +192,26 @@ index 0476742..c1c1e7a 100644
    // clang-format off
    NSMenuItem* item =
 -      Item(IDS_TAB_MENU_MAC)
-+      // Arcomium: Arc's Tabs menu: New Tab, Pin Tab (Command-D), New Folder,
++      // Alerse: Arc's Tabs menu: New Tab, Pin Tab (Command-D), New Folder,
 +      // Option-Command-Down and -Up for the next and previous tab, Clear
 +      // Today (Shift-Command-K).
-+      Item(IDS_ARCOMIUM_MENU_TABS)
++      Item(IDS_ALERSE_MENU_TABS)
            .tag(IDC_TAB_MENU)
            .submenu({
 +              Item(IDS_NEW_TAB_MAC)
 +                  .command_id(IDC_NEW_TAB),
-+              Item(IDS_ARCOMIUM_MENU_PIN_TAB)
-+                  .command_id(IDC_ARCOMIUM_PIN_TAB),
-+              Item(IDS_ARCOMIUM_NEW_FOLDER)
-+                  .command_id(IDC_ARCOMIUM_NEW_FOLDER),
++              Item(IDS_ALERSE_MENU_PIN_TAB)
++                  .command_id(IDC_ALERSE_PIN_TAB),
++              Item(IDS_ALERSE_NEW_FOLDER)
++                  .command_id(IDC_ALERSE_NEW_FOLDER),
 +              Item().is_separator(),
-+              Item(IDS_ARCOMIUM_MENU_NEXT_TAB)
++              Item(IDS_ALERSE_MENU_NEXT_TAB)
 +                  .command_id(IDC_SELECT_NEXT_TAB),
-+              Item(IDS_ARCOMIUM_MENU_PREVIOUS_TAB)
++              Item(IDS_ALERSE_MENU_PREVIOUS_TAB)
 +                  .command_id(IDC_SELECT_PREVIOUS_TAB),
 +              Item().is_separator(),
-+              Item(IDS_ARCOMIUM_MENU_CLEAR_TODAY)
-+                  .command_id(IDC_ARCOMIUM_CLEAR_TODAY),
++              Item(IDS_ALERSE_MENU_CLEAR_TODAY)
++                  .command_id(IDC_ALERSE_CLEAR_TODAY),
 +              Item().is_separator(),
                Item(is_rtl ? IDS_TAB_CXMENU_NEWTABTOLEFT
                            : IDS_TAB_CXMENU_NEWTABTORIGHT)
@@ -220,7 +220,7 @@ index 0476742..c1c1e7a 100644
    return item;
  }
  
-+// Arcomium: Arc's Spaces menu: a new Space, the shown Space's theme and
++// Alerse: Arc's Spaces menu: a new Space, the shown Space's theme and
 +// name, the next and the previous one (Option-Command-Right and -Left).
 +// Control-1 to -9 pick a Space from the Space bar.
 +NSMenuItem* BuildSpacesMenu(NSApplication* nsapp,
@@ -233,26 +233,26 @@ index 0476742..c1c1e7a 100644
 +  }
 +  // clang-format off
 +  NSMenuItem* item =
-+      Item(IDS_ARCOMIUM_MENU_SPACES)
++      Item(IDS_ALERSE_MENU_SPACES)
 +          .submenu({
-+              Item(IDS_ARCOMIUM_NEW_SPACE)
-+                  .command_id(IDC_ARCOMIUM_NEW_SPACE),
-+              Item(IDS_ARCOMIUM_MENU_EDIT_THEME)
-+                  .command_id(IDC_ARCOMIUM_EDIT_SPACE_THEME),
-+              Item(IDS_ARCOMIUM_RENAME_SPACE)
-+                  .command_id(IDC_ARCOMIUM_RENAME_SPACE),
++              Item(IDS_ALERSE_NEW_SPACE)
++                  .command_id(IDC_ALERSE_NEW_SPACE),
++              Item(IDS_ALERSE_MENU_EDIT_THEME)
++                  .command_id(IDC_ALERSE_EDIT_SPACE_THEME),
++              Item(IDS_ALERSE_RENAME_SPACE)
++                  .command_id(IDC_ALERSE_RENAME_SPACE),
 +              Item().is_separator(),
-+              Item(IDS_ARCOMIUM_MENU_NEXT_SPACE)
-+                  .command_id(IDC_ARCOMIUM_NEXT_SPACE),
-+              Item(IDS_ARCOMIUM_MENU_PREVIOUS_SPACE)
-+                  .command_id(IDC_ARCOMIUM_PREVIOUS_SPACE),
++              Item(IDS_ALERSE_MENU_NEXT_SPACE)
++                  .command_id(IDC_ALERSE_NEXT_SPACE),
++              Item(IDS_ALERSE_MENU_PREVIOUS_SPACE)
++                  .command_id(IDC_ALERSE_PREVIOUS_SPACE),
 +          })
 +          .Build();
 +  // clang-format on
 +  return item;
 +}
 +
-+// Arcomium: Arc's Extensions menu.
++// Alerse: Arc's Extensions menu.
 +NSMenuItem* BuildExtensionsMenu(NSApplication* nsapp,
 +                                id app_delegate,
 +                                const std::u16string& product_name,
@@ -263,7 +263,7 @@ index 0476742..c1c1e7a 100644
 +  }
 +  // clang-format off
 +  NSMenuItem* item =
-+      Item(IDS_ARCOMIUM_EXTENSIONS)
++      Item(IDS_ALERSE_EXTENSIONS)
 +          .submenu({
 +              Item(IDS_SHOW_EXTENSIONS_MAC)
 +                  .command_id(IDC_MANAGE_EXTENSIONS),
@@ -294,7 +294,7 @@ index 0476742..c1c1e7a 100644
        [main_menu addItem:item];
      }
    }
-+  // Arcomium: Arc's menu bar has no Bookmarks menu; it stays, hidden, for
++  // Alerse: Arc's menu bar has no Bookmarks menu; it stays, hidden, for
 +  // the code that fills it by tag. Profiles stays: its controller expects
 +  // it (without it, rebuilding it never ends) and shows it itself.
 +  if (!is_pwa) {

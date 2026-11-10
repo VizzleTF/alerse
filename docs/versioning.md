@@ -1,8 +1,7 @@
 # Versions
 
-Alerse has its own version, `MAJOR.MINOR.PATCH`, the same on every platform. It
-continues Arcomium's: Alerse is Arcomium's new name from 0.1.8 on, and 0.1.0 to 0.1.7
-were released as Arcomium. A
+Alerse has its own version, `MAJOR.MINOR.PATCH`, the same on every platform
+(0.1.0 to 0.1.7 were released under the project's earlier name). A
 release is tagged `vMAJOR.MINOR.PATCH` in each platform repository; its packages
 carry that version in their names.
 
@@ -12,8 +11,7 @@ project decides on it.
 
 ## Releases
 
-A release is titled "Alerse X.Y.Z for <platform>" (up to 0.1.7, "Arcomium X.Y.Z for
-<platform>") and its notes name the
+A release is titled "Alerse X.Y.Z for <platform>" and its notes name the
 Chromium version it is built on. Every release carries its files: on Windows the
 x64 and arm64 installers and portable zips, on Linux the AppImages, their `.zsync`
 files and tar.xz, on macOS the arm64 dmg (pre-releases so far), and `SHA256SUMS` over
@@ -23,20 +21,19 @@ upload --clobber`) and rewrite `SHA256SUMS` from every file of the release, so o
 architecture never waits for the other. A Windows x64 build made locally may be
 uploaded first, so a release is downloadable before CI finishes; CI then replaces
 those files under the same names. Package names come from the tag, not from the
-stamped Chromium version: `alerse_<tag>_...` from 0.1.8 on (`arcomium_<tag>_...`
-before).
+stamped Chromium version: `alerse_<tag>_...`.
 
 | Release | Platforms | Chromium | What it brought |
 |---|---|---|---|
 | 0.1.0 | macOS (pre-release) | 156.0.8078.79 | Not published on Windows or Linux (its build was cancelled) |
 | 0.1.1 | Windows, Linux | 156.0.8078.79 | First Windows release (local x64 build without PGO) and first Linux release |
-| 0.1.2 | Windows | 157.0.8103.38 | Chromium 157, Arcomium's own install identity, end-to-end-only sync, PGO |
+| 0.1.2 | Windows | 157.0.8103.38 | Chromium 157, its own install identity, end-to-end-only sync, PGO |
 | 0.1.3 | Windows | 157.0.8103.38 | Built-in import from Arc and other browsers |
 | 0.1.4 | Windows | 157.0.8103.3804 | Per-release version numbers, the new-version notice, the tab speaker, DevTools fixed, older `arc_import.py` imports taken over |
 | 0.1.5 | Windows | 157.0.8103.3805 | Tabs opened from pinned items stay on them across restarts, reopened tabs and restored groups |
 | 0.1.6 | Windows | 157.0.8103.3806 | Command bar actions and shortcuts, Split View (keys, menus, drag a tab onto a tab or the page edge), Arc's icon pickers for Spaces, pinned items, folders and favorites; macOS look and menus matched to Arc |
-| 0.1.7 | macOS (pre-release) | 156.0.8078.7907 | Last release named Arcomium. First official macOS build (ThinLTO, PGO) since 0.1.0, with the changes of 0.1.1 to 0.1.6 that apply to it; Rename Space titled "Edit Space name", the Space bar's Downloads button in place of the archive |
-| 0.1.8 | Windows, macOS (pre-release) | 157.0.8103.3808 (Windows), 156.0.8078.7908 (macOS) | First release named Alerse, with its icon and install identity; takes over Arcomium's profile. Windows looks like Arc for macOS but for the top bar (sidebar, Space bar and popovers, page card, floating hidden sidebar, command bar); the logo menu lists the Spaces and has Copy URL as Quote, Reveal Tab and Collapse Pinned Tabs; the window is named after its Space. Sync sign-in with a login and password, pairing by code, recovery sheet |
+| 0.1.7 | macOS (pre-release) | 156.0.8078.7907 | Last release under the earlier name. First official macOS build (ThinLTO, PGO) since 0.1.0, with the changes of 0.1.1 to 0.1.6 that apply to it; Rename Space titled "Edit Space name", the Space bar's Downloads button in place of the archive |
+| 0.1.8 | Windows, macOS (pre-release) | 157.0.8103.3808 (Windows), 156.0.8078.7908 (macOS) | First release named Alerse, with its icon and install identity; takes over the earlier name's profile. Windows looks like Arc for macOS but for the top bar (sidebar, Space bar and popovers, page card, floating hidden sidebar, command bar); the logo menu lists the Spaces and has Copy URL as Quote, Reveal Tab and Collapse Pinned Tabs; the window is named after its Space. Sync sign-in with a login and password, pairing by code, recovery sheet |
 
 Linux and macOS get the changes of 0.1.2 to 0.1.4 with their first release on Chromium 157.
 
@@ -76,7 +73,7 @@ The numbers only grow when:
   update check below needs.
 
 Up to 0.1.3 every release had Chromium's own number, so installing one over a
-running Arcomium failed (installer exit code 7) and rolled back.
+running browser failed (installer exit code 7) and rolled back.
 
 Stamping runs again safely: when `chrome/VERSION` already has UPSTREAM_PATCH, the
 script takes Chromium's PATCH from it instead of stamping twice. Linux copies the
@@ -87,15 +84,15 @@ update checks.
 ## Telling about a newer release
 
 `tools/rename_product.py` also writes the release into `chrome/VERSION` as
-ARCOMIUM_VERSION, and `chrome/browser/arcomium_update` compiles it in. Once a
+ALERSE_VERSION, and `chrome/browser/alerse_update` compiles it in. Once a
 day the browser reads the `tag_name` of the platform repository's latest
 GitHub release and, when that `vMAJOR.MINOR.PATCH` is above its own version,
 shows "Update to Alerse MAJOR.MINOR.PATCH" at the top of its menus
-(Arcomium's own builds say "Update to Arcomium ..." and open the Alerse release:
-the repositories are the same). So the
+(builds of 0.1.7 and before find the same releases: the repositories were renamed,
+and GitHub redirects their old names). So the
 tag of every release must be its `VERSION`, with a `v`; drafts and
 pre-releases are not "latest" and are not offered. A build whose
-`chrome/VERSION` has no ARCOMIUM_VERSION does not check, nor does a browser
+`chrome/VERSION` has no ALERSE_VERSION does not check, nor does a browser
 in headless mode or started with `--disable-background-networking`.
 
 Any answer from GitHub counts, one with no release or with a tag that is

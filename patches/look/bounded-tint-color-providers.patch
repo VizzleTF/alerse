@@ -6,7 +6,7 @@ index 78cdb934666..319e00ccf0f 100644
    if (!color_providers_.empty()) {
      color_providers_.clear();
    }
-+  arcomium_tinted_keys_.clear();
++  alerse_tinted_keys_.clear();
  }
  
  void ColorProviderManager::AppendColorProviderInitializer(
@@ -14,16 +14,16 @@ index 78cdb934666..319e00ccf0f 100644
        });
      }
  
-+    // Arcomium: a window tinted by a Space (an app background color with no
++    // Alerse: a window tinted by a Space (an app background color with no
 +    // web app behind it) keeps its providers bounded, oldest out first;
 +    // a window still using an evicted one gets it built again.
 +    if (key.app_background_color && !key.app_controller) {
-+      constexpr size_t kMaxArcomiumTintedProviders = 32;
-+      while (arcomium_tinted_keys_.size() >= kMaxArcomiumTintedProviders) {
-+        color_providers_.erase(arcomium_tinted_keys_.front());
-+        arcomium_tinted_keys_.pop_front();
++      constexpr size_t kMaxAlerseTintedProviders = 32;
++      while (alerse_tinted_keys_.size() >= kMaxAlerseTintedProviders) {
++        color_providers_.erase(alerse_tinted_keys_.front());
++        alerse_tinted_keys_.pop_front();
 +      }
-+      arcomium_tinted_keys_.push_back(key);
++      alerse_tinted_keys_.push_back(key);
 +    }
      iter = color_providers_.emplace(key, std::move(provider)).first;
      RecordColorProviderCacheSize(static_cast<int>(color_providers_.size()));
@@ -44,9 +44,9 @@ index 300c89806d4..42ad30dc560 100644
    base::flat_map<ColorProviderKey, std::unique_ptr<ColorProvider>>
        color_providers_;
  
-+  // Arcomium: keys tinted by a Space's color, oldest first. Every step of a
++  // Alerse: keys tinted by a Space's color, oldest first. Every step of a
 +  // Space's color transition is a new key; only the latest few are kept.
-+  std::deque<ColorProviderKey> arcomium_tinted_keys_;
++  std::deque<ColorProviderKey> alerse_tinted_keys_;
 +
    // Tracks the number of ColorProviders constructed and initialized by the
    // manager for metrics purposes.

@@ -21,7 +21,7 @@ index d9438fca442..df25cab6e48 100644
  class CommandActionUpdater : public CommandUpdater {
   public:
 -  explicit CommandActionUpdater(actions::ActionItem* root_action_item);
-+  // Arcomium: commands that have no action (Arcomium's IDC_ARCOMIUM_*) are
++  // Alerse: commands that have no action (Alerse's IDC_ALERSE_*) are
 +  // kept as CommandUpdaterImpl keeps them and run through `delegate`.
 +  explicit CommandActionUpdater(actions::ActionItem* root_action_item,
 +                                CommandUpdaterDelegate* delegate = nullptr);
@@ -32,7 +32,7 @@ index d9438fca442..df25cab6e48 100644
  
    std::vector<ObserverEntry> observer_entries_;
    const raw_ptr<actions::ActionItem> root_action_item_;
-+  // Arcomium: the commands without an action.
++  // Alerse: the commands without an action.
 +  CommandUpdaterImpl commands_without_action_;
  };
  
@@ -130,10 +130,10 @@ index 361769fe5e5..668189ad827 100644
                   actions::ActionItem* item,
                   actions::ActionInvocationContext context) {
 -                chrome::CopyURL(bwi, tab_strip_model->GetActiveWebContents());
-+                // Arcomium: not an empty Space's or a blank page's address,
++                // Alerse: not an empty Space's or a blank page's address,
 +                // as IDC_COPY_URL in BrowserCommandController.
 +                if (content::WebContents* contents =
-+                        chrome::GetArcomiumCopyableContents(bwi)) {
++                        chrome::GetAlerseCopyableContents(bwi)) {
 +                  chrome::CopyURL(bwi, contents);
 +                }
                },
@@ -147,7 +147,7 @@ index 7fa6e2e5b0b..12cf9efe3c2 100644
  std::unique_ptr<CommandUpdater>
  BrowserCommandController::CreateCommandUpdater() {
    if (features::ShouldUseActionsForBrowserCommands()) {
-+    // Arcomium: its own commands have no action; `this` runs them.
++    // Alerse: its own commands have no action; `this` runs them.
      return std::make_unique<CommandActionUpdater>(
 -        BrowserActions::From(browser_)->root_action_item());
 +        BrowserActions::From(browser_)->root_action_item(), this);

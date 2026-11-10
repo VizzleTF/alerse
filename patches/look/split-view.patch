@@ -3,15 +3,15 @@ index 39744cf..9c56500 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -312,6 +312,12 @@
- #define IDC_ARCOMIUM_TOGGLE_PINNED 40401
- // Arcomium: Arc's Copy URL as Markdown.
- #define IDC_ARCOMIUM_COPY_URL_MARKDOWN 40402
-+// Arcomium: Arc's Split View commands (arcomium_split.h).
-+#define IDC_ARCOMIUM_CLOSE_SPLIT_PANE 40403
-+#define IDC_ARCOMIUM_SEPARATE_SPLIT 40404
-+#define IDC_ARCOMIUM_EXPAND_SPLIT 40405
-+#define IDC_ARCOMIUM_FOCUS_SPLIT_1 40406
-+#define IDC_ARCOMIUM_FOCUS_SPLIT_2 40407
+ #define IDC_ALERSE_TOGGLE_PINNED 40401
+ // Alerse: Arc's Copy URL as Markdown.
+ #define IDC_ALERSE_COPY_URL_MARKDOWN 40402
++// Alerse: Arc's Split View commands (alerse_split.h).
++#define IDC_ALERSE_CLOSE_SPLIT_PANE 40403
++#define IDC_ALERSE_SEPARATE_SPLIT 40404
++#define IDC_ALERSE_EXPAND_SPLIT 40405
++#define IDC_ALERSE_FOCUS_SPLIT_1 40406
++#define IDC_ALERSE_FOCUS_SPLIT_2 40407
  
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
@@ -23,13 +23,13 @@ index 1bbe4c5..712ec10 100644
        {true,  false, false, true,  kVK_ANSI_C,            IDC_DEV_TOOLS_INSPECT},
        {true,  false, false, true,  kVK_DownArrow,         IDC_FOCUS_NEXT_PANE},
        {true,  false, false, true,  kVK_UpArrow,           IDC_FOCUS_PREVIOUS_PANE},
-+      // Arcomium: Arc's Switch to Split View 1 and 2, in no menu there.
-+      {false, true,  true,  false, kVK_ANSI_1,            IDC_ARCOMIUM_FOCUS_SPLIT_1},
-+      {false, true,  true,  false, kVK_ANSI_2,            IDC_ARCOMIUM_FOCUS_SPLIT_2},
-+      // Arcomium: Add Split View and Close this Split Pane, whose menu
++      // Alerse: Arc's Switch to Split View 1 and 2, in no menu there.
++      {false, true,  true,  false, kVK_ANSI_1,            IDC_ALERSE_FOCUS_SPLIT_1},
++      {false, true,  true,  false, kVK_ANSI_2,            IDC_ALERSE_FOCUS_SPLIT_2},
++      // Alerse: Add Split View and Close this Split Pane, whose menu
 +      // items show Control-Shift-= and -Minus (main_menu_builder.mm).
 +      {false, true,  true,  false, kVK_ANSI_Equal,        IDC_NEW_SPLIT_TAB},
-+      {false, true,  true,  false, kVK_ANSI_Minus,        IDC_ARCOMIUM_CLOSE_SPLIT_PANE},
++      {false, true,  true,  false, kVK_ANSI_Minus,        IDC_ALERSE_CLOSE_SPLIT_PANE},
        {true,  true,  false, true,  kVK_ANSI_A,            IDC_FOCUS_INACTIVE_POPUP_FOR_ACCESSIBILITY},
        {true,  false, false, true,  kVK_ANSI_R,            IDC_SHOW_READING_MODE_KEYBOARD},
      });
@@ -42,7 +42,7 @@ index 031fd4d..c277067 100644
      {ui::VKEY_H, ui::EF_CONTROL_DOWN, IDC_SHOW_HISTORY},
  #if !BUILDFLAG(IS_CHROMEOS)
 -    // On Chrome OS, these keys are assigned to change UI scale.
-+    // Arcomium: Arc's Add Split View, Close this Split Pane and Switch to
++    // Alerse: Arc's Add Split View, Close this Split Pane and Switch to
 +    // Split View 1 and 2, as on macOS; Chromium's zoom keeps Ctrl+= and
 +    // Ctrl+-.
 +    {ui::VKEY_OEM_PLUS, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
@@ -50,11 +50,11 @@ index 031fd4d..c277067 100644
      {ui::VKEY_OEM_MINUS, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
 -     IDC_ZOOM_MINUS},
 -    {ui::VKEY_OEM_PLUS, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN, IDC_ZOOM_PLUS},
-+     IDC_ARCOMIUM_CLOSE_SPLIT_PANE},
++     IDC_ALERSE_CLOSE_SPLIT_PANE},
 +    {ui::VKEY_1, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
-+     IDC_ARCOMIUM_FOCUS_SPLIT_1},
++     IDC_ALERSE_FOCUS_SPLIT_1},
 +    {ui::VKEY_2, ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN,
-+     IDC_ARCOMIUM_FOCUS_SPLIT_2},
++     IDC_ALERSE_FOCUS_SPLIT_2},
  #endif  // !BUILDFLAG(IS_CHROMEOS)
  #endif  // !BUILDFLAG(IS_MAC)
  };
@@ -66,7 +66,7 @@ index 031fd4d..c277067 100644
 -    accelerators->emplace_back(AcceleratorMapping(
 -        {ui::VKEY_N, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_NEW_SPLIT_TAB}));
 -#elif BUILDFLAG(IS_CHROMEOS)
-+    // Arcomium: Add Split View is Arc's Ctrl+Shift+= (kAcceleratorMap) on
++    // Alerse: Add Split View is Arc's Ctrl+Shift+= (kAcceleratorMap) on
 +    // Windows and Linux, so menus show that key, not Alt+Shift+N.
 +#if BUILDFLAG(IS_CHROMEOS)
      accelerators->emplace_back(
@@ -77,10 +77,10 @@ index 3df71c6..7a4c003 100644
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -29,6 +29,7 @@
- #include "chrome/browser/arcomium_update/arcomium_update_checker.h"
- #include "chrome/browser/ui/tabs/arcomium_command_bar_hook.h"
- #include "chrome/browser/ui/tabs/arcomium_space_command_hook.h"
-+#include "chrome/browser/ui/tabs/arcomium_split.h"
+ #include "chrome/browser/alerse_update/alerse_update_checker.h"
+ #include "chrome/browser/ui/tabs/alerse_command_bar_hook.h"
+ #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
++#include "chrome/browser/ui/tabs/alerse_split.h"
  #include "chrome/browser/bookmarks/bookmark_model_factory.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
@@ -88,33 +88,33 @@ index 3df71c6..7a4c003 100644
  void BrowserCommandController::TabStateChanged() {
    UpdateCommandsForTabState();
    UpdateCommandsForWebContentsFocus();
-+  // Arcomium: an empty Space's blank tab that opens a page can be split.
++  // Alerse: an empty Space's blank tab that opens a page can be split.
 +  UpdateCommandsForTabStripStateChanged();
  }
  
  void BrowserCommandController::ZoomStateChanged() {
 @@ -1012,6 +1015,14 @@ void BrowserCommandController::HandleCommandWithDisposition(
-     case IDC_ARCOMIUM_CLEAR_TODAY:
-       arcomium::RunSpaceCommand(browser_, id);
+     case IDC_ALERSE_CLEAR_TODAY:
+       alerse::RunSpaceCommand(browser_, id);
        break;
-+    // Arcomium: Arc's Split View commands (arcomium_split.h).
-+    case IDC_ARCOMIUM_CLOSE_SPLIT_PANE:
-+    case IDC_ARCOMIUM_SEPARATE_SPLIT:
-+    case IDC_ARCOMIUM_EXPAND_SPLIT:
-+    case IDC_ARCOMIUM_FOCUS_SPLIT_1:
-+    case IDC_ARCOMIUM_FOCUS_SPLIT_2:
-+      arcomium::RunSplitCommand(browser_->tab_strip_model(), id);
++    // Alerse: Arc's Split View commands (alerse_split.h).
++    case IDC_ALERSE_CLOSE_SPLIT_PANE:
++    case IDC_ALERSE_SEPARATE_SPLIT:
++    case IDC_ALERSE_EXPAND_SPLIT:
++    case IDC_ALERSE_FOCUS_SPLIT_1:
++    case IDC_ALERSE_FOCUS_SPLIT_2:
++      alerse::RunSplitCommand(browser_->tab_strip_model(), id);
 +      break;
-     // Arcomium: imports Arc's Spaces and other browsers' bookmarks.
-     case IDC_ARCOMIUM_IMPORT:
-       ShowSingletonTab(browser_, GURL("chrome://arcomium-import/"));
+     // Alerse: imports Arc's Spaces and other browsers' bookmarks.
+     case IDC_ALERSE_IMPORT:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-import/"));
 @@ -1749,6 +1760,12 @@ void BrowserCommandController::TabGroupedStateChanged(
    UpdateCommandsForTabStripStateChanged();
  }
  
 +void BrowserCommandController::OnSplitTabChanged(
 +    const SplitTabChange& change) {
-+  // Arcomium: the split commands follow the shown tab's split.
++  // Alerse: the split commands follow the shown tab's split.
 +  UpdateCommandsForTabStripStateChanged();
 +}
 +
@@ -125,22 +125,22 @@ index 3df71c6..7a4c003 100644
                                           CanCloseOtherTabs(browser_));
    command_updater_->UpdateCommandEnabled(IDC_MOVE_TAB_TO_NEW_WINDOW,
                                           CanMoveActiveTabToNewWindow(browser_));
-+  // Arcomium: as in Arc, a split needs a page to split: not an empty
++  // Alerse: as in Arc, a split needs a page to split: not an empty
 +  // Space's blank tab. Chromium's split holds two panes, so a split tab
 +  // takes no third.
 +  const bool split =
-+      arcomium::GetActiveSplitTab(browser_->tab_strip_model()) != nullptr;
++      alerse::GetActiveSplitTab(browser_->tab_strip_model()) != nullptr;
    command_updater_->UpdateCommandEnabled(
        IDC_NEW_SPLIT_TAB,
 -      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL);
 +      browser_->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL &&
 +          !split &&
-+          !TabStripModel::IsArcomiumEmptySpace(
++          !TabStripModel::IsAlerseEmptySpace(
 +              browser_->tab_strip_model()->GetActiveWebContents()));
 +  for (int command :
-+       {IDC_ARCOMIUM_CLOSE_SPLIT_PANE, IDC_ARCOMIUM_SEPARATE_SPLIT,
-+        IDC_ARCOMIUM_EXPAND_SPLIT, IDC_ARCOMIUM_FOCUS_SPLIT_1,
-+        IDC_ARCOMIUM_FOCUS_SPLIT_2}) {
++       {IDC_ALERSE_CLOSE_SPLIT_PANE, IDC_ALERSE_SEPARATE_SPLIT,
++        IDC_ALERSE_EXPAND_SPLIT, IDC_ALERSE_FOCUS_SPLIT_1,
++        IDC_ALERSE_FOCUS_SPLIT_2}) {
 +    command_updater_->UpdateCommandEnabled(command, split);
 +  }
    command_updater_->UpdateCommandEnabled(IDC_GROUP_UNGROUPED_TABS,
@@ -166,9 +166,9 @@ index 99bddb6..a16ba2d 100644
        {active_index}, split_tabs::SplitTabVisualData(layout), source);
  
    tab_strip_model->ActivateTabAt(active_index + 1);
-+  // Arcomium: as in Arc, the command bar opens for the new pane: what is
-+  // typed loads there, and a tab picked fills it (ArcomiumSidebarView).
-+  arcomium::OpenCommandBar(browser);
++  // Alerse: as in Arc, the command bar opens for the new pane: what is
++  // typed loads there, and a tab picked fills it (AlerseSidebarView).
++  alerse::OpenCommandBar(browser);
  }
  
  void AddNewTabToGroup(BrowserWindowInterface* browser) {
@@ -177,11 +177,11 @@ index f594db8..f8b8b6c 100644
 --- a/chrome/browser/ui/cocoa/accelerators_cocoa.mm
 +++ b/chrome/browser/ui/cocoa/accelerators_cocoa.mm
 @@ -134,6 +134,9 @@ const struct AcceleratorMapping {
-     // Arcomium: Arc's Add Split View.
+     // Alerse: Arc's Add Split View.
      {IDC_NEW_SPLIT_TAB, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN,
       ui::VKEY_OEM_PLUS},
-+    // Arcomium: Arc's Close this Split Pane.
-+    {IDC_ARCOMIUM_CLOSE_SPLIT_PANE, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN,
++    // Alerse: Arc's Close this Split Pane.
++    {IDC_ALERSE_CLOSE_SPLIT_PANE, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN,
 +     ui::VKEY_OEM_MINUS},
  };
  
@@ -194,18 +194,18 @@ index eb6af9c..6a5990f 100644
                    .command_id(IDC_RELOAD_BYPASSING_CACHE)
                    .is_alternate(),
                Item().is_separator(),
-+              // Arcomium: Arc's Split View items (arcomium_split.h).
-+              Item(IDS_ARCOMIUM_ADD_SPLIT_VIEW)
++              // Alerse: Arc's Split View items (alerse_split.h).
++              Item(IDS_ALERSE_ADD_SPLIT_VIEW)
 +                  .command_id(IDC_NEW_SPLIT_TAB)
 +                  .remove_if(is_pwa),
-+              Item(IDS_ARCOMIUM_CLOSE_SPLIT_PANE)
-+                  .command_id(IDC_ARCOMIUM_CLOSE_SPLIT_PANE)
++              Item(IDS_ALERSE_CLOSE_SPLIT_PANE)
++                  .command_id(IDC_ALERSE_CLOSE_SPLIT_PANE)
 +                  .remove_if(is_pwa),
-+              Item(IDS_ARCOMIUM_SEPARATE_SPLIT)
-+                  .command_id(IDC_ARCOMIUM_SEPARATE_SPLIT)
++              Item(IDS_ALERSE_SEPARATE_SPLIT)
++                  .command_id(IDC_ALERSE_SEPARATE_SPLIT)
 +                  .remove_if(is_pwa),
-+              Item(IDS_ARCOMIUM_EXPAND_SPLIT)
-+                  .command_id(IDC_ARCOMIUM_EXPAND_SPLIT)
++              Item(IDS_ALERSE_EXPAND_SPLIT)
++                  .command_id(IDC_ALERSE_EXPAND_SPLIT)
 +                  .remove_if(is_pwa),
 +              Item().is_separator(),
                Item(IDS_ENTER_FULLSCREEN_MAC)
@@ -218,7 +218,7 @@ diff --git a/chrome/browser/ui/views/frame/multi_contents_view_delegate.cc b/chr
  
  #include "chrome/browser/sessions/session_service.h"
  #include "chrome/browser/sessions/session_service_factory.h"
-+#include "chrome/browser/ui/tabs/arcomium_sidebar_drag.h"
++#include "chrome/browser/ui/tabs/alerse_sidebar_drag.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/navigator/browser_navigator.h"
  #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -226,9 +226,9 @@ diff --git a/chrome/browser/ui/views/frame/multi_contents_view_delegate.cc b/chr
  void MultiContentsViewDelegateImpl::HandleLinkDrop(
      MultiContentsDropTargetView::DropSide side,
      const ui::DropTargetEvent& event) {
-+  // Arcomium: a row dragged from the Arc sidebar brings its own tab into
++  // Alerse: a row dragged from the Arc sidebar brings its own tab into
 +  // the split rather than opening its address again.
-+  if (arcomium::SplitDraggedRow(
++  if (alerse::SplitDraggedRow(
 +          &browser_.get(),
 +          side == MultiContentsDropTargetView::DropSide::START,
 +          side == MultiContentsDropTargetView::DropSide::BOTTOM)) {
@@ -244,7 +244,7 @@ diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_deleg
  #include "chrome/browser/ui/sad_tab_helper.h"
  #include "chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.h"
  #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.h"
-+#include "chrome/browser/ui/tabs/arcomium_sidebar_drag.h"
++#include "chrome/browser/ui/tabs/alerse_sidebar_drag.h"
  #include "chrome/browser/ui/views/renderer_context_menu/render_view_context_menu_views.h"
  #include "chrome/browser/ui/views/sad_tab_view.h"
  #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
@@ -252,9 +252,9 @@ diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_deleg
  void ChromeWebContentsViewDelegateViews::OnPerformingDrop(
      const content::DropData& drop_data,
      DropCompletionCallback callback) {
-+  // Arcomium: a row dragged from the Arc sidebar does not drop into a page;
++  // Alerse: a row dragged from the Arc sidebar does not drop into a page;
 +  // only the split drop zone on the page's edges takes it.
-+  if (arcomium::SidebarRowDragging()) {
++  if (alerse::SidebarRowDragging()) {
 +    if (!callback.is_null()) {
 +      std::move(callback).Run(std::nullopt);
 +    }
@@ -270,7 +270,7 @@ diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_deleg
  #include "chrome/browser/ui/sad_tab_helper.h"
  #include "chrome/browser/ui/tab_contents/chrome_web_contents_menu_helper.h"
  #include "chrome/browser/ui/tab_contents/chrome_web_contents_view_handle_drop.h"
-+#include "chrome/browser/ui/tabs/arcomium_sidebar_drag.h"
++#include "chrome/browser/ui/tabs/alerse_sidebar_drag.h"
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/views/sad_tab_view.h"
  #include "chrome/browser/ui/views/tab_contents/chrome_web_contents_view_focus_helper.h"
@@ -278,9 +278,9 @@ diff --git a/chrome/browser/ui/views/tab_contents/chrome_web_contents_view_deleg
  void ChromeWebContentsViewDelegateViewsMac::OnPerformingDrop(
      const content::DropData& drop_data,
      DropCompletionCallback callback) {
-+  // Arcomium: a row dragged from the Arc sidebar does not drop into a page;
++  // Alerse: a row dragged from the Arc sidebar does not drop into a page;
 +  // only the split drop zone on the page's edges takes it.
-+  if (arcomium::SidebarRowDragging()) {
++  if (alerse::SidebarRowDragging()) {
 +    if (!callback.is_null()) {
 +      std::move(callback).Run(std::nullopt);
 +    }

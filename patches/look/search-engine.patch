@@ -10,7 +10,7 @@ index 5b6a5ad42ae..be0a3fa7bc7 100644
 -      browser, base::FeatureList::IsEnabled(switches::kSearchSettingsUpdate)
 -                   ? kSearchSubPage
 -                   : kSearchEnginesSubPage);
-+  // Arcomium: the page that both picks the default and adds one's own.
++  // Alerse: the page that both picks the default and adds one's own.
 +  ShowSettingsSubPage(browser, kSearchEnginesSubPage);
  }
  
@@ -20,17 +20,17 @@ index 289d3f19e6a..80bd8425eb7 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -2373,6 +2373,12 @@ void AppMenuModel::Build() {
-       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       this, IDC_ALERSE_LINK_ROUTING, IDS_ALERSE_LINK_ROUTING,
        features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
                                          : vector_icons::kLinkOldIcon);
-+  // Arcomium: where the address bar's search engine is picked, or one's own
++  // Alerse: where the address bar's search engine is picked, or one's own
 +  // (a self-hosted one, say) added.
-+  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ARCOMIUM_SEARCH_ENGINE),
++  AddItemWithIcon(IDC_EDIT_SEARCH_ENGINES, l10n_util::GetStringUTF16(IDS_ALERSE_SEARCH_ENGINE),
 +                  ui::ImageModel::FromVectorIcon(
 +                      vector_icons::kSearchIcon, ui::kColorMenuIcon,
 +                      ui::SimpleMenuModel::kDefaultIconSize));
    if (!GetWebstoreItemId(browser_).empty()) {
-     AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
+     AddItemWithIcon(kAlerseAddFromWebstore, l10n_util::GetStringUTF16(IDS_ALERSE_ADD_TO_ALERSE),
                      ui::ImageModel::FromVectorIcon(
 diff --git a/third_party/search_engines_data/resources/definitions/prepopulated_engines.json b/third_party/search_engines_data/resources/definitions/prepopulated_engines.json
 index ec10c20e316..3e43d522e75 100644

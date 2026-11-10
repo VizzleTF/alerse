@@ -7,9 +7,9 @@ index a3038fa051d..e9105014095 100644
  #endif  // !BUILDFLAG(IS_ANDROID)
  
 +  //////////////////////////////////////////////////////////////////////////////
-+  // Arcomium: Spaces.
++  // Alerse: Spaces.
 +  // Each Space keeps its sites' data in its own storage partition
-+  // (chrome/browser/ui/tabs/arcomium_spaces.h). Without a partition named in
++  // (chrome/browser/ui/tabs/alerse_spaces.h). Without a partition named in
 +  // the filter, the same removal runs on every Space's, open or not: the
 +  // loaded ones and those the Spaces' bookmark folders name.
 +  if (!filter_builder->GetStoragePartitionConfig().has_value() &&
@@ -76,7 +76,7 @@ index 6f872ee5a8d..655069d89fb 100644
      uint64_t tab_memory_footprint_estimate) {
    content::WebContents* const old_contents = web_contents();
    content::WebContents::CreateParams create_params(tab_strip_model_->profile());
-+  // Arcomium: a Space's tab comes back in its Space's storage partition, with
++  // Alerse: a Space's tab comes back in its Space's storage partition, with
 +  // its logins, not in the default one.
 +  if (content::RenderFrameHost* frame = old_contents->GetPrimaryMainFrame()) {
 +    const content::StoragePartitionConfig& config =
@@ -100,8 +100,8 @@ index ecb3123778d..43177de2428 100644
    // Get all paths from Web App system.
    allowlist.merge(lock_->isolation_delegate().GetIsolatedStoragePaths());
  
-+  // Arcomium: the Spaces' storage partitions all live in one domain directory
-+  // (chrome/browser/ui/tabs/arcomium_spaces.h). A Space not open right now
++  // Alerse: the Spaces' storage partitions all live in one domain directory
++  // (chrome/browser/ui/tabs/alerse_spaces.h). A Space not open right now
 +  // still has its logins and site data there.
 +  allowlist.insert(profile_->GetPath()
 +                       .Append(FILE_PATH_LITERAL("Storage"))

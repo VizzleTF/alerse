@@ -6,7 +6,7 @@ index 11a68b0fe5a..96d6b205c27 100644
    // Some URLs should leave the SiteInstance's site unassigned, though if
    // `instance` is for a guest, we should always set the site to ensure that it
    // carries guest information contained within SiteInfo.
-+  // Arcomium: the same goes for fixed storage partitions (Spaces). A
++  // Alerse: the same goes for fixed storage partitions (Spaces). A
 +  // SiteInstance without a site reports the default partition, so a blank tab
 +  // of a Space and every page it navigates to would silently leave the Space's
 +  // partition.

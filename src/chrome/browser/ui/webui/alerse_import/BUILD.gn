@@ -1,0 +1,81 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("data") {
+  sources = [
+    "alerse_import_data.cc",
+    "alerse_import_data.h",
+  ]
+  public_deps = [
+    "//base",
+    "//url",
+  ]
+  deps = [ "//third_party/boringssl" ]
+}
+
+source_set("bookmarks") {
+  sources = [
+    "alerse_import_bookmarks.cc",
+    "alerse_import_bookmarks.h",
+  ]
+  public_deps = [ ":data" ]
+  deps = [
+    "//base",
+    "//components/bookmarks/browser",
+    "//components/bookmarks/common",
+    "//crypto",
+    "//ui/base",
+  ]
+}
+
+source_set("alerse_import") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_import_handler.cc",
+    "alerse_import_handler.h",
+    "alerse_import_page.inc",
+    "alerse_import_ui.cc",
+    "alerse_import_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    ":bookmarks",
+    ":data",
+    "//base",
+    "//chrome/app:generated_resources",
+    "//chrome/browser/bookmarks",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_enums",
+    "//chrome/browser/ui/tabs:tab_strip",
+    "//components/bookmarks/browser",
+    "//components/bookmarks/common",
+    "//components/prefs",
+    "//components/strings:components_strings",
+    "//components/tab_groups",
+    "//components/tabs:public",
+    "//ui/base",
+    "//url",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "alerse_import_bookmarks_unittest.cc",
+    "alerse_import_data_unittest.cc",
+  ]
+  deps = [
+    ":bookmarks",
+    ":data",
+    "//base",
+    "//base/test:test_support",
+    "//components/bookmarks/browser",
+    "//components/bookmarks/common",
+    "//components/bookmarks/test",
+    "//testing/gtest",
+    "//third_party/boringssl",
+    "//url",
+  ]
+}

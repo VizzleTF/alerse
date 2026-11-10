@@ -1,0 +1,168 @@
+diff --git a/chrome/browser/sync/chrome_sync_controller_builder.cc b/chrome/browser/sync/chrome_sync_controller_builder.cc
+index 4cecd74fdcc..bc958a8df10 100644
+--- a/chrome/browser/sync/chrome_sync_controller_builder.cc
++++ b/chrome/browser/sync/chrome_sync_controller_builder.cc
+@@ -195,18 +195,21 @@ ChromeSyncControllerBuilder::Build(syncer::SyncService* sync_service) {
+   syncer::RepeatingDataTypeStoreFactory data_type_store_factory =
+       data_type_store_service_.value()->GetStoreFactory();
+ 
+-    syncer::DataTypeControllerDelegate* security_events_delegate =
+-        security_event_recorder_.value()->GetControllerDelegate().get();
+-    // Forward both full-sync and transport-only modes to the same delegate,
+-    // since behavior for SECURITY_EVENTS does not differ.
+-    controllers.push_back(std::make_unique<syncer::DataTypeController>(
+-        syncer::SECURITY_EVENTS,
+-        /*delegate_for_full_sync_mode=*/
+-        std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
+-            security_events_delegate),
+-        /*delegate_for_transport_mode=*/
+-        std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
+-            security_events_delegate)));
++    // Alerse: ungoogled-chromium builds no security event recorder.
++    if (security_event_recorder_.value()) {
++      syncer::DataTypeControllerDelegate* security_events_delegate =
++          security_event_recorder_.value()->GetControllerDelegate().get();
++      // Forward both full-sync and transport-only modes to the same delegate,
++      // since behavior for SECURITY_EVENTS does not differ.
++      controllers.push_back(std::make_unique<syncer::DataTypeController>(
++          syncer::SECURITY_EVENTS,
++          /*delegate_for_full_sync_mode=*/
++          std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
++              security_events_delegate),
++          /*delegate_for_transport_mode=*/
++          std::make_unique<syncer::ForwardingDataTypeControllerDelegate>(
++              security_events_delegate)));
++    }
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+     if (extension_sync_service_.value()) {
+diff --git a/chrome/browser/sync/sync_service_factory.cc b/chrome/browser/sync/sync_service_factory.cc
+index 417f64dda11..65b53ca64d4 100644
+--- a/chrome/browser/sync/sync_service_factory.cc
++++ b/chrome/browser/sync/sync_service_factory.cc
+@@ -83,6 +83,7 @@
+ #include "components/sync/base/command_line_switches.h"
+ #include "components/sync/base/features.h"
+ #include "components/sync/engine/net/http_bridge.h"
++#include "components/sync/service/alerse_sync_account.h"
+ #include "components/sync/service/sync_service_impl.h"
+ #include "components/sync_preferences/pref_service_syncable.h"
+ #include "components/variations/service/google_groups_manager.h"
+@@ -314,6 +315,8 @@ syncer::DataTypeController::TypeVector CreateChromeControllers(
+ 
+   builder.SetDataTypeStoreService(
+       DataTypeStoreServiceFactory::GetForProfile(profile));
++  // ungoogled-chromium builds no security event recorder.
++  builder.SetSecurityEventRecorder(nullptr);
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   builder.SetExtensionSyncService(ExtensionSyncService::Get(profile));
+@@ -378,7 +381,6 @@ syncer::DataTypeController::TypeVector CreateChromeControllers(
+   return builder.Build(sync_service);
+ }
+ 
+-[[maybe_unused]]
+ syncer::DataTypeController::TypeVector CreateControllers(
+     Profile* profile,
+     syncer::SyncService* sync_service) {
+@@ -388,7 +390,6 @@ syncer::DataTypeController::TypeVector CreateControllers(
+   return controllers;
+ }
+ 
+-[[maybe_unused]]
+ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
+   CHECK(profile);
+ 
+@@ -408,7 +409,91 @@ std::unique_ptr<KeyedService> BuildSyncService(
+     std::optional<syncer::CreateHttpPostProviderFactory>
+         create_http_post_provider_factory_for_test,
+     content::BrowserContext* context) {
+-      return nullptr;
++  if (create_http_post_provider_factory_for_test.has_value()) {
++    CHECK_IS_TEST();
++  }
++
++  Profile* profile = Profile::FromBrowserContext(context);
++  CHECK(profile);
++
++  // Incognito, guest, or system profiles aren't relevant for Sync, and
++  // no SyncService should be created for those types of profiles.
++  CHECK(profiles::IsRegularUserProfile(profile));
++
++  // ungoogled-chromium builds no sync service. Alerse builds one only for a
++  // profile set up to sync with an Alerse server, which runs in local sync
++  // mode: no Google account, no GCM.
++  syncer::AlerseSyncAccount::ApplyCommandLine(profile->GetPrefs());
++  if (!syncer::AlerseSyncAccount::GetServerURL(*profile->GetPrefs())
++           .is_valid()) {
++    return nullptr;
++  }
++
++  syncer::SyncServiceImpl::InitParams init_params;
++  init_params.sync_client = BuildSyncClient(profile);
++  init_params.url_loader_factory = profile->GetDefaultStoragePartition()
++                                       ->GetURLLoaderFactoryForBrowserProcess();
++  init_params.create_http_post_provider_factory =
++      std::move(create_http_post_provider_factory_for_test)
++          .value_or(base::BindRepeating(
++              [](const std::string& user_agent,
++                 std::unique_ptr<network::PendingSharedURLLoaderFactory>
++                     pending_url_loader_factory)
++                  -> std::unique_ptr<syncer::HttpPostProviderFactory> {
++                return std::make_unique<syncer::HttpBridgeFactory>(
++                    user_agent, std::move(pending_url_loader_factory));
++              }));
++  init_params.network_connection_tracker =
++      content::GetNetworkConnectionTracker();
++  init_params.channel = chrome::GetChannel();
++  init_params.debug_identifier = profile->GetDebugName();
++  init_params.os_crypt_async = g_browser_process->os_crypt_async();
++
++  auto sync_service =
++      std::make_unique<syncer::SyncServiceImpl>(std::move(init_params));
++  sync_service->Initialize(CreateControllers(profile, sync_service.get()));
++
++  // Notify the PasswordStore of complete initialisation to resolve a circular
++  // dependency.
++  auto profile_password_store = ProfilePasswordStoreFactory::GetForProfile(
++      profile, ServiceAccessType::EXPLICIT_ACCESS);
++  // PasswordStoreInterface may be null in tests.
++  if (profile_password_store) {
++    profile_password_store->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  auto account_password_store = AccountPasswordStoreFactory::GetForProfile(
++      profile, ServiceAccessType::EXPLICIT_ACCESS);
++
++  if (account_password_store) {
++    account_password_store->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  // Notify PasswordReceiverService of complete initialization to resolve a
++  // circular dependency.
++  password_manager::PasswordReceiverService* password_receiver_service =
++      PasswordReceiverServiceFactory::GetForProfile(profile);
++  if (password_receiver_service) {
++    password_receiver_service->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  SendTabToSelfSyncServiceFactory::GetForProfile(profile)
++      ->OnSyncServiceInitialized(sync_service.get());
++
++  collaboration::CollaborationServiceFactory::GetForProfile(profile)
++      ->OnSyncServiceInitialized(sync_service.get());
++
++  // Allow sync_preferences/ components to use SyncService.
++  sync_preferences::PrefServiceSyncable* pref_service =
++      PrefServiceSyncableFromProfile(profile);
++  pref_service->OnSyncServiceInitialized(sync_service.get());
++
++  if (GoogleGroupsManager* groups_updater_service =
++          GoogleGroupsManagerFactory::GetForBrowserContext(profile)) {
++    groups_updater_service->OnSyncServiceInitialized(sync_service.get());
++  }
++
++  return sync_service;
+ }
+ 
+ }  // namespace

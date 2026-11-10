@@ -3,11 +3,11 @@ index 74ed4d0..9a30ee4 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -297,6 +297,8 @@
- #define IDC_ARCOMIUM_LINK_ROUTING 40390
- // Arcomium: opens chrome://arcomium-import.
- #define IDC_ARCOMIUM_IMPORT 40391
-+// Arcomium: opens the page of the newer release the update check found.
-+#define IDC_ARCOMIUM_UPDATE 40392
+ #define IDC_ALERSE_LINK_ROUTING 40390
+ // Alerse: opens chrome://alerse-import.
+ #define IDC_ALERSE_IMPORT 40391
++// Alerse: opens the page of the newer release the update check found.
++#define IDC_ALERSE_UPDATE 40392
  
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
@@ -19,7 +19,7 @@ index 9bb1d99..06380ae 100644
      "//chrome/browser/actor:impl",
      "//chrome/browser/ai",
      "//chrome/browser/app_mode",
-+    "//chrome/browser/arcomium_update",
++    "//chrome/browser/alerse_update",
      "//chrome/browser/autocomplete:aim_eligibility_service",
      "//chrome/browser/back_forward_cache",
      "//chrome/browser/background",
@@ -31,7 +31,7 @@ index 89c7179..7ccbdea 100644
  #include "build/build_config.h"
  #include "chrome/browser/active_use_util.h"
  #include "chrome/browser/after_startup_task_utils.h"
-+#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
++#include "chrome/browser/alerse_update/alerse_update_checker.h"
  #include "chrome/browser/browser_features.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/browser_process_impl.h"
@@ -39,8 +39,8 @@ index 89c7179..7ccbdea 100644
  #if !BUILDFLAG(IS_ANDROID)
    main_parts->AddParts(
        std::make_unique<headless::ChromeBrowserMainExtraPartsHeadless>());
-+  // Arcomium: tells about newer releases in the menus.
-+  main_parts->AddParts(std::make_unique<arcomium::UpdateChecker>());
++  // Alerse: tells about newer releases in the menus.
++  main_parts->AddParts(std::make_unique<alerse::UpdateChecker>());
  #endif
  
  #if BUILDFLAG(CHROME_FOR_TESTING)
@@ -52,7 +52,7 @@ index e7af46c..890adbc 100644
      "//chrome/browser:intranet_redirect_detector",
      "//chrome/browser/accessibility",
      "//chrome/browser/accessibility/accessibility_prefs",
-+    "//chrome/browser/arcomium_update",
++    "//chrome/browser/alerse_update",
      "//chrome/browser/autocomplete:aim_eligibility_service",
      "//chrome/browser/background/glic",
      "//chrome/browser/component_updater",
@@ -64,7 +64,7 @@ index 4f3af38..12a7524 100644
  #include "chrome/browser/accessibility/invert_bubble_prefs.h"
  #include "chrome/browser/accessibility/page_colors_controller.h"
  #include "chrome/browser/accessibility/prefers_default_scrollbar_styles_prefs.h"
-+#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
++#include "chrome/browser/alerse_update/alerse_update_checker.h"
  #include "chrome/browser/browser_process_impl.h"
  #include "chrome/browser/chrome_content_browser_client.h"
  #include "chrome/browser/component_updater/component_updater_prefs.h"
@@ -72,7 +72,7 @@ index 4f3af38..12a7524 100644
    accessibility::AccessibilityPrefsController::RegisterLocalStatePrefs(
        registry);
  #endif
-+  arcomium::RegisterUpdateCheckPrefs(registry);
++  alerse::RegisterUpdateCheckPrefs(registry);
    autofill::prefs::RegisterLocalStatePrefs(registry);
    breadcrumbs::RegisterPrefs(registry);
    browser_shutdown::RegisterPrefs(registry);
@@ -84,7 +84,7 @@ index 1e352a0..273d16e 100644
        "//chrome/browser:browser_process",
        "//chrome/browser/actor/ui:actor_overlay",
        "//chrome/browser/actor/ui:actor_overlay_web_view",
-+      "//chrome/browser/arcomium_update",
++      "//chrome/browser/alerse_update",
        "//chrome/browser/apps/app_service",
        "//chrome/browser/bookmarks",
        "//chrome/browser/browsing_data",
@@ -96,31 +96,31 @@ index 7653645..2d60c1d 100644
  #include "build/build_config.h"
  #include "chrome/app/chrome_command_ids.h"
  #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
-+#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
++#include "chrome/browser/alerse_update/alerse_update_checker.h"
  #include "chrome/browser/bookmarks/bookmark_model_factory.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
 @@ -997,6 +998,15 @@ void BrowserCommandController::HandleCommandWithDisposition(
-     case IDC_ARCOMIUM_IMPORT:
-       ShowSingletonTab(browser_, GURL("chrome://arcomium-import/"));
+     case IDC_ALERSE_IMPORT:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-import/"));
        break;
-+    // Arcomium: the page of the newer release the update check found.
-+    case IDC_ARCOMIUM_UPDATE: {
++    // Alerse: the page of the newer release the update check found.
++    case IDC_ALERSE_UPDATE: {
 +      const std::string update =
-+          arcomium::GetAvailableUpdate(g_browser_process->local_state());
++          alerse::GetAvailableUpdate(g_browser_process->local_state());
 +      ShowSingletonTab(browser_, update.empty()
-+                                     ? arcomium::GetLatestReleaseUrl()
-+                                     : arcomium::GetReleaseUrl(update));
++                                     ? alerse::GetLatestReleaseUrl()
++                                     : alerse::GetReleaseUrl(update));
 +      break;
 +    }
  #if !BUILDFLAG(IS_CHROMEOS)
      case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
        ShowSyncPassphraseDialogAndDecryptData(*browser_);
 @@ -1952,6 +1962,7 @@ void BrowserCommandController::InitCommandState() {
-   command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_LINK_ROUTING, true);
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_LINK_ROUTING, true);
    command_updater_->UpdateCommandEnabled(
-       IDC_ARCOMIUM_IMPORT, !guest_session && !profile()->IsOffTheRecord());
-+  command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_UPDATE, true);
+       IDC_ALERSE_IMPORT, !guest_session && !profile()->IsOffTheRecord());
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_PASSPHRASE_DIALOG, true);
    command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
@@ -132,7 +132,7 @@ index e5b57dd..99c3c66 100644
        "//chrome/browser:browser_process",
        "//chrome/browser:defaults",
        "//chrome/browser:global_features",
-+      "//chrome/browser/arcomium_update",
++      "//chrome/browser/alerse_update",
        "//chrome/browser/favicon",
        "//chrome/browser/feedback",
        "//chrome/browser/feedback:feedback_impl",
@@ -144,7 +144,7 @@ index 519a2a9..73c09d5 100644
  #include "build/build_config.h"
  #include "chrome/app/chrome_command_ids.h"
  #include "chrome/app/vector_icons/vector_icons.h"
-+#include "chrome/browser/arcomium_update/arcomium_update_checker.h"
++#include "chrome/browser/alerse_update/alerse_update_checker.h"
  #include "chrome/browser/browser_process.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_utils.h"
  #include "chrome/browser/defaults.h"
@@ -152,14 +152,14 @@ index 519a2a9..73c09d5 100644
    // Build (and, by extension, Init) should only be called once.
    DCHECK_EQ(0u, GetItemCount());
  
-+  // Arcomium: a newer release, when the update check found one. Arcomium has
++  // Alerse: a newer release, when the update check found one. Alerse has
 +  // no updater; the item opens the release's page.
 +  if (const std::string update =
-+          arcomium::GetAvailableUpdate(g_browser_process->local_state());
++          alerse::GetAvailableUpdate(g_browser_process->local_state());
 +      !update.empty()) {
 +    AddSeparator(ui::SPACING_SEPARATOR);
-+    AddItemWithIcon(IDC_ARCOMIUM_UPDATE,
-+                    l10n_util::GetStringFUTF16(IDS_ARCOMIUM_MENU_UPDATE_TO,
++    AddItemWithIcon(IDC_ALERSE_UPDATE,
++                    l10n_util::GetStringFUTF16(IDS_ALERSE_MENU_UPDATE_TO,
 +                                               base::UTF8ToUTF16(update)),
 +                    ui::ImageModel::FromVectorIcon(
 +                        features::IsRoundedIconsEnabled()
@@ -183,7 +183,7 @@ index 8aa0403..7f4c3ec 100644
      "//chrome/app:generated_resources",
 +    "//chrome/browser:browser_process",
      "//chrome/browser:primitives",
-+    "//chrome/browser/arcomium_update",
++    "//chrome/browser/alerse_update",
      "//components/favicon/content",
      "//components/vector_icons",
      "//services/media_session/public/cpp",
@@ -197,8 +197,8 @@ index 3921435..a667f79 100644
        }
 -      case IDC_WEB_APP_UPGRADE_DIALOG: {
 +      case IDC_WEB_APP_UPGRADE_DIALOG:
-+      // Arcomium: the newer release the update check found.
-+      case IDC_ARCOMIUM_UPDATE: {
++      // Alerse: the newer release the update check found.
++      case IDC_ALERSE_UPDATE: {
          add_menu_row_background(12, ui::kColorAppMenuUpgradeRowBackground);
          break;
        }
@@ -210,7 +210,7 @@ index 0182091..30bb8b5 100644
      "//chrome/browser/actor:unit_tests",
      "//chrome/browser/actor/ui:unit_tests",
      "//chrome/browser/apps:unit_tests",
-+    "//chrome/browser/arcomium_update:unit_tests",
++    "//chrome/browser/alerse_update:unit_tests",
      "//chrome/browser/autocomplete:unit_tests",
      "//chrome/browser/autofill:unit_tests",
      "//chrome/browser/background/glic:unit_tests",

@@ -7,7 +7,7 @@ index a521657655a..4f3af38c002 100644
    contextual_tasks::RegisterProfilePrefs(registry);
    registry->RegisterIntegerPref(prefs::kContextualTasksNextPanelOpenCount, 0);
 -  registry->RegisterBooleanPref(prefs::kCtrlTabMru, false);
-+  // Arcomium: on, with kCtrlTabMru.
++  // Alerse: on, with kCtrlTabMru.
 +  registry->RegisterBooleanPref(prefs::kCtrlTabMru, true);
    cross_device::RegisterProfilePrefs(registry);
    device_signals::RegisterProfilePrefs(registry);
@@ -21,7 +21,7 @@ index 018bddda69d..d01b92087bc 100644
  // Enables Back-to-Opener behavior, allowing users to press the back button in a
  // newly opened tab to close that tab and return focus to the opener tab.
 -BASE_FEATURE(kBackToOpener, base::FEATURE_DISABLED_BY_DEFAULT);
-+// Arcomium: Back in a tab a link opened returns to the tab it came from.
++// Alerse: Back in a tab a link opened returns to the tab it came from.
 +BASE_FEATURE(kBackToOpener, base::FEATURE_ENABLED_BY_DEFAULT);
  
  bool IsSplitViewHorizontalIndirectAccessEnabled() {
@@ -41,7 +41,7 @@ index c3d158eab25..07a1fb131ee 100644
 -             base::FEATURE_DISABLED_BY_DEFAULT
 -#endif
 -);
-+// Arcomium: large downloads over several connections everywhere.
++// Alerse: large downloads over several connections everywhere.
 +BASE_FEATURE(kParallelDownloading, base::FEATURE_ENABLED_BY_DEFAULT);
  
  #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
@@ -73,7 +73,7 @@ index 5667f9107ac..430ab9dc27a 100644
  
  // Defines the feature to enable this policy.
 -BASE_FEATURE(kTransientKeepAlivePolicy, base::FEATURE_DISABLED_BY_DEFAULT);
-+// Arcomium: the next three as Chrome runs them from its field trials.
++// Alerse: the next three as Chrome runs them from its field trials.
 +BASE_FEATURE(kTransientKeepAlivePolicy, base::FEATURE_ENABLED_BY_DEFAULT);
  
  // Defines the Finch parameter for the keep-alive duration.
@@ -86,7 +86,7 @@ index 8effd2c5e03..9c69965a225 100644
    registry->RegisterIntegerPref(
        kMemorySaverModeTimeBeforeDiscardInMinutes,
        kDefaultMemorySaverModeTimeBeforeDiscardInMinutes);
-+  // Arcomium: Memory Saver on: every Space stays open, idle tabs need not.
++  // Alerse: Memory Saver on: every Space stays open, idle tabs need not.
    registry->RegisterIntegerPref(
 -      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kDisabled));
 +      kMemorySaverModeState, static_cast<int>(MemorySaverModeState::kEnabled));
@@ -102,7 +102,7 @@ index d12921a1eff..5024e0257dc 100644
  // Enables support for the `Variants` response header and reduce
  // accept-language. https://github.com/Tanych/accept-language
 -BASE_FEATURE(kReduceAcceptLanguage, base::FEATURE_DISABLED_BY_DEFAULT);
-+// Arcomium: sites get one language, not the whole list.
++// Alerse: sites get one language, not the whole list.
 +BASE_FEATURE(kReduceAcceptLanguage, base::FEATURE_ENABLED_BY_DEFAULT);
  
  BASE_FEATURE_PARAM(base::TimeDelta,
@@ -112,7 +112,7 @@ index d12921a1eff..5024e0257dc 100644
  // https://github.com/patcg-individual-drafts/topics
  // Kill switch for the Topics API.
 -BASE_FEATURE(kBrowsingTopics, base::FEATURE_ENABLED_BY_DEFAULT);
-+// Arcomium: no Topics API for advertisers.
++// Alerse: no Topics API for advertisers.
 +BASE_FEATURE(kBrowsingTopics, base::FEATURE_DISABLED_BY_DEFAULT);
  
  
@@ -126,7 +126,7 @@ index 6251529..b024433 100644
  // painted a clean frame, avoiding the issue of the popup being shown with a
  // stale frame.
 -BASE_FEATURE(kOmniboxWebUIDeferShowUntilVisualStateReady, DISABLED);
-+// Arcomium: on, so a popup shown again with rows of the same height never
++// Alerse: on, so a popup shown again with rows of the same height never
 +// stays transparent waiting for a resize (the command bar's first open).
 +BASE_FEATURE(kOmniboxWebUIDeferShowUntilVisualStateReady, ENABLED);
  // When enabled, the Omnibox Full WebUI popup will defer showing until the

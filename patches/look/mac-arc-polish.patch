@@ -5,20 +5,20 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                    .command_id(IDC_SET_BROWSER_AS_DEFAULT)
                    .remove_if(is_pwa),
                Item().is_separator(),
-+              // Arcomium: not in Arc's menu; hidden, it keeps its
++              // Alerse: not in Arc's menu; hidden, it keeps its
 +              // Shift-Command-Delete.
                Item(IDS_CLEAR_BROWSING_DATA_MAC)
                    .command_id(IDC_CLEAR_BROWSING_DATA)
 +                  .set_hidden(true)
                    .remove_if(is_pwa),
-               // Arcomium: Arc's Import from Another Browser... (its Spaces
+               // Alerse: Arc's Import from Another Browser... (its Spaces
                // too), and Update Available... once the update check found
 @@ -190,7 +193,7 @@
                    .string_format_1(product_name)
                    .tag(IDC_HIDE_APP)
                    .action(@selector(hide:)),
 -              Item(IDS_HIDE_OTHERS_MAC)
-+              Item(IDS_ARCOMIUM_MENU_HIDE_OTHERS)
++              Item(IDS_ALERSE_MENU_HIDE_OTHERS)
                    .action(@selector(hideOtherApplications:))
                    .key_equivalent(@"h", NSEventModifierFlagCommand |
                                              NSEventModifierFlagOption),
@@ -27,8 +27,8 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
            .tag(IDC_FILE_MENU)
            .submenu({
 -              Item(IDS_NEW_TAB_MAC)
-+              // Arcomium: Arc's "New Tab..." (it opens the command bar).
-+              Item(IDS_ARCOMIUM_MENU_NEW_TAB)
++              // Alerse: Arc's "New Tab..." (it opens the command bar).
++              Item(IDS_ALERSE_MENU_NEW_TAB)
                    .command_id(IDC_NEW_TAB)
                    .remove_if(is_pwa),
                Item(IDS_NEW_WINDOW_MAC)
@@ -37,11 +37,11 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                    .command_id(IDC_NEW_ISOLATED_WINDOW)
                    .remove_if(is_pwa),
 -              Item(IDS_REOPEN_CLOSED_TABS_MAC)
-+              // Arcomium: Arc's File menu: its names, Open File hidden (it
++              // Alerse: Arc's File menu: its names, Open File hidden (it
 +              // keeps Command-O), the command bar and the window's items in
 +              // groups of their own. Close Tab stays: the app controller
 +              // swaps it with Close Window on Command-W.
-+              Item(IDS_ARCOMIUM_MENU_RESTORE_TAB)
++              Item(IDS_ALERSE_MENU_RESTORE_TAB)
                    .command_id(IDC_RESTORE_TAB)
                    .remove_if(is_pwa),
                Item(IDS_OPEN_FILE_MAC)
@@ -50,8 +50,8 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
 +                  .remove_if(is_pwa),
 +              Item().is_separator()
                    .remove_if(is_pwa),
-               // Arcomium: Arc's Command-L opens its command bar.
-               Item(IDS_ARCOMIUM_MENU_OPEN_COMMAND_BAR)
+               // Alerse: Arc's Command-L opens its command bar.
+               Item(IDS_ALERSE_MENU_OPEN_COMMAND_BAR)
 @@ -262,14 +273,12 @@
                Item(IDS_CLOSE_TAB_MAC)
                    .command_id(IDC_CLOSE_TAB)
@@ -65,9 +65,9 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                    .remove_if(is_pwa),
 -              Item().is_separator(),
 -              Item(IDS_PRINT)
-+              Item(IDS_ARCOMIUM_MENU_SAVE_PAGE)
++              Item(IDS_ALERSE_MENU_SAVE_PAGE)
 +                  .command_id(IDC_SAVE_PAGE),
-+              Item(IDS_ARCOMIUM_MENU_BAR_PRINT)
++              Item(IDS_ALERSE_MENU_BAR_PRINT)
                    .command_id(IDC_PRINT),
                Item(IDS_PRINT_USING_SYSTEM_DIALOG_MAC)
                    .command_id(IDC_BASIC_PRINT)
@@ -75,19 +75,19 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                Item(IDS_COPY_MAC)
                    .tag(IDC_CONTENT_CONTEXT_COPY)
                    .action(@selector(copy:)),
-+              // Arcomium: Arc's copy items follow Copy.
-+              // Arcomium: Arc's Copy URL (Shift-Command-C).
-+              Item(IDS_ARCOMIUM_MENU_COPY_URL)
++              // Alerse: Arc's copy items follow Copy.
++              // Alerse: Arc's Copy URL (Shift-Command-C).
++              Item(IDS_ALERSE_MENU_COPY_URL)
 +                  .command_id(IDC_COPY_URL)
 +                  .remove_if(is_pwa),
-+              // Arcomium: Arc's Copy URL as Markdown (Option-Shift-Command-C).
-+              Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
-+                  .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
++              // Alerse: Arc's Copy URL as Markdown (Option-Shift-Command-C).
++              Item(IDS_ALERSE_COPY_URL_MARKDOWN)
++                  .command_id(IDC_ALERSE_COPY_URL_MARKDOWN)
 +                  .remove_if(is_pwa),
-+              // Arcomium: Arc's Copy URL as Quote (Control-Shift-Command-C):
++              // Alerse: Arc's Copy URL as Quote (Control-Shift-Command-C):
 +              // the selected text quoted, then the page's link.
-+              Item(IDS_ARCOMIUM_COPY_URL_QUOTE)
-+                  .command_id(IDC_ARCOMIUM_COPY_URL_QUOTE)
++              Item(IDS_ALERSE_COPY_URL_QUOTE)
++                  .command_id(IDC_ALERSE_COPY_URL_QUOTE)
 +                  .remove_if(is_pwa),
                Item(IDS_PASTE_MAC)
                    .tag(IDC_CONTENT_CONTEXT_PASTE)
@@ -96,33 +96,33 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                Item(IDS_EDIT_SELECT_ALL_MAC)
                    .tag(IDC_CONTENT_CONTEXT_SELECTALL)
                    .action(@selector(selectAll:)),
--              // Arcomium: Arc's Copy URL (Shift-Command-C).
--              Item(IDS_ARCOMIUM_MENU_COPY_URL)
+-              // Alerse: Arc's Copy URL (Shift-Command-C).
+-              Item(IDS_ALERSE_MENU_COPY_URL)
 -                  .command_id(IDC_COPY_URL)
 -                  .remove_if(is_pwa),
--              // Arcomium: Arc's Copy URL as Markdown (Option-Shift-Command-C).
--              Item(IDS_ARCOMIUM_COPY_URL_MARKDOWN)
--                  .command_id(IDC_ARCOMIUM_COPY_URL_MARKDOWN)
+-              // Alerse: Arc's Copy URL as Markdown (Option-Shift-Command-C).
+-              Item(IDS_ALERSE_COPY_URL_MARKDOWN)
+-                  .command_id(IDC_ALERSE_COPY_URL_MARKDOWN)
 -                  .remove_if(is_pwa),
--              // Arcomium: Arc's Copy URL as Quote (Control-Shift-Command-C):
+-              // Alerse: Arc's Copy URL as Quote (Control-Shift-Command-C):
 -              // the selected text quoted, then the page's link.
--              Item(IDS_ARCOMIUM_COPY_URL_QUOTE)
--                  .command_id(IDC_ARCOMIUM_COPY_URL_QUOTE)
+-              Item(IDS_ALERSE_COPY_URL_QUOTE)
+-                  .command_id(IDC_ALERSE_COPY_URL_QUOTE)
 -                  .remove_if(is_pwa),
                Item().is_separator(),
                Item(IDS_EDIT_FIND_SUBMENU_MAC)
                    .tag(IDC_FIND_MENU)
 @@ -422,8 +432,6 @@
-               Item(IDS_ARCOMIUM_MENU_HIDE_SIDEBAR)
+               Item(IDS_ALERSE_MENU_HIDE_SIDEBAR)
                    .command_id(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE)
                    .remove_if(is_pwa),
 -              Item(IDS_TOGGLE_FULLSCREEN_TOOLBAR_MAC)
 -                  .command_id(IDC_TOGGLE_FULLSCREEN_TOOLBAR),
-               // Arcomium: Arc's Collapse / Expand Pinned Tabs.
-               Item(IDS_ARCOMIUM_COLLAPSE_PINNED)
-                   .command_id(IDC_ARCOMIUM_TOGGLE_PINNED)
+               // Alerse: Arc's Collapse / Expand Pinned Tabs.
+               Item(IDS_ALERSE_COLLAPSE_PINNED)
+                   .command_id(IDC_ALERSE_TOGGLE_PINNED)
 @@ -451,14 +459,6 @@
-                   .command_id(IDC_ARCOMIUM_EXPAND_SPLIT)
+                   .command_id(IDC_ALERSE_EXPAND_SPLIT)
                    .remove_if(is_pwa),
                Item().is_separator(),
 -              Item(IDS_ENTER_FULLSCREEN_MAC)
@@ -140,9 +140,9 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                        Item(IDS_ALLOW_JAVASCRIPT_APPLE_EVENTS_MAC)
                            .command_id(IDC_TOGGLE_JAVASCRIPT_APPLE_EVENTS),
                    }),
-+              // Arcomium: full screen comes last, as in Arc's View menu.
++              // Alerse: full screen comes last, as in Arc's View menu.
 +              Item().is_separator(),
-+              // Arcomium: Arc's Control-Command-F, which is
++              // Alerse: Arc's Control-Command-F, which is
 +              // AcceleratorForEnterFullscreen() here, so no alternate.
 +              Item(IDS_ENTER_FULLSCREEN_MAC)
 +                  .tag(IDC_FULLSCREEN)
@@ -151,15 +151,15 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
          .Build();
    // clang-format on
 @@ -500,9 +507,10 @@
-       Item(IDS_ARCOMIUM_ARCHIVE)
+       Item(IDS_ALERSE_ARCHIVE)
            .tag(IDC_HISTORY_MENU)
            .submenu({
 -              Item(IDS_HISTORY_BACK_MAC)
-+              // Arcomium: Arc's names.
-+              Item(IDS_ARCOMIUM_MENU_GO_BACK)
++              // Alerse: Arc's names.
++              Item(IDS_ALERSE_MENU_GO_BACK)
                    .command_id(IDC_BACK),
 -              Item(IDS_HISTORY_FORWARD_MAC)
-+              Item(IDS_ARCOMIUM_MENU_GO_FORWARD)
++              Item(IDS_ALERSE_MENU_GO_FORWARD)
                    .command_id(IDC_FORWARD),
                Item().is_separator()
                    .tag(HistoryMenuBridge::kRecentlyClosedSeparator)
@@ -168,7 +168,7 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
                    .tag(HistoryMenuBridge::kShowFullSeparator)
                    .remove_if(is_pwa),
 -              Item(IDS_HISTORY_SHOWFULLHISTORY_MAC)
-+              Item(IDS_ARCOMIUM_MENU_VIEW_HISTORY)
++              Item(IDS_ALERSE_MENU_VIEW_HISTORY)
                    .command_id(IDC_SHOW_HISTORY)
                    .sf_symbol(
                        @"clock.arrow.trianglehead.counterclockwise.rotate.90")
@@ -177,8 +177,8 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
            .tag(IDC_WINDOW_MENU)
            .submenu({
 -              Item(IDS_MINIMIZE_WINDOW_MAC)
-+              // Arcomium: Arc's names; no Show As Tab or Name Window.
-+              Item(IDS_ARCOMIUM_MENU_MINIMIZE)
++              // Alerse: Arc's names; no Show As Tab or Name Window.
++              Item(IDS_ALERSE_MENU_MINIMIZE)
                    .tag(IDC_MINIMIZE_WINDOW)
                    .action(@selector(performMiniaturize:)),
                Item(IDS_ZOOM_WINDOW_MAC)
@@ -193,47 +193,47 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
 -                   .remove_if(is_pwa),
 -              Item().is_separator()
 -                  .remove_if(is_pwa),
-               // Arcomium: as Arc's Window menu, Downloads only; extensions
+               // Alerse: as Arc's Window menu, Downloads only; extensions
                // have their menu, the task manager is under Help.
 -              Item(IDS_SHOW_DOWNLOADS_MAC)
-+              Item(IDS_ARCOMIUM_MENU_DOWNLOADS)
++              Item(IDS_ALERSE_MENU_DOWNLOADS)
                    .command_id(IDC_SHOW_DOWNLOADS)
                    .remove_if(is_pwa),
                Item().is_separator()
 @@ -642,11 +643,11 @@
-       Item(IDS_ARCOMIUM_MENU_TABS)
+       Item(IDS_ALERSE_MENU_TABS)
            .tag(IDC_TAB_MENU)
            .submenu({
 -              Item(IDS_NEW_TAB_MAC)
-+              Item(IDS_ARCOMIUM_MENU_NEW_TAB)
++              Item(IDS_ALERSE_MENU_NEW_TAB)
                    .command_id(IDC_NEW_TAB),
-               Item(IDS_ARCOMIUM_MENU_PIN_TAB)
-                   .command_id(IDC_ARCOMIUM_PIN_TAB),
--              Item(IDS_ARCOMIUM_NEW_FOLDER)
-+              Item(IDS_ARCOMIUM_MENU_NEW_FOLDER)
-                   .command_id(IDC_ARCOMIUM_NEW_FOLDER),
+               Item(IDS_ALERSE_MENU_PIN_TAB)
+                   .command_id(IDC_ALERSE_PIN_TAB),
+-              Item(IDS_ALERSE_NEW_FOLDER)
++              Item(IDS_ALERSE_MENU_NEW_FOLDER)
+                   .command_id(IDC_ALERSE_NEW_FOLDER),
                Item().is_separator(),
-               Item(IDS_ARCOMIUM_MENU_NEXT_TAB)
+               Item(IDS_ALERSE_MENU_NEXT_TAB)
 @@ -679,11 +680,12 @@
    NSMenuItem* item =
-       Item(IDS_ARCOMIUM_MENU_SPACES)
+       Item(IDS_ALERSE_MENU_SPACES)
            .submenu({
--              Item(IDS_ARCOMIUM_NEW_SPACE)
+-              Item(IDS_ALERSE_NEW_SPACE)
 +              // Arc's ellipses: New Space..., but Rename Space without.
-+              Item(IDS_ARCOMIUM_MENU_NEW_SPACE)
-                   .command_id(IDC_ARCOMIUM_NEW_SPACE),
-               Item(IDS_ARCOMIUM_MENU_EDIT_THEME)
-                   .command_id(IDC_ARCOMIUM_EDIT_SPACE_THEME),
--              Item(IDS_ARCOMIUM_RENAME_SPACE)
-+              Item(IDS_ARCOMIUM_MENU_RENAME_SPACE)
-                   .command_id(IDC_ARCOMIUM_RENAME_SPACE),
++              Item(IDS_ALERSE_MENU_NEW_SPACE)
+                   .command_id(IDC_ALERSE_NEW_SPACE),
+               Item(IDS_ALERSE_MENU_EDIT_THEME)
+                   .command_id(IDC_ALERSE_EDIT_SPACE_THEME),
+-              Item(IDS_ALERSE_RENAME_SPACE)
++              Item(IDS_ALERSE_MENU_RENAME_SPACE)
+                   .command_id(IDC_ALERSE_RENAME_SPACE),
                Item().is_separator(),
-               Item(IDS_ARCOMIUM_MENU_NEXT_SPACE)
+               Item(IDS_ALERSE_MENU_NEXT_SPACE)
 @@ -785,6 +787,16 @@
    AcceleratorsCocoa::CreateForPWA(is_pwa);
  
    NSMenu* main_menu = [[NSMenu alloc] initWithTitle:@""];
-+  // Arcomium: Arc's Edit menu has none of the items AppKit adds there
++  // Alerse: Arc's Edit menu has none of the items AppKit adds there
 +  // (Start Dictation..., Emoji & Symbols, AutoFill).
 +  if (!is_pwa) {
 +    [NSUserDefaults.standardUserDefaults registerDefaults:@{
@@ -250,10 +250,10 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
        key_equivalent_flags = equivalent.modifierMask;
      }
    }
-+  // Arcomium: Arc writes its Split View keys as Shift with the key itself
++  // Alerse: Arc writes its Split View keys as Shift with the key itself
 +  // (Control-Shift-= and -Minus), not "+" and "_"; the presses are matched by
 +  // key code in global_keyboard_shortcuts_mac.mm, as such an item is not.
-+  if (tag_ == IDC_NEW_SPLIT_TAB || tag_ == IDC_ARCOMIUM_CLOSE_SPLIT_PANE) {
++  if (tag_ == IDC_NEW_SPLIT_TAB || tag_ == IDC_ALERSE_CLOSE_SPLIT_PANE) {
 +    key_equivalent = tag_ == IDC_NEW_SPLIT_TAB ? @"=" : @"-";
 +    key_equivalent_flags =
 +        NSEventModifierFlagControl | NSEventModifierFlagShift;
@@ -279,7 +279,7 @@ diff --git a/chrome/browser/ui/startup/startup_tab_provider.cc b/chrome/browser/
  
  namespace {
  
-+// Arcomium: the command line's loose arguments that are tab URLs. On macOS a
++// Alerse: the command line's loose arguments that are tab URLs. On macOS a
 +// Cocoa argument-domain pair such as "-AppleLanguages (de)" (how a Mac app
 +// is started in another language) reads as the switch "-AppleLanguages" and
 +// a loose "(de)", which opened as http://(de)/; such values are skipped. The
@@ -341,7 +341,7 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
  #include "chrome/browser/ui/side_panel/side_panel_registry.h"
  #include "chrome/browser/ui/side_panel/side_panel_ui.h"
  #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
-+#include "chrome/browser/ui/tabs/arcomium_menu_bar_hook.h"
++#include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/organizer/organizer_panel_controller.h"
  #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
@@ -349,10 +349,10 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
  }
  
  std::u16string BrowserView::GetWindowTitle() const {
-+  // Arcomium: Arc for macOS names its window after the shown Space ("home")
++  // Alerse: Arc for macOS names its window after the shown Space ("home")
 +  // in the Window menu, Mission Control and the Dock (the taskbar and
 +  // Alt+Tab on Windows), not after the page.
-+  if (std::u16string space = arcomium::GetShownSpaceTitle(browser_.get());
++  if (std::u16string space = alerse::GetShownSpaceTitle(browser_.get());
 +      !space.empty()) {
 +    return space;
 +  }
@@ -366,7 +366,7 @@ diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/c
  #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
-+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
++#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
  #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
@@ -374,16 +374,16 @@ diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/c
    if (GetWidget()) {
  #if BUILDFLAG(IS_MAC)
      // Elsewhere the window controls stay in the top bar.
-     arcomium::SetWindowControlsHidden(GetWidget(), hidden && !floating,
+     alerse::SetWindowControlsHidden(GetWidget(), hidden && !floating,
                                        floating);
  #endif
 +    // What the sidebar shades off the frame then follows the floating
-+    // panel's darker #0D0D0D (arcomium_frame_color.h), as Arc's glyphs do.
++    // panel's darker #0D0D0D (alerse_frame_color.h), as Arc's glyphs do.
 +    views::Widget* widget = GetWidget();
 +    if (!!widget->GetNativeWindowProperty(
-+            arcomium::kFloatingSidebarProperty) != floating) {
++            alerse::kFloatingSidebarProperty) != floating) {
 +      static char kMark;
-+      widget->SetNativeWindowProperty(arcomium::kFloatingSidebarProperty,
++      widget->SetNativeWindowProperty(alerse::kFloatingSidebarProperty,
 +                                      floating ? &kMark : nullptr);
 +      widget->ThemeChanged();
 +    }
@@ -394,9 +394,9 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -914,9 +914,11 @@
-   // Arcomium: 15 pt in the compact one opened from the sidebar's field.
-   const int kArcomiumCommandBarFontSize =
-       arcomium_command_bar_compact_ ? 15 : 18;
+   // Alerse: 15 pt in the compact one opened from the sidebar's field.
+   const int kAlerseCommandBarFontSize =
+       alerse_command_bar_compact_ ? 15 : 18;
 -  // Arc for macOS' caret is the system's blue, not the text's color.
 +  // Arc for macOS' caret is the system's blue, not the text's color: #3478F6
 +  // as the screen shows it. Views colors are sRGB, which the display's color
@@ -406,42 +406,42 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
 +      command_bar ? std::optional<SkColor>(SkColorSetRGB(0x0A, 0x7A, 0xFE))
                    : std::nullopt);
  #else
-   constexpr int kArcomiumCommandBarFontSize = 16;
+   constexpr int kAlerseCommandBarFontSize = 16;
 @@ -964,8 +966,17 @@
-     arcomium_command_bar_font_ = omnibox_view_->GetFontList();
+     alerse_command_bar_font_ = omnibox_view_->GetFontList();
      const gfx::FontList base =
-         arcomium_default_font_.value_or(*arcomium_command_bar_font_);
+         alerse_default_font_.value_or(*alerse_command_bar_font_);
 +#if BUILDFLAG(IS_MAC)
 +    // Arc for macOS types in medium weight: regular was 17% lighter and
 +    // 4.5 pt narrower over "Search or Enter URL...".
 +    omnibox_view_->SetFontList(
-+        base.DeriveWithSizeDelta(kArcomiumCommandBarFontSize -
++        base.DeriveWithSizeDelta(kAlerseCommandBarFontSize -
 +                                 base.GetFontSize())
 +            .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 +#else
      omnibox_view_->SetFontList(base.DeriveWithSizeDelta(
-         kArcomiumCommandBarFontSize - base.GetFontSize()));
+         kAlerseCommandBarFontSize - base.GetFontSize()));
 +#endif
-   } else if (arcomium_command_bar_font_) {
-     omnibox_view_->SetFontList(*arcomium_command_bar_font_);
-     arcomium_command_bar_font_.reset();
+   } else if (alerse_command_bar_font_) {
+     omnibox_view_->SetFontList(*alerse_command_bar_font_);
+     alerse_command_bar_font_.reset();
 @@ -1188,11 +1199,16 @@
      // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
  #if BUILDFLAG(IS_MAC)
-     // Arcomium: on macOS 10 pt in and a shade brighter than the text.
+     // Alerse: on macOS 10 pt in and a shade brighter than the text.
 -    // It follows an inactive window's lighter frame.
 +    // It follows an inactive window's lighter frame, and brightens under
 +    // the pointer as Arc's (#828282 to #898888).
      const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
-         vector_icons::kArcomiumSearchIcon, 16,
--        arcomium::InkOverFrame(
--            this, GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)));
+         vector_icons::kAlerseSearchIcon, 16,
+-        alerse::InkOverFrame(
+-            this, GetColorProvider()->GetColor(kColorAlerseSidebarNewTab)));
 +        color_utils::AlphaBlend(
 +            SK_ColorWHITE,
-+            arcomium::InkOverFrame(
++            alerse::InkOverFrame(
 +                this,
-+                GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)),
-+            static_cast<SkAlpha>(arcomium_hovered_ ? 0x13 : 0x05)));
++                GetColorProvider()->GetColor(kColorAlerseSidebarNewTab)),
++            static_cast<SkAlpha>(alerse_hovered_ ? 0x13 : 0x05)));
      canvas->DrawImageInt(magnifier, 10, (height() - 16) / 2);
  #else
      const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
@@ -449,9 +449,9 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
              : omnibox_view_->GetFontList());
      // Arc for macOS' input sits lower in its row: the compact one's 2 pt,
      // its (i) 3 pt; the centred one's (i) a point.
--    const int arcomium_text_dy = arcomium_command_bar_compact_ ? 2 : 0;
-+    const int arcomium_text_dy = arcomium_command_bar_compact_ ? 3 : 0;
-     const int arcomium_info_dy = arcomium_command_bar_compact_ ? 3 : 1;
+-    const int alerse_text_dy = alerse_command_bar_compact_ ? 2 : 0;
++    const int alerse_text_dy = alerse_command_bar_compact_ ? 3 : 0;
+     const int alerse_info_dy = alerse_command_bar_compact_ ? 3 : 1;
      // Its (i) is centred 33 pt from the panel's end.
      constexpr int kInfoEndInset = 33;
 diff --git a/chrome/browser/ui/window_sizer/window_sizer_mac.mm b/chrome/browser/ui/window_sizer/window_sizer_mac.mm
@@ -462,7 +462,7 @@ diff --git a/chrome/browser/ui/window_sizer/window_sizer_mac.mm b/chrome/browser
  // How much horizontal and vertical offset there is between newly
  // opened windows.
 -const int WindowSizer::kWindowTilePixels = 22;
-+// Arcomium: Arc for macOS opens a new window 29 pt right of and below the
++// Alerse: Arc for macOS opens a new window 29 pt right of and below the
 +// last one.
 +const int WindowSizer::kWindowTilePixels = 29;
  const int WindowSizer::kWindowMaxDefaultWidth = 1200;
@@ -473,7 +473,7 @@ diff --git a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.m
 +++ b/components/remote_cocoa/app_shim/browser_native_widget_window_mac.mm
 @@ -36,6 +36,8 @@
  // go through to them.
- @interface ArcomiumWindowControlsMask : NSView
+ @interface AlerseWindowControlsMask : NSView
  @property(nonatomic) BOOL hovered;
 +// In the floating sidebar the faces are darker, as over its #0D0D0D panel.
 +@property(nonatomic) BOOL floating;
@@ -499,10 +499,10 @@ diff --git a/components/remote_cocoa/app_shim/browser_native_widget_window_mac.m
    }
 @@ -276,6 +282,7 @@
    }
-   _arcomiumMask.frame = NSUnionRect(close.frame, zoom.frame);
-   _arcomiumMask.hidden = _inFullScreen || close.hidden;
-+  _arcomiumMask.floating = _arcomiumFloating;
-   [_arcomiumMask update];
+   _alerseMask.frame = NSUnionRect(close.frame, zoom.frame);
+   _alerseMask.hidden = _inFullScreen || close.hidden;
++  _alerseMask.floating = _alerseFloating;
+   [_alerseMask update];
  }
  
 diff --git a/ui/gfx/harfbuzz_font_skia.cc b/ui/gfx/harfbuzz_font_skia.cc
@@ -531,7 +531,7 @@ diff --git a/ui/gfx/harfbuzz_font_skia.cc b/ui/gfx/harfbuzz_font_skia.cc
    // views text at other sizes was wider or tighter than AppKit draws it.
    // Blink sets ptem the same way.
    hb_font_set_ptem(harfbuzz_font, text_size);
-+  // Arcomium: kerning comes from the font's tables at its default instance
++  // Alerse: kerning comes from the font's tables at its default instance
 +  // unless HarfBuzz is told the variation: SF Pro's tighter pairs ("Yo",
 +  // "Tu", "Tw") made "YouTube" 2 pt narrower than AppKit draws it at 14 pt.
 +  // CoreText picks the optical size from the point size; give HarfBuzz the

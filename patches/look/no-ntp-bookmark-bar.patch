@@ -6,7 +6,7 @@ index 00e8c6b3153..f7fb2b1a176 100644
      return true;
    }
  
-+  // Arcomium: pinned items live in the sidebar, so the bar is not shown on the
++  // Alerse: pinned items live in the sidebar, so the bar is not shown on the
 +  // New Tab page unless --bookmark-bar-ntp=always asks for it.
 +  if (base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
 +          "bookmark-bar-ntp") != "always") {

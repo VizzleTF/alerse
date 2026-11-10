@@ -2,16 +2,16 @@ diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/
 index 15f854970de..ed58df44b37 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ b/chrome/browser/ui/tabs/tab_strip_model.cc
-@@ -1380,6 +1380,11 @@ bool TabStripModel::IsArcomiumEmptySpace(content::WebContents* contents) {
+@@ -1380,6 +1380,11 @@ bool TabStripModel::IsAlerseEmptySpace(content::WebContents* contents) {
           !controller.GetPendingEntry() && controller.GetEntryCount() <= 1;
  }
  
 +// static
-+void TabStripModel::MarkArcomiumEmptySpace(content::WebContents* contents) {
-+  ArcomiumEmptySpaceMarker::CreateForWebContents(contents);
++void TabStripModel::MarkAlerseEmptySpace(content::WebContents* contents) {
++  AlerseEmptySpaceMarker::CreateForWebContents(contents);
 +}
 +
- void TabStripModel::ArcomiumKeepSpaces(
+ void TabStripModel::AlerseKeepSpaces(
      base::span<tabs::TabInterface* const> tabs) {
    // Not while the window closes, nor in app and popup windows.
 diff --git a/chrome/browser/ui/tabs/tab_strip_model.h b/chrome/browser/ui/tabs/tab_strip_model.h
@@ -19,11 +19,11 @@ index bd0f88b0c71..4a575761b94 100644
 --- a/chrome/browser/ui/tabs/tab_strip_model.h
 +++ b/chrome/browser/ui/tabs/tab_strip_model.h
 @@ -339,6 +339,8 @@ class TabStripModel {
-   void ArcomiumKeepSpaces(base::span<tabs::TabInterface* const> tabs);
+   void AlerseKeepSpaces(base::span<tabs::TabInterface* const> tabs);
    // Whether `contents` is such a hidden tab, still on its New Tab page.
-   static bool IsArcomiumEmptySpace(content::WebContents* contents);
+   static bool IsAlerseEmptySpace(content::WebContents* contents);
 +  // Marks `contents` as an empty Space's hidden tab, before it is added.
-+  static void MarkArcomiumEmptySpace(content::WebContents* contents);
++  static void MarkAlerseEmptySpace(content::WebContents* contents);
  
    // Closes the WebContents at the specified index. This causes the
    // WebContents to be destroyed, but it may not happen immediately.
@@ -35,9 +35,9 @@ index 44d99535490..cfedea8559d 100644
      return;
    }
  
-+  // Arcomium: an empty Space waits for a bookmark or for typing. The address
++  // Alerse: an empty Space waits for a bookmark or for typing. The address
 +  // bar it had focused when it was left does not come back with it.
-+  if (TabStripModel::IsArcomiumEmptySpace(web_contents)) {
++  if (TabStripModel::IsAlerseEmptySpace(web_contents)) {
 +    focus_helper->ResetStoredFocus();
 +    return;
 +  }

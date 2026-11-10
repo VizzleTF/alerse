@@ -3,24 +3,24 @@ index 7f4c3ec..946f1fa 100644
 --- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 @@ -12,7 +12,10 @@ source_set("vertical") {
-     "arcomium_address_bar.h",
-     "arcomium_sidebar_view.h",
-     "arcomium_space_color.h",
-+    "arcomium_glyphs.h",
-+    "arcomium_popover.h",
-     "arcomium_space_switcher.h",
-+    "arcomium_tooltip.h",
+     "alerse_address_bar.h",
+     "alerse_sidebar_view.h",
+     "alerse_space_color.h",
++    "alerse_glyphs.h",
++    "alerse_popover.h",
+     "alerse_space_switcher.h",
++    "alerse_tooltip.h",
      "top_container_button.h",
      "vertical_tab_strip_bottom_container.h",
      "vertical_tab_strip_expand_on_hover_lock.h",
 @@ -48,7 +51,10 @@ source_set("impl") {
-     "arcomium_address_bar.cc",
-     "arcomium_sidebar_view.cc",
-     "arcomium_space_color.cc",
-+    "arcomium_glyphs.cc",
-+    "arcomium_popover.cc",
-     "arcomium_space_switcher.cc",
-+    "arcomium_tooltip.cc",
+     "alerse_address_bar.cc",
+     "alerse_sidebar_view.cc",
+     "alerse_space_color.cc",
++    "alerse_glyphs.cc",
++    "alerse_popover.cc",
+     "alerse_space_switcher.cc",
++    "alerse_tooltip.cc",
      "top_container_button.cc",
      "vertical_tab_strip_bottom_container.cc",
      "vertical_tab_strip_expand_on_hover_lock.cc",
@@ -40,8 +40,8 @@ index 316833e..777b7f8 100644
  #include "chrome/browser/ui/views/tabs/organizer/organizer_panel_host.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
-+#include "chrome/browser/ui/views/tabs/vertical/arcomium_popover.h"
-+#include "chrome/browser/ui/views/tabs/vertical/arcomium_tooltip.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_popover.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_tooltip.h"
  #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_segmented_control.h"
  #include "chrome/common/pref_names.h"
@@ -56,7 +56,7 @@ index 316833e..777b7f8 100644
 @@ -106,25 +110,80 @@ constexpr int kArcMacIconSize = 22;
  
  // Arc for macOS' "..." button: three 3 pt dots 5 pt apart. It opens the
- // header menu (arcomium_app_menu.h).
+ // header menu (alerse_app_menu.h).
 -class ArcMoreButton : public views::Button {
 +class ArcMoreButton : public views::Button,
 +                      public views::ContextMenuController {
@@ -65,13 +65,13 @@ index 316833e..777b7f8 100644
   public:
 -  explicit ArcMoreButton(PressedCallback callback)
 -      : views::Button(std::move(callback)) {
--    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
+-    SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_MORE));
 +  ArcMoreButton(PressedCallback callback, BrowserWindowInterface* browser)
 +      : views::Button(std::move(callback)), browser_(browser) {
 +    // Arc for macOS' pill reads "More options".
-+    arcomium::SetArcTooltip(
-+        this, l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE_OPTIONS));
-     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MORE));
++    alerse::SetArcTooltip(
++        this, l10n_util::GetStringUTF16(IDS_ALERSE_MORE_OPTIONS));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_MORE));
 +    // Arc opens its Space menu on a right click here.
 +    set_context_menu_controller(this);
 +    // Its plates reach past the header's bottom: a layer is not clipped there.
@@ -84,7 +84,7 @@ index 316833e..777b7f8 100644
 +      views::View* source,
 +      const gfx::Point& point,
 +      ui::mojom::MenuSourceType source_type) override {
-+    arcomium::ShowSpaceMenu(browser_, point, source_type);
++    alerse::ShowSpaceMenu(browser_, point, source_type);
 +  }
 +
 +  // While its popover is open the dots are a cross on a lighter plate.
@@ -157,10 +157,10 @@ index 316833e..777b7f8 100644
 +      button->SetTooltipText(l10n_util::GetStringUTF16(nav.name));
 +    } else {
 +      const bool back = nav.command == IDC_BACK;
-+      arcomium::SetArcTooltip(
++      alerse::SetArcTooltip(
 +          button.get(),
-+          l10n_util::GetStringUTF16(back ? IDS_ARCOMIUM_GO_BACK
-+                                         : IDS_ARCOMIUM_GO_FORWARD),
++          l10n_util::GetStringUTF16(back ? IDS_ALERSE_GO_BACK
++                                         : IDS_ALERSE_GO_FORWARD),
 +          std::u16string(),
 +          ui::Accelerator(back ? ui::VKEY_OEM_4 : ui::VKEY_OEM_6,
 +                          ui::EF_COMMAND_DOWN));
@@ -176,11 +176,11 @@ index 316833e..777b7f8 100644
 +            auto* button =
 +                static_cast<ArcMoreButton*>(container->arc_more_button_.get());
 +            // The press that closed the popover does not open it again.
-+            if (arcomium::ArcPopoverJustClosed(button)) {
++            if (alerse::ArcPopoverJustClosed(button)) {
 +              return;
 +            }
 +            button->SetOpen(true);
-             arcomium::ShowHeaderMenu(
+             alerse::ShowHeaderMenu(
 -                container->browser_, container->arc_more_button_,
 +                container->browser_, button,
                  base::BindRepeating(

@@ -6,7 +6,7 @@ index a71c593f719..42803f46b49 100644
    }
  #endif
  
-+  // Arcomium: the active Space's theme color tints the window frame, behind
++  // Alerse: the active Space's theme color tints the window frame, behind
 +  // the sidebar (BrowserWidget::GetColorProviderKey()).
 +  if (!key.app_controller && key.app_background_color) {
 +    ui::ColorMixer& mixer = provider->AddMixer();
@@ -25,12 +25,12 @@ index 4de6ce6bd14..4793ec687d7 100644
    UserChangedTheme(BrowserThemeChangeType::kNativeTheme);
  }
  
-+namespace arcomium {
-+// The active Space's theme color, set by arcomium_space_color.cc: native window
++namespace alerse {
++// The active Space's theme color, set by alerse_space_color.cc: native window
 +// properties are keyed by this very pointer.
 +extern const char kSpaceTintWindowProperty[];
 +const char kSpaceTintWindowProperty[] = "arcomium.space_tint";
-+}  // namespace arcomium
++}  // namespace alerse
 +
  ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
    auto key = Widget::GetColorProviderKey();
@@ -40,8 +40,8 @@ index 4de6ce6bd14..4793ec687d7 100644
      key.app_controller = app_controller;
      key.app_background_color = app_controller->GetBackgroundColor();
 +  } else if (void* tint =
-+                 GetNativeWindowProperty(arcomium::kSpaceTintWindowProperty)) {
-+    // Arcomium: the active Space's theme color (arcomium_space_color.cc).
++                 GetNativeWindowProperty(alerse::kSpaceTintWindowProperty)) {
++    // Alerse: the active Space's theme color (alerse_space_color.cc).
 +    key.app_background_color =
 +        static_cast<SkColor>(reinterpret_cast<uintptr_t>(tint));
    }
@@ -52,18 +52,18 @@ index 6cbc12b1d14..3215b315472 100644
 --- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 +++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
 @@ -10,6 +10,7 @@ source_set("vertical") {
-     "arcomium_mini_player.h",
-     "arcomium_address_bar.h",
-     "arcomium_sidebar_view.h",
-+    "arcomium_space_color.h",
-     "arcomium_space_switcher.h",
+     "alerse_mini_player.h",
+     "alerse_address_bar.h",
+     "alerse_sidebar_view.h",
++    "alerse_space_color.h",
+     "alerse_space_switcher.h",
      "top_container_button.h",
      "vertical_tab_strip_bottom_container.h",
 @@ -44,6 +45,7 @@ source_set("impl") {
-     "arcomium_mini_player.cc",
-     "arcomium_address_bar.cc",
-     "arcomium_sidebar_view.cc",
-+    "arcomium_space_color.cc",
-     "arcomium_space_switcher.cc",
+     "alerse_mini_player.cc",
+     "alerse_address_bar.cc",
+     "alerse_sidebar_view.cc",
++    "alerse_space_color.cc",
+     "alerse_space_switcher.cc",
      "top_container_button.cc",
      "vertical_tab_strip_bottom_container.cc",

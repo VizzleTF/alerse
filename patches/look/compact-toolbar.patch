@@ -7,7 +7,7 @@ index b8206dc188b..317d9e20594 100644
        return touch_ui ? 3 : 8;
      case LayoutConstant::kLocationBarHeight:
 -      return touch_ui ? 36 : 34;
-+      // Arcomium: a compact top bar.
++      // Alerse: a compact top bar.
 +      return touch_ui ? 36 : 28;
      // LINT.IfChange(LocationBarIconSize)
      case LayoutConstant::kLocationBarIconSize:

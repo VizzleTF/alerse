@@ -7,7 +7,7 @@ index 1f958582a08..88517af5a16 100644
               base::FEATURE_DISABLED_BY_DEFAULT);
  
 -BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_DISABLED_BY_DEFAULT);
-+// Arcomium: focus mode is how a Space shows only its own tabs.
++// Alerse: focus mode is how a Space shows only its own tabs.
 +BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_ENABLED_BY_DEFAULT);
  
  BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, true);

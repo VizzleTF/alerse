@@ -6,7 +6,7 @@ index 15214db..a68f14d 100644
    if (base::FeatureList::IsEnabled(
            omnibox::kOmniboxWebUIPopupStabilizeStartupShow)) {
      OnResultChanged(controller_->autocomplete_controller(), false);
-+    // Arcomium: and the row selected meanwhile, as Arc's command bar in a
++    // Alerse: and the row selected meanwhile, as Arc's command bar in a
 +    // new window has its first row selected.
 +    const OmniboxPopupSelection selection =
 +        edit_model() ? edit_model()->GetPopupSelection()
@@ -22,7 +22,7 @@ index 15214db..a68f14d 100644
          searchbox_internal::kDockToRightIconResourceName;
    }
    SearchboxHandler::OverrideIconPaths(match, mojom_match);
-+  // Arcomium: the command bar shows a site's own icon, and a plain page where
++  // Alerse: the command bar shows a site's own icon, and a plain page where
 +  // it has none, never a bookmark star (in either icon set).
 +  constexpr std::string_view kStar = "/bookmark_cr23";
 +  if (const size_t star = mojom_match->icon_path.find(kStar);
@@ -60,7 +60,7 @@ index d50d349..bde68ea 100644
  #include "url/gurl.h"
  
  namespace {
-@@ -143,14 +147,23 @@ double ArcomiumFuzzyFactor(const std::u16string& query,
+@@ -143,14 +147,23 @@ double AlerseFuzzyFactor(const std::u16string& query,
      last = at++;
      ++letters;
    }
@@ -79,27 +79,27 @@ index d50d349..bde68ea 100644
    return tightness * 0.75 + start * 0.25;
  }
  
-+// Arcomium: at most this many fuzzy bookmarks, the best first.
-+constexpr size_t kArcomiumMaxFuzzyBookmarks = 3;
++// Alerse: at most this many fuzzy bookmarks, the best first.
++constexpr size_t kAlerseMaxFuzzyBookmarks = 3;
 +
  // The fuzzy factor over a title and the URL's host and path.
- double ArcomiumFuzzyFactor(const std::u16string& query,
+ double AlerseFuzzyFactor(const std::u16string& query,
                             const std::u16string& title,
 @@ -197,6 +210,74 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
    const auto [adjusted_input, template_url] =
        AdjustInputForStarterPackKeyword(input, client_->GetTemplateURLService());
  
-+  // Arcomium: as in Arc, an empty command bar lists the open tabs to switch
++  // Alerse: as in Arc, an empty command bar lists the open tabs to switch
 +  // to, the most recently shown first; empty Spaces' blank pages are not tabs.
 +  if (!is_android && !template_url && adjusted_input.text().empty()) {
 +    std::vector<TabMatcher::TabWrapper> open_tabs =
 +        client_->GetTabMatcher().GetOpenTabs(&input);
 +    std::ranges::sort(open_tabs, std::ranges::greater(),
 +                      &TabMatcher::TabWrapper::last_shown_time);
-+    constexpr size_t kArcomiumEmptyInputTabs = 5;
-+    int relevance = kArcomiumFuzzyRelevance;
++    constexpr size_t kAlerseEmptyInputTabs = 5;
++    int relevance = kAlerseFuzzyRelevance;
 +    for (const TabMatcher::TabWrapper& open_tab : open_tabs) {
-+      if (matches_.size() == kArcomiumEmptyInputTabs) {
++      if (matches_.size() == kAlerseEmptyInputTabs) {
 +        break;
 +      }
 +      if (!open_tab.url.is_valid() || open_tab.url.IsAboutBlank()) {
@@ -119,7 +119,7 @@ index d50d349..bde68ea 100644
 +    // As in Arc, the sidebar's items fill the rest, the most recently used
 +    // first: a pinned item lists even without its tab.
 +    bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
-+    if (matches_.size() < kArcomiumEmptyInputTabs && model &&
++    if (matches_.size() < kAlerseEmptyInputTabs && model &&
 +        model->loaded()) {
 +      std::set<GURL> listed;
 +      for (const AutocompleteMatch& listed_match : matches_) {
@@ -139,7 +139,7 @@ index d50d349..bde68ea 100644
 +      std::ranges::stable_sort(items, std::ranges::greater(),
 +                               &bookmarks::BookmarkNode::date_last_used);
 +      for (const bookmarks::BookmarkNode* node : items) {
-+        if (matches_.size() == kArcomiumEmptyInputTabs) {
++        if (matches_.size() == kAlerseEmptyInputTabs) {
 +          break;
 +        }
 +        if (!listed.insert(node->url()).second) {
@@ -173,7 +173,7 @@ index d50d349..bde68ea 100644
                    TabMatcher::TabWrapper(bookmark.title, bookmark.url,
 @@ -251,9 +334,18 @@ void OpenTabProvider::Start(const AutocompleteInput& input,
          }
-         const double fuzzy = ArcomiumFuzzyFactor(adjusted_input_text,
+         const double fuzzy = AlerseFuzzyFactor(adjusted_input_text,
                                                   bookmark.title, bookmark.url);
 -        if (fuzzy <= 0) {
 -          continue;
@@ -182,7 +182,7 @@ index d50d349..bde68ea 100644
          }
 +      }
 +      const size_t keep =
-+          std::min(fuzzy_bookmarks.size(), kArcomiumMaxFuzzyBookmarks);
++          std::min(fuzzy_bookmarks.size(), kAlerseMaxFuzzyBookmarks);
 +      std::partial_sort(
 +          fuzzy_bookmarks.begin(), fuzzy_bookmarks.begin() + keep,
 +          fuzzy_bookmarks.end(),
@@ -190,8 +190,8 @@ index d50d349..bde68ea 100644
 +      fuzzy_bookmarks.resize(keep);
 +      for (const auto& [fuzzy, bookmark] : fuzzy_bookmarks) {
          AutocompleteMatch match(
-             this, kArcomiumFuzzyRelevance - 50 +
-                       fuzzy * kArcomiumFuzzyRelevanceRange,
+             this, kAlerseFuzzyRelevance - 50 +
+                       fuzzy * kAlerseFuzzyRelevanceRange,
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 index 4985bad..43e42e9 100644
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
@@ -201,7 +201,7 @@ index 4985bad..43e42e9 100644
    content: ' — ';
  }
 +
-+/* Arcomium: the command bar's rows in a regular weight, and a remove cross
++/* Alerse: the command bar's rows in a regular weight, and a remove cross
 + * at the right of every row that can be forgotten. */
 +:host([is-top-chrome-searchbox_]) #primaryText,
 +:host([is-top-chrome-searchbox_]) #secondaryText {
@@ -214,7 +214,7 @@ index 4985bad..43e42e9 100644
 +  margin-inline-end: 6px;
 +}
 +
-+/* Arcomium: as in Arc, an open tab's row ends in Switch to Tab, dim, white
++/* Alerse: as in Arc, an open tab's row ends in Switch to Tab, dim, white
 + * on the selected row; no keyword chip. */
 +:host([is-top-chrome-searchbox_]) #keyword {
 +  display: none !important;
@@ -253,7 +253,7 @@ index 4985bad..43e42e9 100644
 +  color: rgb(255, 255, 255);
 +}
 +
-+/* Arcomium: Arc for macOS' command bar rows: 46 px high and 50 apart, 8 px in
++/* Alerse: Arc for macOS' command bar rows: 46 px high and 50 apart, 8 px in
 + * from the panel; the title 13 px medium, grey, white on the selected row;
 + * Switch to Tab 13 px from the row's end before Arc's arrow square.
 + * (In a media block of their own: they restate selectors above.) */
@@ -322,7 +322,7 @@ index 27ac410c2a3..5008461d8d5 100644
      return this.match ? this.match.suggestTemplate.secondaryText.text : '';
    }
  
-+  // Arcomium: in the command bar a search reads as just its words, without
++  // Alerse: in the command bar a search reads as just its words, without
 +  // the engine's name after them; a row with no second text (a sidebar item)
 +  // gets no empty span, which would still draw the dash before it.
 +  private hidesSecondaryText_(): boolean {
@@ -343,7 +343,7 @@ index 70ca871..66322ab 100644
    white-space: nowrap;
  }
 +
-+/* Arcomium: Arc for macOS' Switch to Tab in the command bar: the words, then
++/* Alerse: Arc for macOS' Switch to Tab in the command bar: the words, then
 + * an arrow on a 24 px square, dark, white on the selected row. */
 +:host-context(cr-searchbox-match[is-top-chrome-searchbox_]) .contents {
 +  flex-direction: row-reverse;
@@ -389,10 +389,10 @@ index d817230..1a6e040 100644
        }
        const OmniboxAction::LabelStrings& label_strings =
            action->GetLabelStrings();
-+      // Arcomium: Arc's open tab rows end in "Switch to Tab".
++      // Alerse: Arc's open tab rows end in "Switch to Tab".
 +      const std::u16string hint =
 +          action->ActionId() == OmniboxActionId::TAB_SWITCH
-+              ? l10n_util::GetStringUTF16(IDS_ARCOMIUM_SWITCH_TO_TAB)
++              ? l10n_util::GetStringUTF16(IDS_ALERSE_SWITCH_TO_TAB)
 +              : label_strings.hint;
        mojom_match->actions.emplace_back(searchbox::mojom::Action::New(
 -          base::UTF16ToUTF8(label_strings.hint),

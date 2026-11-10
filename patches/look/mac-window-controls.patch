@@ -27,16 +27,16 @@ index e15fff2..721e030 100644
 +- (void)_updateButtonPositions;
 +@end
 +
-+// Arcomium: Arc for macOS shows its window controls as grey discs ringed in
++// Alerse: Arc for macOS shows its window controls as grey discs ringed in
 +// their colors, and in color only while the pointer is over them. This view
 +// draws that look over the buttons, which turn transparent meanwhile; clicks
 +// go through to them.
-+@interface ArcomiumWindowControlsMask : NSView
++@interface AlerseWindowControlsMask : NSView
 +@property(nonatomic) BOOL hovered;
 +- (void)update;
 +@end
 +
-+@implementation ArcomiumWindowControlsMask {
++@implementation AlerseWindowControlsMask {
 +  NSTrackingArea* __strong _trackingArea;
 +}
 +
@@ -128,17 +128,17 @@ index e15fff2..721e030 100644
  @implementation BrowserWindowFrame {
    BOOL _inFullScreen;
    BOOL _alwaysShowTrafficLights;
-+  // Arcomium: the hidden sidebar floats, and the controls in it sit 5 pt
++  // Alerse: the hidden sidebar floats, and the controls in it sit 5 pt
 +  // further in, as in Arc.
-+  BOOL _arcomiumFloating;
-+  ArcomiumWindowControlsMask* __strong _arcomiumMask;
++  BOOL _alerseFloating;
++  AlerseWindowControlsMask* __strong _alerseMask;
  }
  
  // NSThemeFrame overrides.
  
  - (void)layout {
    [super layout];
-+  [self updateArcomiumMask];
++  [self updateAlerseMask];
    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
            "hide-window-buttons")) {
      [self maybeShowTrafficLights];
@@ -146,7 +146,7 @@ index e15fff2..721e030 100644
    return [super _titlebarHeight];
  }
  
-+// Arcomium: Arc for macOS' zoom button sits 21.5 pt after the minimize
++// Alerse: Arc for macOS' zoom button sits 21.5 pt after the minimize
 +// button, 1.5 pt closer than AppKit puts it.
 +- (NSPoint)_zoomButtonOrigin {
 +  NSPoint origin = [super _zoomButtonOrigin];
@@ -159,41 +159,41 @@ index e15fff2..721e030 100644
 +// The other two buttons follow the close button.
 +- (NSPoint)_closeButtonOrigin {
 +  NSPoint origin = [super _closeButtonOrigin];
-+  if (_arcomiumFloating && !_inFullScreen) {
++  if (_alerseFloating && !_inFullScreen) {
 +    origin.x += 5;
 +    origin.y -= 5;
 +  }
 +  return origin;
 +}
 +
-+- (void)setArcomiumFloatingControls:(BOOL)floating {
-+  if (_arcomiumFloating != floating) {
-+    _arcomiumFloating = floating;
++- (void)setAlerseFloatingControls:(BOOL)floating {
++  if (_alerseFloating != floating) {
++    _alerseFloating = floating;
 +    if ([self respondsToSelector:@selector(_updateButtonPositions)]) {
 +      [self _updateButtonPositions];
 +    }
 +    [self setNeedsLayout:YES];
 +  }
-+  [self updateArcomiumMask];
++  [self updateAlerseMask];
 +}
 +
-+- (void)updateArcomiumMask {
++- (void)updateAlerseMask {
 +  NSButton* close = [self.window standardWindowButton:NSWindowCloseButton];
 +  NSButton* zoom = [self.window standardWindowButton:NSWindowZoomButton];
 +  NSView* parent = close.superview;
 +  if (!close || !zoom || !parent || zoom.superview != parent) {
 +    return;
 +  }
-+  if (!_arcomiumMask) {
-+    _arcomiumMask = [[ArcomiumWindowControlsMask alloc] init];
++  if (!_alerseMask) {
++    _alerseMask = [[AlerseWindowControlsMask alloc] init];
 +  }
-+  if (_arcomiumMask.superview != parent ||
-+      parent.subviews.lastObject != _arcomiumMask) {
-+    [parent addSubview:_arcomiumMask positioned:NSWindowAbove relativeTo:nil];
++  if (_alerseMask.superview != parent ||
++      parent.subviews.lastObject != _alerseMask) {
++    [parent addSubview:_alerseMask positioned:NSWindowAbove relativeTo:nil];
 +  }
-+  _arcomiumMask.frame = NSUnionRect(close.frame, zoom.frame);
-+  _arcomiumMask.hidden = _inFullScreen || close.hidden;
-+  [_arcomiumMask update];
++  _alerseMask.frame = NSUnionRect(close.frame, zoom.frame);
++  _alerseMask.hidden = _inFullScreen || close.hidden;
++  [_alerseMask update];
 +}
 +
  - (CGFloat)_minXTitlebarWidgetInset {
@@ -203,7 +203,7 @@ index e15fff2..721e030 100644
    // adjusting the visibility of the traffic lights. The layout changes are
    // desired and should be left intact.
    [super setButtonRevealAmount:amount];
-+  [self updateArcomiumMask];
++  [self updateAlerseMask];
    if (amount == 1.0 && !base::CommandLine::ForCurrentProcess()->HasSwitch(
                             "hide-window-buttons")) {
      return;

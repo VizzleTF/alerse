@@ -1,0 +1,15 @@
+// Copyright 2026 The Alerse Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Generated from chrome/VERSION by
+// //chrome/browser/alerse_update:version_header.
+
+#ifndef CHROME_BROWSER_ALERSE_UPDATE_ALERSE_VERSION_H_
+#define CHROME_BROWSER_ALERSE_UPDATE_ALERSE_VERSION_H_
+
+// The Alerse release this build is, as MAJOR.MINOR.PATCH; empty when
+// chrome/VERSION does not say.
+#define ALERSE_VERSION "@ALERSE_VERSION@"
+
+#endif  // CHROME_BROWSER_ALERSE_UPDATE_ALERSE_VERSION_H_

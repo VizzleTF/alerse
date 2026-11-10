@@ -1,0 +1,537 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alerse's strings (included from generated_resources.grd). -->
+<grit-part>
+  <if expr="not is_android">
+    <!-- Sidebar -->
+    <message name="IDS_ALERSE_NEW_TAB" desc="The sidebar row that opens the command bar for a new tab.">
+      New Tab
+    </message>
+    <message name="IDS_ALERSE_CLOSE_TAB" desc="Tooltip and menu item: close the tab of a sidebar row.">
+      Close tab
+    </message>
+    <message name="IDS_ALERSE_CLOSE_TAB_BUTTON" desc="Tooltip of the button on a hovered sidebar row that closes its tab (a cross on a tab, a minus on a pinned tab, whose pinned item stays).">
+      Close Tab
+    </message>
+    <message name="IDS_ALERSE_REMOVE_PINNED_BUTTON" desc="Tooltip of the cross on a hovered pinned tab with no tab open: removes the pinned tab from the sidebar.">
+      Remove
+    </message>
+    <message name="IDS_ALERSE_COPY_LINK" desc="Tooltip and menu item: copy the address of a page or a pinned tab.">
+      Copy Link
+    </message>
+    <message name="IDS_ALERSE_DUPLICATE" desc="Sidebar menu item: open a copy of a tab or a pinned tab.">
+      Duplicate
+    </message>
+    <message name="IDS_ALERSE_MUTE_TAB" desc="Sidebar menu item: silence the tab of a row.">
+      Mute
+    </message>
+    <message name="IDS_ALERSE_UNMUTE_TAB" desc="Sidebar menu item: let the muted tab of a row play sound again.">
+      Unmute
+    </message>
+    <message name="IDS_ALERSE_OPEN_IN_SPLIT_VIEW" desc="Sidebar menu item: show the row's tab side by side with the current tab.">
+      Open in Split View
+    </message>
+    <message name="IDS_ALERSE_EDIT_PINNED_PAGE" desc="Sidebar submenu: changes to a pinned tab's saved page.">
+      Edit Pinned Page
+    </message>
+    <message name="IDS_ALERSE_REPLACE_PINNED_URL" desc="Sidebar menu item: make the page the pinned tab now shows its saved page.">
+      Save Current Page as Pinned Page
+    </message>
+    <message name="IDS_ALERSE_EDIT_PINNED_ITEM" desc="Sidebar menu item: edit a pinned tab's name and address in a dialog.">
+      Edit Name and Address...
+    </message>
+    <message name="IDS_ALERSE_MENU_CHECK_UPDATES" desc="Menu of the sidebar logo: open the page of the latest release.">
+      Check for Updates
+    </message>
+    <message name="IDS_ALERSE_MENU_UPDATE_TO" desc="Top item of the sidebar logo's menu and the app menu when a newer Alerse release is out: open that release's page to download it. $1 is its version.">
+      Update to Alerse <ph name="VERSION">$1<ex>0.1.5</ex></ph>
+    </message>
+    <message name="IDS_ALERSE_MENU_IMPORT" desc="Menu of the sidebar logo and the app menu: open the page that imports bookmarks and Spaces from other browsers on this computer.">
+      Import from Another Browser...
+    </message>
+    <!-- chrome://alerse-import -->
+    <message name="IDS_ALERSE_IMPORT_TITLE" desc="Title of the page that imports bookmarks and Spaces from other browsers.">
+      Import from another browser
+    </message>
+    <message name="IDS_ALERSE_IMPORT_LEDE" desc="Introduction of the import page.">
+      Bring over bookmarks, pinned tabs and Spaces from the browsers on this computer. Alerse only reads their files: nothing changes in those browsers.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_SEARCHING" desc="Import page: shown while it looks for other browsers.">
+      Looking for browsers on this computer...
+    </message>
+    <message name="IDS_ALERSE_IMPORT_NOTHING_FOUND" desc="Import page: no browser to import from was found.">
+      No other browser with bookmarks was found on this computer. You can still import from a bookmarks file below.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_REPLACES" desc="Import page: what importing the same browser twice does.">
+      Importing a browser again replaces what came from it last time, so nothing is doubled.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_OTHER_LINK" desc="Import page: link to the standard importer for browsers this page does not read.">
+      Firefox, Safari or a bookmarks file
+    </message>
+    <message name="IDS_ALERSE_IMPORT_OTHER_HINT" desc="Import page: explains the link to the standard importer.">
+      Opens the standard importer, which also reads HTML bookmark files.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_SUMMARY" desc="Import page: what Arc has. $1 is a number of Spaces, $2 a number of pinned tabs.">
+      Spaces: <ph name="SPACE_COUNT">$1<ex>3</ex></ph>, pinned tabs: <ph name="TAB_COUNT">$2<ex>40</ex></ph>
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_HINT" desc="Import page: where Arc's Spaces go.">
+      Every Arc Space becomes a Space here, with its pinned tabs, folders and icons. The first one goes to Home.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_BOOKMARKS_SUMMARY" desc="Import page: how many bookmarks a browser profile has. $1 is the number.">
+      Bookmarks: <ph name="BOOKMARK_COUNT">$1<ex>90</ex></ph>
+    </message>
+    <message name="IDS_ALERSE_IMPORT_BOOKMARKS_HINT" desc="Import page: where a browser's bookmarks go.">
+      They go to a folder pinned in the current Space.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_BUTTON" desc="Import page: button that imports from one browser.">
+      Import
+    </message>
+    <message name="IDS_ALERSE_IMPORT_AGAIN_BUTTON" desc="Import page: button that imports from a browser once more.">
+      Import again
+    </message>
+    <message name="IDS_ALERSE_IMPORT_WORKING" desc="Import page: shown on the button while importing.">
+      Importing...
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_DONE" desc="Import page: result of importing Arc. $1 is a number of Spaces, $2 of pinned tabs, $3 of folders.">
+      Imported. Spaces: <ph name="SPACE_COUNT">$1<ex>3</ex></ph>, pinned tabs: <ph name="TAB_COUNT">$2<ex>40</ex></ph>, folders: <ph name="FOLDER_COUNT">$3<ex>5</ex></ph>.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_SPACES_CREATED" desc="Import page: how many Spaces importing Arc added to the Space bar. $1 is the number.">
+      New Spaces in the Space bar: <ph name="SPACE_COUNT">$1<ex>2</ex></ph>.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_SPACES_PENDING" desc="Import page: Spaces of Arc that could not be opened here; the user adds them with the plus button of the Space bar. $1 is the number.">
+      Click + in the Space bar to add the other Spaces (<ph name="SPACE_COUNT">$1<ex>2</ex></ph>).
+    </message>
+    <message name="IDS_ALERSE_IMPORT_BOOKMARKS_DONE" desc="Import page: result of importing a browser's bookmarks. $1 is the number of bookmarks, $2 the name of the folder they went to.">
+      Imported <ph name="BOOKMARK_COUNT">$1<ex>90</ex></ph> bookmarks into the folder "<ph name="FOLDER_NAME">$2<ex>Google Chrome</ex></ph>".
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ERROR_BUSY" desc="Import page: another import has not finished yet.">
+      Another import is still running. Wait for it to finish.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ERROR_NOT_READY" desc="Import page: the bookmarks of this profile have not loaded yet.">
+      Bookmarks are still loading. Try again in a moment.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ERROR_READ" desc="Import page: the files of the other browser could not be read.">
+      Could not read this browser's data. Try again, or close that browser first.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ERROR_UNKNOWN" desc="Import page: the browser to import from is gone.">
+      This browser is no longer found. Reload the page.
+    </message>
+    <message name="IDS_ALERSE_MENU_NEW_WINDOW" desc="Menu of the sidebar logo: open a new window.">
+      New Window
+    </message>
+    <message name="IDS_ALERSE_MENU_NEW_INCOGNITO" desc="Menu of the sidebar logo: open a new incognito window.">
+      New Incognito Window
+    </message>
+    <message name="IDS_ALERSE_MENU_SPACES" desc="Menu of the sidebar logo: submenu of the Space commands.">
+      Spaces
+    </message>
+    <message name="IDS_ALERSE_MENU_NEXT_SPACE" desc="Menu of the sidebar logo: show the Space after this one.">
+      Next Space
+    </message>
+    <message name="IDS_ALERSE_MENU_PREVIOUS_SPACE" desc="Menu of the sidebar logo: show the Space before this one.">
+      Previous Space
+    </message>
+    <message name="IDS_ALERSE_MENU_TABS" desc="Menu of the sidebar logo: submenu of the tab commands.">
+      Tabs
+    </message>
+    <message name="IDS_ALERSE_MENU_COMMAND_BAR" desc="Menu of the sidebar logo: open the command bar to search or type an address.">
+      Open Command Bar
+    </message>
+    <message name="IDS_ALERSE_MENU_PIN_TAB" desc="macOS menu bar, Tabs menu: pin the shown tab in the current Space, as Arc's Pin Tab.">
+      Pin Tab
+    </message>
+    <message name="IDS_ALERSE_MENU_CLEAR_TODAY" desc="macOS menu bar, Tabs menu: close the current Space's tabs that are not pinned, as Arc's Clear Today.">
+      Clear Today
+    </message>
+    <message name="IDS_ALERSE_MENU_EDIT_THEME" desc="macOS menu bar, Spaces menu: open the current Space's theme color picker.">
+      Edit Theme…
+    </message>
+    <message name="IDS_ALERSE_MENU_NEW_TAB" desc="macOS menu bar, File and Tabs menus: open the command bar for a new tab.">
+      New Tab…
+    </message>
+    <message name="IDS_ALERSE_MENU_NEW_FOLDER" desc="macOS menu bar, Tabs menu: create a folder of pinned tabs, then name it.">
+      New Folder…
+    </message>
+    <message name="IDS_ALERSE_MENU_NEW_SPACE" desc="macOS menu bar, Spaces menu: create a Space, a set of tabs with its own pinned tabs.">
+      New Space…
+    </message>
+    <message name="IDS_ALERSE_MENU_RENAME_SPACE" desc="macOS menu bar, Spaces menu: rename the current Space in place.">
+      Rename Space
+    </message>
+    <message name="IDS_ALERSE_MENU_OPEN_COMMAND_BAR" desc="macOS menu bar, File menu: open the command bar, where an address or a search is typed.">
+      Open Command Bar
+    </message>
+    <message name="IDS_ALERSE_MENU_HIDE_OTHERS" desc="macOS menu bar, App menu: hide the other applications, as Arc names it.">
+      Hide Other Windows
+    </message>
+    <message name="IDS_ALERSE_MENU_RESTORE_TAB" desc="macOS menu bar, File menu: reopen the tab closed last, as Arc names it.">
+      Restore Last Closed Tab
+    </message>
+    <message name="IDS_ALERSE_MENU_SAVE_PAGE" desc="macOS menu bar, File menu: save the page to a file, as Arc names it.">
+      Save Page As
+    </message>
+    <message name="IDS_ALERSE_MENU_BAR_PRINT" desc="macOS menu bar, File menu: print the page, as Arc names it.">
+      Print
+    </message>
+    <message name="IDS_ALERSE_MENU_GO_BACK" desc="macOS menu bar, Archive menu: go back in the tab's history, as Arc names it.">
+      Go Back
+    </message>
+    <message name="IDS_ALERSE_MENU_GO_FORWARD" desc="macOS menu bar, Archive menu: go forward in the tab's history, as Arc names it.">
+      Go Forward
+    </message>
+    <message name="IDS_ALERSE_MENU_VIEW_HISTORY" desc="macOS menu bar, Archive menu: open the full history, as Arc names it.">
+      View History
+    </message>
+    <message name="IDS_ALERSE_MENU_MINIMIZE" desc="macOS menu bar, Window menu: minimize the window to the Dock, as Arc names it.">
+      Minimize Window
+    </message>
+    <message name="IDS_ALERSE_MENU_DOWNLOADS" desc="macOS menu bar, Window menu: show the downloads, as Arc names it.">
+      View Downloads…
+    </message>
+    <message name="IDS_ALERSE_MENU_NEXT_TAB" desc="Menu of the sidebar logo: select the next tab.">
+      Next Tab
+    </message>
+    <message name="IDS_ALERSE_MENU_PREVIOUS_TAB" desc="Menu of the sidebar logo: select the previous tab.">
+      Previous Tab
+    </message>
+    <message name="IDS_ALERSE_MENU_REOPEN_TAB" desc="Menu of the sidebar logo: reopen the tab closed last.">
+      Reopen Closed Tab
+    </message>
+    <message name="IDS_ALERSE_MENU_HISTORY" desc="Menu of the sidebar logo: open the history.">
+      History
+    </message>
+    <message name="IDS_ALERSE_MENU_BOOKMARKS" desc="Menu of the sidebar logo: open the bookmark manager.">
+      Bookmarks
+    </message>
+    <message name="IDS_ALERSE_MENU_DEVELOPER" desc="Menu of the sidebar logo: submenu of the developer tools.">
+      Developer
+    </message>
+    <message name="IDS_ALERSE_MENU_VIEW_SOURCE" desc="Menu of the sidebar logo: show the page source.">
+      View Page Source
+    </message>
+    <message name="IDS_ALERSE_MENU_DEV_TOOLS" desc="Menu of the sidebar logo: open the developer tools.">
+      Developer Tools
+    </message>
+    <message name="IDS_ALERSE_MENU_INSPECT" desc="Menu of the sidebar logo: open the developer tools on the elements panel.">
+      Inspect Elements
+    </message>
+    <message name="IDS_ALERSE_MENU_CONSOLE" desc="Menu of the sidebar logo: open the developer tools on the console.">
+      JavaScript Console
+    </message>
+    <message name="IDS_ALERSE_MENU_TASK_MANAGER" desc="Menu of the sidebar logo: open the task manager.">
+      Task Manager
+    </message>
+    <message name="IDS_ALERSE_MENU_SYNC" desc="Menu of the sidebar logo: open the sync settings.">
+      Sync
+    </message>
+    <message name="IDS_ALERSE_MENU_SETTINGS" desc="Menu of the sidebar logo: open the settings.">
+      Settings
+    </message>
+    <message name="IDS_ALERSE_MENU_PRINT" desc="Menu of the sidebar logo: print the page.">
+      Print...
+    </message>
+    <message name="IDS_ALERSE_MENU_ABOUT" desc="Menu of the sidebar logo: show the version and the about page.">
+      About Alerse
+    </message>
+    <message name="IDS_ALERSE_MENU_CLOSE_WINDOW" desc="Menu of the sidebar logo: close this window.">
+      Close Window
+    </message>
+    <message name="IDS_ALERSE_RENAME" desc="Sidebar menu item: rename a folder or a pinned tab.">
+      Rename…
+    </message>
+    <message name="IDS_ALERSE_MOVE_TO" desc="Sidebar menu: the submenu that moves a tab to another Space.">
+      Move to
+    </message>
+    <message name="IDS_ALERSE_PIN_CURRENT_TAB_HERE" desc="Sidebar folder menu item: pin the shown tab into this folder.">
+      Pin current tab here
+    </message>
+    <message name="IDS_ALERSE_NEW_FOLDER_INSIDE" desc="Sidebar folder menu item: create a folder inside this one.">
+      New Nested Folder…
+    </message>
+    <message name="IDS_ALERSE_DELETE_FOLDER" desc="Sidebar folder menu item: delete the folder and its pinned tabs.">
+      Delete
+    </message>
+    <message name="IDS_ALERSE_UNPIN" desc="Sidebar menu item: unpin a pinned tab.">
+      Remove Pin
+    </message>
+    <message name="IDS_ALERSE_PIN_TO_SPACE" desc="Sidebar tab menu item: pin the tab to the current Space.">
+      Pin to this Space
+    </message>
+    <message name="IDS_ALERSE_NEW_FOLDER" desc="Sidebar menu item: create a folder of pinned tabs.">
+      New Folder
+    </message>
+    <message name="IDS_ALERSE_TURN_INTO_SPACE" desc="Sidebar folder menu item: make the folder a new Space of its own, its items the Space's pinned tabs. $1 is the folder's name.">
+      Turn “<ph name="FOLDER_NAME">$1<ex>Shopping</ex></ph>” into Space
+    </message>
+    <message name="IDS_ALERSE_COPY_ALL_LINKS" desc="Sidebar folder menu item: copy the addresses of the folder's pinned tabs, one per line.">
+      Copy All Links
+    </message>
+    <message name="IDS_ALERSE_ADD_TO_FAVORITES" desc="Sidebar menu item: add a tab or a pinned tab to the favorites, the tiles above every Space.">
+      Add to Favorites
+    </message>
+    <message name="IDS_ALERSE_REMOVE_FAVORITE" desc="Favorite tile menu item: remove the favorite.">
+      Remove Favorite
+    </message>
+    <message name="IDS_ALERSE_FAVORITES" desc="Name of the bookmark folder that holds the favorites tiles.">
+      Favorites
+    </message>
+    <message name="IDS_ALERSE_RENAME_SPACE" desc="Space menu item: rename the Space.">
+      Rename Space…
+    </message>
+    <if expr="use_titlecase">
+      <message name="IDS_ALERSE_SPACE_EDITOR_TITLE" desc="In Title Case: window title of the dialog that renames a Space (Rename Space).">
+        Edit Space Name
+      </message>
+    </if>
+    <if expr="not use_titlecase">
+      <message name="IDS_ALERSE_SPACE_EDITOR_TITLE" desc="Window title of the dialog that renames a Space (Rename Space).">
+        Edit Space name
+      </message>
+    </if>
+    <message name="IDS_ALERSE_COLLAPSE_PINNED" desc="Tooltip of the chevron on the Space's name: hide the Space's pinned tabs.">
+      Collapse Pinned Tabs
+    </message>
+    <message name="IDS_ALERSE_EXPAND_PINNED" desc="Tooltip of the chevron on the Space's name: show the Space's pinned tabs again.">
+      Expand Pinned Tabs
+    </message>
+    <message name="IDS_ALERSE_SPACE_OPTIONS" desc="Tooltip of the button on the Space's name that opens the Space's menu.">
+      Space Options
+    </message>
+    <message name="IDS_ALERSE_MENU_HIDE_SIDEBAR" desc="macOS View menu item, Command-S: hides the sidebar, which then floats over the page while the pointer is at the window's left edge.">
+      Hide Sidebar
+    </message>
+    <message name="IDS_ALERSE_MENU_SHOW_SIDEBAR" desc="macOS View menu item, Command-S, while the sidebar is hidden: shows it again.">
+      Show Sidebar
+    </message>
+    <message name="IDS_ALERSE_MENU_COPY_URL" desc="macOS Edit menu item, Shift-Command-C: copies the current page's address.">
+      Copy URL
+    </message>
+    <message name="IDS_ALERSE_GO_BACK" desc="Tooltip of the sidebar's back button on macOS, shown with its shortcut.">
+      Go back
+    </message>
+    <message name="IDS_ALERSE_GO_FORWARD" desc="Tooltip of the sidebar's forward button on macOS, shown with its shortcut.">
+      Go forward
+    </message>
+    <message name="IDS_ALERSE_MORE_OPTIONS" desc="Tooltip of the sidebar's '...' button on macOS, which opens a menu with Reload and Hide Sidebar.">
+      More options
+    </message>
+    <message name="IDS_ALERSE_DOUBLE_CLICK_TO_RENAME" desc="Second line of a pinned tab's tooltip in the sidebar: double-clicking the row renames it.">
+      Double-click to rename
+    </message>
+    <message name="IDS_ALERSE_SWITCH_TO_TAB" desc="Button at the end of an open tab's row in the command bar: switch to that tab.">
+      Switch to Tab
+    </message>
+    <message name="IDS_ALERSE_SEARCH_FOLDER" desc="Placeholder of the search field in a sidebar folder's popup, which filters the folder's links.">
+      Search <ph name="FOLDER">$1<ex>Shopping</ex></ph>...
+    </message>
+    <message name="IDS_ALERSE_EDIT_THEME_COLOR" desc="Menu item: pick the color of the current Space.">
+      Edit Theme Color…
+    </message>
+
+    <!-- Spaces -->
+    <message name="IDS_ALERSE_ARCHIVE" desc="Tooltip of the button that opens the history, which Arc calls the archive.">
+      Archive
+    </message>
+    <message name="IDS_ALERSE_NEW_SPACE" desc="Tooltip of the button that creates a Space, a set of tabs with its own pinned tabs.">
+      New Space
+    </message>
+    <message name="IDS_ALERSE_SPACE_ICON" desc="Space menu: the submenu that picks the Space's icon.">
+      Change Space Icon
+    </message>
+    <message name="IDS_ALERSE_DELETE_SPACE" desc="Space menu item: delete the Space after asking. Arc for macOS' text, without an ellipsis.">
+      Delete Space
+    </message>
+    <message name="IDS_ALERSE_DELETE_SPACE_TITLE" desc="Title of the question asked before deleting a Space.">
+      Delete Space?
+    </message>
+    <message name="IDS_ALERSE_DELETE_SPACE_BODY" desc="Question asked before deleting a Space. The placeholder is the Space's name in quotes.">
+      “<ph name="SPACE_NAME">$1<ex>Work</ex></ph>”, its tabs and its pinned tabs will be deleted on all your devices.
+    </message>
+    <message name="IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY" desc="Question asked before deleting a Space that has no name.">
+      This Space, its tabs and its pinned tabs will be deleted on all your devices.
+    </message>
+    <message name="IDS_ALERSE_SPACE_ICON_SUN" desc="A Space icon: a sun.">Sun</message>
+    <message name="IDS_ALERSE_SPACE_ICON_BOOK" desc="A Space icon: a book.">Book</message>
+    <message name="IDS_ALERSE_SPACE_ICON_HOME" desc="A Space icon: a house.">Home</message>
+    <message name="IDS_ALERSE_SPACE_ICON_CODE" desc="A Space icon: angle brackets for code.">Code</message>
+    <message name="IDS_ALERSE_SPACE_ICON_GLOBE" desc="A Space icon: a globe.">Globe</message>
+    <message name="IDS_ALERSE_SPACE_ICON_BOLT" desc="A Space icon: a lightning bolt.">Bolt</message>
+    <message name="IDS_ALERSE_SPACE_ICON_STAR" desc="A Space icon: a star.">Star</message>
+    <message name="IDS_ALERSE_SPACE_ICON_CHAT" desc="A Space icon: a speech bubble.">Chat</message>
+    <message name="IDS_ALERSE_SPACE_ICON_MAIL" desc="A Space icon: an envelope.">Mail</message>
+    <message name="IDS_ALERSE_SPACE_ICON_IDEA" desc="A Space icon: a light bulb.">Idea</message>
+    <message name="IDS_ALERSE_SPACE_ICON_ROCKET" desc="A Space icon: a rocket.">Rocket</message>
+    <message name="IDS_ALERSE_SPACE_ICON_PETS" desc="A Space icon: a paw.">Pets</message>
+    <message name="IDS_ALERSE_SPACE_ICON_TRAVEL" desc="A Space icon: a plane.">Travel</message>
+    <message name="IDS_ALERSE_SPACE_ICON_DOT" desc="A Space icon: a dot.">Dot</message>
+
+    <!-- Mini player -->
+    <message name="IDS_ALERSE_PLAY" desc="Tooltip of the mini player's button while the media is paused.">
+      Play
+    </message>
+    <message name="IDS_ALERSE_PAUSE" desc="Tooltip of the mini player's button while the media plays.">
+      Pause
+    </message>
+
+    <!-- Site controls -->
+    <message name="IDS_ALERSE_SITE_CONTROLS" desc="Name of the panel of a site's actions, extensions and permissions, and of the button that opens it.">
+      Site Controls
+    </message>
+    <message name="IDS_ALERSE_FIND_IN_PAGE" desc="Site controls button: find text in the page.">
+      Find in Page
+    </message>
+    <message name="IDS_ALERSE_SCREENSHOT" desc="Site controls button: capture a region of the page.">
+      Screenshot
+    </message>
+    <message name="IDS_ALERSE_READING_MODE" desc="Site controls button: show the page in reading mode.">
+      Reading Mode
+    </message>
+    <message name="IDS_ALERSE_EXTENSIONS" desc="Site controls heading over the extensions.">
+      Extensions
+    </message>
+    <message name="IDS_ALERSE_SITE_PERMISSIONS" desc="Site controls heading over the site's permissions.">
+      Settings
+    </message>
+    <message name="IDS_ALERSE_SECURE" desc="Site controls: the connection to the site is secure.">
+      Secure
+    </message>
+    <message name="IDS_ALERSE_NOT_SECURE" desc="Site controls: the connection to the site is not secure.">
+      Not Secure
+    </message>
+    <message name="IDS_ALERSE_MORE" desc="Tooltip of the site controls button that opens more options.">
+      More
+    </message>
+    <message name="IDS_ALERSE_SITE_SETTINGS" desc="Site controls menu item: open the site's settings page.">
+      Site Settings
+    </message>
+    <message name="IDS_ALERSE_EXTENSION_SITE_ACCESS" desc="Site controls menu item: open Chrome's extensions menu, where extensions' access to the site is set.">
+      Extension Site Access
+    </message>
+    <message name="IDS_ALERSE_MANAGE_EXTENSIONS" desc="Site controls tile and menu item: open the extensions page.">
+      Manage Extensions
+    </message>
+    <!-- Alerse's changes to Chromium's views -->
+    <message name="IDS_ALERSE_ADD_TO_ALERSE" desc="App menu item on a Chrome Web Store page: install its extension.">
+      Add to Alerse
+    </message>
+    <message name="IDS_ALERSE_SITE_SETTINGS_TOOLTIP" desc="Tooltip of the address bar button that opens the site's settings.">
+      Site settings
+    </message>
+    <message name="IDS_ALERSE_ADDRESS_PLACEHOLDER" desc="Placeholder of the address bar when it is empty.">
+      Search or Enter URL...
+    </message>
+    <message name="IDS_ALERSE_SIDEBAR_PLACEHOLDER" desc="Placeholder of the sidebar's address field when it is empty.">
+      Search...
+    </message>
+    <message name="IDS_ALERSE_SPLIT_VIEW" desc="Tooltip of the button that shows two tabs side by side.">
+      Split view
+    </message>
+    <message name="IDS_ALERSE_BACK" desc="Tooltip of the sidebar's back button.">
+      Back
+    </message>
+    <message name="IDS_ALERSE_FORWARD" desc="Tooltip of the sidebar's forward button.">
+      Forward
+    </message>
+    <message name="IDS_ALERSE_RELOAD" desc="Tooltip of the sidebar's reload button.">
+      Reload
+    </message>
+    <message name="IDS_ALERSE_SEARCH_ENGINE" desc="App menu item: pick the address bar's search engine or add one.">
+      Search Engine
+    </message>
+    <message name="IDS_ALERSE_MENU" desc="Tooltip of the sidebar button that opens Alerse's menu.">
+      Alerse menu
+    </message>
+    <message name="IDS_ALERSE_HIDE_SIDEBAR" desc="Tooltip of the button that hides the sidebar.">
+      Hide sidebar
+    </message>
+    <message name="IDS_ALERSE_DOWNLOADS" desc="Tooltip of the sidebar button that shows downloads.">
+      Downloads
+    </message>
+    <message name="IDS_ALERSE_TOGGLE_SIDEBAR" desc="macOS: item of the sidebar header's More popover that hides or shows the sidebar.">
+      Toggle Sidebar
+    </message>
+    <message name="IDS_ALERSE_NEW_SPLIT" desc="macOS: item of the Space bar's plus popover that splits the current tab with a new one.">
+      New Split
+    </message>
+    <message name="IDS_ALERSE_CHANGE_SPACE_ICON" desc="Space menu item that opens the icon picker for the Space.">
+      Change Space Icon…
+    </message>
+    <message name="IDS_ALERSE_CHANGE_ICON" desc="Sidebar menu item that opens the icon picker for a pinned tab, favorite or folder.">
+      Change Icon…
+    </message>
+    <message name="IDS_ALERSE_COPY_URL_MARKDOWN" desc="Command bar action: copies the current page as a Markdown link, [title](address).">
+      Copy URL as Markdown
+    </message>
+    <message name="IDS_ALERSE_UNPIN_TAB" desc="Command bar action: unpins the current tab, which stays open.">
+      Unpin Tab
+    </message>
+    <message name="IDS_ALERSE_ADD_SPLIT_VIEW" desc="Command bar action: splits the current tab with a new one.">
+      Add Split View
+    </message>
+    <message name="IDS_ALERSE_VIEW_HISTORY" desc="Command bar action: opens the browsing history, as Arc's View History.">
+      View History
+    </message>
+    <message name="IDS_ALERSE_SEARCH_SITE" desc="Command bar: hint at the end of the input that Tab searches the site the address completes to, as Arc's 'Search YouTube'.">
+      Search <ph name="SITE">$1<ex>YouTube</ex></ph>
+    </message>
+    <message name="IDS_ALERSE_TAB_KEY" desc="Command bar: the Tab key, shown as a key cap after the site search hint.">
+      Tab
+    </message>
+    <message name="IDS_ALERSE_CLOSE_SPLIT_PANE" desc="Menu item, as Arc's: closes the shown pane of a split view; the other pane fills the window.">
+      Close this Split Pane
+    </message>
+    <message name="IDS_ALERSE_SEPARATE_SPLIT" desc="Menu item, as Arc's: takes the shown page out of its split view, leaving separate tabs.">
+      Separate Page from Split View
+    </message>
+    <message name="IDS_ALERSE_EXPAND_SPLIT" desc="Menu item, as Arc's: gives the shown pane of a split view most of the window, or evens the panes again.">
+      Expand Current Split
+    </message>
+    <message name="IDS_ALERSE_ICON_PICKER_TITLE" desc="Title of the icon picker, and its page of icons (as opposed to emoji), as Arc's.">
+      Icon
+    </message>
+    <message name="IDS_ALERSE_ICON_PICKER_EMOJI" desc="The icon picker's page of emoji for a Space, as Arc's.">
+      Emoji
+    </message>
+    <message name="IDS_ALERSE_ICON_PICKER_SEARCH" desc="Placeholder and accessible name of the search field over the icon picker's emoji, as Arc's.">
+      Search
+    </message>
+    <message name="IDS_ALERSE_RESET_PINNED_TAB" desc="Sidebar menu item, as Arc's: loads a pinned tab's saved page again after it has navigated away.">
+      Reset Tab to Original URL
+    </message>
+    <message name="IDS_ALERSE_COLLAPSE_ALL_FOLDERS" desc="Space menu item: closes every folder of the Space's pinned tabs.">
+      Collapse All Folders
+    </message>
+    <message name="IDS_ALERSE_EXPAND_ALL_FOLDERS" desc="Space menu item: opens every folder of the Space's pinned tabs.">
+      Expand All Folders
+    </message>
+    <message name="IDS_ALERSE_SHARE" desc="Sidebar menu item on macOS, as Arc's: a submenu of the system's sharing services (AirDrop, Mail, Messages...) for the item's link.">
+      Share
+    </message>
+    <message name="IDS_ALERSE_SHARE_FOLDER" desc="Folder menu item on macOS, as Arc's: opens the system's share picker for the links in the folder.">
+      Share Folder...
+    </message>
+    <message name="IDS_ALERSE_COPY_URL_QUOTE" desc="macOS menu bar's Edit menu, the logo menu and the command bar, as Arc's: copies the selected text as a quote followed by a link to the page.">
+      Copy URL as Quote
+    </message>
+    <message name="IDS_ALERSE_MENU_REVEAL_TAB" desc="macOS menu bar's Tabs menu, the logo menu and the command bar, as Arc's: scrolls the sidebar to the shown tab's row.">
+      Reveal Tab in Sidebar
+    </message>
+    <message name="IDS_ALERSE_MENU_SET_DEFAULT_BROWSER" desc="macOS menu bar, app menu, as Arc's: makes Alerse the default browser.">
+      Set as Default Browser
+    </message>
+    <message name="IDS_ALERSE_MENU_UPDATE_AVAILABLE" desc="macOS menu bar, app menu, as Arc's: shown when a newer release exists; opens its page.">
+      Update Available...
+    </message>
+    <message name="IDS_ALERSE_MENU_ADD_EXTENSION" desc="macOS menu bar, Extensions menu, as Arc's: opens the extension store.">
+      Add Extension...
+    </message>
+    <message name="IDS_ALERSE_MENU_MANAGE_EXTENSIONS" desc="macOS menu bar, Extensions menu, as Arc's: opens the extensions page.">
+      Manage Extensions...
+    </message>
+    <message name="IDS_ALERSE_MENU_TROUBLESHOOTING" desc="macOS menu bar, Help menu, as Arc's: submenu with tools for when something goes wrong.">
+      Troubleshooting
+    </message>
+    <message name="IDS_ALERSE_MENU_OPEN_TASK_MANAGER" desc="macOS menu bar, Help menu, Troubleshooting submenu, as Arc's: opens the task manager.">
+      Open Task Manager
+    </message>
+  </if>
+</grit-part>

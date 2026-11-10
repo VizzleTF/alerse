@@ -32,7 +32,7 @@ index 5575c049b22..7809b48287f 100644
 +#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
 +namespace {
 +
-+// Arcomium: helpers for taking over an older profile, below. Plain POSIX
++// Alerse: helpers for taking over an older profile, below. Plain POSIX
 +// calls: they run before blocking calls are checked.
 +bool PathExistsNoFollow(const std::string& path) {
 +  struct stat info;
@@ -46,7 +46,7 @@ index 5575c049b22..7809b48287f 100644
 +
 +// Whether `dir` is Arcomium's: its default profile's preferences are a JSON
 +// object with an "arcomium" member.
-+bool IsArcomiumProfile(const base::FilePath& dir) {
++bool IsAlerseLineProfile(const base::FilePath& dir) {
 +  const std::string prefs =
 +      dir.Append("Default").Append("Preferences").value();
 +  const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
@@ -90,13 +90,13 @@ index 5575c049b22..7809b48287f 100644
    std::string data_dir_basename = "google-chrome";
  #else
 -  std::string data_dir_basename = "chromium";
-+  // Arcomium: its own directory, apart from Chromium's (and from Arcomium's,
++  // Alerse: its own directory, apart from Chromium's (and from Arcomium's,
 +  // as Alerse was called up to 0.1.7).
 +  std::string data_dir_basename = "alerse";
  #endif
    *result = config_dir.Append(data_dir_basename + GetChannelSuffixForDataDir());
 +#if !BUILDFLAG(GOOGLE_CHROME_BRANDING)
-+  // Arcomium: Alerse takes over the profile of the browser it was before:
++  // Alerse: Alerse takes over the profile of the browser it was before:
 +  // ~/.config/arcomium (0.1.1 on 157 to 0.1.7), or ~/.config/chromium, where
 +  // 0.1.1 on 156 kept it (only if it is Arcomium's). The first start without
 +  // a profile of its own moves that directory here. A profile another browser
@@ -116,7 +116,7 @@ index 5575c049b22..7809b48287f 100644
 +    base::FilePath legacy;
 +    if (HasProfile(arcomium)) {
 +      legacy = arcomium;
-+    } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++    } else if (HasProfile(chromium) && IsAlerseLineProfile(chromium)) {
 +      legacy = chromium;
 +    }
 +    if (!legacy.empty()) {
@@ -146,7 +146,7 @@ index a6d969df56d..61deb634eed 100644
  // The brand-specific product name to be included as a component of the install
  // and user data directory paths.
 -inline constexpr wchar_t kProductPathName[] = L"Chromium";
-+// Arcomium: its own directories and registry keys, apart from Chromium's
++// Alerse: its own directories and registry keys, apart from Chromium's
 +// (and from Arcomium's, as Alerse was called up to 0.1.7).
 +inline constexpr wchar_t kProductPathName[] = L"Alerse";
  
@@ -197,15 +197,15 @@ index 6b231841bf6..bab70225029 100644
  // TODO(ananta)
  // http://crbug.com/604923
  // Unify this with the Browser Distribution code.
-+// Arcomium: whether `dir` holds a browser profile: it has a Local State.
++// Alerse: whether `dir` holds a browser profile: it has a Local State.
 +bool HasProfile(const std::wstring& dir) {
 +  return ::GetFileAttributesW((dir + L"\\Local State").c_str()) !=
 +         INVALID_FILE_ATTRIBUTES;
 +}
 +
-+// Arcomium: whether `dir` holds an Arcomium profile: its default profile's
++// Alerse: whether `dir` holds an Arcomium profile: its default profile's
 +// preferences have Arcomium's own member.
-+bool IsArcomiumProfile(const std::wstring& dir) {
++bool IsAlerseLineProfile(const std::wstring& dir) {
 +  const std::wstring prefs = dir + L"\\Default\\Preferences";
 +  HANDLE file = ::CreateFileW(prefs.c_str(), GENERIC_READ,
 +                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
@@ -224,7 +224,7 @@ index 6b231841bf6..bab70225029 100644
 +  return text.find("\"arcomium\":") != std::string::npos;
 +}
 +
-+// Arcomium: whether a running browser has `dir` open: it holds its lockfile
++// Alerse: whether a running browser has `dir` open: it holds its lockfile
 +// (ProcessSingleton) without sharing it.
 +bool ProfileInUse(const std::wstring& dir) {
 +  HANDLE file = ::CreateFileW((dir + L"\\lockfile").c_str(), GENERIC_READ, 0,
@@ -237,7 +237,7 @@ index 6b231841bf6..bab70225029 100644
 +  return false;
 +}
 +
-+// Arcomium: Alerse takes over the profile of the browser it was before:
++// Alerse: Alerse takes over the profile of the browser it was before:
 +// "Arcomium\User Data" (0.1.2 to 0.1.7), or "Chromium\User Data", where
 +// versions before Arcomium had its own identity kept it (only if it is
 +// Arcomium's). The first start without a profile of its own moves that
@@ -261,7 +261,7 @@ index 6b231841bf6..bab70225029 100644
 +  std::wstring legacy;
 +  if (HasProfile(arcomium)) {
 +    legacy = arcomium;
-+  } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++  } else if (HasProfile(chromium) && IsAlerseLineProfile(chromium)) {
 +    legacy = chromium;
 +  } else {
 +    return;

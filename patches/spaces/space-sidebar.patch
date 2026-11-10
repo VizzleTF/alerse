@@ -11,7 +11,7 @@ index 62ea6d7..2798e14 100644
  namespace tabs {
  
 -inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
-+// Arcomium: Arc's sidebar width: 198 px on Windows, 164 pt on macOS.
++// Alerse: Arc's sidebar width: 198 px on Windows, 164 pt on macOS.
 +#if BUILDFLAG(IS_MAC)
 +inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 164;
 +#else
@@ -28,7 +28,7 @@ index f3ab4f166bc..34fbf4e7266 100644
  #include "chrome/browser/ui/views/tabs/common/tab_view.h"
  #include "chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h"
  #include "chrome/browser/ui/views/tabs/shared/drop_arrow.h"
-+#include "chrome/browser/ui/views/tabs/vertical/arcomium_sidebar_view.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_sidebar_view.h"
  #include "chrome/browser/ui/views/tabs/vertical/top_container_button.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h"
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_focus_swipe_controller.h"
@@ -36,7 +36,7 @@ index f3ab4f166bc..34fbf4e7266 100644
    top_button_separator->SetColorId(kColorTabDividerFrameActive);
    top_button_separator->SetInactiveColorId(kColorTabDividerFrameInactive);
    top_button_separator_ = top_button_separator;
-+  // Arcomium: Arc has no line under the header row.
++  // Alerse: Arc has no line under the header row.
 +  top_button_separator->SetVisible(false);
  
    bottom_button_container_ = content_area_view_->AddChildView(
@@ -45,10 +45,10 @@ index f3ab4f166bc..34fbf4e7266 100644
  
  void VerticalTabStripRegionView::AddTabStripView(
      std::unique_ptr<views::View> view) {
-+  // Arcomium: the Arc sidebar replaces the tab list while expanded.
++  // Alerse: the Arc sidebar replaces the tab list while expanded.
 +  if (auto* tab_strip_view = views::AsViewClass<TabStripView>(view.get())) {
-+    tab_strip_view->SetArcomiumAccessoryView(
-+        std::make_unique<ArcomiumSidebarView>(browser_view()->browser()));
++    tab_strip_view->SetAlerseAccessoryView(
++        std::make_unique<AlerseSidebarView>(browser_view()->browser()));
 +  }
    view->SetProperty(
        views::kFlexBehaviorKey,
@@ -61,11 +61,11 @@ index a6ac0cc24ef..d16ac4b9c1e 100644
    return pinned_tabs_container_view_;
  }
  
-+void TabStripView::SetArcomiumAccessoryView(std::unique_ptr<views::View> view) {
-+  if (arcomium_accessory_view_) {
-+    RemoveChildViewT(arcomium_accessory_view_.ExtractAsDangling());
++void TabStripView::SetAlerseAccessoryView(std::unique_ptr<views::View> view) {
++  if (alerse_accessory_view_) {
++    RemoveChildViewT(alerse_accessory_view_.ExtractAsDangling());
 +  }
-+  arcomium_accessory_view_ =
++  alerse_accessory_view_ =
 +      AddChildViewAt(std::move(view), *GetIndexOf(tabs_separator_));
 +  InvalidateLayout();
 +}
@@ -81,11 +81,11 @@ index 145dbff4073..b9f0e94453d 100644
    void SetCollapsedState(bool is_collapsed);
    void SetIsAnimatingSize(bool is_animating);
  
-+  // Arcomium: a view that replaces the tab lists of the vertical strip while it
++  // Alerse: a view that replaces the tab lists of the vertical strip while it
 +  // is expanded (the Arc sidebar). Hidden while collapsed.
-+  void SetArcomiumAccessoryView(std::unique_ptr<views::View> view);
-+  views::View* arcomium_accessory_view() const {
-+    return arcomium_accessory_view_;
++  void SetAlerseAccessoryView(std::unique_ptr<views::View> view);
++  views::View* alerse_accessory_view() const {
++    return alerse_accessory_view_;
 +  }
 +
    bool IsPositionInWindowCaption(const gfx::Point& point);
@@ -95,7 +95,7 @@ index 145dbff4073..b9f0e94453d 100644
    raw_ptr<UnpinnedTabContainerView> unpinned_tabs_container_view_ = nullptr;
    raw_ptr<TabScrollButtonContainer> tab_scroll_button_container_ = nullptr;
    bool is_collapsed_ = false;
-+  raw_ptr<views::View> arcomium_accessory_view_ = nullptr;
++  raw_ptr<views::View> alerse_accessory_view_ = nullptr;
  
    // Used for seek time metrics from the time the mouse enters the tabstrip.
    std::optional<base::TimeTicks> mouse_entered_tabstrip_time_;
@@ -107,8 +107,8 @@ index d588f4350df..98977da436f 100644
      return layouts;
    }
  
-+  // Arcomium: while expanded, the Arc sidebar replaces both tab lists.
-+  if (views::View* accessory = tab_strip_view->arcomium_accessory_view()) {
++  // Alerse: while expanded, the Arc sidebar replaces both tab lists.
++  if (views::View* accessory = tab_strip_view->alerse_accessory_view()) {
 +    const bool show_accessory = !is_collapsed;
 +    gfx::Rect accessory_bounds;
 +    if (show_accessory) {
@@ -143,8 +143,8 @@ index c924c0c4418..be7df7af074 100644
  
  source_set("vertical") {
    sources = [
-+    "arcomium_sidebar_view.h",
-+    "arcomium_space_switcher.h",
++    "alerse_sidebar_view.h",
++    "alerse_space_switcher.h",
      "top_container_button.h",
      "vertical_tab_strip_bottom_container.h",
      "vertical_tab_strip_expand_on_hover_lock.h",
@@ -152,8 +152,8 @@ index c924c0c4418..be7df7af074 100644
  
  source_set("impl") {
    sources = [
-+    "arcomium_sidebar_view.cc",
-+    "arcomium_space_switcher.cc",
++    "alerse_sidebar_view.cc",
++    "alerse_space_switcher.cc",
      "top_container_button.cc",
      "vertical_tab_strip_bottom_container.cc",
      "vertical_tab_strip_expand_on_hover_lock.cc",
@@ -179,7 +179,7 @@ index 64150f80cfe..d8dbe5b2d68 100644
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/tabs/shared/new_tab_button.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
-+#include "chrome/browser/ui/views/tabs/vertical/arcomium_space_switcher.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_space_switcher.h"
  #include "ui/actions/actions.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/views/view_class_properties.h"
@@ -187,9 +187,9 @@ index 64150f80cfe..d8dbe5b2d68 100644
    SetProperty(views::kElementIdentifierKey,
                kVerticalTabStripBottomContainerElementId);
  
-+  // Arcomium: Spaces switcher left of the new tab button.
++  // Alerse: Spaces switcher left of the new tab button.
 +  space_switcher_ =
-+      AddChildView(std::make_unique<ArcomiumSpaceSwitcher>(browser_));
++      AddChildView(std::make_unique<AlerseSpaceSwitcher>(browser_));
 +
    auto new_tab_button = std::make_unique<shared::NewTabButton>(
        browser_,
@@ -202,7 +202,7 @@ index 64150f80cfe..d8dbe5b2d68 100644
 +  // sidebar's own "New Tab" row replaces the new tab button.
 +  space_switcher_->SetVisible(!collapsed);
 +  new_tab_button_->SetVisible(collapsed);
-+  // Arcomium: while expanded the row sits at the bottom of the window, as Arc's
++  // Alerse: while expanded the row sits at the bottom of the window, as Arc's
 +  // Space bar does.
    SetCrossAxisAlignment(collapsed ? views::LayoutAlignment::kStretch
 -                                  : views::LayoutAlignment::kStart);
@@ -218,7 +218,7 @@ index b3583ec76aa..8627b112d88 100644
  #include "ui/views/layout/flex_layout_view.h"
  
  class BrowserWindowInterface;
-+class ArcomiumSpaceSwitcher;
++class AlerseSpaceSwitcher;
  class ExpandOnHoverLock;
  class TabStripFlatEdgeButton;
  
@@ -226,7 +226,7 @@ index b3583ec76aa..8627b112d88 100644
  
    raw_ptr<BrowserWindowInterface> browser_ = nullptr;
    raw_ptr<actions::ActionItem> root_action_item_ = nullptr;
-+  raw_ptr<ArcomiumSpaceSwitcher> space_switcher_ = nullptr;
++  raw_ptr<AlerseSpaceSwitcher> space_switcher_ = nullptr;
    raw_ptr<TabStripFlatEdgeButton> new_tab_button_ = nullptr;
    base::CallbackListSubscription collapsed_state_change_subscription_;
    base::CallbackListSubscription new_tab_button_pressed_subscription_;
@@ -272,7 +272,7 @@ index fc3337bf30a..5261e556464 100644
  
 +namespace {
 +
-+// Arcomium: Arc's header row, measured on Arc for Windows at 100% scale.
++// Alerse: Arc's header row, measured on Arc for Windows at 100% scale.
 +constexpr int kArcHeaderHeight = 32;
 +constexpr int kArcHeaderButtonSize = 28;
 +constexpr int kArcHeaderIconSize = 16;
@@ -285,8 +285,8 @@ index fc3337bf30a..5261e556464 100644
 + public:
 +  explicit ArcLogoButton(PressedCallback callback)
 +      : views::Button(std::move(callback)) {
-+    SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
-+    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
++    SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
++    GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
 +    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
 +    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
 +  }
@@ -336,8 +336,8 @@ index fc3337bf30a..5261e556464 100644
 +          },
 +          base::Unretained(state_controller_)),
 +      kDockToLeftIcon, kArcHeaderIconSize);
-+  sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
-+  sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
++  sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_HIDE_SIDEBAR));
++  sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_HIDE_SIDEBAR));
 +  arc_sidebar_button_ = AddChildView(std::move(sidebar));
 +  auto downloads = views::CreateVectorImageButtonWithNativeTheme(
 +      base::BindRepeating(
@@ -346,8 +346,8 @@ index fc3337bf30a..5261e556464 100644
 +          },
 +          base::Unretained(browser_)),
 +      kDownloadIcon, kArcHeaderIconSize);
-+  downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
-+  downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
++  downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_DOWNLOADS));
++  downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_DOWNLOADS));
 +  arc_downloads_button_ = AddChildView(std::move(downloads));
 +
    combo_button_ = AddChildView(std::make_unique<TabStripComboButton>(
@@ -357,7 +357,7 @@ index fc3337bf30a..5261e556464 100644
         is_collapsed_with_combo)) {
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
      int current_y = 0;
-+    // Arcomium: the Arc header row only exists while expanded.
++    // Alerse: the Arc header row only exists while expanded.
 +    for (views::View* arc_button :
 +         {arc_logo_button_.get(), arc_sidebar_button_.get(),
 +          arc_downloads_button_.get()}) {
@@ -373,7 +373,7 @@ index fc3337bf30a..5261e556464 100644
  
      host_size.SetToMax(gfx::Size(0, current_y));
 +  } else if (arc_logo_button_) {
-+    // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
++    // Alerse: Arc's header row: logo (app menu), sidebar toggle, downloads.
 +    combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
 +    host_size.set_height(kArcHeaderHeight);
 +    // The container starts 12 px into the strip; Arc's icons sit at x = 23,
@@ -411,7 +411,7 @@ index c03539ffa6f..c95adf5ef12 100644
    raw_ptr<VerticalTabStripSegmentedControl> segmented_control_ = nullptr;
    raw_ptr<views::LabelButton> collapse_button_ = nullptr;
    raw_ptr<views::LabelButton> unfocus_button_ = nullptr;
-+  // Arcomium: Arc's header row (menu logo, sidebar toggle, downloads).
++  // Alerse: Arc's header row (menu logo, sidebar toggle, downloads).
 +  raw_ptr<views::View> arc_logo_button_ = nullptr;
 +  raw_ptr<views::View> arc_sidebar_button_ = nullptr;
 +  raw_ptr<views::View> arc_downloads_button_ = nullptr;
@@ -435,7 +435,7 @@ index 931bdae..0cf7279 100644
    if (restored_state_collapsed.has_value()) {
      SetCollapsed(restored_state_collapsed.value());
    }
-+  // Arcomium: 198 is Arc for Windows' width, which macOS builds used before
++  // Alerse: 198 is Arc for Windows' width, which macOS builds used before
 +  // they took Arc for macOS' (the default); a window saved with it gets that.
 +#if BUILDFLAG(IS_MAC)
 +  if (restored_state_uncollapsed_width == 198) {

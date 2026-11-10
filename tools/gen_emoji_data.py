@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-# Copyright 2026 The Arcomium Authors
+# Copyright 2026 The Alerse Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """Writes the icon picker's emoji table from Unicode's emoji-test.txt.
 
 Usage: gen_emoji_data.py path/to/emoji-test.txt > \
-    src/chrome/browser/ui/views/tabs/vertical/arcomium_emoji_data.inc
+    src/chrome/browser/ui/views/tabs/vertical/alerse_emoji_data.inc
 
 The Chromium tree carries emoji-test.txt, e.g.
 third_party/rust/chromium_crates_io/vendor/unicode-width-v0_2/tests/.

@@ -9,13 +9,13 @@ index b35075073d2..58a2bae9c74 100644
 -  sources = [ "extensions_toolbar_button.cc" ]
 -  public_deps = [ ":extensions_toolbar_button" ]
 +  sources = [
-+    "arcomium_site_controls.cc",
-+    "arcomium_site_controls.h",
++    "alerse_site_controls.cc",
++    "alerse_site_controls.h",
 +    "extensions_toolbar_button.cc",
 +  ]
 +  public_deps = [
 +    ":extensions_toolbar_button",
-+    # Arcomium: arcomium_site_controls.cc reaches into //chrome/browser.
++    # Alerse: alerse_site_controls.cc reaches into //chrome/browser.
 +    "//chrome/browser:browser_public_dependencies",
 +  ]
    deps = [
@@ -37,7 +37,7 @@ index bc17a2395ab..902f4441ccd 100644
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/layout_constants.h"
  #include "chrome/browser/ui/view_ids.h"
-+#include "chrome/browser/ui/views/extensions/arcomium_site_controls.h"
++#include "chrome/browser/ui/views/extensions/alerse_site_controls.h"
  #include "chrome/browser/ui/views/extensions/extensions_menu_coordinator.h"
  #include "chrome/browser/ui/views/extensions/extensions_menu_view.h"
  #include "chrome/browser/ui/views/extensions/extensions_request_access_button.h"
@@ -55,7 +55,7 @@ index bc17a2395ab..902f4441ccd 100644
 -          base::BindRepeating(&ExtensionsToolbarButton::ToggleExtensionsMenu,
 -                              base::Unretained(this)),
 +          base::BindRepeating(
-+              &ExtensionsToolbarButton::ToggleArcomiumSiteControls,
++              &ExtensionsToolbarButton::ToggleAlerseSiteControls,
 +              base::Unretained(this), nullptr),
            std::make_unique<views::Button::DefaultButtonControllerDelegate>(
                this));
@@ -66,8 +66,8 @@ index bc17a2395ab..902f4441ccd 100644
  
 -  SetVectorIcon(ExtensionsToolbarViewModel::GetToolbarButtonIcon(
 -      ExtensionsToolbarViewModel::ExtensionsToolbarButtonState::kDefault));
-+  // Arcomium: Arc's site controls.
-+  SetVectorIcon(vector_icons::kArcomiumTuneIcon);
++  // Alerse: Arc's site controls.
++  SetVectorIcon(vector_icons::kAlerseTuneIcon);
  
 -  GetViewAccessibility().SetHasPopup(ax::mojom::HasPopup::kMenu);
 +  GetViewAccessibility().SetHasPopup(ax::mojom::HasPopup::kDialog);
@@ -86,9 +86,9 @@ index bc17a2395ab..902f4441ccd 100644
    extension_menu_observation_.Observe(menu);
  }
  
-+void ExtensionsToolbarButton::ToggleArcomiumSiteControls(views::View* anchor) {
-+  if (arcomium_site_controls::IsShowing()) {
-+    arcomium_site_controls::Hide();
++void ExtensionsToolbarButton::ToggleAlerseSiteControls(views::View* anchor) {
++  if (alerse_site_controls::IsShowing()) {
++    alerse_site_controls::Hide();
 +    return;
 +  }
 +  if (extensions_menu_coordinator_ &&
@@ -101,7 +101,7 @@ index bc17a2395ab..902f4441ccd 100644
 +  pressed_lock_ = menu_button_controller_->TakeLock();
 +  extensions_toolbar_->OnMenuOpening();
 +  views::Widget* widget =
-+      arcomium_site_controls::Show(anchor ? anchor : this, browser_,
++      alerse_site_controls::Show(anchor ? anchor : this, browser_,
 +                                   extensions_toolbar_);
 +  extensions_menu_widget_ = widget->GetWeakPtr();
 +  extension_menu_observation_.Observe(widget);
@@ -118,10 +118,10 @@ index 668a4ffa010..436e43632fe 100644
    // Toggle the Extensions menu. If the ExtensionsToolbarDesktop is in
    // kAutoHide mode and hidden this will cause it to show.
    void ToggleExtensionsMenu();
-+  // Arcomium: the button opens Arc's site controls; they reach Chrome's
++  // Alerse: the button opens Arc's site controls; they reach Chrome's
 +  // extensions menu for site access.
 +  // `anchor` defaults to this button.
-+  void ToggleArcomiumSiteControls(views::View* anchor = nullptr);
++  void ToggleAlerseSiteControls(views::View* anchor = nullptr);
  
    bool GetExtensionsMenuShowing() const;
  
@@ -138,31 +138,31 @@ index b8f608da259..691bb4c6581 100644
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
  #include "chrome/browser/ui/views/location_bar/location_bar_actions.h"
-@@ -834,15 +836,12 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+@@ -834,15 +836,12 @@ void LocationBarView::SetAlerseCentered(bool centered) {
      copy->SetVisible(false);
-     arcomium_copy_button_ = AddChildView(std::move(copy));
+     alerse_copy_button_ = AddChildView(std::move(copy));
      auto site = views::CreateVectorImageButtonWithNativeTheme(
 -        base::BindRepeating(
 -            [](LocationBarView* location_bar) {
 -              location_bar->ShowPageInfoDialog();
 -            },
 -            base::Unretained(this)),
-+        base::BindRepeating(&LocationBarView::ShowArcomiumSiteControls,
++        base::BindRepeating(&LocationBarView::ShowAlerseSiteControls,
 +                            base::Unretained(this)),
-         vector_icons::kArcomiumTuneIcon, 16, kColorToolbarButtonIcon,
+         vector_icons::kAlerseTuneIcon, 16, kColorToolbarButtonIcon,
          kColorToolbarButtonIconInactive, kColorToolbarButtonIconHovered);
--    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
--    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_SETTINGS_TOOLTIP));
-+    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
-+    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_SITE_CONTROLS));
+-    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_SITE_SETTINGS_TOOLTIP));
+-    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_SITE_SETTINGS_TOOLTIP));
++    site->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_SITE_CONTROLS));
++    site->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_SITE_CONTROLS));
      site->SetVisible(false);
-     arcomium_site_button_ = AddChildView(std::move(site));
+     alerse_site_button_ = AddChildView(std::move(site));
    }
-@@ -873,6 +872,22 @@ bool LocationBarView::ArcomiumOpensNewTab() const {
-   return arcomium_command_bar_ && arcomium_new_tab_;
+@@ -873,6 +872,22 @@ bool LocationBarView::AlerseOpensNewTab() const {
+   return alerse_command_bar_ && alerse_new_tab_;
  }
  
-+void LocationBarView::ShowArcomiumSiteControls() {
++void LocationBarView::ShowAlerseSiteControls() {
 +  // Arc's site controls, as the extensions button opens them; without that
 +  // button, Chrome's page info.
 +  BrowserView* browser_view =
@@ -172,24 +172,24 @@ index b8f608da259..691bb4c6581 100644
 +          ? browser_view->toolbar()->extensions_container()
 +          : nullptr;
 +  if (extensions && extensions->GetExtensionsButton()) {
-+    extensions->GetExtensionsButton()->ToggleArcomiumSiteControls();
++    extensions->GetExtensionsButton()->ToggleAlerseSiteControls();
 +    return;
 +  }
 +  ShowPageInfoDialog();
 +}
 +
- bool LocationBarView::IsArcomiumCenteredIdle() const {
-   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ bool LocationBarView::IsAlerseCenteredIdle() const {
+   return alerse_centered_ && alerse_compact_ && !omnibox_view_->HasFocus();
  }
 diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
 index 7791daccbe7..e741553ba85 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -621,6 +621,7 @@ class LocationBarView
-   bool IsArcomiumSidebarSearch() const;
-   void LayoutArcomiumCentered();
-   void CopyArcomiumAddress();
-+  void ShowArcomiumSiteControls();
-   SkColor GetArcomiumPillColor() const;
+   bool IsAlerseSidebarSearch() const;
+   void LayoutAlerseCentered();
+   void CopyAlerseAddress();
++  void ShowAlerseSiteControls();
+   SkColor GetAlersePillColor() const;
  
    // Views to show inline autocompletion when an IME is active.  In this case,

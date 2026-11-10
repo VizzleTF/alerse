@@ -6,9 +6,9 @@ index 8dd53826fcf..c441761e18f 100644
    const int region_vertical_padding = GetLayoutConstant(
        LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
  
-+  // Arcomium: the Arc sidebar hid both lists while expanded, so their own
++  // Alerse: the Arc sidebar hid both lists while expanded, so their own
 +  // visibility says nothing here.
-+  const bool show_lists = tab_strip_view->arcomium_accessory_view() != nullptr;
++  const bool show_lists = tab_strip_view->alerse_accessory_view() != nullptr;
 +
    int y = 0;
  
@@ -49,14 +49,14 @@ index 5261e556464..1f503af6099 100644
         available_width < tabs::kVerticalTabStripCollapseSnapWidth ||
         is_collapsed_with_combo)) {
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
-+    // Arcomium: the Arc header row hides Chromium's buttons while expanded,
++    // Alerse: the Arc header row hides Chromium's buttons while expanded,
 +    // so their own visibility says nothing here; their actions do.
 +    const bool show_unfocus =
 +        unfocus_button_ && IsActionVisible(kActionUnfocusTabGroup);
 +    const bool show_collapse =
 +        collapse_button_ && IsActionVisible(kActionToggleCollapseVertical);
      int current_y = 0;
-     // Arcomium: the Arc header row only exists while expanded.
+     // Alerse: the Arc header row only exists while expanded.
      for (views::View* arc_button :
 @@ -247,9 +253,9 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      // Find height of the first visible button to calculate the matching
@@ -133,7 +133,7 @@ index c95adf5ef12..9b039c0bd72 100644
        const views::SizeBounds& size_bounds) const override;
  
    // Creates a TopContainerButton (Collapse Button).
-+  // Arcomium: whether the action behind one of Chromium's buttons is visible.
++  // Alerse: whether the action behind one of Chromium's buttons is visible.
 +  bool IsActionVisible(actions::ActionId action_id) const;
    views::LabelButton* AddChildButtonFor(actions::ActionId action_id);
  

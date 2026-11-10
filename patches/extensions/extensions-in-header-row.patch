@@ -6,8 +6,8 @@ index a36455069d3..bc17a2395ab 100644
  }
  
  int ExtensionsToolbarButton::GetIconSize() const {
-+  // Arcomium: as the sidebar header's icons.
-+  if (extensions_toolbar_->arcomium_compact()) {
++  // Alerse: as the sidebar header's icons.
++  if (extensions_toolbar_->alerse_compact()) {
 +    return 16;
 +  }
    const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
@@ -21,11 +21,11 @@ index b554db63414..445920959f7 100644
    return GetExtensionsButton();
  }
  
-+void ExtensionsToolbarDesktop::SetArcomiumCompact(bool compact) {
-+  if (arcomium_compact_ == compact) {
++void ExtensionsToolbarDesktop::SetAlerseCompact(bool compact) {
++  if (alerse_compact_ == compact) {
 +    return;
 +  }
-+  arcomium_compact_ = compact;
++  alerse_compact_ = compact;
 +  UpdateAllIcons();
 +  if (extensions_button_) {
 +    extensions_button_->UpdateIcon();
@@ -39,7 +39,7 @@ index b554db63414..445920959f7 100644
 +
  gfx::Size ExtensionsToolbarDesktop::GetToolbarActionSize() {
    constexpr gfx::Size kDefaultSize(28, 28);
-+  if (arcomium_compact_) {
++  if (alerse_compact_) {
 +    return kDefaultSize;
 +  }
    BrowserView* const browser_view =
@@ -53,10 +53,10 @@ index b6de9f344dc..3cf1975bf09 100644
      return toolbar_view_model_.get();
    }
  
-+  // Arcomium: in the sidebar's header rows its buttons are as large as the
++  // Alerse: in the sidebar's header rows its buttons are as large as the
 +  // header's own, 28 px with 16 px icons.
-+  void SetArcomiumCompact(bool compact);
-+  bool arcomium_compact() const { return arcomium_compact_; }
++  void SetAlerseCompact(bool compact);
++  bool alerse_compact() const { return alerse_compact_; }
 +
    // Gets the extension menu button for the toolbar.
    ExtensionsToolbarButton* GetExtensionsButton() const {
@@ -65,7 +65,7 @@ index b6de9f344dc..3cf1975bf09 100644
   private:
    friend class ToolbarActionHoverCardBubbleViewUITest;
  
-+  bool arcomium_compact_ = false;
++  bool alerse_compact_ = false;
 +
    // A struct representing the position and action being dragged.
    struct DropInfo;
@@ -198,7 +198,7 @@ index 10738007cdc..ddc5bc9eec3 100644
 +      std::make_unique<views::View>(), *toolbar->GetIndexOf(extensions));
 +  arc_extensions_placeholder_observation_.Observe(arc_extensions_placeholder_);
 +  arc_extensions_ = AddChildView(extensions);
-+  extensions->SetArcomiumCompact(true);
++  extensions->SetAlerseCompact(true);
 +  // In the frame's color, opaque: their labels (a site access request, say)
 +  // render subpixel text, which needs an opaque background under it.
 +  extensions->SetBackground(views::CreateSolidBackground(ui::kColorFrameActive));
@@ -220,7 +220,7 @@ index 10738007cdc..ddc5bc9eec3 100644
 +  if (!toolbar) {
 +    return;
 +  }
-+  extensions->SetArcomiumCompact(false);
++  extensions->SetAlerseCompact(false);
 +  extensions->SetBackground(nullptr);
 +  toolbar->AddChildViewAt(extensions, *toolbar->GetIndexOf(placeholder));
 +  toolbar->RemoveChildViewT(placeholder);
@@ -271,13 +271,13 @@ index 0f80e8ca76d..fd6d8346a17 100644
 +  // when the window closes; they then stay here and go with it.
 +  void OnViewIsDeleting(views::View* observed_view) override;
  
-   // Arcomium: the Arc header's app menu and downloads buttons, which stand in
+   // Alerse: the Arc header's app menu and downloads buttons, which stand in
    // for the toolbar's while it hides.
 @@ -119,6 +130,14 @@ class VerticalTabStripTopContainer : public views::View,
   private:
    void OnCollapseButtonContextMenuClosed();
  
-+  // Arcomium: while no toolbar is beside the sidebar (macOS), the toolbar's
++  // Alerse: while no toolbar is beside the sidebar (macOS), the toolbar's
 +  // extensions, pinned ones and the extensions button, end the navigation
 +  // row, as in Arc; they go back with the toolbar. Posted: visibility changes
 +  // arrive mid-layout.
@@ -316,7 +316,7 @@ index c2a9113673c..104716b65b1 100644
    if (extensions_container) {
      extensions_container_ = AddChildView(std::move(extensions_container));
 -#if !BUILDFLAG(IS_MAC)
--    // Arcomium: Arc for Windows' top bar shows pinned extensions only.
+-    // Alerse: Arc for Windows' top bar shows pinned extensions only.
 -    if (views::View* extensions_button =
 -            extensions_container_->GetExtensionsButton()) {
 -      extensions_button->SetVisible(false);
@@ -333,7 +333,7 @@ index e10dc91a671..0e951a95b03 100644
    ExtensionsToolbarDesktop* extensions_container_for_testing() const {
      return extensions_container_;
    }
-+  // Arcomium: the Arc header row borrows the extensions while the toolbar
++  // Alerse: the Arc header row borrows the extensions while the toolbar
 +  // hides (157 renamed Chromium's accessor to the _for_testing one above).
 +  ExtensionsToolbarDesktop* extensions_container() const {
 +    return extensions_container_;

@@ -6,7 +6,7 @@ index 34fbf4e7266..7681bbc1ec8 100644
            base::BindRepeating(
                &VerticalTabStripRegionView::RecordNewTabButtonPressed,
                base::Unretained(this))));
-+  // Arcomium: the tab strip, not this container, takes the free height, so
++  // Alerse: the tab strip, not this container, takes the free height, so
 +  // the Arc sidebar reaches down to it and its mini player sits at the
 +  // bottom; this container stays at the bottom either way.
    bottom_button_container_->SetProperty(
@@ -54,17 +54,17 @@ index be7df7af074..e0a7d8442b9 100644
  
  source_set("vertical") {
    sources = [
-+    "arcomium_mini_player.h",
-     "arcomium_sidebar_view.h",
-     "arcomium_space_switcher.h",
++    "alerse_mini_player.h",
+     "alerse_sidebar_view.h",
+     "alerse_space_switcher.h",
      "top_container_button.h",
 @@ -39,6 +40,7 @@ source_set("vertical") {
  
  source_set("impl") {
    sources = [
-+    "arcomium_mini_player.cc",
-     "arcomium_sidebar_view.cc",
-     "arcomium_space_switcher.cc",
++    "alerse_mini_player.cc",
+     "alerse_sidebar_view.cc",
+     "alerse_space_switcher.cc",
      "top_container_button.cc",
 @@ -52,6 +54,10 @@ source_set("impl") {
  
@@ -85,7 +85,7 @@ index 53b0e2ca558..01ea7a7b9e7 100644
             ContentSettingsInfo::INHERIT_IN_INCOGNITO,
             PermissionSettingsInfo::EXCEPTIONS_ON_SECURE_ORIGINS_ONLY);
  
-+  // Arcomium allows automatic picture-in-picture by default, as Arc does; a
++  // Alerse allows automatic picture-in-picture by default, as Arc does; a
 +  // site can still be blocked in its settings.
    Register(ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
 -           "auto-picture-in-picture", CONTENT_SETTING_ASK,
@@ -101,7 +101,7 @@ index 0f5c0064729..b4c38410d9a 100644
        name: "BrowserInitiatedAutomaticPictureInPicture",
        public: true,
        status: "experimental",
-+      // Arcomium: a playing video goes to picture-in-picture when you leave
++      // Alerse: a playing video goes to picture-in-picture when you leave
 +      // its tab or Space, on any site, as in Arc.
 +      base_feature_status: "enabled",
      },

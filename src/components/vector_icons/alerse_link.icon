@@ -1,0 +1,17 @@
+// Copyright 2026 The Alerse Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Arc for Windows' copy link: two half links around a bar.
+CANVAS_DIMENSIONS, 16,
+STROKE, 1,
+MOVE_TO, 7.25f, 5.5f,
+LINE_TO, 5.5f, 5.5f,
+ARC_TO, 3, 3, 0, 0, 0, 5.5f, 11.5f,
+LINE_TO, 7.25f, 11.5f,
+MOVE_TO, 8.75f, 5.5f,
+LINE_TO, 10.5f, 5.5f,
+ARC_TO, 3, 3, 0, 0, 1, 10.5f, 11.5f,
+LINE_TO, 8.75f, 11.5f,
+MOVE_TO, 5, 8.5f,
+LINE_TO, 11, 8.5f

@@ -6,9 +6,9 @@ index 272d8c4ed00..50d339c288f 100644
            ImmersiveModeController::ANIMATE_REVEAL_YES);
      }
    }
-+  // Arcomium: the Arc sidebar's downloads button while it hides the toolbar.
++  // Alerse: the Arc sidebar's downloads button while it hides the toolbar.
 +  views::View* arc_downloads =
-+      browser_view_ ? browser_view_->GetArcomiumDownloadsAnchor() : nullptr;
++      browser_view_ ? browser_view_->GetAlerseDownloadsAnchor() : nullptr;
    auto bubble_delegate = std::make_unique<views::BubbleDialogDelegate>(
 -      anchor.value(), views::BubbleBorder::TOP_RIGHT,
 +      arc_downloads ? views::BubbleAnchor(arc_downloads) : anchor.value(),
@@ -33,13 +33,13 @@ index edf4150..249c10d 100644
    if (IsDrawn()) {
      return views::BubbleAnchor(this);
    }
-+  // Arcomium: while the Arc sidebar replaces the toolbar, its logo opens the
++  // Alerse: while the Arc sidebar replaces the toolbar, its logo opens the
 +  // app menu.
 +  if (BrowserView* browser_view = GetWidget()
 +                                      ? BrowserView::GetBrowserViewForNativeWindow(
 +                                            GetWidget()->GetNativeWindow())
 +                                      : nullptr) {
-+    if (views::View* logo = browser_view->GetArcomiumAppMenuAnchor()) {
++    if (views::View* logo = browser_view->GetAlerseAppMenuAnchor()) {
 +      return views::BubbleAnchor(logo);
 +    }
 +  }
@@ -51,7 +51,7 @@ index edf4150..249c10d 100644
 -  auto* const element = elements->GetElement(kFallbackPopupAnchorElementId);
 +  auto* const element =
 +      elements ? elements->GetElement(kFallbackPopupAnchorElementId) : nullptr;
-+  // Arcomium: on macOS the sidebar hides with no toolbar to fall back on, and
++  // Alerse: on macOS the sidebar hides with no toolbar to fall back on, and
 +  // at startup (the session-crashed bubble) the window may not be registered
 +  // yet; the bubble then points at the window.
 +  if (!element && GetWidget()) {
@@ -87,8 +87,8 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
    // overlaps the bottom of the caption container. In that case, don't count
    // the caption buttons in the exclusion area.
 -  if (top < caption.bottom() - 2) {
-+  // Arcomium: the floating caption buttons take no room from the page.
-+  if (top < caption.bottom() - 2 && !IsArcomiumCaptionOverlay()) {
++  // Alerse: the floating caption buttons take no room from the page.
++  if (top < caption.bottom() - 2 && !IsAlerseCaptionOverlay()) {
      if (CaptionButtonsOnLeadingEdge()) {
        params.leading_exclusion.content =
            gfx::SizeF(caption.right(), caption.bottom() - top);
@@ -96,9 +96,9 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
      return HTNOWHERE;
    }
  
-+  // Arcomium: the floating caption buttons lie over the page, so they come
++  // Alerse: the floating caption buttons lie over the page, so they come
 +  // before it.
-+  if (IsArcomiumCaptionOverlay() && caption_button_container_->GetVisible()) {
++  if (IsAlerseCaptionOverlay() && caption_button_container_->GetVisible()) {
 +    const gfx::Point caption_point =
 +        ConvertPointToTarget(parent(), caption_button_container_, point);
 +    if (caption_button_container_->HitTestPoint(caption_point)) {
@@ -117,14 +117,14 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
  
    const bool hide_window_buttons =
        base::CommandLine::ForCurrentProcess()->HasSwitch("hide-window-buttons");
-+  arcomium_caption_overlay_ = IsArcomiumCaptionOverlay();
++  alerse_caption_overlay_ = IsAlerseCaptionOverlay();
    caption_button_container_->SetVisible(
        !hide_window_buttons &&
        (!browser_widget()->IsFullscreen() ||
 -       GetBrowserView()->IsWindowControlsOverlayEnabled()));
 +       GetBrowserView()->IsWindowControlsOverlayEnabled()) &&
-+      (!arcomium_caption_overlay_ || arcomium_caption_revealed_));
-+  if (arcomium_caption_overlay_) {
++      (!alerse_caption_overlay_ || alerse_caption_revealed_));
++  if (alerse_caption_overlay_) {
 +    // Painted on a layer over the page, with the frame's color behind them
 +    // and the corner towards the page rounded.
 +    if (!caption_button_container_->layer()) {
@@ -136,8 +136,8 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
 +    }
 +    caption_button_container_->SetBackground(views::CreateRoundedRectBackground(
 +        GetTitlebarColor(), gfx::RoundedCornersF(0, 0, 0, 10)));
-+    if (!arcomium_caption_monitor_ && GetWidget()) {
-+      arcomium_caption_monitor_ = views::EventMonitor::CreateWindowMonitor(
++    if (!alerse_caption_monitor_ && GetWidget()) {
++      alerse_caption_monitor_ = views::EventMonitor::CreateWindowMonitor(
 +          this, GetWidget()->GetNativeWindow(), {ui::EventType::kMouseMoved});
 +    }
 +  } else if (!GetBrowserView()->IsWindowControlsOverlayEnabled() &&
@@ -152,7 +152,7 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
  
    const int height =
 -      !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
-+      arcomium_caption_overlay_ ? preferred_size.height()
++      alerse_caption_overlay_ ? preferred_size.height()
 +      : !GetBrowserView()->GetWebAppFrameToolbarPreferredSize().IsEmpty()
            ? (TitlebarHeight(false) - WindowTopY())
            : GetFrameHeight();
@@ -162,22 +162,22 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
  }
  
 +void BrowserFrameViewWin::OnEvent(const ui::Event& event) {
-+  UpdateArcomiumCaptionReveal();
++  UpdateAlerseCaptionReveal();
 +}
 +
-+bool BrowserFrameViewWin::IsArcomiumCaptionOverlay() const {
-+  return GetBrowserView()->IsArcomiumSidebarShown() &&
++bool BrowserFrameViewWin::IsAlerseCaptionOverlay() const {
++  return GetBrowserView()->IsAlerseSidebarShown() &&
 +         !browser_widget()->IsFullscreen() &&
 +         !GetBrowserView()->IsWindowControlsOverlayEnabled();
 +}
 +
-+void BrowserFrameViewWin::UpdateArcomiumCaptionReveal() {
++void BrowserFrameViewWin::UpdateAlerseCaptionReveal() {
 +  // Room around the buttons where the pointer keeps them, and how long they
 +  // stay after it leaves, so that reaching for them is forgiving.
 +  constexpr int kRevealMargin = 12;
 +  constexpr base::TimeDelta kHideDelay = base::Milliseconds(400);
 +
-+  const bool overlay = IsArcomiumCaptionOverlay();
++  const bool overlay = IsAlerseCaptionOverlay();
 +  bool reveal = false;
 +  if (overlay && GetWidget()) {
 +    gfx::Point cursor = display::Screen::Get()->GetCursorScreenPoint();
@@ -190,27 +190,27 @@ index 5bafaddaaca..1c2b3c6ca3c 100644
 +  }
 +  const base::TimeTicks now = base::TimeTicks::Now();
 +  if (reveal) {
-+    arcomium_caption_left_at_ = base::TimeTicks();
-+  } else if (overlay && arcomium_caption_revealed_) {
-+    if (arcomium_caption_left_at_.is_null()) {
-+      arcomium_caption_left_at_ = now;
++    alerse_caption_left_at_ = base::TimeTicks();
++  } else if (overlay && alerse_caption_revealed_) {
++    if (alerse_caption_left_at_.is_null()) {
++      alerse_caption_left_at_ = now;
 +    }
-+    reveal = now - arcomium_caption_left_at_ < kHideDelay;
++    reveal = now - alerse_caption_left_at_ < kHideDelay;
 +  }
 +
 +  // While they show, the pointer may leave the window over them without
 +  // passing the page, so keep looking.
-+  if (reveal && !arcomium_caption_timer_.IsRunning()) {
-+    arcomium_caption_timer_.Start(
++  if (reveal && !alerse_caption_timer_.IsRunning()) {
++    alerse_caption_timer_.Start(
 +        FROM_HERE, base::Milliseconds(100), this,
-+        &BrowserFrameViewWin::UpdateArcomiumCaptionReveal);
++        &BrowserFrameViewWin::UpdateAlerseCaptionReveal);
 +  } else if (!reveal) {
-+    arcomium_caption_timer_.Stop();
++    alerse_caption_timer_.Stop();
 +  }
 +
-+  if (reveal != arcomium_caption_revealed_ ||
-+      overlay != arcomium_caption_overlay_) {
-+    arcomium_caption_revealed_ = reveal;
++  if (reveal != alerse_caption_revealed_ ||
++      overlay != alerse_caption_overlay_) {
++    alerse_caption_revealed_ = reveal;
 +    LayoutCaptionButtons();
 +  }
 +}
@@ -263,11 +263,11 @@ index e731b2c4c16..f6cf7f029a8 100644
 +  // ui::EventObserver: the pointer moving over the window.
 +  void OnEvent(const ui::Event& event) override;
 +
-+  // Arcomium: while the Arc sidebar hides the toolbar, the caption buttons
++  // Alerse: while the Arc sidebar hides the toolbar, the caption buttons
 +  // float over the page's top right corner and show only while the pointer
 +  // is near them, as in Arc.
-+  bool IsArcomiumCaptionOverlay() const;
-+  void UpdateArcomiumCaptionReveal();
++  bool IsAlerseCaptionOverlay() const;
++  void UpdateAlerseCaptionReveal();
 +
    // The bounds of the ClientView.
    gfx::Rect client_view_bounds_;
@@ -276,13 +276,13 @@ index e731b2c4c16..f6cf7f029a8 100644
    // The container holding the caption buttons (minimize, maximize, close, etc.)
    raw_ptr<BrowserCaptionButtonContainer> caption_button_container_;
  
-+  // Arcomium: watches the pointer for the floating caption buttons, and
++  // Alerse: watches the pointer for the floating caption buttons, and
 +  // whether they show now.
-+  std::unique_ptr<views::EventMonitor> arcomium_caption_monitor_;
-+  base::RepeatingTimer arcomium_caption_timer_;
-+  bool arcomium_caption_overlay_ = false;
-+  bool arcomium_caption_revealed_ = false;
-+  base::TimeTicks arcomium_caption_left_at_;
++  std::unique_ptr<views::EventMonitor> alerse_caption_monitor_;
++  base::RepeatingTimer alerse_caption_timer_;
++  bool alerse_caption_overlay_ = false;
++  bool alerse_caption_revealed_ = false;
++  base::TimeTicks alerse_caption_left_at_;
 +
    // Whether or not the window throbber is currently animating.
    bool throbber_running_ = false;
@@ -303,11 +303,11 @@ index 928a723e2e2..e8c70df7d3c 100644
           GetFrameView()->ShouldShowWebAppFrameToolbar();
  }
  
-+bool BrowserView::IsArcomiumSidebarShown() const {
++bool BrowserView::IsAlerseSidebarShown() const {
 +  return ShouldDrawVerticalTabStrip() && !IsVerticalTabStripCollapsed();
 +}
 +
-+views::View* BrowserView::GetArcomiumAppMenuAnchor() {
++views::View* BrowserView::GetAlerseAppMenuAnchor() {
 +  VerticalTabStripTopContainer* header =
 +      vertical_tab_strip_region_view_
 +          ? vertical_tab_strip_region_view_->GetTopContainer()
@@ -316,7 +316,7 @@ index 928a723e2e2..e8c70df7d3c 100644
 +  return logo && logo->IsDrawn() ? logo : nullptr;
 +}
 +
-+views::View* BrowserView::GetArcomiumDownloadsAnchor() {
++views::View* BrowserView::GetAlerseDownloadsAnchor() {
 +  VerticalTabStripTopContainer* header =
 +      vertical_tab_strip_region_view_
 +          ? vertical_tab_strip_region_view_->GetTopContainer()
@@ -332,7 +332,7 @@ index 928a723e2e2..e8c70df7d3c 100644
    }
  #endif
  
-+  if (IsArcomiumSidebarShown()) {
++  if (IsAlerseSidebarShown()) {
 +    return false;
 +  }
 +
@@ -344,9 +344,9 @@ index 928a723e2e2..e8c70df7d3c 100644
  
    // TODO(jamescook): Why was this in the middle of layout code?
 -  toolbar_->location_bar()->UpdateFocusBehavior(IsToolbarVisible());
-+  // Arcomium: the location bar sits in the sidebar while the toolbar hides.
++  // Alerse: the location bar sits in the sidebar while the toolbar hides.
 +  toolbar_->location_bar()->UpdateFocusBehavior(IsToolbarVisible() ||
-+                                                IsArcomiumSidebarShown());
++                                                IsAlerseSidebarShown());
    GetFrameView()->UpdateMinimumSize();
  
    if (omnibox::IsWebUIOmniboxInBrowserViewEnabled()) {
@@ -358,13 +358,13 @@ index e7bfac16bd3..c95a5452e9e 100644
  
    // Returns whether the vertical tabstrip is collapsed.
    bool IsVerticalTabStripCollapsed() const;
-+  // Arcomium: whether the Arc sidebar shows. It holds the address bar and the
++  // Alerse: whether the Arc sidebar shows. It holds the address bar and the
 +  // navigation buttons then, so the window has no toolbar.
-+  bool IsArcomiumSidebarShown() const;
-+  // Arcomium: the Arc sidebar's stand-ins for the hidden toolbar's app menu
++  bool IsAlerseSidebarShown() const;
++  // Alerse: the Arc sidebar's stand-ins for the hidden toolbar's app menu
 +  // and downloads buttons, for bubbles to anchor to; null unless drawn.
-+  views::View* GetArcomiumAppMenuAnchor();
-+  views::View* GetArcomiumDownloadsAnchor();
++  views::View* GetAlerseAppMenuAnchor();
++  views::View* GetAlerseDownloadsAnchor();
  
    // Returns true if the profile associated with this Browser window is
    // incognito.
@@ -377,7 +377,7 @@ index 7764d4a4728..c9b00641a5b 100644
  
      // If the toolbar is not in the browser, then the exclusion isn't either.
 -    if (toolbar_bounds) {
-+    // Arcomium: without a toolbar the Arc sidebar header still makes room
++    // Alerse: without a toolbar the Arc sidebar header still makes room
 +    // for leading window controls.
 +    if (!delegate().IsToolbarVisible()) {
 +      caption_button_width =
@@ -396,7 +396,7 @@ index a2d28ee3ae7..5e8ccde047f 100644
    if (!IsInSplitView()) {
      GetActiveContentsContainerView()->SetRoundedCorners(
 -        kSplitViewContentRoundedCorners);
-+        kArcomiumPageRoundedCorners);
++        kAlersePageRoundedCorners);
      GetInactiveContentsContainerView()->SetRoundedCorners(
          gfx::RoundedCornersF());
    }
@@ -404,9 +404,9 @@ index a2d28ee3ae7..5e8ccde047f 100644
    available_space =
        CalculateSeparatorLayouts(available_space, layouts.child_layouts);
  
--  // Arcomium: inset the single page too, so it floats as a card.
+-  // Alerse: inset the single page too, so it floats as a card.
 -  available_space.Inset(split_view_insets_);
-+  // Arcomium: split pages float as cards; a single page fills the window up
++  // Alerse: split pages float as cards; a single page fills the window up
 +  // to its right and bottom edges, as in Arc.
 +  if (IsInSplitView()) {
 +    available_space.Inset(split_view_insets_);
@@ -417,11 +417,11 @@ index a2d28ee3ae7..5e8ccde047f 100644
 @@ -802,8 +805,9 @@ void MultiContentsView::UpdateContentsBorderAndOverlay() {
          contents_container_view->contents_view() == GetActiveContentsView();
      contents_container_view->SetRoundedCorners(
-         // Arcomium: the single page is a card with all corners rounded.
+         // Alerse: the single page is a card with all corners rounded.
 -        is_in_split || is_active ? kSplitViewContentRoundedCorners
 -                                 : gfx::RoundedCornersF());
 +        is_in_split  ? kSplitViewContentRoundedCorners
-+        : is_active ? kArcomiumPageRoundedCorners
++        : is_active ? kAlersePageRoundedCorners
 +                    : gfx::RoundedCornersF());
      contents_container_view->UpdateBorderAndOverlay(
          is_in_split, is_active, is_active && active_contents_view_highlighted_);
@@ -434,9 +434,9 @@ index 13dd5008268..431ee6f1f18 100644
    static constexpr float kSplitViewContentCornerRadius = 10;
    static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
        kSplitViewContentCornerRadius};
-+  // Arcomium: a single page meets the window's right and bottom edges, so
++  // Alerse: a single page meets the window's right and bottom edges, so
 +  // only its corners along the sidebar are rounded.
-+  static constexpr gfx::RoundedCornersF kArcomiumPageRoundedCorners{
++  static constexpr gfx::RoundedCornersF kAlersePageRoundedCorners{
 +      kSplitViewContentCornerRadius, 0, 0, kSplitViewContentCornerRadius};
  
    MultiContentsView(BrowserView* browser_view,
@@ -466,7 +466,7 @@ index c655d9c8396..cbeee5c9105 100644
  #include "ui/views/accessibility/view_accessibility.h"
  #include "ui/views/actions/action_view_controller.h"
 @@ -144,6 +147,43 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
-   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
+   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_DOWNLOADS));
    arc_downloads_button_ = AddChildView(std::move(downloads));
  
 +  struct NavButton {
@@ -481,15 +481,15 @@ index c655d9c8396..cbeee5c9105 100644
 +      {IDC_BACK,
 +       rounded ? vector_icons::kArrowBackIcon
 +               : vector_icons::kBackArrowChromeRefreshOldIcon,
-+       IDS_ARCOMIUM_BACK, &arc_back_button_},
++       IDS_ALERSE_BACK, &arc_back_button_},
 +      {IDC_FORWARD,
 +       rounded ? vector_icons::kArrowForwardIcon
 +               : vector_icons::kForwardArrowChromeRefreshOldIcon,
-+       IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
++       IDS_ALERSE_FORWARD, &arc_forward_button_},
 +      {IDC_RELOAD,
 +       rounded ? vector_icons::kRefreshIcon
 +               : vector_icons::kReloadChromeRefreshOldIcon,
-+       IDS_ARCOMIUM_RELOAD, &arc_reload_button_},
++       IDS_ALERSE_RELOAD, &arc_reload_button_},
 +  };
 +  for (const NavButton& nav : nav_buttons) {
 +    auto button = views::CreateVectorImageButtonWithNativeTheme(
@@ -531,7 +531,7 @@ index c655d9c8396..cbeee5c9105 100644
  void VerticalTabStripTopContainer::Layout(PassKey) {
    LayoutSuperclass<views::View>(this);
 @@ -244,7 +296,8 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-     // Arcomium: the Arc header row only exists while expanded.
+     // Alerse: the Arc header row only exists while expanded.
      for (views::View* arc_button :
           {arc_logo_button_.get(), arc_sidebar_button_.get(),
 -          arc_downloads_button_.get()}) {
@@ -542,7 +542,7 @@ index c655d9c8396..cbeee5c9105 100644
        }
 @@ -344,7 +397,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    } else if (arc_logo_button_) {
-     // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
+     // Alerse: Arc's header row: logo (app menu), sidebar toggle, downloads.
      combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
 -    host_size.set_height(kArcHeaderHeight);
 +    host_size.set_height(2 * kArcHeaderHeight);
@@ -604,12 +604,12 @@ index 9b039c0bd72..30579df22b9 100644
    // View:
    void Layout(PassKey) override;
  
-+  // Arcomium: the Arc header's app menu and downloads buttons, which stand in
++  // Alerse: the Arc header's app menu and downloads buttons, which stand in
 +  // for the toolbar's while it hides.
 +  views::View* arc_logo_button() { return arc_logo_button_; }
 +  views::View* arc_downloads_button() { return arc_downloads_button_; }
 +
-+  // CommandObserver: Arcomium's navigation buttons follow their commands.
++  // CommandObserver: Alerse's navigation buttons follow their commands.
 +  void EnabledStateChangedForCommand(int id, bool enabled) override;
 +
    // LayoutDelegate:
@@ -619,7 +619,7 @@ index 9b039c0bd72..30579df22b9 100644
    raw_ptr<views::View> arc_logo_button_ = nullptr;
    raw_ptr<views::View> arc_sidebar_button_ = nullptr;
    raw_ptr<views::View> arc_downloads_button_ = nullptr;
-+  // Arcomium: the row below it, back, forward and reload: the window has no
++  // Alerse: the row below it, back, forward and reload: the window has no
 +  // toolbar while the Arc sidebar shows.
 +  raw_ptr<views::View> arc_back_button_ = nullptr;
 +  raw_ptr<views::View> arc_forward_button_ = nullptr;
@@ -636,7 +636,7 @@ index 86228a66ba0..ca1824fdc02 100644
      std::optional<actions::ActionId> action_id) {
    // If a pinned toolbar actions button exists for the action_id, return that.
 -  if (pinned_toolbar_actions_ && action_id.has_value() &&
-+  // Arcomium: not while the Arc sidebar hides the toolbar.
++  // Alerse: not while the Arc sidebar hides the toolbar.
 +  if (pinned_toolbar_actions_ && action_id.has_value() && IsDrawn() &&
        pinned_toolbar_actions_->IsActionPinnedOrPoppedOut(action_id.value())) {
      return pinned_toolbar_actions_->GetBubbleAnchor(action_id.value());

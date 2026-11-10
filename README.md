@@ -8,8 +8,7 @@
 
 Alerse gives you a vertical sidebar, Spaces with separate logins in one window, a
 command bar and sync you can host yourself. Its name is a free spelling of alerce, the
-Chilean tree. It was called Arcomium up to 0.1.7; see
-[Coming from Arcomium](#coming-from-arcomium).
+Chilean tree.
 
 This repository holds what all platforms share: the Chromium patches, the design notes
 and a fallback Arc import script. Builds come from the platform repositories.
@@ -97,7 +96,7 @@ install it yourself.
 ## Move from Arc
 
 Open the Alerse menu (the logo at the top of the sidebar; on macOS the app menu) and
-pick **Import from Another Browser...**, or go to `chrome://arcomium-import`. The page
+pick **Import from Another Browser...**, or go to `chrome://alerse-import`. The page
 lists what it finds on this computer, with an **Import** button for each:
 
 - **Arc** (Windows and macOS): every Space with its pinned tabs, nested folders, folder
@@ -113,37 +112,10 @@ the page links to the standard importer.
 
 Fallback, for a profile Alerse is not running on: close Alerse and run
 `python tools\arc_import.py --profile "%LOCALAPPDATA%\Alerse\User Data\Default"`
-(Python 3, Windows; without `--profile` it writes to Chromium's profile directory,
-where Arcomium kept its profile before 0.1.2). It writes the same Arc bookmarks
+(Python 3, Windows; without `--profile` it writes to Chromium's profile directory). It writes the same Arc bookmarks
 straight into the profile's `Bookmarks` file, replacing what it or the import page
 imported before; each new Space you then create with "+" takes the next imported Arc
 Space.
-
-## Coming from Arcomium
-
-Alerse 0.1.8 is Arcomium under its new name and with a new icon. It installs as a new
-app, beside Arcomium, and on its first start takes over Arcomium's profile with
-everything in it: Spaces, pinned items, tabs, passwords, extensions and sync.
-
-| | Arcomium's profile | Alerse's |
-|---|---|---|
-| Windows | `%LOCALAPPDATA%\Arcomium\User Data` | `%LOCALAPPDATA%\Alerse\User Data` |
-| macOS | `~/Library/Application Support/Arcomium` | `~/Library/Application Support/Alerse` |
-| Linux | `~/.config/arcomium` | `~/.config/alerse` |
-
-Quit Arcomium before the first start of Alerse: while Arcomium runs, its profile stays
-where it is, Alerse opens Arcomium's windows instead of its own, and the move happens
-at a later start. On Windows, once the profile is taken over, Alerse removes Arcomium
-(shortcuts, taskbar pins, the entry in Installed apps and its files, not your data) a
-minute after it starts, so you do not end up with two browsers; then pick Alerse as the
-default browser in Windows' settings. On macOS, drag Arcomium to the Trash yourself;
-on Linux, delete its AppImage or folder.
-
-Arcomium's update check finds Alerse's releases (the repositories were renamed from
-`arcomium-*` to `alerse-*`, and GitHub redirects the old names), so Arcomium shows
-"Update to Arcomium 0.1.8" and opens the Alerse release. Internal names (the
-`chrome://arcomium-*` pages, the `arcomium.*` preferences, the source files) keep the
-old name for now.
 
 ## Repositories
 

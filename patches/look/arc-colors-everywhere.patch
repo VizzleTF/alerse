@@ -13,7 +13,7 @@ index 42803f4..422d000 100644
 +#endif
 +  }
 +#else
-+  // Arcomium: Arc for macOS' dark frame, behind its sidebar and around the
++  // Alerse: Arc for macOS' dark frame, behind its sidebar and around the
 +  // page card; the same whether the window is active or not.
 +  if (!key.custom_theme &&
 +      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
@@ -25,7 +25,7 @@ index 42803f4..422d000 100644
 +  }
 +#endif
 +
-+  // Arcomium: Arc's command bar and blank page, on every platform.
++  // Alerse: Arc's command bar and blank page, on every platform.
 +  if (!key.custom_theme &&
 +      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
 +    ui::ColorMixer& mixer = provider->AddMixer();
@@ -57,5 +57,5 @@ index 42803f4..422d000 100644
  #endif
 +  }
  
-   // Arcomium: the active Space's theme color tints the window frame, behind
+   // Alerse: the active Space's theme color tints the window frame, behind
    // the sidebar (BrowserWidget::GetColorProviderKey()).

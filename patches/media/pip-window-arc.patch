@@ -1,0 +1,94 @@
+diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+index 0afdeb691c3..651b9e7b8ee 100644
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -96,6 +96,8 @@
+ #include "ui/base/ime/text_input_client.h"
+ #include "ui/base/ime/win/tsf_input_scope.h"
+ #include "ui/base/win/shell.h"
++
++#include <dwmapi.h>
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
+@@ -119,6 +121,11 @@ constexpr gfx::Size kActionButtonSize(28, 28);
+ // The amount of time the seek buttons next to the play button seek.
+ constexpr base::TimeDelta kSeekTime = base::Seconds(10);
+ 
++#if BUILDFLAG(IS_MAC)
++// Alerse: the window's corner radius, as in Arc.
++constexpr float kAlerseCornerRadius = 10;
++#endif
++
+ // The size of the view containing the favicon.
+ constexpr gfx::Size kFaviconSize(24, 24);
+ 
+@@ -262,15 +269,27 @@ class OverlayWindowFrameView : public views::FrameView {
+     // Allows for dragging and resizing the window.
+     return (window_component == HTNOWHERE) ? HTCAPTION : window_component;
+   }
+-#if BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+   void UpdateWindowRoundedCorners() override {
+     // The first call to  occurs in `UpdateWindowRoundedCorners()`. However, the
+     // layer is initialized after the widget is initialized, hence the null
+     // check.
+     ui::Layer* root_view_layer = GetWidget()->GetRootView()->layer();
++#if BUILDFLAG(IS_MAC)
++    // Alerse: the root view paints to the window's own layer on macOS.
++    if (!root_view_layer) {
++      root_view_layer = GetWidget()->GetLayer();
++    }
++#endif
+     if (root_view_layer) {
++#if BUILDFLAG(IS_CHROMEOS)
+       const gfx::RoundedCornersF window_radii(
+           chromeos::kPipRoundedCornerRadius);
++#else
++      // Alerse: the frameless window is translucent, so the rounded root
++      // layer leaves the corners clear.
++      const gfx::RoundedCornersF window_radii(kAlerseCornerRadius);
++#endif
+ 
+       root_view_layer->SetRoundedCornerRadius(window_radii);
+       root_view_layer->SetIsFastRoundedCorner(true);
+@@ -394,6 +413,15 @@ std::unique_ptr<VideoOverlayWindowViews> VideoOverlayWindowViews::Create(
+     }
+   }
+ 
++  // Alerse: rounded corners, as in Arc. The window cannot be translucent on
++  // Windows, so Windows 11 rounds it; older Windows ignore the attribute.
++  {
++    const DWM_WINDOW_CORNER_PREFERENCE corners = DWMWCP_ROUND;
++    DwmSetWindowAttribute(
++        overlay_window->GetNativeWindow()->GetHost()->GetAcceleratedWidget(),
++        DWMWA_WINDOW_CORNER_PREFERENCE, &corners, sizeof(corners));
++  }
++
+   // Default to private input scope in the case where we don't have a
+   // TextInputClient, such as when this is running inside an InnerWebContents.
+   InputScope input_scope = IS_PRIVATE;
+@@ -821,11 +849,12 @@ void VideoOverlayWindowViews::UpdateControlsVisibility(bool is_visible,
+   //   * We are in the initial "show" period, or
+   //   * The overlay window does not meet the user interaction criteria and is
+   //   not trusted for media playback
++  // Alerse: the site's name and the top scrim show with the controls only,
++  // on hover, as in Arc: not for the first seconds nor for every site.
+   const bool title_is_visible =
+       force_title_and_scrim_visible_.has_value()
+           ? force_title_and_scrim_visible_.value()
+-          : wanted_visibility || initial_title_hide_timer_.IsRunning() ||
+-                !can_hide_title_and_scrim;
++          : wanted_visibility;
+ 
+   if (should_animate) {
+     // Animate the title and top scrim.
+@@ -1744,7 +1773,7 @@ void VideoOverlayWindowViews::ShowInactive() {
+ #endif
+ 
+   views::Widget::SetVisibleOnAllWorkspaces(true);
+-#if BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_MAC)
+   non_client_view()->frame_view()->UpdateWindowRoundedCorners();
+ #endif
+ 

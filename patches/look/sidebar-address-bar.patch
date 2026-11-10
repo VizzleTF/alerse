@@ -8,7 +8,7 @@ index 4d0ba90b387..acd93730d47 100644
  
 +bool ChromeLocationBarModelDelegate::ShouldTrimDisplayUrlAfterHostName()
 +    const {
-+  // Arcomium: only the site shows until the URL is edited, as in Arc.
++  // Alerse: only the site shows until the URL is edited, as in Arc.
 +  return true;
 +}
 +
@@ -20,7 +20,7 @@ index 4d0ba90b387..acd93730d47 100644
  void ChromeLocationBarModelDelegate::RegisterProfilePrefs(
      user_prefs::PrefRegistrySyncable* registry) {
 -  registry->RegisterBooleanPref(omnibox::kPreventUrlElisionsInOmnibox, true);
-+  // Arcomium: like Arc, the steady state shows the site, not the full URL.
++  // Alerse: like Arc, the steady state shows the site, not the full URL.
 +  registry->RegisterBooleanPref(omnibox::kPreventUrlElisionsInOmnibox, false);
  }
 diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.h
@@ -43,19 +43,19 @@ index d07cbfe86cf..0f8b4e2686b 100644
    return gfx::Size(preferred_width, height);
  }
  
-+void LocationBarView::SetArcomiumCompact(bool compact) {
-+  if (arcomium_compact_ == compact) {
++void LocationBarView::SetAlerseCompact(bool compact) {
++  if (alerse_compact_ == compact) {
 +    return;
 +  }
-+  arcomium_compact_ = compact;
++  alerse_compact_ = compact;
 +  InvalidateLayout();
 +}
 +
-+void LocationBarView::SetArcomiumHovered(bool hovered) {
-+  if (arcomium_hovered_ == hovered) {
++void LocationBarView::SetAlerseHovered(bool hovered) {
++  if (alerse_hovered_ == hovered) {
 +    return;
 +  }
-+  arcomium_hovered_ = hovered;
++  alerse_hovered_ = hovered;
 +  InvalidateLayout();
 +}
 +
@@ -66,7 +66,7 @@ index d07cbfe86cf..0f8b4e2686b 100644
          vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
          /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
      selected_keyword_view_->SetKeyword(keyword);
-+  } else if (arcomium_compact_ && !arcomium_hovered_ &&
++  } else if (alerse_compact_ && !alerse_hovered_ &&
 +             !omnibox_view_->HasFocus()) {
 +    location_icon_view_->SetVisible(false);
    } else if (location_icon_view_->GetShowText() &&
@@ -77,7 +77,7 @@ index d07cbfe86cf..0f8b4e2686b 100644
    };
  
 -  if (features::IsPageActionsElevatedToolbarEnabled()) {
-+  if (arcomium_compact_) {
++  if (alerse_compact_) {
 +    if (page_action_container_) {
 +      page_action_container_->SetBoundsRect(gfx::Rect());
 +    }
@@ -93,10 +93,10 @@ index 317211c69c5..c3868a045d7 100644
  
    OmniboxPopupUI* GetOmniboxPopupUI();
  
-+  // Arcomium: compact while the location bar sits in the Arc sidebar: no page
++  // Alerse: compact while the location bar sits in the Arc sidebar: no page
 +  // actions, and the site settings icon only while hovered or editing.
-+  void SetArcomiumCompact(bool compact);
-+  void SetArcomiumHovered(bool hovered);
++  void SetAlerseCompact(bool compact);
++  void SetAlerseHovered(bool hovered);
 +
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
@@ -105,8 +105,8 @@ index 317211c69c5..c3868a045d7 100644
    // An icon to the left of the edit field: the HTTPS lock, blank page icon,
    // search icon, EV HTTPS bubble, etc.
    raw_ptr<LocationIconView> location_icon_view_ = nullptr;
-+  bool arcomium_compact_ = false;
-+  bool arcomium_hovered_ = false;
++  bool alerse_compact_ = false;
++  bool alerse_hovered_ = false;
  
    // Views to show inline autocompletion when an IME is active.  In this case,
    // we shouldn't change the text or selection inside the OmniboxView itself,
@@ -128,7 +128,7 @@ index fb3f3f03054..fe0cc542706 100644
    }
    views::Widget* parent_widget = presenter_delegate_->GetLocationBarWidget();
 +#if defined(USE_AURA)
-+  // Arcomium: in the command bar the location bar sits in a child widget of
++  // Alerse: in the command bar the location bar sits in a child widget of
 +  // the browser window. A popup parented to it is no transient child of the
 +  // window, which then stacks itself over the popup whenever it activates.
 +  parent_widget = parent_widget->GetTopLevelWidget();
@@ -154,11 +154,11 @@ index e5c5f1bf505..636680d7a29 100644
    }
  
 -  const gfx::Size& get_minimum_size() const { return minimum_size_; }
-+  // Arcomium: the location bar may sit in the narrow Arc sidebar; the
++  // Alerse: the location bar may sit in the narrow Arc sidebar; the
 +  // suggestions then open at least this wide, over the page.
-+  static constexpr int kArcomiumMinimumPopupWidth = 560;
++  static constexpr int kAlerseMinimumPopupWidth = 560;
 +  gfx::Size get_minimum_size() const {
-+    return gfx::Size(std::max(minimum_size_.width(), kArcomiumMinimumPopupWidth),
++    return gfx::Size(std::max(minimum_size_.width(), kAlerseMinimumPopupWidth),
 +                     minimum_size_.height());
 +  }
  
@@ -171,16 +171,16 @@ index e0a7d8442b9..6cbc12b1d14 100644
 @@ -8,6 +8,7 @@ import("//chrome/common/features.gni")
  source_set("vertical") {
    sources = [
-     "arcomium_mini_player.h",
-+    "arcomium_address_bar.h",
-     "arcomium_sidebar_view.h",
-     "arcomium_space_switcher.h",
+     "alerse_mini_player.h",
++    "alerse_address_bar.h",
+     "alerse_sidebar_view.h",
+     "alerse_space_switcher.h",
      "top_container_button.h",
 @@ -41,6 +42,7 @@ source_set("vertical") {
  source_set("impl") {
    sources = [
-     "arcomium_mini_player.cc",
-+    "arcomium_address_bar.cc",
-     "arcomium_sidebar_view.cc",
-     "arcomium_space_switcher.cc",
+     "alerse_mini_player.cc",
++    "alerse_address_bar.cc",
+     "alerse_sidebar_view.cc",
+     "alerse_space_switcher.cc",
      "top_container_button.cc",

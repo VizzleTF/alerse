@@ -7,7 +7,7 @@ index 72fc94f5160..0df47e3a830 100644
  // static
  SessionStartupPref::Type SessionStartupPref::GetDefaultStartupType() {
 -#if BUILDFLAG(IS_CHROMEOS)
-+  // Arcomium: Spaces are tab groups, so they only survive a restart with the
++  // Alerse: Spaces are tab groups, so they only survive a restart with the
 +  // session; continue where the user left off, as Arc does.
    return SessionStartupPref::LAST;
 -#else

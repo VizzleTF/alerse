@@ -6,13 +6,13 @@ index 50dff8a..690760b 100644
          sessions::CreatePinnedStateCommand(session_id, true));
    }
  
-+  // Arcomium: the sidebar's pinned item the tab is bound to outlives a
++  // Alerse: the sidebar's pinned item the tab is bound to outlives a
 +  // rewrite of the session file.
-+  if (const std::string pinned = arcomium::GetPinnedTabUuid(tab);
++  if (const std::string pinned = alerse::GetPinnedTabUuid(tab);
 +      !pinned.empty()) {
 +    command_storage_manager()->AppendRebuildCommand(
 +        sessions::CreateAddTabExtraDataCommand(
-+            session_id, arcomium::kPinnedTabExtraDataKey, pinned));
++            session_id, alerse::kPinnedTabExtraDataKey, pinned));
 +  }
 +
    // Record the association between the sessionStorage namespace and the tab.
@@ -26,7 +26,7 @@ index d48ee3c..a4a74ae 100644
  #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
  #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
  #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -34,12 +34,12 @@ index d48ee3c..a4a74ae 100644
  
    glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
                                &extra_data);
-+  // Arcomium: a reopened tab binds to its pinned item again, unless the item
++  // Alerse: a reopened tab binds to its pinned item again, unless the item
 +  // has another tab by then.
-+  if (std::string pinned = arcomium::GetPinnedTabUuid(
++  if (std::string pinned = alerse::GetPinnedTabUuid(
 +          tab_strip_model_->GetWebContentsAt(index));
 +      !pinned.empty()) {
-+    extra_data[arcomium::kPinnedTabExtraDataKey] = pinned;
++    extra_data[alerse::kPinnedTabExtraDataKey] = pinned;
 +  }
  
    return extra_data;
@@ -52,10 +52,10 @@ index 10ea8ad..589a914 100644
    glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
    send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
        web_contents.get(), extra_data);
-+  // Arcomium: the sidebar binds the tab to its pinned item again.
-+  if (auto pinned = extra_data.find(arcomium::kPinnedTabExtraDataKey);
++  // Alerse: the sidebar binds the tab to its pinned item again.
++  if (auto pinned = extra_data.find(alerse::kPinnedTabExtraDataKey);
 +      pinned != extra_data.end()) {
-+    arcomium::SetPinnedTabUuid(web_contents.get(), pinned->second);
++    alerse::SetPinnedTabUuid(web_contents.get(), pinned->second);
 +  }
  
    std::vector<std::unique_ptr<NavigationEntry>> entries =
@@ -68,9 +68,9 @@ index 8a16279..f1765a1 100644
      tabs::TabInterface* const tab =
          MaybeOpenTabInSpace(saved_tab, browser, space);
      if (tab) {
-+      // Arcomium: a tab bound to a pinned item before its Space closed binds
++      // Alerse: a tab bound to a pinned item before its Space closed binds
 +      // to it again.
-+      arcomium::RestorePinnedItemOfSavedTab(tab->GetContents(),
++      alerse::RestorePinnedItemOfSavedTab(tab->GetContents(),
 +                                            saved_tab.saved_tab_guid());
        tab_guid_mapping.emplace(tab, saved_tab.saved_tab_guid());
      }

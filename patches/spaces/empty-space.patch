@@ -6,11 +6,11 @@ index 874a5f3550b..9a3664369cf 100644
      }
    }
  
-+  // Arcomium: the Space and the window stay (TabStripModel::
-+  // ArcomiumKeepSpaces()).
++  // Alerse: the Space and the window stay (TabStripModel::
++  // AlerseKeepSpaces()).
 +  {
 +    tabs::TabInterface* const closing[] = {model->GetTabAtIndex(tab_index)};
-+    model->ArcomiumKeepSpaces(closing);
++    model->AlerseKeepSpaces(closing);
 +  }
 +
    if (model->count() == 1 && IsNormalWindow() &&
@@ -24,9 +24,9 @@ index 2e02cc461e5..ffa698bc775 100644
    if (source != browser_->GetTabStripModel()->GetActiveWebContents()) {
      return false;
    }
-+  // Arcomium: an empty Space shows nothing; the command bar opens only when
++  // Alerse: an empty Space shows nothing; the command bar opens only when
 +  // asked for.
-+  if (TabStripModel::IsArcomiumEmptySpace(source)) {
++  if (TabStripModel::IsAlerseEmptySpace(source)) {
 +    return false;
 +  }
  
@@ -52,7 +52,7 @@ index 49011a92d85..15f854970de 100644
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
 +  if (tabs::TabInterface* tab = GetTabForWebContents(contents)) {
 +    tabs::TabInterface* const closing[] = {tab};
-+    ArcomiumKeepSpaces(closing);
++    AlerseKeepSpaces(closing);
 +  }
    CloseTabs({contents}, close_types);
  }
@@ -60,21 +60,21 @@ index 49011a92d85..15f854970de 100644
 +namespace {
 +
 +// Marks the hidden New Tab of an empty Space.
-+class ArcomiumEmptySpaceMarker
-+    : public content::WebContentsUserData<ArcomiumEmptySpaceMarker> {
++class AlerseEmptySpaceMarker
++    : public content::WebContentsUserData<AlerseEmptySpaceMarker> {
 + private:
-+  explicit ArcomiumEmptySpaceMarker(content::WebContents* contents)
-+      : content::WebContentsUserData<ArcomiumEmptySpaceMarker>(*contents) {}
-+  friend class content::WebContentsUserData<ArcomiumEmptySpaceMarker>;
++  explicit AlerseEmptySpaceMarker(content::WebContents* contents)
++      : content::WebContentsUserData<AlerseEmptySpaceMarker>(*contents) {}
++  friend class content::WebContentsUserData<AlerseEmptySpaceMarker>;
 +  WEB_CONTENTS_USER_DATA_KEY_DECL();
 +};
 +
-+WEB_CONTENTS_USER_DATA_KEY_IMPL(ArcomiumEmptySpaceMarker);
++WEB_CONTENTS_USER_DATA_KEY_IMPL(AlerseEmptySpaceMarker);
 +
 +}  // namespace
 +
 +// static
-+bool TabStripModel::IsArcomiumEmptySpace(content::WebContents* contents) {
++bool TabStripModel::IsAlerseEmptySpace(content::WebContents* contents) {
 +  if (!contents) {
 +    return false;
 +  }
@@ -86,7 +86,7 @@ index 49011a92d85..15f854970de 100644
 +         url.host() == chrome::kChromeUINewTabPageHost))) {
 +    return false;
 +  }
-+  if (ArcomiumEmptySpaceMarker::FromWebContents(contents)) {
++  if (AlerseEmptySpaceMarker::FromWebContents(contents)) {
 +    return true;
 +  }
 +  // After a restart the mark is gone: a blank page with no history that no
@@ -96,7 +96,7 @@ index 49011a92d85..15f854970de 100644
 +         !controller.GetPendingEntry() && controller.GetEntryCount() <= 1;
 +}
 +
-+void TabStripModel::ArcomiumKeepSpaces(
++void TabStripModel::AlerseKeepSpaces(
 +    base::span<tabs::TabInterface* const> tabs) {
 +  // Not while the window closes, nor in app and popup windows.
 +  if (tabs.empty() || closing_all_ || !delegate()->IsNormalWindow() ||
@@ -139,7 +139,7 @@ index 49011a92d85..15f854970de 100644
 +    for (int i = 0; i < count(); ++i) {
 +      content::WebContents* contents = GetWebContentsAt(i);
 +      if (!before.contains(contents)) {
-+        ArcomiumEmptySpaceMarker::CreateForWebContents(contents);
++        AlerseEmptySpaceMarker::CreateForWebContents(contents);
 +        if (foreground) {
 +          ActivateTabAt(i);
 +        }
@@ -156,7 +156,7 @@ index 49011a92d85..15f854970de 100644
    ReentrancyCheck::ValidateNotReentrant(&reentrancy_guard_);
    const std::vector<tabs::TabInterface*> tabs_to_close =
        std::move(get_tabs_to_close).Run();
-+  ArcomiumKeepSpaces(tabs_to_close);
++  AlerseKeepSpaces(tabs_to_close);
    if (!tabs_to_close.empty() && !closing_all_ &&
        static_cast<int>(tabs_to_close.size()) == count() &&
        delegate()->IsNormalWindow() &&
@@ -164,11 +164,11 @@ index 49011a92d85..15f854970de 100644
          get_tabs_to_close,
      bool delete_groups) {
    std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
-+  // Arcomium: a Space outlives its last tab (ArcomiumKeepSpaces()), so no
++  // Alerse: a Space outlives its last tab (AlerseKeepSpaces()), so no
 +  // group is deleted and Chromium's delete-group dialog stays away. The tabs
 +  // are fixed first: keeping the Space may select its blank tab.
 +  const int count_before_keeping_spaces = count();
-+  ArcomiumKeepSpaces(tabs_to_close);
++  AlerseKeepSpaces(tabs_to_close);
 +  if (count() != count_before_keeping_spaces) {
 +    std::vector<tabs::TabInterface::Handle> handles;
 +    for (tabs::TabInterface* tab : tabs_to_close) {
@@ -197,14 +197,14 @@ index 479fe42eb67..bd0f88b0c71 100644
    // CloseWebContentsAt() when a WebContents* is already available.
    void CloseWebContents(content::WebContents* contents, uint32_t close_types);
  
-+  // Arcomium: as in Arc, a Space (a tab group, or the ungrouped tabs) and the
++  // Alerse: as in Arc, a Space (a tab group, or the ungrouped tabs) and the
 +  // window stay when the Space's last tab goes: an empty Space shows a blank
 +  // page and no tab. Adds a hidden New Tab to every Space that closing or
 +  // moving away `tabs` would empty; it shows if the Space's last tab was
 +  // active.
-+  void ArcomiumKeepSpaces(base::span<tabs::TabInterface* const> tabs);
++  void AlerseKeepSpaces(base::span<tabs::TabInterface* const> tabs);
 +  // Whether `contents` is such a hidden tab, still on its New Tab page.
-+  static bool IsArcomiumEmptySpace(content::WebContents* contents);
++  static bool IsAlerseEmptySpace(content::WebContents* contents);
 +
    // Closes the WebContents at the specified index. This causes the
    // WebContents to be destroyed, but it may not happen immediately.
@@ -225,8 +225,8 @@ index acd93730d47..2c9318f827a 100644
      return true;
    }
  
-+  // Arcomium: an empty Space has no address, so the bar offers to search.
-+  if (TabStripModel::IsArcomiumEmptySpace(GetActiveWebContents())) {
++  // Alerse: an empty Space has no address, so the bar offers to search.
++  if (TabStripModel::IsAlerseEmptySpace(GetActiveWebContents())) {
 +    return false;
 +  }
 +
@@ -241,7 +241,7 @@ index b716abb..a69f07d 100644
  }
  
  Color LocalFrameView::BaseBackgroundColor() const {
-+  // Arcomium: an empty Space's hidden blank page is clear, so the page card's
++  // Alerse: an empty Space's hidden blank page is clear, so the page card's
 +  // blank color (the browser's) shows, not white or Blink's dark canvas.
 +  if (frame_->IsMainFrame() && frame_->GetDocument() &&
 +      frame_->GetDocument()->Url().IsAboutBlankUrl() &&

@@ -6,8 +6,8 @@ index 9991a320976..10f5fcfade5 100644
  #define IDC_SHOW_READING_MODE_KEYBOARD 40303
  #define IDC_CHROME_ENTERPRISE_RELEASE_NOTES 40305
  #define IDC_SHOW_TTC_MENU 40306
-+// Arcomium: opens chrome://arcomium-links.
-+#define IDC_ARCOMIUM_LINK_ROUTING 40390
++// Alerse: opens chrome://alerse-links.
++#define IDC_ALERSE_LINK_ROUTING 40390
  
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
@@ -19,7 +19,7 @@ index f8535695034..793eb8042bb 100644
          <message name="IDS_SETTINGS" desc="The text label of the Settings menu item">
            Settin&amp;gs
          </message>
-+        <message name="IDS_ARCOMIUM_LINK_ROUTING" desc="The text label of the menu item that opens the settings of which Space links from other apps open in">
++        <message name="IDS_ALERSE_LINK_ROUTING" desc="The text label of the menu item that opens the settings of which Space links from other apps open in">
 +          &amp;Link routing
 +        </message>
          <message name="IDS_OPTIONS" desc="The text label of the Options menu item">
@@ -29,7 +29,7 @@ index f8535695034..793eb8042bb 100644
          <message name="IDS_SETTINGS" desc="In Title Case: The text label of the Settings menu item">
            &amp;Settings
          </message>
-+        <message name="IDS_ARCOMIUM_LINK_ROUTING" desc="In Title Case: The text label of the menu item that opens the settings of which Space links from other apps open in">
++        <message name="IDS_ALERSE_LINK_ROUTING" desc="In Title Case: The text label of the menu item that opens the settings of which Space links from other apps open in">
 +          &amp;Link Routing
 +        </message>
          <message name="IDS_OPTIONS" desc="In Title Case: The text label of the Options menu item">
@@ -43,7 +43,7 @@ index 0476350e565..a521657655a 100644
  #include "chrome/browser/ui/performance_controls/performance_controls_metrics.h"
  #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
  #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
-+#include "chrome/browser/ui/tabs/arcomium_link_routes.h"
++#include "chrome/browser/ui/tabs/alerse_link_routes.h"
  #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
  #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
  #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
@@ -51,7 +51,7 @@ index 0476350e565..a521657655a 100644
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
-+  arcomium::RegisterLinkRoutesPrefs(registry);
++  alerse::RegisterLinkRoutesPrefs(registry);
  #if !BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_DESKTOP_ANDROID)  // nocheck
    ttc::AiOverlayDialogController::RegisterProfilePrefs(registry);
  #endif
@@ -63,8 +63,8 @@ index 77745e436d5..8033830e65f 100644
      case IDC_SHOW_SYNC_SETTINGS:
        chrome::ShowSettingsSubPage(browser_, chrome::kSyncSetupSubPage);
        break;
-+    case IDC_ARCOMIUM_LINK_ROUTING:
-+      ShowSingletonTab(browser_, GURL("chrome://arcomium-links/"));
++    case IDC_ALERSE_LINK_ROUTING:
++      ShowSingletonTab(browser_, GURL("chrome://alerse-links/"));
 +      break;
  #if !BUILDFLAG(IS_CHROMEOS)
      case IDC_SHOW_SYNC_PASSPHRASE_DIALOG:
@@ -73,7 +73,7 @@ index 77745e436d5..8033830e65f 100644
    command_updater_->UpdateCommandEnabled(IDC_SHOW_PAYMENT_METHODS,
                                           !guest_session);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
-+  command_updater_->UpdateCommandEnabled(IDC_ARCOMIUM_LINK_ROUTING, true);
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_LINK_ROUTING, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_PASSPHRASE_DIALOG, true);
    command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
@@ -85,8 +85,8 @@ index c2f3d996b85..0013fe141c1 100644
  #include "chrome/browser/ui/singleton_tabs.h"
  #include "chrome/browser/ui/status_bubble.h"
  #include "chrome/browser/ui/tab_helpers.h"
-+#include "chrome/browser/ui/tabs/arcomium_link_routes.h"
- #include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_link_routes.h"
+ #include "chrome/browser/ui/tabs/alerse_spaces.h"
 +#include "components/tab_groups/tab_group_visual_data.h"
  #include "chrome/browser/ui/tabs/split_tab_metrics.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -95,9 +95,9 @@ index c2f3d996b85..0013fe141c1 100644
  
  struct AdditionalParams {
    bool tab_modal_popup = false;
-+  // Arcomium: the route of a link another app opened, see
++  // Alerse: the route of a link another app opened, see
 +  // GetLinkRouteForNewTab().
-+  std::optional<arcomium::LinkRoute> link_route;
++  std::optional<alerse::LinkRoute> link_route;
  };
  
  // Returns true if |params.browser| exists and can open a new tab for
@@ -106,11 +106,11 @@ index c2f3d996b85..0013fe141c1 100644
  // (explicit or the focused one). --arcomium-space=<id> forces a Space, for
  // testing.
 -std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
-+// Arcomium: the link route for a link another app opens in a new tab (see
-+// arcomium_link_routes.h). Links opened inside the browser have a source tab
++// Alerse: the link route for a link another app opens in a new tab (see
++// alerse_link_routes.h). Links opened inside the browser have a source tab
 +// and stay in its Space. Call it before Navigate() makes the active tab the
 +// source of a navigation that has none.
-+std::optional<arcomium::LinkRoute> GetLinkRouteForNewTab(
++std::optional<alerse::LinkRoute> GetLinkRouteForNewTab(
 +    const NavigateParams& params) {
 +  if (!params.browser || params.source_contents || params.opener ||
 +      !ui::PageTransitionCoreTypeIs(params.transition,
@@ -121,14 +121,14 @@ index c2f3d996b85..0013fe141c1 100644
 +      params.browser->GetProfile()->IsOffTheRecord()) {
 +    return std::nullopt;
 +  }
-+  return arcomium::FindLinkRoute(
-+      arcomium::GetLinkRoutes(*params.browser->GetProfile()->GetPrefs()),
++  return alerse::FindLinkRoute(
++      alerse::GetLinkRoutes(*params.browser->GetProfile()->GetPrefs()),
 +      params.url);
 +}
 +
 +std::optional<std::string> GetSpaceForNewTab(
 +    const NavigateParams& params,
-+    const std::optional<arcomium::LinkRoute>& route) {
++    const std::optional<alerse::LinkRoute>& route) {
    const std::string forced =
        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
            "arcomium-space");
@@ -141,14 +141,14 @@ index c2f3d996b85..0013fe141c1 100644
 +  }
    if (params.source_contents) {
      if (std::optional<std::string> space =
-             arcomium::GetSpaceOfContents(params.source_contents)) {
+             alerse::GetSpaceOfContents(params.source_contents)) {
 @@ -523,7 +554,8 @@ std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
  
  std::unique_ptr<content::WebContents> CreateTargetContents(
      const NavigateParams& params,
 -    const GURL& url) {
 +    const GURL& url,
-+    const std::optional<arcomium::LinkRoute>& link_route) {
++    const std::optional<alerse::LinkRoute>& link_route) {
    // Always create the new WebContents in a new SiteInstance (and therefore a
    // new BrowsingInstance), *unless* there's a |params.opener|.
    //
@@ -192,15 +192,15 @@ index c2f3d996b85..0013fe141c1 100644
 +    TabStripModel* const target_model = params->browser->GetTabStripModel();
      std::optional<tab_groups::TabGroupId> group = params->group;
 -    if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
-+    const std::optional<arcomium::LinkRoute>& route =
++    const std::optional<alerse::LinkRoute>& route =
 +        additional_params.link_route;
 +    if (route) {
-+      // Arcomium: open the routed link in its Space and show that Space. A
++      // Alerse: open the routed link in its Space and show that Space. A
 +      // Space without tabs has no group; the tab goes in outside of focus
 +      // mode and gets a new group below.
 +      group = route->space.empty()
 +                  ? std::nullopt
-+                  : arcomium::FindGroupOfSpace(target_model, route->space);
++                  : alerse::FindGroupOfSpace(target_model, route->space);
 +      if (group) {
 +        target_model->EnterFocusMode(*group);
 +      } else if (target_model->GetFocusedGroup()) {
@@ -247,7 +247,7 @@ index 0e71d492421..3fef161944a 100644
        features::IsRoundedIconsEnabled() ? vector_icons::kSyncIcon
                                          : kSyncRefreshOldIcon);
 +  AddItemWithStringIdAndVectorIcon(
-+      this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
++      this, IDC_ALERSE_LINK_ROUTING, IDS_ALERSE_LINK_ROUTING,
 +      features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
 +                                        : vector_icons::kLinkOldIcon);
  
@@ -261,8 +261,8 @@ index 726b5a9c842..af583dd4f80 100644
  
    deps = [
      ":gcm_internals_ui",
-+    "//chrome/browser/ui/webui/arcomium_links",
-     "//chrome/browser/ui/webui/arcomium_sync",
++    "//chrome/browser/ui/webui/alerse_links",
+     "//chrome/browser/ui/webui/alerse_sync",
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
@@ -273,15 +273,15 @@ index f7d1b75fb76..0c90234fcff 100644
  #include "build/build_config.h"
  #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
-+#include "chrome/browser/ui/webui/arcomium_links/arcomium_links_ui.h"
- #include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.h"
++#include "chrome/browser/ui/webui/alerse_links/alerse_links_ui.h"
+ #include "chrome/browser/ui/webui/alerse_sync/alerse_sync_ui.h"
  #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
  #include "chrome/browser/glic/host/glic_ui.h"
 @@ -337,6 +338,7 @@ void RegisterChromeWebUIConfigs() {
    map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
-   map.AddWebUIConfig(std::make_unique<ArcomiumSyncUIConfig>());
-+  map.AddWebUIConfig(std::make_unique<ArcomiumLinksUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseSyncUIConfig>());
++  map.AddWebUIConfig(std::make_unique<AlerseLinksUIConfig>());
    map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
    map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
  #if BUILDFLAG(ENABLE_WEBUI_NTP)

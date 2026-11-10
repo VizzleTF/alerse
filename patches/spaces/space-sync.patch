@@ -14,7 +14,7 @@ index 3a6b19a0032..32a6abff203 100644
      BrowserWindowInterface* browser,
      int index_in_tabstrip) {
    GURL url_to_open = tab.url();
-+  // Arcomium: every tab group is a Space, whose tabs live in the Space's
++  // Alerse: every tab group is a Space, whose tabs live in the Space's
 +  // storage partition; the New Tab page cannot, about:blank can.
    if (!IsURLValidForLocalTab(url_to_open)) {
 -    url_to_open = chrome::ChromeUINewTabURLAsGURL();
@@ -38,7 +38,7 @@ index 629d76ab242..cb0d4796ed4 100644
  #include "chrome/browser/profiles/profile.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_model_listener.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
@@ -69,7 +69,7 @@ index 629d76ab242..cb0d4796ed4 100644
        navigation_handle->GetWebContents());
  }
  
-+// Arcomium: the Space a saved tab group syncs, read from the bookmark folder
++// Alerse: the Space a saved tab group syncs, read from the bookmark folder
 +// of the Space ("arcomium.group" holds the saved group's id), or "" for none.
 +std::string GetSpaceOfSavedGroup(Profile* profile, const base::Uuid& sync_id) {
 +  bookmarks::BookmarkModel* bookmarks =
@@ -91,7 +91,7 @@ index 629d76ab242..cb0d4796ed4 100644
 +  return std::string();
 +}
 +
-+// Arcomium: opens a tab of a saved Space in the Space's storage partition, so
++// Alerse: opens a tab of a saved Space in the Space's storage partition, so
 +// it keeps the Space's cookies. A page that cannot live there (the New Tab
 +// page, an unsynced URL) opens as about:blank in it: a tab never changes its
 +// partition, and the other device navigates it later.
@@ -105,7 +105,7 @@ index 629d76ab242..cb0d4796ed4 100644
 +                       ? saved_tab.url()
 +                       : GURL(url::kAboutBlankURL);
 +  scoped_refptr<content::SiteInstance> site_instance =
-+      arcomium::CreateSpaceSiteInstance(browser->GetProfile(), url, space);
++      alerse::CreateSpaceSiteInstance(browser->GetProfile(), url, space);
 +  if (!site_instance) {
 +    return MaybeOpenTabFromSavedTab(saved_tab, browser);
 +  }

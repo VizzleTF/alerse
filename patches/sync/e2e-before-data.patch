@@ -6,10 +6,10 @@ index 165393bc468..1f314ad0a17 100644
    }
  #endif
    sync_prefs_.SetCachedPassphraseType(passphrase_type);
-+  // Arcomium: the chain's passphrase is in place; configure the data types
++  // Alerse: the chain's passphrase is in place; configure the data types
 +  // ConfigureDataTypeManager() held back. Posted: this runs inside the
 +  // engine's crypto notification.
-+  if (arcomium_waiting_for_passphrase_ &&
++  if (alerse_waiting_for_passphrase_ &&
 +      passphrase_type == PassphraseType::kCustomPassphrase) {
 +    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
 +        FROM_HERE,
@@ -25,13 +25,13 @@ index 165393bc468..1f314ad0a17 100644
  
 -  data_type_manager_->Configure(GetPreferredDataTypes(), configure_context);
 +  DataTypeSet types = GetPreferredDataTypes();
-+  // Arcomium: end-to-end or not at all. Until the chain's data is encrypted
++  // Alerse: end-to-end or not at all. Until the chain's data is encrypted
 +  // with its own passphrase, nothing but the device list goes to its server;
 +  // PassphraseTypeChanged() configures the rest once it is.
-+  arcomium_waiting_for_passphrase_ =
-+      arcomium_account_ && user_settings_->GetPassphraseType() !=
++  alerse_waiting_for_passphrase_ =
++      alerse_account_ && user_settings_->GetPassphraseType() !=
 +                               PassphraseType::kCustomPassphrase;
-+  if (arcomium_waiting_for_passphrase_) {
++  if (alerse_waiting_for_passphrase_) {
 +    types = Intersection(types, DataTypeSet({DEVICE_INFO}));
 +  }
 +  data_type_manager_->Configure(types, configure_context);
@@ -43,12 +43,12 @@ index 75f0d9815b8..7f491eaa4ac 100644
 --- a/components/sync/service/sync_service_impl.h
 +++ b/components/sync/service/sync_service_impl.h
 @@ -535,6 +535,9 @@ class SyncServiceImpl : public SyncService,
-   std::unique_ptr<ArcomiumSyncEvents> arcomium_events_;
-   bool arcomium_passphrase_set_ = false;
-   bool applying_arcomium_passphrase_ = false;
+   std::unique_ptr<AlerseSyncEvents> alerse_events_;
+   bool alerse_passphrase_set_ = false;
+   bool applying_alerse_passphrase_ = false;
 +  // Whether the last configuration held the data types back for want of the
 +  // chain's passphrase.
-+  bool arcomium_waiting_for_passphrase_ = false;
++  bool alerse_waiting_for_passphrase_ = false;
  
    // Note: This is an Optional so that we can control its destruction - in
    // particular, to trigger the "check_empty" test in Shutdown().

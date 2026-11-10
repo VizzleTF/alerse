@@ -6,7 +6,7 @@ index a756f076ffc..a2d28ee3ae7 100644
      std::unique_ptr<MultiContentsViewDelegate> delegate)
      : browser_view_(browser_view),
        delegate_(std::move(delegate)),
-+      // Arcomium: the page card starts right at the sidebar's edge, as in Arc.
++      // Alerse: the page card starts right at the sidebar's edge, as in Arc.
        split_view_insets_(gfx::Insets::TLBR(0,
 -                                           kSplitViewContentInset,
 +                                           0,
@@ -29,7 +29,7 @@ index a756f076ffc..a2d28ee3ae7 100644
  
 -  const bool show_background =
 -      drop_target_view_->GetVisible() || IsInSplitView();
-+  // Arcomium: the page is always a floating card, as in split view.
++  // Alerse: the page is always a floating card, as in split view.
 +  const bool show_background = true;
    layouts.child_layouts.emplace_back(background_view_.get(), show_background,
                                       available_space);
@@ -41,7 +41,7 @@ index a756f076ffc..a2d28ee3ae7 100644
 -  if (IsInSplitView()) {
 -    available_space.Inset(split_view_insets_);
 -  }
-+  // Arcomium: inset the single page too, so it floats as a card.
++  // Alerse: inset the single page too, so it floats as a card.
 +  available_space.Inset(split_view_insets_);
    ViewSizes sizes = GetViewSizes(available_space);
  
@@ -53,7 +53,7 @@ index a756f076ffc..a2d28ee3ae7 100644
 -        is_in_split
 -            ? kSplitViewContentRoundedCorners
 -            : (is_active ? GetBackgroundRadii() : gfx::RoundedCornersF()));
-+        // Arcomium: the single page is a card with all corners rounded.
++        // Alerse: the single page is a card with all corners rounded.
 +        is_in_split || is_active ? kSplitViewContentRoundedCorners
 +                                 : gfx::RoundedCornersF());
      contents_container_view->UpdateBorderAndOverlay(
@@ -68,7 +68,7 @@ index e39f000c2a9..13dd5008268 100644
  
    static constexpr int kSplitViewContentInset = 8;
 -  static constexpr float kSplitViewContentCornerRadius = 6;
-+  // Arcomium: Arc-like card radius.
++  // Alerse: Arc-like card radius.
 +  static constexpr float kSplitViewContentCornerRadius = 10;
    static constexpr gfx::RoundedCornersF kSplitViewContentRoundedCorners{
        kSplitViewContentCornerRadius};

@@ -1,15 +1,15 @@
 """Imports Arc's sidebar (Spaces, pinned tabs, nested folders, favicons) into
-an Arcomium profile as bookmarks, the way Arcomium's sidebar stores them.
+an Alerse profile as bookmarks, the way Alerse's sidebar stores them.
 
 Each Arc Space becomes a folder under "Other bookmarks". The first Space is
-shown outside of Spaces (meta info arcomium.space = "default"); the others are
-adopted by an Arcomium Space with the same name. Re-running replaces what an
-earlier import imported, the way chrome://arcomium-import does: the same
-folders, the user's own bookmarks in them kept. Close Arcomium first: it
+shown outside of Spaces (meta info alerse.space = "default"); the others are
+adopted by an Alerse Space with the same name. Re-running replaces what an
+earlier import imported, the way chrome://alerse-import does: the same
+folders, the user's own bookmarks in them kept. Close Alerse first: it
 rewrites the file on exit.
 
-What it adds is marked as chrome://arcomium-import marks it, with the
-profile's own key (the arcomium.import_key pref, made here when the profile
+What it adds is marked as chrome://alerse-import marks it, with the
+profile's own key (the alerse.import_key pref, made here when the profile
 has none), so that importing again from either one replaces it.
 
 Usage:
@@ -56,21 +56,21 @@ def import_key(profile):
     """The profile's key for import marks, made and saved if it has none."""
     path = profile / 'Preferences'
     prefs = json.loads(path.read_text('utf-8')) if path.exists() else {}
-    arcomium = prefs.setdefault('arcomium', {})
-    if not arcomium.get('import_key'):
-        arcomium['import_key'] = secrets.token_hex(32)
+    alerse = prefs.setdefault('alerse', {})
+    if not alerse.get('import_key'):
+        alerse['import_key'] = secrets.token_hex(32)
         path.write_text(json.dumps(prefs, ensure_ascii=False), 'utf-8')
-    return arcomium['import_key']
+    return alerse['import_key']
 
 
 def sign(key, kind, subject, guid):
-    # As ImportMark::Sign() in arcomium_import_bookmarks.cc.
+    # As ImportMark::Sign() in alerse_import_bookmarks.cc.
     message = f'{kind}\n{subject}\n{guid}'.encode()
     return hmac.new(key.encode(), message, hashlib.sha256).hexdigest()[:32]
 
 
 HOME = 'default'
-# arcomium.imported of what this tool imported before it signed its marks.
+# alerse.imported of what this tool imported before it signed its marks.
 LEGACY_MARK = '1'
 
 
@@ -136,7 +136,7 @@ def adopt_legacy(key, other):
     """Signs what this tool imported before it signed its marks: each Space
     folder under Other bookmarks marked "1" and each node in it marked "1".
     A folder no Space has adopted yet ("arc:<id>") is bound to its Arc Space.
-    As AdoptLegacyArcImport() in arcomium_import_bookmarks.cc."""
+    As AdoptLegacyArcImport() in alerse_import_bookmarks.cc."""
     for folder in other['children']:
         space = meta(folder, 'arcomium.space')
         if (not is_folder(folder) or not space or
@@ -302,7 +302,7 @@ def main():
                            importer.tree(items, pinned)))
 
     # The folder each Space goes to, as ImportArcSpaces() in
-    # arcomium_import_bookmarks.cc picks it: the one bound to it here; for the
+    # alerse_import_bookmarks.cc picks it: the one bound to it here; for the
     # first Space, the user's Home folder, else an earlier import's; then a
     # Space's folder of the same name bound to no Arc Space.
     folders = [child for child in other['children'] if is_folder(child)]

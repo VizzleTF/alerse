@@ -6,18 +6,18 @@ index b0f3ec9cf42..8aa040374e4 100644
  
  source_set("vertical") {
    sources = [
-+    "arcomium_app_menu.h",
-     "arcomium_mini_player.h",
-     "arcomium_address_bar.h",
-     "arcomium_sidebar_view.h",
++    "alerse_app_menu.h",
+     "alerse_mini_player.h",
+     "alerse_address_bar.h",
+     "alerse_sidebar_view.h",
 @@ -42,6 +43,7 @@ source_set("vertical") {
  
  source_set("impl") {
    sources = [
-+    "arcomium_app_menu.cc",
-     "arcomium_mini_player.cc",
-     "arcomium_address_bar.cc",
-     "arcomium_sidebar_view.cc",
++    "alerse_app_menu.cc",
+     "alerse_mini_player.cc",
+     "alerse_address_bar.cc",
+     "alerse_sidebar_view.cc",
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 index ddc5bc9eec3..493bf206bc5 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
@@ -26,7 +26,7 @@ index ddc5bc9eec3..493bf206bc5 100644
  
  #include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
  
-+#include "chrome/browser/ui/views/tabs/vertical/arcomium_app_menu.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_app_menu.h"
 +
  #include "cc/paint/paint_flags.h"
  #include "chrome/app/chrome_command_ids.h"
@@ -38,16 +38,16 @@ index ddc5bc9eec3..493bf206bc5 100644
 -// Arc's logo, an arch crossed by a swoosh; opens the app menu.
 -class ArcLogoButton : public views::Button {
 -  METADATA_HEADER(ArcLogoButton, views::Button)
-+// Arcomium's logo; opens Arcomium's menu (arcomium_app_menu.h).
-+class ArcomiumLogoButton : public views::Button {
-+  METADATA_HEADER(ArcomiumLogoButton, views::Button)
++// Alerse's logo; opens Alerse's menu (alerse_app_menu.h).
++class AlerseLogoButton : public views::Button {
++  METADATA_HEADER(AlerseLogoButton, views::Button)
  
   public:
 -  explicit ArcLogoButton(PressedCallback callback)
-+  explicit ArcomiumLogoButton(PressedCallback callback)
++  explicit AlerseLogoButton(PressedCallback callback)
        : views::Button(std::move(callback)) {
-     SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
-     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
+     SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
 @@ -120,34 +122,49 @@ class ArcLogoButton : public views::Button {
    }
  
@@ -77,7 +77,7 @@ index ddc5bc9eec3..493bf206bc5 100644
 -    canvas->DrawPath(arch.detach(), flags);
 -    canvas->DrawPath(swoosh.detach(), flags);
 -  }
-+  // Arcomium: Alerse's "A" (artwork/alerse_1024.png) in the header's icon
++  // Alerse: Alerse's "A" (artwork/alerse_1024.png) in the header's icon
 +  // color: a trunk for the left leg with a small branch off it, the right
 +  // leg, and a crossbar that curls up into the right leg.
 +  void PaintButtonContents(gfx::Canvas* canvas) override {
@@ -121,7 +121,7 @@ index ddc5bc9eec3..493bf206bc5 100644
  };
  
 -BEGIN_METADATA(ArcLogoButton)
-+BEGIN_METADATA(ArcomiumLogoButton)
++BEGIN_METADATA(AlerseLogoButton)
  END_METADATA
  
  #if !BUILDFLAG(IS_MAC)
@@ -131,15 +131,15 @@ index ddc5bc9eec3..493bf206bc5 100644
  
 -  arc_logo_button_ = AddChildView(std::make_unique<ArcLogoButton>(
 -      base::BindRepeating(&chrome::ShowAppMenu, base::Unretained(browser_))));
-+  arc_logo_button_ = AddChildView(std::make_unique<ArcomiumLogoButton>(
++  arc_logo_button_ = AddChildView(std::make_unique<AlerseLogoButton>(
 +      base::BindRepeating(
 +          [](VerticalTabStripTopContainer* container) {
 +#if BUILDFLAG(IS_MAC)
 +            // macOS keeps its menu bar; the logo opens the full app menu.
 +            chrome::ShowAppMenu(container->browser_);
 +#else
-+            // Arc for Windows' logo menu: Arcomium's own (arcomium_app_menu.h).
-+            arcomium::ShowAppMenu(container->browser_,
++            // Arc for Windows' logo menu: Alerse's own (alerse_app_menu.h).
++            alerse::ShowAppMenu(container->browser_,
 +                                  container->arc_logo_button_);
 +#endif
 +          },

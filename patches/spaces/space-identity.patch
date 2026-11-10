@@ -6,8 +6,8 @@ index 0013fe141c1..3425b09117d 100644
    const TabStripModel* model = params.browser->GetTabStripModel();
    std::optional<tab_groups::TabGroupId> group =
        params.group ? params.group : model->GetFocusedGroup();
--  return group ? arcomium::GetSpaceOfGroup(model, *group) : std::nullopt;
-+  return group ? arcomium::GetSpaceOfGroupOrFolder(
+-  return group ? alerse::GetSpaceOfGroup(model, *group) : std::nullopt;
++  return group ? alerse::GetSpaceOfGroupOrFolder(
 +                     params.browser->GetProfile(), model, *group)
 +               : std::nullopt;
  }

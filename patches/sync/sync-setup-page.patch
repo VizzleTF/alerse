@@ -6,11 +6,11 @@ index 9f616639b50..5b6a5ad42ae 100644
                                          std::string_view sub_page) {
    base::RecordAction(UserMetricsAction("ShowOptions"));
  
-+  // Arcomium sets up sync on its own page; Chromium's sync settings are for
++  // Alerse sets up sync on its own page; Chromium's sync settings are for
 +  // Google accounts.
 +  if (sub_page == kSyncSetupSubPage) {
 +    FocusWebContents(browser);
-+    ShowSingletonTab(browser, GURL("chrome://arcomium-sync/"));
++    ShowSingletonTab(browser, GURL("chrome://alerse-sync/"));
 +    return;
 +  }
 +
@@ -25,8 +25,8 @@ index 4d155299d24..0e71d492421 100644
  #endif
  #endif
  
-+  // Arcomium: sync has no Google account to show it, so it gets its own
-+  // item, opening chrome://arcomium-sync.
++  // Alerse: sync has no Google account to show it, so it gets its own
++  // item, opening chrome://alerse-sync.
 +  AddItemWithStringIdAndVectorIcon(
 +      this, IDC_SHOW_SYNC_SETTINGS, IDS_SETTINGS_SYNC,
 +      features::IsRoundedIconsEnabled() ? vector_icons::kSyncIcon
@@ -43,7 +43,7 @@ index e63e1e07419..726b5a9c842 100644
  
    deps = [
      ":gcm_internals_ui",
-+    "//chrome/browser/ui/webui/arcomium_sync",
++    "//chrome/browser/ui/webui/alerse_sync",
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
      ":signin_internals_ui",
@@ -55,7 +55,7 @@ index 9baf1c83dce..f7d1b75fb76 100644
  #include "build/build_config.h"
  #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
  #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
-+#include "chrome/browser/ui/webui/arcomium_sync/arcomium_sync_ui.h"
++#include "chrome/browser/ui/webui/alerse_sync/alerse_sync_ui.h"
  #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
  #include "chrome/browser/glic/host/glic_ui.h"
  #include "chrome/browser/optimization_guide/optimization_guide_internals_ui.h"
@@ -63,7 +63,7 @@ index 9baf1c83dce..f7d1b75fb76 100644
    map.AddWebUIConfig(std::make_unique<UsbInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<user_actions_ui::UserActionsUIConfig>());
    map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
-+  map.AddWebUIConfig(std::make_unique<ArcomiumSyncUIConfig>());
++  map.AddWebUIConfig(std::make_unique<AlerseSyncUIConfig>());
    map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
    map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
  #if BUILDFLAG(ENABLE_WEBUI_NTP)

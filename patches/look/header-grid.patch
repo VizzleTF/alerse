@@ -7,7 +7,7 @@ index 7681bbc1ec8..bda23d2a059 100644
    available.Inset(gfx::Insets::TLBR(0, 0, vertical_padding, 0));
  
 -  // Lay out the top button container.
-+  // Lay out the top button container. Arcomium: expanded, it spans the strip
++  // Lay out the top button container. Alerse: expanded, it spans the strip
 +  // and places the Arc header buttons on its own grid.
 +  const int header_padding =
 +      state_controller_->IsCollapsed() ? horizontal_padding : 0;
@@ -60,8 +60,8 @@ index cbeee5c9105..9ea8c905b28 100644
  
  namespace {
  
--// Arcomium: Arc's header row, measured on Arc for Windows at 100% scale.
-+// Arcomium: the Arc header: rows of 28 px buttons 32 px apart with 16 px
+-// Alerse: Arc's header row, measured on Arc for Windows at 100% scale.
++// Alerse: the Arc header: rows of 28 px buttons 32 px apart with 16 px
 +// icons, the gap after the window controls, and the hover corner radius.
  constexpr int kArcHeaderHeight = 32;
  constexpr int kArcHeaderButtonSize = 28;
@@ -89,8 +89,8 @@ index cbeee5c9105..9ea8c905b28 100644
  class ArcLogoButton : public views::Button {
 @@ -69,8 +92,7 @@ class ArcLogoButton : public views::Button {
        : views::Button(std::move(callback)) {
-     SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
-     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_MENU));
+     SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
+     GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_MENU));
 -    views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
 -    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
 +    StyleArcHeaderButton(this);
@@ -111,16 +111,16 @@ index cbeee5c9105..9ea8c905b28 100644
            base::Unretained(state_controller_)),
        kDockToLeftIcon, kArcHeaderIconSize);
 +  StyleArcHeaderButton(sidebar.get());
-   sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
-   sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_HIDE_SIDEBAR));
+   sidebar->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_HIDE_SIDEBAR));
+   sidebar->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_HIDE_SIDEBAR));
    arc_sidebar_button_ = AddChildView(std::move(sidebar));
 @@ -143,6 +166,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
            },
            base::Unretained(browser_)),
        kDownloadIcon, kArcHeaderIconSize);
 +  StyleArcHeaderButton(downloads.get());
-   downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
-   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ARCOMIUM_DOWNLOADS));
+   downloads->SetTooltipText(l10n_util::GetStringUTF16(IDS_ALERSE_DOWNLOADS));
+   downloads->GetViewAccessibility().SetName(l10n_util::GetStringUTF16(IDS_ALERSE_DOWNLOADS));
    arc_downloads_button_ = AddChildView(std::move(downloads));
 @@ -177,6 +201,7 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
              },
@@ -150,7 +150,7 @@ index cbeee5c9105..9ea8c905b28 100644
    views::ProposedLayout layout;
 @@ -397,37 +433,29 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    } else if (arc_logo_button_) {
-     // Arcomium: Arc's header row: logo (app menu), sidebar toggle, downloads.
+     // Alerse: Arc's header row: logo (app menu), sidebar toggle, downloads.
      combo_button_orientation_ = views::LayoutOrientation::kHorizontal;
 -    host_size.set_height(2 * kArcHeaderHeight);
 -    // The container starts 12 px into the strip; Arc's icons sit at x = 23,
@@ -273,18 +273,18 @@ index 30579df22b9..0f80e8ca76d 100644
  
    // View:
    void Layout(PassKey) override;
-+  // Arcomium: the Arc header grid is placed against the window, so moving
++  // Alerse: the Arc header grid is placed against the window, so moving
 +  // this view moves the buttons within it.
 +  void OnBoundsChanged(const gfx::Rect& previous_bounds) override;
 +  void AddedToWidget() override;
  
-   // Arcomium: the Arc header's app menu and downloads buttons, which stand in
+   // Alerse: the Arc header's app menu and downloads buttons, which stand in
    // for the toolbar's while it hides.
 @@ -67,6 +71,16 @@ class VerticalTabStripTopContainer : public views::View,
    views::ProposedLayout CalculateProposedLayout(
        const views::SizeBounds& size_bounds) const override;
  
-+  // Arcomium: where the Arc header's rows go. The first row follows the
++  // Alerse: where the Arc header's rows go. The first row follows the
 +  // window controls where they lead it and is centred on them; the second
 +  // starts under their left edge.
 +  struct ArcHeaderGrid {
@@ -295,5 +295,5 @@ index 30579df22b9..0f80e8ca76d 100644
 +  ArcHeaderGrid GetArcHeaderGrid() const;
 +
    // Creates a TopContainerButton (Collapse Button).
-   // Arcomium: whether the action behind one of Chromium's buttons is visible.
+   // Alerse: whether the action behind one of Chromium's buttons is visible.
    bool IsActionVisible(actions::ActionId action_id) const;

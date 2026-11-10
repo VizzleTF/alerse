@@ -1,0 +1,13 @@
+// Copyright 2026 The Alerse Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Arc for macOS' back arrow: 13 pt long with a 10.5 pt head, 1.5 pt strokes;
+// the tip sits half a point in, as the round join reaches past it.
+CANVAS_DIMENSIONS, 22,
+STROKE, 1.5f,
+MOVE_TO, 10.5f, 6.4f,
+LINE_TO, 5.8f, 10.75f,
+LINE_TO, 10.5f, 15.1f,
+MOVE_TO, 5.8f, 10.75f,
+LINE_TO, 16.75f, 10.75f

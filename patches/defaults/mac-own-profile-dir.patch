@@ -29,7 +29,7 @@ index 6829c9cb92c..ed1360554ed 100644
  
  namespace chrome {
  
-+// Arcomium: Alerse (CrProductDirName "Alerse") takes over the profile of the
++// Alerse: Alerse (CrProductDirName "Alerse") takes over the profile of the
 +// browser it was before: "Arcomium" (0.1.0 to 0.1.7), or "Chromium", where
 +// versions before Arcomium had its own bundle ID kept it beside Chromium's
 +// and ungoogled-chromium's (only if it is Arcomium's: its preferences have
@@ -55,7 +55,7 @@ index 6829c9cb92c..ed1360554ed 100644
 +
 +// Whether `dir` is Arcomium's: its default profile's preferences are a JSON
 +// object with an "arcomium" member.
-+bool IsArcomiumProfile(const base::FilePath& dir) {
++bool IsAlerseLineProfile(const base::FilePath& dir) {
 +  const std::string prefs =
 +      dir.Append("Default").Append("Preferences").value();
 +  const int fd = open(prefs.c_str(), O_RDONLY | O_CLOEXEC);
@@ -104,7 +104,7 @@ index 6829c9cb92c..ed1360554ed 100644
 +  base::FilePath old_dir;
 +  if (HasProfile(arcomium)) {
 +    old_dir = arcomium;
-+  } else if (HasProfile(chromium) && IsArcomiumProfile(chromium)) {
++  } else if (HasProfile(chromium) && IsAlerseLineProfile(chromium)) {
 +    old_dir = chromium;
 +  } else {
 +    return;

@@ -2,22 +2,22 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
 index 36e753bdc4f..b42353057cb 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -864,6 +864,20 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
+@@ -864,6 +864,20 @@ void LocationBarView::SetAlerseCommandBar(bool command_bar) {
      return;
    }
-   arcomium_command_bar_ = command_bar;
+   alerse_command_bar_ = command_bar;
 +  // Arc for Windows' command bar sets what you type 16 px high, larger than
 +  // its rows; macOS keeps the address's own face.
 +#if !BUILDFLAG(IS_MAC)
 +  if (command_bar) {
-+    arcomium_command_bar_font_ = omnibox_view_->GetFontList();
++    alerse_command_bar_font_ = omnibox_view_->GetFontList();
 +    const gfx::FontList base =
-+        arcomium_default_font_.value_or(*arcomium_command_bar_font_);
++        alerse_default_font_.value_or(*alerse_command_bar_font_);
 +    omnibox_view_->SetFontList(
 +        base.DeriveWithSizeDelta(16 - base.GetFontSize()));
-+  } else if (arcomium_command_bar_font_) {
-+    omnibox_view_->SetFontList(*arcomium_command_bar_font_);
-+    arcomium_command_bar_font_.reset();
++  } else if (alerse_command_bar_font_) {
++    omnibox_view_->SetFontList(*alerse_command_bar_font_);
++    alerse_command_bar_font_.reset();
 +  }
 +#endif
    RefreshBackground();
@@ -26,14 +26,14 @@ index 36e753bdc4f..b42353057cb 100644
 @@ -1109,7 +1123,14 @@ void LocationBarView::Layout(PassKey) {
          /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
      selected_keyword_view_->SetKeyword(keyword);
-   } else if (arcomium_compact_ && !arcomium_hovered_ &&
+   } else if (alerse_compact_ && !alerse_hovered_ &&
 -             !omnibox_view_->HasFocus()) {
 +             !omnibox_view_->HasFocus() &&
 +             GetLocationBarModel()->GetSecurityLevel() !=
 +                 security_state::WARNING &&
 +             GetLocationBarModel()->GetSecurityLevel() !=
 +                 security_state::DANGEROUS) {
-+    // Arcomium: the compact address hides the site icon, but never a "Not
++    // Alerse: the compact address hides the site icon, but never a "Not
 +    // secure" or dangerous-site warning: with no Safe Browsing it is the
 +    // last one left.
      location_icon_view_->SetVisible(false);
@@ -44,22 +44,22 @@ index df8ae09..29cbcc2 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -339,6 +339,7 @@ class LocationBarView
-   // Arcomium: Arc's command bar opened to start a new tab.
-   void SetArcomiumNewTab(bool new_tab) { arcomium_new_tab_ = new_tab; }
-   bool ArcomiumOpensNewTab() const override;
-+  bool IsArcomiumCommandBar() const { return arcomium_command_bar_; }
+   // Alerse: Arc's command bar opened to start a new tab.
+   void SetAlerseNewTab(bool new_tab) { alerse_new_tab_ = new_tab; }
+   bool AlerseOpensNewTab() const override;
++  bool IsAlerseCommandBar() const { return alerse_command_bar_; }
  
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
 @@ -609,6 +610,8 @@ class LocationBarView
-   bool arcomium_hovered_ = false;
-   bool arcomium_centered_ = false;
-   bool arcomium_command_bar_ = false;
+   bool alerse_hovered_ = false;
+   bool alerse_centered_ = false;
+   bool alerse_command_bar_ = false;
 +  // The address's face before the command bar enlarged it.
-+  std::optional<gfx::FontList> arcomium_command_bar_font_;
-   bool arcomium_new_tab_ = false;
++  std::optional<gfx::FontList> alerse_command_bar_font_;
+   bool alerse_new_tab_ = false;
    // Where the centred address's pill is painted; empty unless it shows.
-   gfx::Rect arcomium_pill_bounds_;
+   gfx::Rect alerse_pill_bounds_;
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 index 0bbdfde..746d11b 100644
 --- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
@@ -68,8 +68,8 @@ index 0bbdfde..746d11b 100644
    if (!Textfield::ShouldShowPlaceholderText()) {
      return false;
    }
-+  // Arcomium: Arc's command bar keeps its placeholder while typing starts.
-+  if (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar()) {
++  // Alerse: Arc's command bar keeps its placeholder while typing starts.
++  if (location_bar_view_ && location_bar_view_->IsAlerseCommandBar()) {
 +    return true;
 +  }
  
@@ -79,9 +79,9 @@ index 0bbdfde..746d11b 100644
        return true;
      }
      case ui::VKEY_ESCAPE:
-+      // Arcomium: one Escape closes Arc's command bar, whatever it shows; the
++      // Alerse: one Escape closes Arc's command bar, whatever it shows; the
 +      // page taking focus closes it.
-+      if (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar()) {
++      if (location_bar_view_ && location_bar_view_->IsAlerseCommandBar()) {
 +        controller()->edit_model()->Revert();
 +        controller()->client()->FocusWebContents();
 +        return true;
@@ -93,11 +93,11 @@ index 0bbdfde..746d11b 100644
  }
  
  void OmniboxViewViews::UpdatePlaceholderTextColor() {
-+  // Arcomium: Arc's command bar dims its placeholder.
++  // Alerse: Arc's command bar dims its placeholder.
    SetPlaceholderTextColorId(
 -      omnibox::ShouldUseDimPlaceholderColor(location_bar_view_)
 +      omnibox::ShouldUseDimPlaceholderColor(location_bar_view_) ||
-+              (location_bar_view_ && location_bar_view_->IsArcomiumCommandBar())
++              (location_bar_view_ && location_bar_view_->IsAlerseCommandBar())
            ? kColorOmniboxForegroundDisabled
            : kColorOmniboxText);
  }

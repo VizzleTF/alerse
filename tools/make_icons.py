@@ -79,8 +79,8 @@ def make_ios_icons():
     save(f'{legacy}/Icon-1024Dark.png', icon)
     save(f'{legacy}/Icon-1024Tinted.png', ImageOps.grayscale(icon).convert('RGBA'))
     # The single layer of the iOS 26 icon, which Icon Composer files describe.
-    # The file keeps its name, which ios/arcomium-ios-icon.patch refers to.
-    save(f'{res}/ChromiumIcons.xcassets/AppIcon.icon/Assets/arcomium.png', icon)
+    # The file keeps its name, which ios/alerse-ios-icon.patch refers to.
+    save(f'{res}/ChromiumIcons.xcassets/AppIcon.icon/Assets/alerse.png', icon)
 
 
 def make_mac_icons():

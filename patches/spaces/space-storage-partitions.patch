@@ -6,7 +6,7 @@ index 816c2a017bd..84efc7ef659 100644
  #include "chrome/browser/ui/startup/startup_browser_creator.h"
  #include "chrome/browser/ui/startup/startup_tab.h"
  #include "chrome/browser/ui/startup/startup_types.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -14,11 +14,11 @@ index 816c2a017bd..84efc7ef659 100644
      // why some browsers don't have an active tab on startup.
      CHECK(!window.tabs.empty());
  
-+    // Arcomium: which tab groups of this window are Spaces.
-+    arcomium_spaces_.clear();
-+    if (auto it = window.extra_data.find(arcomium::kSpacesWindowExtraDataKey);
++    // Alerse: which tab groups of this window are Spaces.
++    alerse_spaces_.clear();
++    if (auto it = window.extra_data.find(alerse::kSpacesWindowExtraDataKey);
 +        it != window.extra_data.end()) {
-+      arcomium_spaces_ = arcomium::ParseSpacesExtraData(it->second);
++      alerse_spaces_ = alerse::ParseSpacesExtraData(it->second);
 +    }
 +
      // TODO(crbug.com/41440719): Check that tab groups are contiguous in
@@ -28,12 +28,12 @@ index 816c2a017bd..84efc7ef659 100644
        new_group = it->second;
      }
  
-+    // Arcomium: a tab of a Space is recreated in the Space's partition.
++    // Alerse: a tab of a Space is recreated in the Space's partition.
 +    std::map<std::string, std::string> extra_data = tab.extra_data;
 +    if (tab.group) {
-+      if (auto it = arcomium_spaces_.find(tab.group->ToString());
-+          it != arcomium_spaces_.end()) {
-+        extra_data[arcomium::kSpaceTabExtraDataKey] = it->second;
++      if (auto it = alerse_spaces_.find(tab.group->ToString());
++          it != alerse_spaces_.end()) {
++        extra_data[alerse::kSpaceTabExtraDataKey] = it->second;
 +      }
 +    }
 +
@@ -53,8 +53,8 @@ index 816c2a017bd..84efc7ef659 100644
    // The profile to create the sessions for.
    raw_ptr<Profile> profile_;
  
-+  // Arcomium: {tab group id: Space id} of the window being restored.
-+  base::flat_map<std::string, std::string> arcomium_spaces_;
++  // Alerse: {tab group id: Space id} of the window being restored.
++  base::flat_map<std::string, std::string> alerse_spaces_;
 +
    // The first browser to restore to, may be null.
    raw_ptr<BrowserWindowInterface, DanglingUntriaged> browser_;
@@ -67,7 +67,7 @@ index ee887add6af..8cb95783216 100644
  #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
  #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
  #include "chrome/browser/ui/startup/startup_browser_creator.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/features.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -75,12 +75,12 @@ index ee887add6af..8cb95783216 100644
              base::NumberToString(controller->GetUncollapsedWidth())));
    }
  
-+  // Arcomium: remember which tab groups are Spaces.
++  // Alerse: remember which tab groups are Spaces.
 +  if (tab_strip->SupportsTabGroups()) {
 +    command_storage_manager()->AppendRebuildCommand(
 +        sessions::CreateAddWindowExtraDataCommand(
-+            browser->GetSessionID(), arcomium::kSpacesWindowExtraDataKey,
-+            arcomium::BuildSpacesExtraData(tab_strip)));
++            browser->GetSessionID(), alerse::kSpacesWindowExtraDataKey,
++            alerse::BuildSpacesExtraData(tab_strip)));
 +  }
 +
    int index = 0;
@@ -94,7 +94,7 @@ index 99041fad5cb..15b42ce3d9e 100644
  #include "chrome/browser/ui/tab_dialogs.h"
  #include "chrome/browser/ui/tab_helpers.h"
  #include "chrome/browser/ui/tab_ui_helper.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
  #include "chrome/browser/ui/tabs/tab_change_type.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
@@ -102,10 +102,10 @@ index 99041fad5cb..15b42ce3d9e 100644
          session_id_, tabs::TabStripModelSelectionState::kFocusedTabGroupIdKey,
          new_focused_group.has_value() ? new_focused_group->ToString()
                                        : std::string());
-+    // Arcomium: a focused group is a Space; keep the Space map current.
++    // Alerse: a focused group is a Space; keep the Space map current.
 +    service->AddWindowExtraData(
-+        session_id_, arcomium::kSpacesWindowExtraDataKey,
-+        arcomium::BuildSpacesExtraData(tab_strip_model_.get()));
++        session_id_, alerse::kSpacesWindowExtraDataKey,
++        alerse::BuildSpacesExtraData(tab_strip_model_.get()));
    }
  }
  
@@ -117,7 +117,7 @@ index 6aca93a4507..10ea8ad5af8 100644
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
  #include "chrome/browser/ui/tab_ui_helper.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/public/tab_features.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_group_model.h"
@@ -128,13 +128,13 @@ index 6aca93a4507..10ea8ad5af8 100644
 -  std::unique_ptr<WebContents> web_contents =
 -      WebContents::CreateWithSessionStorage(create_params,
 -                                            session_storage_namespace_map);
-+  // Arcomium: a tab of a Space comes back in the Space's storage partition.
++  // Alerse: a tab of a Space comes back in the Space's storage partition.
 +  // Its sessionStorage was kept in that partition, so it is not restored.
 +  scoped_refptr<content::SiteInstance> space_site_instance;
-+  if (auto space = extra_data.find(arcomium::kSpaceTabExtraDataKey);
++  if (auto space = extra_data.find(alerse::kSpaceTabExtraDataKey);
 +      space != extra_data.end() && selected_navigation >= 0 &&
 +      static_cast<size_t>(selected_navigation) < navigations.size()) {
-+    space_site_instance = arcomium::CreateSpaceSiteInstance(
++    space_site_instance = alerse::CreateSpaceSiteInstance(
 +        browser->GetProfile(), navigations[selected_navigation].virtual_url(),
 +        space->second);
 +  }
@@ -165,7 +165,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
  #include "chrome/browser/ui/singleton_tabs.h"
  #include "chrome/browser/ui/status_bubble.h"
  #include "chrome/browser/ui/tab_helpers.h"
-+#include "chrome/browser/ui/tabs/arcomium_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
  #include "chrome/browser/ui/tabs/split_tab_metrics.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -184,7 +184,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
    return params->initiating_profile;
  }
  
-+// Arcomium: returns the Space a new tab opened by `params` belongs to: the
++// Alerse: returns the Space a new tab opened by `params` belongs to: the
 +// Space of the page it was opened from, else the Space of its tab group
 +// (explicit or the focused one). --arcomium-space=<id> forces a Space, for
 +// testing.
@@ -197,7 +197,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
 +  }
 +  if (params.source_contents) {
 +    if (std::optional<std::string> space =
-+            arcomium::GetSpaceOfContents(params.source_contents)) {
++            alerse::GetSpaceOfContents(params.source_contents)) {
 +      return space;
 +    }
 +  }
@@ -208,7 +208,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
 +  const TabStripModel* model = params.browser->GetTabStripModel();
 +  std::optional<tab_groups::TabGroupId> group =
 +      params.group ? params.group : model->GetFocusedGroup();
-+  return group ? arcomium::GetSpaceOfGroup(model, *group) : std::nullopt;
++  return group ? alerse::GetSpaceOfGroup(model, *group) : std::nullopt;
 +}
 +
  std::unique_ptr<content::WebContents> CreateTargetContents(
@@ -231,7 +231,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
 +      content::BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(
 +          &effective_url, params.browser->GetProfile());
 +      initial_site_instance_for_new_contents =
-+          arcomium::CreateSpaceSiteInstance(params.browser->GetProfile(),
++          alerse::CreateSpaceSiteInstance(params.browser->GetProfile(),
 +                                            effective_url, *space);
 +    }
 +    if (!initial_site_instance_for_new_contents) {
@@ -246,7 +246,7 @@ index 1e98a3d7cba..c2f3d996b85 100644
    if (!contents_to_navigate_or_insert) {
      DCHECK(!params->url.is_empty());
      if (params->disposition != WindowOpenDisposition::CURRENT_TAB) {
-+      // Arcomium: the New Tab page is WebUI and cannot live in a Space's
++      // Alerse: the New Tab page is WebUI and cannot live in a Space's
 +      // partition, so a new tab of a Space starts blank.
 +      if (params->url.SchemeIs(content::kChromeUIScheme) &&
 +          params->url.host() == chrome::kChromeUINewTabHost &&

@@ -2,30 +2,30 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
 index 0f8b4e2686b..d917d5886dc 100644
 --- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -792,9 +792,18 @@ void LocationBarView::SetArcomiumCompact(bool compact) {
+@@ -792,9 +792,18 @@ void LocationBarView::SetAlerseCompact(bool compact) {
      return;
    }
-   arcomium_compact_ = compact;
-+  UpdateArcomiumAlignment();
+   alerse_compact_ = compact;
++  UpdateAlerseAlignment();
    InvalidateLayout();
  }
  
-+void LocationBarView::UpdateArcomiumAlignment() {
++void LocationBarView::UpdateAlerseAlignment() {
 +  if (omnibox_view_) {
 +    omnibox_view_->SetHorizontalAlignment(
-+        arcomium_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
++        alerse_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
 +                                                        : gfx::ALIGN_LEFT);
 +  }
 +}
 +
- void LocationBarView::SetArcomiumHovered(bool hovered) {
-   if (arcomium_hovered_ == hovered) {
+ void LocationBarView::SetAlerseHovered(bool hovered) {
+   if (alerse_hovered_ == hovered) {
      return;
 @@ -2190,6 +2199,7 @@ const LocationBarModel* LocationBarView::GetLocationBarModel() const {
  }
  
  void LocationBarView::OnOmniboxFocused() {
-+  UpdateArcomiumAlignment();
++  UpdateAlerseAlignment();
    if (views::FocusRing::Get(this)) {
      views::FocusRing::Get(this)->Refresh();
    }
@@ -33,7 +33,7 @@ index 0f8b4e2686b..d917d5886dc 100644
  }
  
  void LocationBarView::OnOmniboxBlurred() {
-+  UpdateArcomiumAlignment();
++  UpdateAlerseAlignment();
    if (views::FocusRing::Get(this)) {
      views::FocusRing::Get(this)->Refresh();
    }
@@ -43,10 +43,10 @@ index c3868a045d7..7ff706606df 100644
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -327,6 +327,8 @@ class LocationBarView
    // actions, and the site settings icon only while hovered or editing.
-   void SetArcomiumCompact(bool compact);
-   void SetArcomiumHovered(bool hovered);
+   void SetAlerseCompact(bool compact);
+   void SetAlerseHovered(bool hovered);
 +  // The site sits centered in the compact location bar until it is edited.
-+  void UpdateArcomiumAlignment();
++  void UpdateAlerseAlignment();
  
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);

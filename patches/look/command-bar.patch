@@ -6,7 +6,7 @@ index 48ae23b..271bd36 100644
    font-size: var(--omnibox-font-size);
  }
  
-+/* Arcomium: Arc's command bar rows keep their own 4 px from the bottom. */
++/* Alerse: Arc's command bar rows keep their own 4 px from the bottom. */
  :host([has-visible-matches_]) .dropdownContainer {
 -  padding-bottom: 10px;
 +  padding-bottom: 0;
@@ -18,14 +18,14 @@ index 48ae23b..271bd36 100644
    width: 50%;
  }
 +
-+/* Arcomium: Arc's command bar: a hairline under the address row, then 4 px
++/* Alerse: Arc's command bar: a hairline under the address row, then 4 px
 + * before the first row; the rows keep 4 px from the panel's bottom. */
 +.dropdownContainer {
 +  border-top: 1px solid rgb(28, 28, 28);
 +  padding-top: 4px;
 +}
 +
-+/* Arcomium: Arc for macOS' command bar: a #313030 hairline (one device
++/* Alerse: Arc for macOS' command bar: a #313030 hairline (one device
 + * pixel) a point under the address row, 6 px above the first row and 7 more
 + * below the last.
 + * (In a media block of their own: they restate selectors above.) */
@@ -80,7 +80,7 @@ index 643f9e1489f..f76aaf5b634 100644
    observers_.Notify(&Observer::OnLocationBarFocusChanged);
  }
  
-+bool LocationBar::ArcomiumOpensNewTab() const {
++bool LocationBar::AlerseOpensNewTab() const {
 +  return false;
 +}
 +
@@ -95,9 +95,9 @@ index a61556c523f..7609e3546ae 100644
    // Returns the profile this is for.
    virtual Profile* GetProfile() = 0;
  
-+  // Arcomium: whether what the omnibox opens goes to a new tab, as when Arc's
++  // Alerse: whether what the omnibox opens goes to a new tab, as when Arc's
 +  // command bar is opened to start one.
-+  virtual bool ArcomiumOpensNewTab() const;
++  virtual bool AlerseOpensNewTab() const;
 +
    // Returns true if the location bar finished initializing --- it's linked to
    // the UI and has the subobjects all created.
@@ -110,9 +110,9 @@ index bbe8d3efc79..bf8685d262a 100644
                      {header.first, ": ", header.second, "\r\n"});
    }
  
-+  // Arcomium: Arc's command bar opened to start a new tab opens it there.
++  // Alerse: Arc's command bar opened to start a new tab opens it there.
 +  if (disposition == WindowOpenDisposition::CURRENT_TAB &&
-+      location_bar_->ArcomiumOpensNewTab()) {
++      location_bar_->AlerseOpensNewTab()) {
 +    disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
 +  }
 +
@@ -127,7 +127,7 @@ index e0018a3bb6f..b999df3e65a 100644
    if (omnibox::IsWebUIOmniboxPopupEnabled()) {
      autocomplete_controller_config.show_iph_matches = false;
    }
-+  // Arcomium: Arc's command bar finds open tabs as you type, without @tabs.
++  // Alerse: Arc's command bar finds open tabs as you type, without @tabs.
 +  autocomplete_controller_config.unscoped_open_tab_suggestions = true;
    if (autocomplete_stop_timer_duration.has_value()) {
      autocomplete_controller_config.stop_timer_duration =
@@ -140,7 +140,7 @@ index e1d29a6..84a860b 100644
    TRACE_EVENT("omnibox", "OmniboxEditModel::OnPopupResultChanged");
    UpdatePopupSelectionOnResultChanged();
    observers_.NotifyAllowReentrancy(&Observer::OnContentsChanged);
-+  // Arcomium: Arc's empty command bar has its first row selected, an open
++  // Alerse: Arc's empty command bar has its first row selected, an open
 +  // tab or else a sidebar item, and Return opens it. Told after the rows,
 +  // which the popup redraws.
 +  const AutocompleteResult& result = autocomplete_controller()->result();
@@ -161,7 +161,7 @@ index e1d29a6..84a860b 100644
    // originated while in keyword mode.  This is to support the keyword mode
    // starter pack's tab search (@tabs) feature, which should open all
    // suggestions in the existing open tab.
-+  // Arcomium: as in Arc, an open tab picked anywhere is switched to.
++  // Alerse: as in Arc, an open tab picked anywhere is switched to.
    bool is_open_tab_match =
 -      match.from_keyword &&
        match.type == omnibox::AutocompleteMatchType::kOpenTab;
@@ -171,7 +171,7 @@ index e1d29a6..84a860b 100644
        completed_length, elapsed_time_since_last_change_to_default_match,
        dropdown_ignored ? fake_single_entry_result : result, destination_url,
        is_incognito, input.IsZeroSuggest(), match.session);
-+  // Arcomium: the command bar opens with its rows (an empty field lists the
++  // Alerse: the command bar opens with its rows (an empty field lists the
 +  // open tabs) before the input starts, so the default match can predate
 +  // the user's first change; Return then opens that row.
 +  if (log.elapsed_time_since_last_change_to_default_match >
@@ -201,52 +201,52 @@ index ed22ee0745b..0666e2dee87 100644
            // popup is closed or it's the full WebUI popup, which keeps the
 -          // focused look (see `ShouldUsePopupOpenAppearance()`).
 -          return v->GetOmniboxController()->edit_model()->is_caret_visible() &&
-+          // focused look (see `ShouldUsePopupOpenAppearance()`). Arcomium: not
++          // focused look (see `ShouldUsePopupOpenAppearance()`). Alerse: not
 +          // in Arc's command bar, whose panel shows.
-+          return !v->arcomium_command_bar_ &&
++          return !v->alerse_command_bar_ &&
 +                 v->GetOmniboxController()->edit_model()->is_caret_visible() &&
                   !v->ShouldUsePopupOpenAppearance();
          }));
      views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
-@@ -856,6 +860,19 @@ void LocationBarView::SetArcomiumCentered(bool centered) {
+@@ -856,6 +860,19 @@ void LocationBarView::SetAlerseCentered(bool centered) {
    InvalidateLayout();
  }
  
-+void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
-+  if (arcomium_command_bar_ == command_bar) {
++void LocationBarView::SetAlerseCommandBar(bool command_bar) {
++  if (alerse_command_bar_ == command_bar) {
 +    return;
 +  }
-+  arcomium_command_bar_ = command_bar;
++  alerse_command_bar_ = command_bar;
 +  RefreshBackground();
 +  InvalidateLayout();
 +}
 +
-+bool LocationBarView::ArcomiumOpensNewTab() const {
-+  return arcomium_command_bar_ && arcomium_new_tab_;
++bool LocationBarView::AlerseOpensNewTab() const {
++  return alerse_command_bar_ && alerse_new_tab_;
 +}
 +
- bool LocationBarView::IsArcomiumCenteredIdle() const {
-   return arcomium_centered_ && arcomium_compact_ && !omnibox_view_->HasFocus();
+ bool LocationBarView::IsAlerseCenteredIdle() const {
+   return alerse_centered_ && alerse_compact_ && !omnibox_view_->HasFocus();
  }
-@@ -922,6 +939,13 @@ void LocationBarView::LayoutArcomiumCentered() {
+@@ -922,6 +939,13 @@ void LocationBarView::LayoutAlerseCentered() {
  
  void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
    views::View::OnPaintBackground(canvas);
-+  if (arcomium_command_bar_) {
++  if (alerse_command_bar_) {
 +    // Arc's magnifier, 16 px wide, centred 27 px in.
 +    const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
-+        vector_icons::kArcomiumSearchIcon, 16,
++        vector_icons::kAlerseSearchIcon, 16,
 +        GetColorProvider()->GetColor(kColorOmniboxText));
 +    canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
 +  }
-   if (arcomium_pill_bounds_.IsEmpty()) {
+   if (alerse_pill_bounds_.IsEmpty()) {
      return;
    }
 @@ -1227,6 +1251,15 @@ void LocationBarView::Layout(PassKey) {
-   arcomium_pill_bounds_ = gfx::Rect();
-   if (IsArcomiumCenteredIdle()) {
-     LayoutArcomiumCentered();
-+  } else if (arcomium_command_bar_) {
+   alerse_pill_bounds_ = gfx::Rect();
+   if (IsAlerseCenteredIdle()) {
+     LayoutAlerseCentered();
++  } else if (alerse_command_bar_) {
 +    // Arc's command bar: a magnifier 20 px into the panel (OnPaintBackground)
 +    // and the address 51 px in; this row sits 6 px into the panel.
 +    constexpr int kTextInset = 51 - 6;
@@ -260,9 +260,9 @@ index ed22ee0745b..0666e2dee87 100644
    LayoutSuperclass<View>(this);
 @@ -1649,6 +1682,10 @@ void LocationBarView::RefreshBackground() {
      // Only the pill behind the address is painted (OnPaintBackground).
-     background_color_ = GetArcomiumPillColor();
+     background_color_ = GetAlersePillColor();
      SetBackground(nullptr);
-+  } else if (arcomium_command_bar_) {
++  } else if (alerse_command_bar_) {
 +    // In Arc's command bar the panel behind paints the row.
 +    background_color_ = color_provider->GetColor(kColorOmniboxResultsBackground);
 +    SetBackground(nullptr);
@@ -273,18 +273,18 @@ index ed22ee0745b..0666e2dee87 100644
    // Keep the views::Textfield in sync. It needs an opaque background to
    // correctly enable subpixel AA.
    omnibox_view_->SetBackgroundColor(background_color_);
--  // Arcomium: Arc for Windows sets its centred address in greyscale.
-+  // Arcomium: Arc for Windows sets its centred address in greyscale, a shade
+-  // Alerse: Arc for Windows sets its centred address in greyscale.
++  // Alerse: Arc for Windows sets its centred address in greyscale, a shade
 +  // dimmer than in its command bar.
-   if (IsArcomiumCenteredIdle()) {
+   if (IsAlerseCenteredIdle()) {
      omnibox_view_->SetBackgroundColor(SK_ColorTRANSPARENT);
    }
-+  if (arcomium_centered_) {
++  if (alerse_centered_) {
 +    if (!omnibox_view_->layer()) {
 +      omnibox_view_->SetPaintToLayer();
 +      omnibox_view_->layer()->SetFillsBoundsOpaquely(false);
 +    }
-+    omnibox_view_->layer()->SetOpacity(IsArcomiumCenteredIdle() ? 0.83f
++    omnibox_view_->layer()->SetOpacity(IsAlerseCenteredIdle() ? 0.83f
 +                                                                : 1.0f);
 +  }
  
@@ -297,25 +297,25 @@ index c8535ce284a..16840cd9eb2 100644
 @@ -333,6 +333,12 @@ class LocationBarView
    // a pill centred on the toolbar between a copy-link button and the site
    // settings button.
-   void SetArcomiumCentered(bool centered);
-+  // Arcomium: while in Arc's command bar the address row is the top of its
+   void SetAlerseCentered(bool centered);
++  // Alerse: while in Arc's command bar the address row is the top of its
 +  // panel.
-+  void SetArcomiumCommandBar(bool command_bar);
-+  // Arcomium: Arc's command bar opened to start a new tab.
-+  void SetArcomiumNewTab(bool new_tab) { arcomium_new_tab_ = new_tab; }
-+  bool ArcomiumOpensNewTab() const override;
++  void SetAlerseCommandBar(bool command_bar);
++  // Alerse: Arc's command bar opened to start a new tab.
++  void SetAlerseNewTab(bool new_tab) { alerse_new_tab_ = new_tab; }
++  bool AlerseOpensNewTab() const override;
  
   private:
    FRIEND_TEST_ALL_PREFIXES(SecurityIndicatorTest, CheckIndicatorText);
 @@ -602,6 +608,8 @@ class LocationBarView
-   bool arcomium_compact_ = false;
-   bool arcomium_hovered_ = false;
-   bool arcomium_centered_ = false;
-+  bool arcomium_command_bar_ = false;
-+  bool arcomium_new_tab_ = false;
+   bool alerse_compact_ = false;
+   bool alerse_hovered_ = false;
+   bool alerse_centered_ = false;
++  bool alerse_command_bar_ = false;
++  bool alerse_new_tab_ = false;
    // Where the centred address's pill is painted; empty unless it shows.
-   gfx::Rect arcomium_pill_bounds_;
-   raw_ptr<views::ImageButton> arcomium_copy_button_ = nullptr;
+   gfx::Rect alerse_pill_bounds_;
+   raw_ptr<views::ImageButton> alerse_copy_button_ = nullptr;
 diff --git a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc b/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
 index c018711..1e239a3 100644
 --- a/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
@@ -337,8 +337,8 @@ index c018711..1e239a3 100644
  
  namespace {
  
-+// Arcomium: the corner radius of Arc's command bar panel.
-+constexpr int kArcomiumCommandBarRadius = 9;
++// Alerse: the corner radius of Arc's command bar panel.
++constexpr int kAlerseCommandBarRadius = 9;
 +
  #if !defined(USE_AURA)
  
@@ -353,7 +353,7 @@ index c018711..1e239a3 100644
 +    : location_bar_(location_bar),
 +      contents_(contents),
 +      forward_mouse_events_(forward_mouse_events) {
-+  const int corner_radius = kArcomiumCommandBarRadius;
++  const int corner_radius = kAlerseCommandBarRadius;
    auto* webui_content = GetOmniboxPopupWebUIBaseContent();
    // When the page paints the popup's shadow, this frame must not paint a
    // background, rounded corners or a shadow: the renderer draws all of them,
@@ -363,7 +363,7 @@ index c018711..1e239a3 100644
  void RoundedOmniboxResultsFrame::SetElevation(int elevation) {
 -  const int corner_radius = views::LayoutProvider::Get()->GetCornerRadiusMetric(
 -      ChromeShapeContextTokens::kOmniboxExpandedRadius);
-+  const int corner_radius = kArcomiumCommandBarRadius;
++  const int corner_radius = kAlerseCommandBarRadius;
    auto border = std::make_unique<views::BubbleBorder>(
        views::BubbleBorder::Arrow::NONE,
        elevation == 0 ? views::BubbleBorder::Shadow::NO_SHADOW
@@ -378,7 +378,7 @@ index c018711..1e239a3 100644
    }
  
 +#if defined(USE_AURA)
-+  // Arcomium: clicks reach the location bar through the whole of the
++  // Alerse: clicks reach the location bar through the whole of the
 +  // cutout, under the shadow too. AddedToWidget() sets the insets once, from
 +  // the cutout alone and the location bar the widget was made for; the
 +  // command bar's taller input row then lost its lower part, and Arc's (i)
@@ -400,7 +400,7 @@ index c018711..1e239a3 100644
  
    // Align webview horizontal bounds and positioning with the outer view.
 -  results_bounds.set_x(0);
-+  // Arcomium: inside the panel's rim.
++  // Alerse: inside the panel's rim.
 +  results_bounds.set_x(contents_host_->GetContentsBounds().x());
    results_bounds.set_width(contents_host_->GetContentsBounds().width());
  
@@ -415,7 +415,7 @@ index c018711..1e239a3 100644
 +    return;
 +  }
 +  contents_host_->SetBorder(views::CreateRoundedRectBorder(
-+      1, kArcomiumCommandBarRadius,
++      1, kAlerseCommandBarRadius,
 +      color_utils::BlendTowardMaxContrast(
 +          GetColorProvider()->GetColor(kColorOmniboxResultsBackground), 0x56)));
 +}
@@ -451,7 +451,7 @@ index 5e581378f2b..01e937968b5 100644
    // views::View:
    void Layout(PassKey) override;
    void AddedToWidget() override;
-+  // Arcomium: the 1 px rim of Arc's command bar panel, in the theme's colors.
++  // Alerse: the 1 px rim of Arc's command bar panel, in the theme's colors.
 +  void OnThemeChanged() override;
  #if !defined(USE_AURA)
    void OnMouseMoved(const ui::MouseEvent& event) override;
@@ -460,7 +460,7 @@ index 5e581378f2b..01e937968b5 100644
    void SetElevation(int elevation);
  
    gfx::Insets GetContentInsets();
-+  // Arcomium: the cutout as tall as the location bar, which is taller than
++  // Alerse: the cutout as tall as the location bar, which is taller than
 +  // usual in Arc's command bar.
 +  int GetCutoutHeight() const;
 +  raw_ptr<const LocationBar> location_bar_ = nullptr;
@@ -487,10 +487,10 @@ index 7a2c444d9f2..d50d349c9b8 100644
    return normalized_factors * kMaxScore;
  }
  
-+// Arcomium: Arc's fuzzy match. 0 unless every letter of `query` (spaces
++// Alerse: Arc's fuzzy match. 0 unless every letter of `query` (spaces
 +// dropped) appears in `text` in order; otherwise higher the tighter they sit
 +// and the earlier they start, up to 1.
-+double ArcomiumFuzzyFactor(const std::u16string& query,
++double AlerseFuzzyFactor(const std::u16string& query,
 +                           const std::u16string& text) {
 +  size_t first = std::u16string::npos;
 +  size_t last = 0;
@@ -519,23 +519,23 @@ index 7a2c444d9f2..d50d349c9b8 100644
 +}
 +
 +// The fuzzy factor over a title and the URL's host and path.
-+double ArcomiumFuzzyFactor(const std::u16string& query,
++double AlerseFuzzyFactor(const std::u16string& query,
 +                           const std::u16string& title,
 +                           const GURL& url) {
 +  const std::u16string lower_title = base::i18n::ToLower(title);
 +  const std::u16string lower_url = base::i18n::ToLower(
 +      base::UTF8ToUTF16(base::StrCat({url.host(), url.path()})));
-+  return std::max(ArcomiumFuzzyFactor(query, lower_title),
-+                  ArcomiumFuzzyFactor(query, lower_url));
++  return std::max(AlerseFuzzyFactor(query, lower_title),
++                  AlerseFuzzyFactor(query, lower_url));
 +}
 +
-+// Arcomium: open tabs rank just under what was typed, so Enter still goes
++// Alerse: open tabs rank just under what was typed, so Enter still goes
 +// where the address says; fuzzy matches lower still.
-+int ArcomiumTabRelevance(int score) {
++int AlerseTabRelevance(int score) {
 +  return 1000 + score * 250 / (100 * 100);
 +}
-+constexpr int kArcomiumFuzzyRelevance = 700;
-+constexpr int kArcomiumFuzzyRelevanceRange = 250;
++constexpr int kAlerseFuzzyRelevance = 700;
++constexpr int kAlerseFuzzyRelevanceRange = 250;
 +
  bool ShouldRunProvider(AutocompleteProviderClient* client,
                         const AutocompleteInput& input) {
@@ -545,24 +545,24 @@ index 7a2c444d9f2..d50d349c9b8 100644
      if (score > 0) {
        matches_.push_back(CreateOpenTabMatch(adjusted_input, open_tab.title, url,
 -                                            score, template_url));
-+                                            ArcomiumTabRelevance(score),
++                                            AlerseTabRelevance(score),
 +                                            template_url));
 +      continue;
 +    }
-+    // Arcomium: what words missed, letters in order may still find.
++    // Alerse: what words missed, letters in order may still find.
 +    const double fuzzy =
-+        ArcomiumFuzzyFactor(adjusted_input_text, open_tab.title, url);
++        AlerseFuzzyFactor(adjusted_input_text, open_tab.title, url);
 +    if (fuzzy > 0) {
 +      AutocompleteMatch match = CreateOpenTabMatch(
 +          adjusted_input, open_tab.title, url,
-+          kArcomiumFuzzyRelevance + fuzzy * kArcomiumFuzzyRelevanceRange,
++          kAlerseFuzzyRelevance + fuzzy * kAlerseFuzzyRelevanceRange,
 +          template_url);
 +      match.allowed_to_be_default_match = false;
 +      matches_.push_back(std::move(match));
 +    }
 +  }
 +
-+  // Arcomium: bookmarks (the sidebar's pinned sites) by the same fuzzy
++  // Alerse: bookmarks (the sidebar's pinned sites) by the same fuzzy
 +  // match; word matches already come from the bookmark provider.
 +  if (!template_url && adjusted_input_text.size() >= 2) {
 +    if (bookmarks::BookmarkModel* model = client_->GetBookmarkModel();
@@ -574,14 +574,14 @@ index 7a2c444d9f2..d50d349c9b8 100644
 +                                         base::Time())) > 0) {
 +          continue;
 +        }
-+        const double fuzzy = ArcomiumFuzzyFactor(adjusted_input_text,
++        const double fuzzy = AlerseFuzzyFactor(adjusted_input_text,
 +                                                 bookmark.title, bookmark.url);
 +        if (fuzzy <= 0) {
 +          continue;
 +        }
 +        AutocompleteMatch match(
-+            this, kArcomiumFuzzyRelevance - 50 +
-+                      fuzzy * kArcomiumFuzzyRelevanceRange,
++            this, kAlerseFuzzyRelevance - 50 +
++                      fuzzy * kAlerseFuzzyRelevanceRange,
 +            /*deletable=*/false,
 +            omnibox::AutocompleteMatchType::kBookmarkTitle);
 +        match.destination_url = bookmark.url;
@@ -606,12 +606,12 @@ index 227c57e0a55..5821503d9ea 100644
 --- a/components/vector_icons/BUILD.gn
 +++ b/components/vector_icons/BUILD.gn
 @@ -20,6 +20,7 @@ if (current_toolchain == default_toolchain) {
-       "arcomium_forward.icon",
-       "arcomium_link.icon",
-       "arcomium_reload.icon",
-+      "arcomium_search.icon",
-       "arcomium_sidebar.icon",
-       "arcomium_tune.icon",
+       "alerse_forward.icon",
+       "alerse_link.icon",
+       "alerse_reload.icon",
++      "alerse_search.icon",
+       "alerse_sidebar.icon",
+       "alerse_tune.icon",
        "${branding_path_component}/product.icon",
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 index 2344ea9e80a..4985bad3fb3 100644
@@ -622,7 +622,7 @@ index 2344ea9e80a..4985bad3fb3 100644
    line-height: 16px;
  }
 +
-+/* Arcomium: the omnibox's suggestions as rows of Arc's command bar: 48 px
++/* Alerse: the omnibox's suggestions as rows of Arc's command bar: 48 px
 + * high, 4 px apart and in from the panel's sides, a rounded grey highlight,
 + * the favicon 15 px and the text 43 px in, the URL in grey after an em dash,
 + * no focus bar, action chips or remove button. */

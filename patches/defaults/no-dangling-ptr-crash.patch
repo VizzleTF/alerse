@@ -13,7 +13,7 @@ index 28809964805..90318f97a8d 100644
 -             FEATURE_DISABLED_BY_DEFAULT
 -#endif
 -);
-+// Arcomium: off, as in an official build. Its crash mode stops the browser
++// Alerse: off, as in an official build. Its crash mode stops the browser
 +// on a pointer that BackupRefPtr already keeps safe; it is for debugging.
 +BASE_FEATURE(kPartitionAllocDanglingPtr, FEATURE_DISABLED_BY_DEFAULT);
  
@@ -27,10 +27,10 @@ index 48cb9f77dfd..6d2a8d3be7f 100644
  
  }  // namespace
  
-+// Arcomium: the detector never stops the browser, as in an official build,
++// Alerse: the detector never stops the browser, as in an official build,
 +// whatever turns the feature on; BackupRefPtr keeps the pointers it reports
 +// safe. A function, not a constant, so the code below stays reachable.
-+bool ArcomiumDanglingPtrChecks() {
++bool AlerseDanglingPtrChecks() {
 +  return false;
 +}
 +
@@ -42,7 +42,7 @@ index 48cb9f77dfd..6d2a8d3be7f 100644
    }
  
 -  if (!FeatureList::IsEnabled(features::kPartitionAllocDanglingPtr)) {
-+  if (!ArcomiumDanglingPtrChecks() ||
++  if (!AlerseDanglingPtrChecks() ||
 +      !FeatureList::IsEnabled(features::kPartitionAllocDanglingPtr)) {
      partition_alloc::SetDanglingRawPtrDetectedFn([](uintptr_t) {});
      partition_alloc::SetDanglingRawPtrReleasedFn([](uintptr_t) {});

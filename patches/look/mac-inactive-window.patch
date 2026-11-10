@@ -15,8 +15,8 @@ index 34c5fe9..8a063e0 100644
    }
  
 +#if BUILDFLAG(IS_MAC)
-+  // Arcomium: Arc for macOS lightens an inactive window, its #161616 frame
-+  // to #393939 and the Space's tint as much (arcomium_frame_color.h).
++  // Alerse: Arc for macOS lightens an inactive window, its #161616 frame
++  // to #393939 and the Space's tint as much (alerse_frame_color.h).
 +  if (!key.custom_theme && !key.app_controller &&
 +      key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
 +    ui::ColorMixer& mixer = provider->AddMixer();
@@ -24,7 +24,7 @@ index 34c5fe9..8a063e0 100644
 +        ui::AlphaBlend({SK_ColorWHITE}, {ui::kColorFrameActive}, 0x26);
 +    // The sidebar field's "Search...", white at 38% over it as #6F6F6F is
 +    // over the active frame (location_bar_view.cc).
-+    mixer[kColorArcomiumSidebarPlaceholderInactive] =
++    mixer[kColorAlerseSidebarPlaceholderInactive] =
 +        ui::AlphaBlend({SK_ColorWHITE}, {ui::kColorFrameInactive}, 0x61);
 +  }
 +#endif
@@ -40,7 +40,7 @@ index 67f15dc..d43677d 100644
  #include "ui/gfx/shadow_value.h"
  #include "ui/gfx/canvas.h"
  #include "ui/gfx/color_utils.h"
-+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
++#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
  #include "chrome/browser/ui/views/frame/multi_contents_view.h"
  #include "chrome/browser/ui/views/frame/themed_background.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
@@ -49,7 +49,7 @@ index 67f15dc..d43677d 100644
      return;
    }
 -  const SkColor frame = color_provider->GetColor(ui::kColorFrameActive);
-+  const SkColor frame = arcomium::FrameColor(this);
++  const SkColor frame = alerse::FrameColor(this);
    canvas->DrawColor(frame);
    const auto* multi_contents = views::AsViewClass<MultiContentsView>(parent());
    if (multi_contents && multi_contents->IsInSplitView()) {
@@ -60,7 +60,7 @@ index 67f15dc..d43677d 100644
 -  const SkColor card_color =
 -      color_provider->GetColor(kColorNewTabPageBackground);
 +  // An inactive window's card lightens with the frame, #2B2B2B to #4B4B4B.
-+  const SkColor card_color = arcomium::InkOverFrame(
++  const SkColor card_color = alerse::InkOverFrame(
 +      this, color_provider->GetColor(kColorNewTabPageBackground));
    cc::PaintFlags flags;
    flags.setAntiAlias(true);
@@ -73,14 +73,14 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
  namespace {
  
 +#if BUILDFLAG(IS_MAC)
-+// Arcomium: repaints `view` and every view under it that paints to a layer of
++// Alerse: repaints `view` and every view under it that paints to a layer of
 +// its own (the others paint into one of these).
-+void ArcomiumSchedulePaintLayers(views::View* view) {
++void AlerseSchedulePaintLayers(views::View* view) {
 +  if (!view->parent() || view->layer()) {
 +    view->SchedulePaint();
 +  }
 +  for (views::View* child : view->children()) {
-+    ArcomiumSchedulePaintLayers(child);
++    AlerseSchedulePaintLayers(child);
 +  }
 +}
 +#endif
@@ -94,11 +94,11 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
      web_app_frame_toolbar()->SetPaintAsActive(is_active);
 +  }
 +#if BUILDFLAG(IS_MAC)
-+  // Arcomium: Arc for macOS lightens an inactive window's frame, and the
++  // Alerse: Arc for macOS lightens an inactive window's frame, and the
 +  // shades the sidebar and the page's surround paint off it follow
-+  // (arcomium_frame_color.h).
++  // (alerse_frame_color.h).
 +  if (GetWidget()) {
-+    ArcomiumSchedulePaintLayers(GetWidget()->GetRootView());
++    AlerseSchedulePaintLayers(GetWidget()->GetRootView());
    }
 +#endif
    FrameColorsChanged();
@@ -112,7 +112,7 @@ index 67d18d6..37aee0a 100644
  #include "chrome/browser/ui/views/chrome_typography.h"
  #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
  #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
-+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
++#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/location_bar/content_setting_image_view.h"
  #include "chrome/browser/ui/views/location_bar/location_bar_actions.h"
@@ -121,9 +121,9 @@ index 67d18d6..37aee0a 100644
      focus_manager_->AddFocusChangeListener(this);
    }
 +#if BUILDFLAG(IS_MAC)
-+  // Arcomium: the sidebar field's shade follows the frame, which Arc for
++  // Alerse: the sidebar field's shade follows the frame, which Arc for
 +  // macOS lightens while the window is inactive.
-+  arcomium_paint_as_active_subscription_ =
++  alerse_paint_as_active_subscription_ =
 +      GetWidget()->RegisterPaintAsActiveChangedCallback(base::BindRepeating(
 +          [](LocationBarView* view) {
 +            view->RefreshBackground();
@@ -136,20 +136,20 @@ index 67d18d6..37aee0a 100644
  
  void LocationBarView::RemovedFromWidget() {
 +#if BUILDFLAG(IS_MAC)
-+  arcomium_paint_as_active_subscription_ = {};
++  alerse_paint_as_active_subscription_ = {};
 +#endif
    // No-op unless registered (see above).
    if (focus_manager_) {
      focus_manager_->RemoveFocusChangeListener(this);
-@@ -908,10 +924,24 @@ void LocationBarView::SetArcomiumCommandBar(bool command_bar) {
-   if (command_bar && !arcomium_info_button_) {
+@@ -908,10 +924,24 @@ void LocationBarView::SetAlerseCommandBar(bool command_bar) {
+   if (command_bar && !alerse_info_button_) {
      // Arc's (i): a dark disc with the info glyph, opening the site's
      // controls.
 +#if BUILDFLAG(IS_MAC)
 +    // Arc for macOS' glyph is grey and larger: a 15 pt ring in #8D8D8D. (The
 +    // themed button would set its own color back on every theme change.)
 +    auto info = views::CreateVectorImageButton(base::BindRepeating(
-+        &LocationBarView::ShowArcomiumSiteControls, base::Unretained(this)));
++        &LocationBarView::ShowAlerseSiteControls, base::Unretained(this)));
 +    const ui::ImageModel glyph = ui::ImageModel::FromVectorIcon(
 +        vector_icons::kInfoIcon, SkColorSetRGB(0x8D, 0x8D, 0x8D), 18);
 +    for (const views::Button::ButtonState state :
@@ -159,7 +159,7 @@ index 67d18d6..37aee0a 100644
 +    }
 +#else
      auto info = views::CreateVectorImageButtonWithNativeTheme(
-         base::BindRepeating(&LocationBarView::ShowArcomiumSiteControls,
+         base::BindRepeating(&LocationBarView::ShowAlerseSiteControls,
                              base::Unretained(this)),
          vector_icons::kInfoIcon, 16, kColorOmniboxText);
 +#endif
@@ -169,40 +169,40 @@ index 67d18d6..37aee0a 100644
 @@ -1146,8 +1176,10 @@ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
      if (!selected_keyword_view_->GetVisible()) {
  #if BUILDFLAG(IS_MAC)
-       // Arcomium: Arc for macOS' sits 24 pt into the panel, a point below
+       // Alerse: Arc for macOS' sits 24 pt into the panel, a point below
 -      // the middle.
 -      canvas->DrawImageInt(magnifier, 24 - 6, (height() - 16) / 2 + 1);
 +      // the middle; 3 pt in the compact one.
 +      canvas->DrawImageInt(
 +          magnifier, 24 - 6,
-+          (height() - 16) / 2 + (arcomium_command_bar_compact_ ? 3 : 1));
++          (height() - 16) / 2 + (alerse_command_bar_compact_ ? 3 : 1));
  #else
        canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
  #endif
 @@ -1156,9 +1188,11 @@ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {
      // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
  #if BUILDFLAG(IS_MAC)
-     // Arcomium: on macOS 10 pt in and a shade brighter than the text.
+     // Alerse: on macOS 10 pt in and a shade brighter than the text.
 +    // It follows an inactive window's lighter frame.
      const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
-         vector_icons::kArcomiumSearchIcon, 16,
--        GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab));
-+        arcomium::InkOverFrame(
-+            this, GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)));
+         vector_icons::kAlerseSearchIcon, 16,
+-        GetColorProvider()->GetColor(kColorAlerseSidebarNewTab));
++        alerse::InkOverFrame(
++            this, GetColorProvider()->GetColor(kColorAlerseSidebarNewTab)));
      canvas->DrawImageInt(magnifier, 10, (height() - 16) / 2);
  #else
      const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
 @@ -1495,7 +1529,13 @@ void LocationBarView::Layout(PassKey) {
-     // Arcomium: Arc for macOS' "Search..." starts 34 pt into the field, a
+     // Alerse: Arc for macOS' "Search..." starts 34 pt into the field, a
      // point smaller than the address and grey.
      constexpr int kTextInset = 34;
 -    omnibox_view_->SetPlaceholderTextColorId(kColorOmniboxTextDimmed);
 +    // #757576 under the pointer, as Arc's; in an inactive window as far off
 +    // the lighter frame as on the active one (#838383).
 +    omnibox_view_->SetPlaceholderTextColorId(
-+        arcomium::PaintsInactiveFrame(this)
-+            ? kColorArcomiumSidebarPlaceholderInactive
-+        : arcomium_hovered_ ? kColorArcomiumSidebarPlaceholderHovered
++        alerse::PaintsInactiveFrame(this)
++            ? kColorAlerseSidebarPlaceholderInactive
++        : alerse_hovered_ ? kColorAlerseSidebarPlaceholderHovered
 +                            : kColorOmniboxTextDimmed);
      // Arc's is medium weight.
      omnibox_view_->set_placeholder_font_list(
@@ -215,54 +215,54 @@ index 67d18d6..37aee0a 100644
 +    // The compact one's "Search or Enter URL..." is 13 pt, smaller than what
 +    // is typed there.
 +    omnibox_view_->set_placeholder_font_list(
-+        arcomium_command_bar_compact_
++        alerse_command_bar_compact_
 +            ? omnibox_view_->GetFontList().DeriveWithSizeDelta(
 +                  13 - omnibox_view_->GetFontList().GetFontSize())
 +            : omnibox_view_->GetFontList());
 +    // Arc for macOS' input sits lower in its row: the compact one's 2 pt,
 +    // its (i) 3 pt; the centred one's (i) a point.
-+    const int arcomium_text_dy = arcomium_command_bar_compact_ ? 2 : 0;
-+    const int arcomium_info_dy = arcomium_command_bar_compact_ ? 3 : 1;
++    const int alerse_text_dy = alerse_command_bar_compact_ ? 2 : 0;
++    const int alerse_info_dy = alerse_command_bar_compact_ ? 3 : 1;
 +    // Its (i) is centred 33 pt from the panel's end.
 +    constexpr int kInfoEndInset = 33;
 +#else
-+    constexpr int arcomium_text_dy = 0;
-+    constexpr int arcomium_info_dy = 0;
++    constexpr int alerse_text_dy = 0;
++    constexpr int alerse_info_dy = 0;
 +    constexpr int kInfoEndInset = 32;
  #endif
      location_icon_view_->SetVisible(false);
      // Arc's (i), a 24 px disc centred 32 px from the panel's end, gives way
      // to the site search hint.
-     const int hint_width = GetArcomiumKeywordHintWidth();
+     const int hint_width = GetAlerseKeywordHintWidth();
      constexpr int kInfoSize = 24;
 -    const int info_x = width() - (32 - 6) - kInfoSize / 2;
 +    const int info_x = width() - (kInfoEndInset - 6) - kInfoSize / 2;
-     if (arcomium_info_button_) {
-       arcomium_info_button_->SetVisible(hint_width == 0);
--      arcomium_info_button_->SetBounds(info_x, (height() - kInfoSize) / 2,
+     if (alerse_info_button_) {
+       alerse_info_button_->SetVisible(hint_width == 0);
+-      alerse_info_button_->SetBounds(info_x, (height() - kInfoSize) / 2,
 -                                       kInfoSize, kInfoSize);
-+      arcomium_info_button_->SetBounds(
-+          info_x, (height() - kInfoSize) / 2 + arcomium_info_dy, kInfoSize,
++      alerse_info_button_->SetBounds(
++          info_x, (height() - kInfoSize) / 2 + alerse_info_dy, kInfoSize,
 +          kInfoSize);
      }
      const int text_end =
-         hint_width ? width() - kArcomiumHintEndInset - hint_width - 8
+         hint_width ? width() - kAlerseHintEndInset - hint_width - 8
 @@ -1546,7 +1603,7 @@ void LocationBarView::Layout(PassKey) {
        text_x = selected_keyword_view_->bounds().right() + 4;
      }
      omnibox_view_->SetBounds(
 -        text_x, omnibox_view_->y(),
-+        text_x, omnibox_view_->y() + arcomium_text_dy,
++        text_x, omnibox_view_->y() + alerse_text_dy,
          std::max(0, std::min(omnibox_view_->bounds().right(), text_end) -
                          text_x),
          omnibox_view_->height());
 @@ -1981,8 +2038,7 @@ void LocationBarView::RefreshBackground() {
-     // Arcomium: Arc for macOS' sidebar field, a shade off the frame with
+     // Alerse: Arc for macOS' sidebar field, a shade off the frame with
      // 12 pt corners (#2F2F2F on #161616), #39393A under the pointer.
      background_color_ = color_utils::BlendTowardMaxContrast(
 -        color_provider->GetColor(ui::kColorFrameActive),
--        arcomium_hovered_ ? 0x26 : 0x1B);
-+        arcomium::FrameColor(this), arcomium_hovered_ ? 0x26 : 0x1B);
+-        alerse_hovered_ ? 0x26 : 0x1B);
++        alerse::FrameColor(this), alerse_hovered_ ? 0x26 : 0x1B);
      SetBackground(
          views::CreateRoundedRectBackground(background_color_, 12));
  #endif
@@ -271,14 +271,14 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/b
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -590,6 +590,9 @@
    raw_ptr<LocationIconView> location_icon_view_ = nullptr;
-   bool arcomium_compact_ = false;
-   bool arcomium_hovered_ = false;
+   bool alerse_compact_ = false;
+   bool alerse_hovered_ = false;
 +#if BUILDFLAG(IS_MAC)
-+  base::CallbackListSubscription arcomium_paint_as_active_subscription_;
++  base::CallbackListSubscription alerse_paint_as_active_subscription_;
 +#endif
-   bool arcomium_centered_ = false;
-   bool arcomium_command_bar_ = false;
-   bool arcomium_command_bar_compact_ = false;
+   bool alerse_centered_ = false;
+   bool alerse_command_bar_ = false;
+   bool alerse_command_bar_compact_ = false;
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
@@ -286,7 +286,7 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_contai
  #include "base/memory/weak_ptr.h"
  #include "base/task/sequenced_task_runner.h"
  #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
-+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
++#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout_params.h"
@@ -297,7 +297,7 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_contai
 +    } else if (GetWidget() && !GetWidget()->ShouldPaintAsActive()) {
 +      // An inactive window shows it faintly: #484848 on Arc's #393939.
 +      flags.setColor(color_utils::BlendTowardMaxContrast(
-+          arcomium::FrameColor(this), 0x13));
++          alerse::FrameColor(this), 0x13));
 +      canvas->DrawRoundRect(gfx::RectF(0.5f, 0, 27, 27), 6, flags);
      }
      const gfx::PointF center =
@@ -310,7 +310,7 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_contai
 +    // White at 60% over the frame: #A1A1A1 on #161616, #B0B0B0 on an
 +    // inactive window's #393939, as Arc's.
 +    flags.setColor(
-+        color_utils::BlendTowardMaxContrast(arcomium::FrameColor(this), 0x99));
++        color_utils::BlendTowardMaxContrast(alerse::FrameColor(this), 0x99));
      for (int i = -1; i <= 1; ++i) {
        canvas->DrawCircle(center + gfx::Vector2dF(i * 5.0f, 0), 1.5f, flags);
      }
@@ -347,13 +347,13 @@ index 721e030..4cb6240 100644
 +  [self setNeedsDisplay:YES];
 +}
 +
-+// Whether the keyboard is in one of Arcomium's "..." and "+" popovers over
-+// this window (arcomium_window_mac.h): Arc for macOS rings its controls in
++// Whether the keyboard is in one of Alerse's "..." and "+" popovers over
++// this window (alerse_window_mac.h): Arc for macOS rings its controls in
 +// grey meanwhile, faces kept.
 +- (BOOL)popoverOpen {
 +  NSWindow* key = NSApp.keyWindow;
 +  return NSApp.active && key.parentWindow == self.window &&
-+         [key.identifier isEqualToString:@"ArcomiumPopover"];
++         [key.identifier isEqualToString:@"AlersePopover"];
 +}
 +
 +- (BOOL)windowActive {
@@ -411,7 +411,7 @@ index 1d0ea60..0e49888 100644
  
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  
-+#include "chrome/browser/ui/views/frame/arcomium_frame_color.h"
++#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 +
  #include "base/debug/dump_without_crashing.h"
 +#include "base/functional/bind.h"
@@ -425,13 +425,13 @@ index 1d0ea60..0e49888 100644
 +#if BUILDFLAG(IS_MAC)
 +void ContentsWebView::AddedToWidget() {
 +  views::WebView::AddedToWidget();
-+  arcomium_paint_as_active_subscription_ =
++  alerse_paint_as_active_subscription_ =
 +      GetWidget()->RegisterPaintAsActiveChangedCallback(base::BindRepeating(
 +          &ContentsWebView::UpdateBackgroundColor, base::Unretained(this)));
 +}
 +
 +void ContentsWebView::RemovedFromWidget() {
-+  arcomium_paint_as_active_subscription_ = {};
++  alerse_paint_as_active_subscription_ = {};
 +  views::WebView::RemovedFromWidget();
 +}
 +#endif
@@ -440,9 +440,9 @@ index 1d0ea60..0e49888 100644
 -  const SkColor color = GetColorProvider()->GetColor(
 -      is_letterboxing() ? kColorWebContentsBackgroundLetterboxing
 -                        : kColorWebContentsBackground);
-+  // Arcomium: Arc for macOS lightens an inactive window's blank page with its
++  // Alerse: Arc for macOS lightens an inactive window's blank page with its
 +  // frame, #2B2B2B to #4B4B4B.
-+  const SkColor color = arcomium::InkOverFrame(
++  const SkColor color = alerse::InkOverFrame(
 +      this, GetColorProvider()->GetColor(
 +                is_letterboxing() ? kColorWebContentsBackgroundLetterboxing
 +                                  : kColorWebContentsBackground));
@@ -477,9 +477,9 @@ index 0dc0d4b..ec07594 100644
  
    std::unique_ptr<ui::LayerTreeOwner> cloned_layer_tree_;
 +#if BUILDFLAG(IS_MAC)
-+  // Arcomium: the page's background follows an inactive window's lighter
-+  // frame (arcomium_frame_color.h).
-+  base::CallbackListSubscription arcomium_paint_as_active_subscription_;
++  // Alerse: the page's background follows an inactive window's lighter
++  // frame (alerse_frame_color.h).
++  base::CallbackListSubscription alerse_paint_as_active_subscription_;
 +#endif
  };
  

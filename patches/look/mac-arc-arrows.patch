@@ -2,14 +2,14 @@ diff --git a/components/vector_icons/BUILD.gn b/components/vector_icons/BUILD.gn
 --- a/components/vector_icons/BUILD.gn
 +++ b/components/vector_icons/BUILD.gn
 @@ -19,6 +19,8 @@
-       "arcomium_download.icon",
-       "arcomium_forward.icon",
-       "arcomium_link.icon",
-+      "arcomium_mac_back.icon",
-+      "arcomium_mac_forward.icon",
-       "arcomium_reload.icon",
-       "arcomium_search.icon",
-       "arcomium_sidebar.icon",
+       "alerse_download.icon",
+       "alerse_forward.icon",
+       "alerse_link.icon",
++      "alerse_mac_back.icon",
++      "alerse_mac_forward.icon",
+       "alerse_reload.icon",
+       "alerse_search.icon",
+       "alerse_sidebar.icon",
 diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 index a9a6182..9a6a761 100644
 --- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
@@ -33,7 +33,7 @@ index a9a6182..9a6a761 100644
 -    } else if (GetWidget() && !GetWidget()->ShouldPaintAsActive()) {
 -      // An inactive window shows it faintly: #484848 on Arc's #393939.
 -      flags.setColor(color_utils::BlendTowardMaxContrast(
--          arcomium::FrameColor(this), 0x13));
+-          alerse::FrameColor(this), 0x13));
 -      canvas->DrawRoundRect(gfx::RectF(0.5f, 0, 27, 27), 6, flags);
      }
      const gfx::PointF center =
@@ -87,7 +87,7 @@ index a9a6182..9a6a761 100644
 +    views::SetImageFromVectorIconWithColor(
 +        this, *icon_, kArcMacIconSize,
 +        {GetColorProvider()->GetColor(ui::kColorIcon),
-+         color_utils::BlendTowardMaxContrast(arcomium::FrameColor(this),
++         color_utils::BlendTowardMaxContrast(alerse::FrameColor(this),
 +                                             0x40)});
 +  }
 +
@@ -106,10 +106,10 @@ index a9a6182..9a6a761 100644
    const NavButton nav_buttons[] = {
 +#if BUILDFLAG(IS_MAC)
 +      // Arc for macOS' own arrows, thinner and with smaller heads.
-+      {IDC_BACK, vector_icons::kArcomiumMacBackIcon, IDS_ARCOMIUM_BACK,
++      {IDC_BACK, vector_icons::kAlerseMacBackIcon, IDS_ALERSE_BACK,
 +       &arc_back_button_},
-+      {IDC_FORWARD, vector_icons::kArcomiumMacForwardIcon,
-+       IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
++      {IDC_FORWARD, vector_icons::kAlerseMacForwardIcon,
++       IDS_ALERSE_FORWARD, &arc_forward_button_},
 +#else
        {IDC_BACK,
         rounded ? vector_icons::kArrowBackIcon
@@ -117,12 +117,12 @@ index a9a6182..9a6a761 100644
 @@ -373,26 +426,25 @@ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
         rounded ? vector_icons::kArrowForwardIcon
                 : vector_icons::kForwardArrowChromeRefreshOldIcon,
-        IDS_ARCOMIUM_FORWARD, &arc_forward_button_},
+        IDS_ALERSE_FORWARD, &arc_forward_button_},
 +#endif
        {IDC_RELOAD,
         rounded ? vector_icons::kRefreshIcon
                 : vector_icons::kReloadChromeRefreshOldIcon,
-        IDS_ARCOMIUM_RELOAD, &arc_reload_button_},
+        IDS_ALERSE_RELOAD, &arc_reload_button_},
    };
    for (const NavButton& nav : nav_buttons) {
 -    auto button = views::CreateVectorImageButtonWithNativeTheme(

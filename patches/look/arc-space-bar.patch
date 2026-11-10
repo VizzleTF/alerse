@@ -12,5 +12,5 @@ index d8dbe5b2d68..a5610620089 100644
 +                               views::MinimumFlexSizeRule::kScaleToMinimum,
 +                               views::MaximumFlexSizeRule::kUnbounded));
    new_tab_button_->SetVisible(collapsed);
-   // Arcomium: while expanded the row sits at the bottom of the window, as Arc's
+   // Alerse: while expanded the row sits at the bottom of the window, as Arc's
    // Space bar does.

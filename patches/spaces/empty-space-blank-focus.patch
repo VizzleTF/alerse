@@ -8,16 +8,16 @@ index ffa698b..3a3c418 100644
  
 +bool BrowserWebContentsDelegate::FocusLocationBarForInitialBlankPage(
 +    content::WebContents* source) {
-+  // Arcomium: a Space's blank page opened by sync or restored from the session
++  // Alerse: a Space's blank page opened by sync or restored from the session
 +  // is its empty page, which waits for a bookmark or for typing.
-+  return !TabStripModel::IsArcomiumEmptySpace(source);
++  return !TabStripModel::IsAlerseEmptySpace(source);
 +}
 +
 +bool BrowserWebContentsDelegate::HandleContextMenu(
 +    content::RenderFrameHost& render_frame_host,
 +    const content::ContextMenuParams& params) {
-+  // Arcomium: as in Arc, an empty Space's card has no context menu.
-+  return TabStripModel::IsArcomiumEmptySpace(
++  // Alerse: as in Arc, an empty Space's card has no context menu.
++  return TabStripModel::IsAlerseEmptySpace(
 +      content::WebContents::FromRenderFrameHost(&render_frame_host));
 +}
 +
@@ -61,7 +61,7 @@ index 38efabfe5d4..22a2374aed3 100644
    // complete check, you should use WebContents::FocusLocationBarByDefault().
    virtual bool ShouldFocusLocationBarByDefault(WebContents* source);
  
-+  // Arcomium: false keeps the startup navigation of a blank page from focusing
++  // Alerse: false keeps the startup navigation of a blank page from focusing
 +  // the location bar, as it does by default.
 +  virtual bool FocusLocationBarForInitialBlankPage(WebContents* source) {
 +    return true;

@@ -12,8 +12,8 @@ index 81dd40bc0fd..570d1f15f74 100644
 -        ManifestLocation::kExternalPrefDownload, Extension::NO_FLAGS);
 -    registry_provider->set_allow_updates(true);
 -    provider_list->push_back(std::move(registry_provider));
-+    // Arcomium: no extensions from the Windows registry. Other programs list
-+    // their Chrome extensions there, and Arcomium now downloads from the Chrome
++    // Alerse: no extensions from the Windows registry. Other programs list
++    // their Chrome extensions there, and Alerse now downloads from the Chrome
 +    // Web Store, so they would install themselves.
  #else
      provider_list->push_back(std::make_unique<ExternalProviderImpl>(
@@ -44,10 +44,10 @@ index 3fef161944a..289d3f19e6a 100644
  
  namespace {
  
-+// Arcomium: the Chrome Web Store keeps its own "Add to Chrome" button off in
++// Alerse: the Chrome Web Store keeps its own "Add to Chrome" button off in
 +// browsers it does not take for Chrome, so the app menu offers the install on
 +// an item's page. Not in chrome_command_ids.h: only this menu handles it.
-+constexpr int kArcomiumAddFromWebstore = 40391;
++constexpr int kAlerseAddFromWebstore = 40391;
 +
 +// The extension id of the Chrome Web Store item page shown in `browser`, or
 +// "" on any other page.
@@ -75,7 +75,7 @@ index 3fef161944a..289d3f19e6a 100644
      return;
    }
  
-+  if (command_id == kArcomiumAddFromWebstore) {
++  if (command_id == kAlerseAddFromWebstore) {
 +    const std::string id = GetWebstoreItemId(browser_);
 +    if (!id.empty()) {
 +      auto installer =
@@ -94,17 +94,17 @@ index 3fef161944a..289d3f19e6a 100644
    }
  
    switch (command_id) {
-+    case kArcomiumAddFromWebstore:
++    case kAlerseAddFromWebstore:
 +      return true;
      case IDC_NEW_INCOGNITO_WINDOW:
        return IncognitoModePrefs::IsIncognitoTypeAllowed(
            browser_->GetProfile(),
 @@ -2332,6 +2373,12 @@ void AppMenuModel::Build() {
-       this, IDC_ARCOMIUM_LINK_ROUTING, IDS_ARCOMIUM_LINK_ROUTING,
+       this, IDC_ALERSE_LINK_ROUTING, IDS_ALERSE_LINK_ROUTING,
        features::IsRoundedIconsEnabled() ? vector_icons::kLinkIcon
                                          : vector_icons::kLinkOldIcon);
 +  if (!GetWebstoreItemId(browser_).empty()) {
-+    AddItemWithIcon(kArcomiumAddFromWebstore, l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADD_TO_ARCOMIUM),
++    AddItemWithIcon(kAlerseAddFromWebstore, l10n_util::GetStringUTF16(IDS_ALERSE_ADD_TO_ALERSE),
 +                    ui::ImageModel::FromVectorIcon(
 +                        vector_icons::kChromeExtensionIcon, ui::kColorMenuIcon,
 +                        ui::SimpleMenuModel::kDefaultIconSize));
@@ -121,7 +121,7 @@ index 4f8ae203163..5454cc35bc3 100644
    if (update_url.is_empty()) {
      // Fill in default update URL.
 -    return std::nullopt;
-+    // Arcomium: extensions from the Chrome Web Store install and update.
++    // Alerse: extensions from the Chrome Web Store install and update.
 +    return extension_urls::GetWebstoreUpdateUrl();
    }
  
@@ -142,7 +142,7 @@ index 4f8ae203163..5454cc35bc3 100644
      AddToFetches(fetches_preparing, std::move(task));
    pending_tasks_.clear();
  
-+  // Arcomium: update checks run, so extensions synced from another device
++  // Alerse: update checks run, so extensions synced from another device
 +  // install and installed ones update.
 +  for (auto& fetch_list : fetches_preparing) {
 +    for (auto& fetch : fetch_list.second)
@@ -160,7 +160,7 @@ index 7148e294a4e..604dbc58891 100644
  constexpr char kExpectedGupdateProtocol[] = "2.0";
  constexpr char kExpectedGupdateXmlns[] =
 -    "http://www.google.com/update2/response";
-+    // Arcomium: split so that domain substitution keeps the namespace that
++    // Alerse: split so that domain substitution keeps the namespace that
 +    // update responses of the Chrome Web Store use.
 +    "http://www.goo" "gle.com/update2/response";
  
@@ -176,7 +176,7 @@ index 3f49bc95712..a1a80062d34 100644
  
 +// Folder for downloading crx files from the webstore. This is used so that the
 +// crx files don't go via the usual downloads folder.
-+// Arcomium: installs from the Chrome Web Store, which ungoogled-chromium
++// Alerse: installs from the Chrome Web Store, which ungoogled-chromium
 +// disables.
 +const base::FilePath::CharType kWebstoreDownloadFolder[] =
 +    FILE_PATH_LITERAL("Webstore Downloads");
@@ -242,7 +242,7 @@ index bff2cbf3d54..8e5f2d528f8 100644
    }, {
      "channel": "stable",
      "contexts": ["web_page"],
-+    // Arcomium: "." keeps domain substitution away from the Web Store.
++    // Alerse: "." keeps domain substitution away from the Web Store.
      "matches": ["https://chromewebstore.google.com/*"]
    }, {
      // Used for webstore testing. See comment in
@@ -250,7 +250,7 @@ index bff2cbf3d54..8e5f2d528f8 100644
    "webstorePrivate": [{
      "channel": "stable",
      "contexts": ["web_page"],
-+    // Arcomium: "." keeps domain substitution away from the Web Store.
++    // Alerse: "." keeps domain substitution away from the Web Store.
      "matches": ["https://chromewebstore.google.com/*"]
    }, {
      // Used for webstore testing. See comment in
@@ -264,7 +264,7 @@ index d8335692327..b46828b1723 100644
  
 -const char kChromeWebstoreBaseURL[] = "https://chrome.google.com/webstore";
 -const char kNewChromeWebstoreBaseURL[] = "https://chromewebstore.google.com/";
-+// Arcomium installs and updates extensions from the Chrome Web Store, so its
++// Alerse installs and updates extensions from the Chrome Web Store, so its
 +// URLs stay real: the literals are split so that ungoogled-chromium's domain
 +// substitution leaves them alone.
 +const char kChromeWebstoreBaseURL[] = "https://chrome.goo" "gle.com/webstore";

@@ -1,24 +1,24 @@
-"""Moves Arcomium's patch series to a new Chromium base with git.
+"""Moves Alerse's patch series to a new Chromium base with git.
 
 The series is a stack of diffs against one Chromium tree (after the
 ungoogled-chromium and platform patches). To move it to a new tree, git
 replays each patch as a commit with a three-way merge, which resolves most of
 what a fuzzy `patch` cannot, and remembers resolutions (rerere) for the next
-time. Arcomium's own files in src/ are not patches and need no rebase.
+time. Alerse's own files in src/ are not patches and need no rebase.
 
 In a git repository that has both trees as commits (OLD and NEW, each the
 Chromium tree with the ungoogled-chromium and platform patches applied):
 
     python tools/rebase_patches.py import --repo REPO --base OLD
         Commits each patch of patches/series onto OLD, on branch
-        arcomium-patches, one commit per patch.
+        alerse-patches, one commit per patch.
 
     git -C REPO config rerere.enabled true
-    git -C REPO rebase --onto NEW OLD arcomium-patches
+    git -C REPO rebase --onto NEW OLD alerse-patches
         Resolve conflicts as git stops; `git rebase --continue`.
 
     python tools/rebase_patches.py export --repo REPO --base NEW
-        Writes each commit of NEW..arcomium-patches back to its patch file.
+        Writes each commit of NEW..alerse-patches back to its patch file.
 
 The working tree of REPO is used only by the rebase; import works on a
 temporary index.
@@ -33,8 +33,8 @@ from pathlib import Path
 
 CORE = Path(__file__).resolve().parent.parent
 PATCHES = CORE / 'patches'
-BRANCH = 'arcomium-patches'
-PREFIX = 'arcomium-patch: '
+BRANCH = 'alerse-patches'
+PREFIX = 'alerse-patch: '
 
 
 def git(repo, *args, env=None, input_text=None):

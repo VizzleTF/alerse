@@ -3,29 +3,29 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -841,12 +841,10 @@
    }
-   UpdateArcomiumAlignment();
+   UpdateAlerseAlignment();
    InvalidateLayout();
 -#if BUILDFLAG(IS_MAC)
-   // Arcomium: the sidebar field has its own background on macOS.
+   // Alerse: the sidebar field has its own background on macOS.
    if (GetWidget()) {
      RefreshBackground();
    }
 -#endif
  }
  
- void LocationBarView::SetArcomiumCentered(bool centered) {
+ void LocationBarView::SetAlerseCentered(bool centered) {
 @@ -908,25 +906,22 @@
      return;
    }
-   arcomium_command_bar_ = command_bar;
+   alerse_command_bar_ = command_bar;
 -  // Arc for Windows' command bar sets what you type 16 px high, larger than
 -  // its rows; Arc for macOS' 18 pt.
 -#if BUILDFLAG(IS_MAC)
 +  // Arc for macOS' command bar sets what you type 18 pt high, larger than
 +  // its rows, on every platform.
-   // Arcomium: 15 pt in the compact one opened from the sidebar's field.
-   const int kArcomiumCommandBarFontSize =
-       arcomium_command_bar_compact_ ? 15 : 18;
+   // Alerse: 15 pt in the compact one opened from the sidebar's field.
+   const int kAlerseCommandBarFontSize =
+       alerse_command_bar_compact_ ? 15 : 18;
 +#if BUILDFLAG(IS_MAC)
    // Arc for macOS' caret is the system's blue, not the text's color: #3478F6
    // as the screen shows it. Views colors are sRGB, which the display's color
@@ -34,9 +34,9 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
        command_bar ? std::optional<SkColor>(SkColorSetRGB(0x0A, 0x7A, 0xFE))
                    : std::nullopt);
 -#else
--  constexpr int kArcomiumCommandBarFontSize = 16;
+-  constexpr int kAlerseCommandBarFontSize = 16;
  #endif
-   if (command_bar && !arcomium_info_button_) {
+   if (command_bar && !alerse_info_button_) {
      // Arc's (i): a dark disc with the info glyph, opening the site's
      // controls.
 -#if BUILDFLAG(IS_MAC)
@@ -49,7 +49,7 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      }
 -#else
 -    auto info = views::CreateVectorImageButtonWithNativeTheme(
--        base::BindRepeating(&LocationBarView::ShowArcomiumSiteControls,
+-        base::BindRepeating(&LocationBarView::ShowAlerseSiteControls,
 -                            base::Unretained(this)),
 -        vector_icons::kInfoIcon, 16, kColorOmniboxText);
 -#endif
@@ -57,26 +57,26 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
          SkColorSetRGB(0x02, 0x02, 0x02), 12));
      info->SetTooltipText(
 @@ -966,19 +955,17 @@
-     arcomium_command_bar_font_ = omnibox_view_->GetFontList();
+     alerse_command_bar_font_ = omnibox_view_->GetFontList();
      const gfx::FontList base =
-         arcomium_default_font_.value_or(*arcomium_command_bar_font_);
+         alerse_default_font_.value_or(*alerse_command_bar_font_);
 -#if BUILDFLAG(IS_MAC)
      // Arc for macOS types in medium weight: regular was 17% lighter and
      // 4.5 pt narrower over "Search or Enter URL...".
      omnibox_view_->SetFontList(
-         base.DeriveWithSizeDelta(kArcomiumCommandBarFontSize -
+         base.DeriveWithSizeDelta(kAlerseCommandBarFontSize -
                                   base.GetFontSize())
              .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 -#else
 -    omnibox_view_->SetFontList(base.DeriveWithSizeDelta(
--        kArcomiumCommandBarFontSize - base.GetFontSize()));
+-        kAlerseCommandBarFontSize - base.GetFontSize()));
 -#endif
-   } else if (arcomium_command_bar_font_) {
-     omnibox_view_->SetFontList(*arcomium_command_bar_font_);
-+    // Arcomium: the command bar set "Search or Enter URL..."'s face (Layout());
+   } else if (alerse_command_bar_font_) {
+     omnibox_view_->SetFontList(*alerse_command_bar_font_);
++    // Alerse: the command bar set "Search or Enter URL..."'s face (Layout());
 +    // the top bar's field takes the address's back.
-+    omnibox_view_->set_placeholder_font_list(*arcomium_command_bar_font_);
-     arcomium_command_bar_font_.reset();
++    omnibox_view_->set_placeholder_font_list(*alerse_command_bar_font_);
+     alerse_command_bar_font_.reset();
    }
    RefreshBackground();
 @@ -1117,12 +1104,12 @@
@@ -84,61 +84,61 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
    // Arc's sidebar says "Search..." where there is no address, not which
    // search engine; Arc's command bar shows none.
 -#if BUILDFLAG(IS_MAC)
--  // Arcomium: Arc for macOS' command bar says "Search or Enter URL...".
--  if (arcomium_command_bar_) {
-+  // Arcomium: Arc for macOS' command bar says "Search or Enter URL...";
+-  // Alerse: Arc for macOS' command bar says "Search or Enter URL...".
+-  if (alerse_command_bar_) {
++  // Alerse: Arc for macOS' command bar says "Search or Enter URL...";
 +  // not the top bar's idle field (Windows, Linux), which stays the command
 +  // bar while a new tab shows.
-+  if (arcomium_command_bar_ && !IsArcomiumCenteredIdle()) {
-     return l10n_util::GetStringUTF16(IDS_ARCOMIUM_ADDRESS_PLACEHOLDER);
++  if (alerse_command_bar_ && !IsAlerseCenteredIdle()) {
+     return l10n_util::GetStringUTF16(IDS_ALERSE_ADDRESS_PLACEHOLDER);
    }
 -#endif
-   return arcomium_command_bar_ ? std::u16string() : l10n_util::GetStringUTF16(IDS_ARCOMIUM_SIDEBAR_PLACEHOLDER);
+   return alerse_command_bar_ ? std::u16string() : l10n_util::GetStringUTF16(IDS_ALERSE_SIDEBAR_PLACEHOLDER);
  }
  
 @@ -1206,19 +1193,14 @@
-     PaintArcomiumKeywordHint(canvas);
+     PaintAlerseKeywordHint(canvas);
      // A site's search chip brings its own icon.
      if (!selected_keyword_view_->GetVisible()) {
 -#if BUILDFLAG(IS_MAC)
-       // Arcomium: Arc for macOS' sits 24 pt into the panel, a point below
+       // Alerse: Arc for macOS' sits 24 pt into the panel, a point below
        // the middle; 3 pt in the compact one.
        canvas->DrawImageInt(
            magnifier, 24 - 6,
-           (height() - 16) / 2 + (arcomium_command_bar_compact_ ? 3 : 1));
+           (height() - 16) / 2 + (alerse_command_bar_compact_ ? 3 : 1));
 -#else
 -      canvas->DrawImageInt(magnifier, 20 - 6, (height() - 16) / 2 + 1);
 -#endif
      }
-   } else if (IsArcomiumSidebarSearch()) {
+   } else if (IsAlerseSidebarSearch()) {
      // Arc's sidebar: a dim magnifier 12 px in, before "Search...".
 -#if BUILDFLAG(IS_MAC)
-     // Arcomium: on macOS 10 pt in and a shade brighter than the text.
+     // Alerse: on macOS 10 pt in and a shade brighter than the text.
      // It follows an inactive window's lighter frame, and brightens under
      // the pointer as Arc's (#828282 to #898888).
 @@ -1231,12 +1213,6 @@
-                 GetColorProvider()->GetColor(kColorArcomiumSidebarNewTab)),
-             static_cast<SkAlpha>(arcomium_hovered_ ? 0x13 : 0x05)));
+                 GetColorProvider()->GetColor(kColorAlerseSidebarNewTab)),
+             static_cast<SkAlpha>(alerse_hovered_ ? 0x13 : 0x05)));
      canvas->DrawImageInt(magnifier, 10, (height() - 16) / 2);
 -#else
 -    const gfx::ImageSkia magnifier = gfx::CreateVectorIcon(
--        vector_icons::kArcomiumSearchIcon, 16,
+-        vector_icons::kAlerseSearchIcon, 16,
 -        GetColorProvider()->GetColor(kColorOmniboxTextDimmed));
 -    canvas->DrawImageInt(magnifier, 12, (height() - 16) / 2);
 -#endif
    }
-   if (arcomium_pill_bounds_.IsEmpty()) {
+   if (alerse_pill_bounds_.IsEmpty()) {
      return;
 @@ -1252,9 +1228,12 @@
  
- void LocationBarView::UpdateArcomiumAlignment() {
+ void LocationBarView::UpdateAlerseAlignment() {
    if (omnibox_view_) {
 +    // Arc for Windows' top bar centres the idle address; Arc for macOS'
 +    // sidebar field keeps it at its start.
      omnibox_view_->SetHorizontalAlignment(
--        arcomium_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
+-        alerse_compact_ && !omnibox_view_->HasFocus() ? gfx::ALIGN_CENTER
 -                                                        : gfx::ALIGN_LEFT);
-+        arcomium_compact_ && arcomium_centered_ && !omnibox_view_->HasFocus()
++        alerse_compact_ && alerse_centered_ && !omnibox_view_->HasFocus()
 +            ? gfx::ALIGN_CENTER
 +            : gfx::ALIGN_LEFT);
    }
@@ -146,10 +146,10 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
  
 @@ -1264,12 +1243,10 @@
    }
-   arcomium_hovered_ = hovered;
+   alerse_hovered_ = hovered;
    InvalidateLayout();
 -#if BUILDFLAG(IS_MAC)
-   // Arcomium: Arc for macOS' field lightens under the pointer.
+   // Alerse: Arc for macOS' field lightens under the pointer.
    if (GetWidget()) {
      RefreshBackground();
    }
@@ -161,18 +161,18 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
          vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
          /*intra_item_padding=*/0, icon_left, selected_keyword_view_);
      selected_keyword_view_->SetKeyword(keyword);
--  } else if (arcomium_compact_ && !arcomium_hovered_ &&
-+  } else if (arcomium_compact_ &&
-+             (!arcomium_hovered_ || !arcomium_centered_) &&
+-  } else if (alerse_compact_ && !alerse_hovered_ &&
++  } else if (alerse_compact_ &&
++             (!alerse_hovered_ || !alerse_centered_) &&
               !omnibox_view_->HasFocus() &&
               GetLocationBarModel()->GetSecurityLevel() !=
                   security_state::WARNING &&
 @@ -1562,7 +1540,6 @@
-     LayoutArcomiumCentered();
-   } else if (IsArcomiumSidebarSearch()) {
+     LayoutAlerseCentered();
+   } else if (IsAlerseSidebarSearch()) {
      // The text 36 px in, after the magnifier (OnPaintBackground).
 -#if BUILDFLAG(IS_MAC)
-     // Arcomium: Arc for macOS' "Search..." starts 34 pt into the field, a
+     // Alerse: Arc for macOS' "Search..." starts 34 pt into the field, a
      // point smaller than the address and grey.
      constexpr int kTextInset = 34;
 @@ -1577,9 +1554,6 @@
@@ -194,12 +194,12 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      // The compact one's "Search or Enter URL..." is 13 pt, smaller than what
      // is typed there.
 @@ -1604,11 +1577,6 @@
-     const int arcomium_info_dy = arcomium_command_bar_compact_ ? 3 : 1;
+     const int alerse_info_dy = alerse_command_bar_compact_ ? 3 : 1;
      // Its (i) is centred 33 pt from the panel's end.
      constexpr int kInfoEndInset = 33;
 -#else
--    constexpr int arcomium_text_dy = 0;
--    constexpr int arcomium_info_dy = 0;
+-    constexpr int alerse_text_dy = 0;
+-    constexpr int alerse_info_dy = 0;
 -    constexpr int kInfoEndInset = 32;
 -#endif
      location_icon_view_->SetVisible(false);
@@ -221,24 +221,24 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
          omnibox_view_->height());
    }
  
-+  // Arcomium: Arc for macOS' sidebar field sets its address 13 pt in, with no
++  // Alerse: Arc for macOS' sidebar field sets its address 13 pt in, with no
 +  // site icon before it (but a warning).
-+  if (arcomium_compact_ && !arcomium_centered_ && !arcomium_command_bar_ &&
++  if (alerse_compact_ && !alerse_centered_ && !alerse_command_bar_ &&
 +      !omnibox_view_->HasFocus() && !location_icon_view_->GetVisible()) {
-+    constexpr int kArcomiumFieldTextX = 13;
++    constexpr int kAlerseFieldTextX = 13;
 +    omnibox_view_->SetBounds(
-+        kArcomiumFieldTextX, omnibox_view_->y(),
-+        std::max(0, omnibox_view_->bounds().right() - kArcomiumFieldTextX),
++        kAlerseFieldTextX, omnibox_view_->y(),
++        std::max(0, omnibox_view_->bounds().right() - kAlerseFieldTextX),
 +        omnibox_view_->height());
 +  }
-+  // Arcomium: the sidebar's field ends its address before the buttons the
-+  // sidebar's hover shows (ArcomiumAddressBar), which fades it out there.
-+  if (arcomium_trailing_inset_ > 0 && arcomium_compact_ &&
-+      !arcomium_centered_ && !arcomium_command_bar_) {
++  // Alerse: the sidebar's field ends its address before the buttons the
++  // sidebar's hover shows (AlerseAddressBar), which fades it out there.
++  if (alerse_trailing_inset_ > 0 && alerse_compact_ &&
++      !alerse_centered_ && !alerse_command_bar_) {
 +    omnibox_view_->SetBounds(
 +        omnibox_view_->x(), omnibox_view_->y(),
 +        std::max(0, std::min(omnibox_view_->bounds().right(),
-+                             width() - arcomium_trailing_inset_) -
++                             width() - alerse_trailing_inset_) -
 +                        omnibox_view_->x()),
 +        omnibox_view_->height());
 +  }
@@ -246,9 +246,9 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
    LayoutSuperclass<View>(this);
  }
  
-+void LocationBarView::SetArcomiumTrailingInset(int inset) {
-+  if (arcomium_trailing_inset_ != inset) {
-+    arcomium_trailing_inset_ = inset;
++void LocationBarView::SetAlerseTrailingInset(int inset) {
++  if (alerse_trailing_inset_ != inset) {
++    alerse_trailing_inset_ = inset;
 +    InvalidateLayout();
 +  }
 +}
@@ -261,11 +261,11 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
      background_color_ = color_provider->GetColor(kColorOmniboxResultsBackground);
      SetBackground(nullptr);
 -#if BUILDFLAG(IS_MAC)
-   } else if (arcomium_compact_ && !arcomium_centered_) {
-     // Arcomium: Arc for macOS' sidebar field, a shade off the frame with
+   } else if (alerse_compact_ && !alerse_centered_) {
+     // Alerse: Arc for macOS' sidebar field, a shade off the frame with
      // 12 pt corners (#2F2F2F on #161616), #39393A under the pointer.
 @@ -2078,7 +2070,6 @@
-         arcomium::FrameColor(this), arcomium_hovered_ ? 0x26 : 0x1B);
+         alerse::FrameColor(this), alerse_hovered_ ? 0x26 : 0x1B);
      SetBackground(
          views::CreateRoundedRectBackground(background_color_, 12));
 -#endif
@@ -277,20 +277,20 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/b
 +++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -328,6 +328,10 @@
    // actions, and the site settings icon only while hovered or editing.
-   void SetArcomiumCompact(bool compact);
-   void SetArcomiumHovered(bool hovered);
-+  // Arcomium: room kept at the field's end for the sidebar's hover buttons.
-+  void SetArcomiumTrailingInset(int inset);
-+  // Arcomium: Arc's site controls, as the field's sliders open them.
-+  void ShowArcomiumSiteControlsForField() { ShowArcomiumSiteControls(); }
+   void SetAlerseCompact(bool compact);
+   void SetAlerseHovered(bool hovered);
++  // Alerse: room kept at the field's end for the sidebar's hover buttons.
++  void SetAlerseTrailingInset(int inset);
++  // Alerse: Arc's site controls, as the field's sliders open them.
++  void ShowAlerseSiteControlsForField() { ShowAlerseSiteControls(); }
    // The site sits centered in the compact location bar until it is edited.
-   void UpdateArcomiumAlignment();
-   // Arcomium: as in Arc for Windows' top bar, while not edited the address is
+   void UpdateAlerseAlignment();
+   // Alerse: as in Arc for Windows' top bar, while not edited the address is
 @@ -614,6 +618,7 @@
    raw_ptr<LocationIconView> location_icon_view_ = nullptr;
-   bool arcomium_compact_ = false;
-   bool arcomium_hovered_ = false;
-+  int arcomium_trailing_inset_ = 0;
+   bool alerse_compact_ = false;
+   bool alerse_hovered_ = false;
++  int alerse_trailing_inset_ = 0;
  #if BUILDFLAG(IS_MAC)
-   base::CallbackListSubscription arcomium_paint_as_active_subscription_;
+   base::CallbackListSubscription alerse_paint_as_active_subscription_;
  #endif

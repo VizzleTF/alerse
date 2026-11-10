@@ -16,7 +16,7 @@ index 27c3b454b3a..8a162796482 100644
    content::WebContents::CreateParams create_params(browser->GetProfile(),
                                                     site_instance);
    create_params.initially_hidden = true;
-+  // Arcomium: like a restored tab, it loads once it is shown. Opening a Space
++  // Alerse: like a restored tab, it loads once it is shown. Opening a Space
 +  // from another device then costs no renderer per tab until its tab is used.
 +  create_params.desired_renderer_state =
 +      content::WebContents::CreateParams::kNoRendererProcess;
