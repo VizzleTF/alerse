@@ -1,0 +1,36 @@
+diff --git a/components/webui/chrome_urls/resources/app.html.ts b/components/webui/chrome_urls/resources/app.html.ts
+index 1ea42f5..aeddc74 100644
+--- a/components/webui/chrome_urls/resources/app.html.ts
++++ b/components/webui/chrome_urls/resources/app.html.ts
+@@ -10,5 +10,6 @@ export function getHtml(this: ChromeUrlsAppElement) {
+   // clang-format off
+   return html`
+-<h2>List of Chrome URLs</h2>
++<!-- Alerse: the product's name, not Chrome's. -->
++<h2>List of Alerse URLs</h2>
+ <ul>
+   ${this.webuiUrlInfos_.map(info => html`
+diff --git a/components/webui/flags/resources/app.html.ts b/components/webui/flags/resources/app.html.ts
+index b470d50..b67a8b6 100644
+--- a/components/webui/flags/resources/app.html.ts
++++ b/components/webui/flags/resources/app.html.ts
+@@ -90,5 +90,6 @@ export function getHtml(this: AppElement) {
+ </if>
+     </div>
+-    <p id="promos" ?hidden="${!this.shouldShowPromos_()}">
++    <!-- Alerse: no promotions of Chrome's release channels. -->
++    <p id="promos" hidden>
+       <!-- Those strings are not localized because they only
+       appear in chrome://flags, which is not localized. -->
+diff --git a/components/webui/chrome_urls/resources/chrome_urls.html b/components/webui/chrome_urls/resources/chrome_urls.html
+index b36a3ef..28d1c00 100644
+--- a/components/webui/chrome_urls/resources/chrome_urls.html
++++ b/components/webui/chrome_urls/resources/chrome_urls.html
+@@ -12,5 +12,6 @@
+   <link rel="stylesheet" href="chrome://resources/css/text_defaults.css">
+ </if>
+-    <title>Chrome URLs</title>
++    <!-- Alerse: the product's name, not Chrome's. -->
++    <title>Alerse URLs</title>
+ <if expr="is_ios">
+     <script src="chrome://resources/js/ios/mojo_api.js"></script>

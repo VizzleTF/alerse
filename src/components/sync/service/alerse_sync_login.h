@@ -57,7 +57,7 @@ enum class SyncPasswordProblem {
   // On the list of common passwords, or one character or a run of
   // neighbouring ones repeated.
   kCommon,
-  // Contains the login name, "alerse" or "alerse" (the product's names).
+  // Contains the login name, "alerse" or "arcomium" (the product's names).
   kContainsLogin,
 };
 

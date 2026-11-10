@@ -7,7 +7,8 @@
 
 // Alerse Spaces. A Space is a tab group shown in focus mode, so the vertical
 // tab strip lists only its tabs. Web tabs of a Space live in a dedicated
-// storage partition ("alerse" domain, partition name = Space id), so each
+// storage partition ("arcomium" domain, kept from the earlier name; partition
+// name = Space id), so each
 // Space has its own cookies and site data. The Space of a group is the
 // partition of its tabs; the session keeps a group -> Space map in the window
 // extra data so restored tabs come back in their partition.

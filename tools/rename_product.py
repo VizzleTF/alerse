@@ -5,15 +5,17 @@ Rewriting "Chromium" in the English text alone would orphan every translation,
 so this script reads the IDs with grit before and after the change and moves
 the translations, renamed too, to the new IDs. "The Chromium Authors" and
 "Chromium OS" keep their names. Run it on a patched source tree; running it
-again changes nothing. Alerse was called Alerse up to 0.1.7: a tree renamed
-to Alerse is renamed to Alerse the same way.
+again changes nothing. Alerse was called Arcomium up to 0.1.7: a tree renamed
+to Arcomium is renamed to Alerse the same way.
+
+ungoogled-chromium's name goes too: from the version line ("Official Build,
+ungoogled-chromium") and from the descriptions of its flags in chrome://flags
+("ungoogled-chromium flag").
 
 It also sets the product name in BRANDING and gives Alerse its own macOS
 bundle ID and profile directory, so it shares neither with Chromium nor
-ungoogled-chromium installed beside it (nor with Alerse), and gives each
-release its own Chromium version number (see docs/versioning.md). Code
-identifiers keep the old name (alerse_* files, IDS_ALERSE_*, the
-ALERSE_VERSION key below): only what the user sees is renamed.
+ungoogled-chromium installed beside it (nor with Arcomium), and gives each
+release its own Chromium version number (see docs/versioning.md).
 
 Usage:
   python tools/rename_product.py SRC_DIR
@@ -23,26 +25,53 @@ import re
 import sys
 from pathlib import Path
 
-# The *chromium_strings.grd files that exist on the platform being built.
+# The grd files whose messages name the product, those that exist on the
+# platform being built: the *chromium_strings.grd files, and the unbranded
+# ones that still say "Chromium" (autofill, passwords, page info, the search
+# engine choice, security interstitials, omnibox actions...).
 GRDS = [
     'chrome/app/chromium_strings.grd',
     'components/components_chromium_strings.grd',
     'ios/chrome/app/strings/ios_chromium_strings.grd',
+    'chrome/app/generated_resources.grd',
+    'components/components_strings.grd',
+    'components/privacy_sandbox_strings.grd',
+]
+
+# ungoogled-chromium's flag entries, whose descriptions end in
+# "ungoogled-chromium flag".
+FLAG_FILES = [
+    'chrome/browser/bromite_flag_entries.h',
+    'chrome/browser/existing_switch_flag_entries.h',
+    'chrome/browser/flag_descriptions.h',
+    'chrome/browser/ungoogled_flag_entries.h',
+    'chrome/browser/ungoogled_platform_flag_entries.h',
 ]
 
 PRODUCT = 'Alerse'
-# Chromium's name, and Alerse's, which a tree renamed before 0.1.8 has.
+# Chromium's name, Chrome's where unbranded strings use it for the browser, and
+# Arcomium's, which a tree renamed before 0.1.8 has (this literal keeps the
+# earlier name on purpose). Kept: "Google Chrome" (another browser, such as
+# one to import from), the Chrome Web Store (the store's name), Chrome OS and
+# Chrome Enterprise, and "The Chromium Authors".
 NAME = re.compile(
-    r'\b(?:Chromium|Alerse)\b(?! Authors| OS)(?!<ph name="END_LINK_CHROMIUM")')
+    r'(?<!Google )\b(?:Chromium|Chrome|Arcomium)\b'
+    r'(?! Authors| OS|OS| Web Store| Enterprise)(?!<ph name="END_LINK_CHROMIUM")')
+# ", ungoogled-chromium" after "Official Build" in the version line; anywhere
+# else ungoogled-chromium's name stands for the browser.
+UNGOOGLED_BUILD = re.compile(r',\s*ungoogled-chromium\b')
+UNGOOGLED = re.compile(r'\bungoogled-chromium\b')
 # The About page's "made possible by the Chromium open source project" links to
 # Chromium itself: that name stays, and earlier runs, which renamed it too, are
 # undone.
-CHROMIUM_LINK = re.compile(r'\bAlerse(?=<ph name="END_LINK_CHROMIUM")')
+CHROMIUM_LINK = re.compile(
+    r'\b(?:Alerse|Arcomium)(?=<ph name="END_LINK_CHROMIUM")')
 MESSAGE = re.compile(r'(<message\b[^>]*>)(.*?)(</message>)', re.S)
 TRANSLATION = re.compile(r'<translation id="(\d+)">(.*?)</translation>', re.S)
 
 
 def rename_text(text):
+    text = UNGOOGLED.sub(PRODUCT, UNGOOGLED_BUILD.sub('', text))
     return CHROMIUM_LINK.sub('Chromium', NAME.sub(PRODUCT, text))
 
 
@@ -70,8 +99,16 @@ def message_ids(grd):
 def rename(grd):
     original = grd.read_text(encoding='utf-8')
     # The grd and the .grdp parts it includes.
-    files = [grd] + [grd.parent / part
-                     for part in re.findall(r'<part file="([^"]+)"', original)]
+    # Parts include parts of their own (omnibox_strings.grdp includes the
+    # omnibox actions' strings); a part's path is relative to the file that
+    # includes it.
+    files = [grd]
+    for f in files:
+        text = original if f == grd else f.read_text(encoding='utf-8')
+        for part in re.findall(r'<part file="([^"]+)"', text):
+            path = f.parent / part
+            if path.exists() and path not in files:
+                files.append(path)
     texts = {f: f.read_text(encoding='utf-8') for f in files}
     renamed = {f: MESSAGE.sub(
         lambda m: m.group(1) + rename_text(m.group(2)) + m.group(3), text)
@@ -120,6 +157,34 @@ def move_translations(grd, original, moved):
         xtb.write_text(text, encoding='utf-8', newline='\n')
 
 
+def drop_duplicate_translations(grd):
+    """Keeps one translation per ID in the grd's .xtb files.
+
+    Messages that differed only in "Chrome" and "Chromium" are the same text
+    once renamed, so their translations moved to one ID; grit refuses an .xtb
+    with an ID twice. Run each time, so a tree renamed before this was added
+    is mended too."""
+    original = grd.read_text(encoding='utf-8')
+    for path in re.findall(r'<file path="([^"]+\.xtb)"', original):
+        xtb = grd.parent / path
+        if not xtb.exists():
+            continue
+        seen = set()
+
+        def keep_first(m):
+            if m.group(1) in seen:
+                return ''
+            seen.add(m.group(1))
+            return m.group(0)
+
+        text = xtb.read_text(encoding='utf-8')
+        # The translation with the line break after it, so none is left
+        # empty.
+        write_if_changed(xtb, re.sub(
+            r'<translation id="(\d+)">.*?</translation>\n?', keep_first, text,
+            flags=re.S))
+
+
 def write_if_changed(path, text):
     """Writes `text` unless the file has it already: a newer modification time
     alone would rebuild everything that depends on the file."""
@@ -132,8 +197,8 @@ BRANDING = {
     'PRODUCT_SHORTNAME': PRODUCT,
     'PRODUCT_INSTALLER_FULLNAME': f'{PRODUCT} Installer',
     'PRODUCT_INSTALLER_SHORTNAME': f'{PRODUCT} Installer',
-    # Alerse's was io.github.vizzletf.arcomium; Alerse is another app, which
-    # takes over Alerse's profile (defaults/mac-own-profile-dir.patch).
+    # Arcomium's was io.github.vizzletf.arcomium; Alerse is another app, which
+    # takes over Arcomium's profile (defaults/mac-own-profile-dir.patch).
     'MAC_BUNDLE_ID': 'io.github.vizzletf.alerse',
 }
 PRODUCT_DIR_KEY = '<key>CrProductDirName</key>'
@@ -151,7 +216,7 @@ def set_branding(src):
     for key, value in BRANDING.items():
         text = re.sub(rf'^{key}=.*$', f'{key}={value}', text, flags=re.M)
     write_if_changed(branding, text)
-    # ~/Library/Application Support/Alerse, not .../Chromium (or .../Alerse,
+    # ~/Library/Application Support/Alerse, not .../Chromium (or .../Arcomium,
     # where a tree renamed before 0.1.8 has it).
     text = plist.read_text(encoding='utf-8')
     if PRODUCT_DIR_KEY not in text:
@@ -176,8 +241,7 @@ def stamp_version(src):
     runs, so no two releases may share a version: release 0.1.4 on Chromium
     157.0.8103.38 is 157.0.8103.3804. Chromium's patch number is kept as
     UPSTREAM_PATCH, which the User-Agent and its client hints report, and
-    the release itself as ALERSE_VERSION (a code identifier, which keeps
-    Alerse's name), which the update check compares
+    the release itself as ALERSE_VERSION, which the update check compares
     with the latest release (chrome/browser/alerse_update). The platform
     repositories' release workflows check that a release's tag is VERSION and
     its stamp above the latest release's (.github/scripts/release-version.sh).
@@ -208,15 +272,37 @@ def stamp_version(src):
           f'{values["MAJOR"]}.{values["MINOR"]}.{values["BUILD"]}.{patch}')
 
 
+STRING_LITERAL = re.compile(r'"(?:[^"\\\n]|\\.)*"')
+
+
+def rename_flags(src):
+    """Renames the product in the string literals of the flag entries: "Chromium
+    feature, ungoogled-chromium flag" says only that Alerse has the flag, and
+    descriptions such as "Chromium didn't shut down correctly" name Alerse."""
+    def rename_literal(m):
+        text = m.group(0)
+        for old in ('ungoogled-chromium flag', f'{PRODUCT} flag'):
+            text = text.replace(f'Chromium feature, {old}', f'{PRODUCT} flag')
+        return NAME.sub(PRODUCT, UNGOOGLED.sub(PRODUCT, text))
+
+    for path in FLAG_FILES:
+        flags = src / path
+        if flags.exists():
+            write_if_changed(flags, STRING_LITERAL.sub(
+                rename_literal, flags.read_text(encoding='utf-8')))
+
+
 def main():
     src = Path(sys.argv[1]).resolve()
     set_branding(src)
     stamp_version(src)
+    rename_flags(src)
     sys.path.insert(0, str(src / 'tools' / 'grit'))
     for path in GRDS:
         grd = src / path
         if grd.exists():
             print(f'{path}: {rename(grd)} messages renamed')
+            drop_duplicate_translations(grd)
 
 
 if __name__ == '__main__':

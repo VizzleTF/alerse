@@ -17,6 +17,8 @@ look/no-ntp-bookmark-bar.patch
 defaults/continue-session.patch
 look/arc-space-bar.patch
 look/alerse-name.patch
+look/alerse-product-icons.patch
+look/alerse-name-in-pages.patch
 look/mac-window-controls.patch
 look/mac-header-clicks.patch
 sync/sync-all-types.patch
@@ -61,6 +63,7 @@ defaults/own-install-identity.patch
 sync/e2e-before-data.patch
 look/import-from-browsers.patch
 defaults/upstream-web-version.patch
+defaults/no-ungoogled-first-run.patch
 look/update-notice.patch
 defaults/devtools-bundle-paths.patch
 spaces/pinned-tab-binding.patch

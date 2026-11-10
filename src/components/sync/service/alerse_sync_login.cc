@@ -140,7 +140,9 @@ SyncPasswordProblem CheckSyncPassword(std::string_view password,
   std::string_view name = normalized_login.substr(
       0, std::min(normalized_login.find('@'), normalized_login.size()));
   if ((name.size() >= 4 && lower.find(name) != std::string::npos) ||
-      lower.find("alerse") != std::string::npos) {
+      lower.find("alerse") != std::string::npos ||
+      // The product's earlier name (kept literal on purpose).
+      lower.find("arcomium") != std::string::npos) {
     return SyncPasswordProblem::kContainsLogin;
   }
   return SyncPasswordProblem::kNone;

@@ -26,6 +26,28 @@ source files (`alerse_*`), resource, command and color ids (`IDS_ALERSE_*`,
 the `chrome://alerse-*` pages, the `ALERSE_VERSION` key, the platform repositories'
 `alerse` submodule, the docs.
 
+The app does not call itself Chromium, Chrome or ungoogled-chromium either.
+`tools/rename_product.py` renames "Chromium" and "Chrome" where they stand for the
+browser, in the `*chromium_strings.grd` files and in the unbranded strings that still
+name it (`generated_resources.grd`, `components_strings.grd`,
+`privacy_sandbox_strings.grd`, and the parts they include, down to the omnibox
+actions: autofill, passwords, page info, the search engine choice, security warnings,
+management, "Restart"), moving their translations; messages that then read the same
+keep one translation each. It drops ", ungoogled-chromium" from the version line
+("Official Build") and calls ungoogled-chromium's entries in `chrome://flags` "Alerse
+flag". Not renamed, as they are other products: "Google Chrome" (a browser to import
+from), the Chrome Web Store, Chrome OS and Chrome Enterprise.
+`defaults/no-ungoogled-first-run.patch` removes `chrome://ungoogled-first-run`
+(ungoogled-chromium's page about itself), which a new profile opened and
+`chrome://about` listed. `look/alerse-product-icons.patch` draws Alerse's "A" for the
+Chrome logo in the settings and extensions headers (dark mode) and for the product
+icon of "About Alerse"; `look/alerse-name-in-pages.patch` names the URL list "Alerse
+URLs" and hides `chrome://flags`' promotion of Chrome's release channels. Kept on
+purpose, as notices of the code Alerse is built from: the About page's "made possible
+by the Chromium open source project", the copyright line "The Chromium Authors", and
+the licenses in `chrome://credits`. Sites still see Chrome in the User-Agent, so they
+treat Alerse as the browser it is.
+
 Names that keep the earlier one, because they are stored in every profile, in sync, or
 find the earlier installation; renaming them would lose data:
 
