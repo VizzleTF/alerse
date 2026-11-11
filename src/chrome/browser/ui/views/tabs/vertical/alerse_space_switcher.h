@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -83,6 +84,7 @@ struct AlerseSpaceRef {
 class AlerseSpaceSwitcher : public views::View,
                               public bookmarks::BaseBookmarkModelObserver,
                               public ProfileAttributesStorageObserver,
+                              public TabStripModelObserver,
                               public views::ContextMenuController,
                               public ui::SimpleMenuModel::Delegate {
   METADATA_HEADER(AlerseSpaceSwitcher, views::View)
@@ -126,6 +128,11 @@ class AlerseSpaceSwitcher : public views::View,
     views::View::OnThemeChanged();
     alerse::RepaintTree(this);
   }
+
+  // TabStripModelObserver: a dialog of a tab opened or closed, which the
+  // other Spaces' bars of this window mark.
+  void OnTabChangedAt(tabs::TabInterface* tab,
+                      TabChangeType change_type) override;
 
   // bookmarks::BaseBookmarkModelObserver: the Space's folder records its
   // name, icon and color.
@@ -190,6 +197,9 @@ class AlerseSpaceSwitcher : public views::View,
   // The profile directory of the Space an icon names: kDefaultSpace is this
   // window's own, "profile:<directory>" another one.
   base::FilePath PathOfSpace(const std::string& space) const;
+  // Whether a tab of that Space, hidden behind this window, has a dialog
+  // for the user to answer.
+  bool SpaceNeedsAttention(const std::string& space) const;
   // The folder of this window's Space (alerse_space_folder.h), if it has one.
   const bookmarks::BookmarkNode* SpaceFolder() const;
   // The plus button's menu: a new Space, folder or tab.

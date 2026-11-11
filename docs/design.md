@@ -179,9 +179,11 @@ Known gaps:
   so switching Spaces slides between desktops (about 0.7 s) instead of switching at
   once;
 - the mini player shows only the media of the Space shown;
-- a prompt in a hidden Space (a permission, a page dialog) shows only when the Space
-  is opened, with no mark in the Space bar (it then has the keyboard: `ShowSpace`
-  activates the window's visible modal dialog after the window);
+- a prompt in a hidden Space shows only when the Space is opened (it then has the
+  keyboard: `ShowSpace` activates the window's visible modal dialog after the
+  window). A page dialog marks its Space's icon in the Space bar with a dot
+  (`SpaceNeedsAttention`: a tab of the hidden window is blocked or has Chromium's
+  needs-attention flag); a permission prompt leaves no mark;
 - moving a tab to another Space reopens it there, losing its history and form state;
 - favorites are a set for each Space;
 - Windows and Linux were not built with the profiles yet.

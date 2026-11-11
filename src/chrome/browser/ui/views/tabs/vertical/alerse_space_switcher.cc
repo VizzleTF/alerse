@@ -49,6 +49,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -350,6 +351,8 @@ class SpaceIcon : public views::Button {
   // Arc for macOS tints a hovered Space's icon with a light shade of the
   // Space's theme color.
   void SetHoverTint(SkColor tint) { hover_tint_ = tint; }
+  // Marks the icon with a dot: a dialog waits in that Space.
+  void SetAttention(bool attention) { attention_ = attention; }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
     const ui::ColorId color = active_            ? kActiveIconColor
@@ -367,12 +370,19 @@ class SpaceIcon : public views::Button {
     canvas->sk_canvas()->translate(center.x(), center.y());
     canvas->sk_canvas()->scale(kIconScale, kIconScale);
     alerse::PaintSpaceIcon(canvas, gfx::PointF(), icon_, ink, emoji_alpha);
+    if (attention_) {
+      cc::PaintFlags flags;
+      flags.setAntiAlias(true);
+      flags.setColor(IconInk(this, kActiveIconColor));
+      canvas->DrawCircle(gfx::PointF(9, -9), 3, flags);
+    }
   }
 
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
 
  private:
   std::optional<SkColor> hover_tint_;
+  bool attention_ = false;
   const std::string icon_;
   const bool active_;
   const std::string space_;
@@ -637,6 +647,7 @@ AlerseSpaceSwitcher::AlerseSpaceSwitcher(BrowserWindowInterface* browser)
   if (ProfileManager* manager = g_browser_process->profile_manager()) {
     profiles_observation_.Observe(&manager->GetProfileAttributesStorage());
   }
+  browser->GetTabStripModel()->AddObserver(this);
   spaces_subscription_ = alerse::SpacesChangedCallbacks().Add(
       base::BindRepeating(&AlerseSpaceSwitcher::ScheduleRebuild,
                           base::Unretained(this)));
@@ -651,6 +662,39 @@ void AlerseSpaceSwitcher::OnProfileWasRemoved(
     const base::FilePath& profile_path,
     const std::u16string& profile_name) {
   ScheduleRebuild();
+}
+
+void AlerseSpaceSwitcher::OnTabChangedAt(tabs::TabInterface* tab,
+                                           TabChangeType change_type) {
+  // A hidden window's tab does not show its alert: Chromium marks the tab
+  // instead and shows the alert when the user comes to it.
+  if (change_type == TabChangeType::kBlockedOnly ||
+      change_type == TabChangeType::kAttentionOnly) {
+    alerse::SpacesChangedCallbacks().Notify();
+  }
+}
+
+bool AlerseSpaceSwitcher::SpaceNeedsAttention(const std::string& space) const {
+  ProfileManager* manager = g_browser_process->profile_manager();
+  Profile* profile =
+      manager ? manager->GetProfileByPath(PathOfSpace(space)) : nullptr;
+  if (space == kDefaultSpace || !profile) {
+    return false;
+  }
+  alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
+  BrowserWindowInterface* member =
+      stacks.FindMember(stacks.StackOf(browser_), profile);
+  if (!member) {
+    return false;
+  }
+  const TabStripModel* tabs = member->GetTabStripModel();
+  for (int i = 0; i < tabs->count(); ++i) {
+    if (tabs->IsTabBlocked(i) ||
+        TabUIHelper::From(tabs->GetTabAtIndex(i))->needs_attention()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void AlerseSpaceSwitcher::ShowSpaceOfPath(const base::FilePath& path) {
@@ -1054,6 +1098,7 @@ void AlerseSpaceSwitcher::Rebuild() {
         active, title, std::move(space)));
     // Arc for macOS' pill names the Space and its shortcut, "home" ^ 1.
     view->SetTooltipText(std::u16string());
+    view->SetAttention(SpaceNeedsAttention(view->space()));
     std::optional<ui::Accelerator> shortcut;
     if (space_actions_.size() <= 9) {
       shortcut = SpaceAccelerator(space_actions_.size() - 1);
