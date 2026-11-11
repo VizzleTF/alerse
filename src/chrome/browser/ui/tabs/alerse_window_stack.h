@@ -126,9 +126,11 @@ class WindowStacks : public BrowserCollectionObserver {
     }
     ui::BaseWindow* shown_window = shown->GetWindow();
     ui::BaseWindow* window = target->GetWindow();
-    // A member keeps its own full screen state: one left in full screen after
-    // the stack left it would come back at the screen's size.
-    if (window->IsFullscreen() && !shown_window->IsFullscreen()) {
+    // A member keeps its own full screen state, so the next one takes the
+    // shown one's. Before it shows: macOS would put a window shown beside a
+    // full screen one into full screen itself, having first sized it to the
+    // screen, and that size is what it would return to.
+    if (window->IsFullscreen() != shown_window->IsFullscreen()) {
       chrome::ToggleFullscreenMode(target, /*user_initiated=*/false);
     }
     if (shown_window->IsMaximized()) {

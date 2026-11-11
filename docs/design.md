@@ -175,8 +175,9 @@ feature does on it. In short:
 
 Known gaps:
 
-- on macOS, after a window that showed several Spaces in full screen leaves full
-  screen, it takes the screen's size instead of the size it had before;
+- on macOS in full screen, each Space's window is a full screen desktop of its own,
+  so switching Spaces slides between desktops (about 0.7 s) instead of switching at
+  once;
 - the mini player shows only the media of the Space shown;
 - a prompt in a hidden Space (a permission, a page dialog) shows only when the Space
   is opened, with no mark in the Space bar;
