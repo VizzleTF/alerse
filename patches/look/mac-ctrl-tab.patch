@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/global_keyboard_shortcuts_mac.mm b/chrome/browser/global_keyboard_shortcuts_mac.mm
+index 47fb720..d07a47c 100644
+--- a/chrome/browser/global_keyboard_shortcuts_mac.mm
++++ b/chrome/browser/global_keyboard_shortcuts_mac.mm
+@@ -116,6 +116,10 @@ const std::vector<KeyboardShortcutData>& GetShortcutsNotPresentInMainMenu() {
+     // ---    -----  -----  ------ --------               -------
+       {true,  true,  false, false, kVK_ANSI_RightBracket, IDC_SELECT_NEXT_TAB},
+       {true,  true,  false, false, kVK_ANSI_LeftBracket,  IDC_SELECT_PREVIOUS_TAB},
++      // Alerse: Control-Tab and Shift-Control-Tab, whose menu items Arc's Tabs
++      // menu does not have; a key equivalent needs one.
++      {false, false, true,  false, kVK_Tab,               IDC_CYCLE_TO_NEXT_TAB},
++      {false, true,  true,  false, kVK_Tab,               IDC_CYCLE_TO_PREV_TAB},
+       {false, false, true,  false, kVK_PageDown,          IDC_SELECT_NEXT_TAB},
+       {false, false, true,  false, kVK_PageUp,            IDC_SELECT_PREVIOUS_TAB},
+       {true,  false, false, true,  kVK_RightArrow,        IDC_SELECT_NEXT_TAB},

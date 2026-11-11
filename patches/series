@@ -79,3 +79,4 @@ spaces/shared-sidebar-width.patch
 spaces/empty-space-address.patch
 look/sidebar-search-inset.patch
 spaces/empty-space-not-in-history.patch
+look/mac-ctrl-tab.patch
