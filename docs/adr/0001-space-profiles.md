@@ -176,22 +176,12 @@ Arc: each Arc Space becomes a Space; its pinned tree and the favorites of its Ar
 profile go to that Space's bookmarks. Other browsers: each source profile is imported
 into the Space that is visible, as today.
 
-### Migration from 0.1
+### No migration from 0.1
 
-Migration runs once at startup, before any window opens, and records its progress in
-`Local State` so that an interrupted run continues. For each Space folder of the old
-profile it creates a profile with the same Space id, and moves there:
-
-1. the Space's pinned tree, color and icon;
-2. the Space's site data: the partition directory under `Storage/ext/arcomium/` becomes
-   the new profile's default storage (cookies, localStorage, IndexedDB, service
-   workers; caches are dropped);
-3. the Space's open tabs, read from its saved tab group.
-
-Home keeps the old profile with everything that could not be attributed to a Space:
-history, passwords, autofill, extensions, settings and the favorites. The old
-`Bookmarks`, `Preferences` and `Local State` are copied to a backup directory first.
-Migration is one way.
+Decided on 2026-11-11: 0.1 had no users besides the owner, so nothing is migrated. A
+profile of 0.1 opens as home with home's pinned items, logins and tabs. The folders of
+its other Spaces stay in Other Bookmarks as ordinary folders, and Chromium deletes
+those Spaces' storage partitions, with their logins, when the profile loads.
 
 ### Platforms
 
@@ -209,12 +199,11 @@ Deleted in step 3: `spaces/space-storage-partitions.patch`,
 `lazy-saved-space-tabs.patch`, `open-space-quietly.patch`, most of `alerse_spaces.h`,
 and the Space filtering in the sidebar and the Space bar.
 
-Still to go:
+`keep-old-space-data.patch`, which was left of `space-data-lifecycle.patch`, went
+with the migration.
 
-| Patch | Why it stays | Goes in |
-|---|---|---|
-| `keep-old-space-data.patch` (what is left of `space-data-lifecycle.patch`) | Chromium deletes storage partitions no extension owns. Without the patch a 0.1 user's logins under `Storage/ext/arcomium` are gone before the migration reads them | Step 5 |
-| `enable-tab-group-focus.patch`, `no-focus-freezing.patch` | The sidebar's swipe controller is built only with `kTabGroupsFocusing` | Step 7 |
+Still to go: `enable-tab-group-focus.patch` and `no-focus-freezing.patch`, in step 7.
+The sidebar's swipe controller is built only with `kTabGroupsFocusing`.
 
 ## Features on the stack
 
@@ -312,7 +301,7 @@ must ask first (unsaved form, running download).
 | Import from Arc | Each Arc Space becomes a Space. Arc Spaces that shared an Arc profile become separate Spaces, each with a copy of that profile's favorites. Logins are not imported |
 | Import from other browsers | Into the shown Space |
 | Sync | A chain for each Space, one sign-in (Sync) |
-| Profile takeover from the earlier name | Runs first; the migration from 0.1 follows it |
+| Profile takeover from the earlier name | Unchanged |
 | iOS | No Spaces; unchanged |
 
 ## Consequences
@@ -329,8 +318,7 @@ share. The stack is new window management on three platforms, and its faults wil
 visible ones: a flash when switching, a window in the wrong place, a hidden window
 that reappears. The swipe shows a picture of the neighbour, not live content. Sync
 changes on the client and on the server, and devices on 0.1 cannot share a chain with
-devices after the change. Migration moves users' logins between directories and cannot
-be undone except from the backup.
+devices after the change. The other Spaces of a 0.1 profile lose their logins.
 
 ## Alternatives considered
 
@@ -367,7 +355,7 @@ be undone except from the backup.
    the command bar closed; New Window opens a second stack with the command bar open;
    the incognito window's Space bar lists no Spaces. Not built: the stack's own
    bounds and sidebar state, the dot for a prompt in a hidden member.
-5. Migration from 0.1, with the backup.
+5. Migration from 0.1. Dropped on 2026-11-11 (No migration from 0.1).
 6. Link routing, import, the command bar and menu bar.
 7. Swipe preview.
 8. Sync: derived chains, the registry in Home's chain, the server.
@@ -375,9 +363,6 @@ be undone except from the backup.
 
 ## Open questions
 
-- Does a migrated Space keep its logins? Cookies are encrypted with a key of the
-  installation, not of the profile, so they should decrypt after the move; to be
-  proved on a copy of a real profile in step 5.
 - Is the switch free of a visible flash on macOS with a full-screen member, and on
   Wayland? Step 1 answers the first, step 9 the second.
 - An "Install in every Space" action for extensions is likely to be asked for. It is

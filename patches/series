@@ -48,7 +48,6 @@ spaces/no-focus-freezing.patch
 look/command-bar-input-and-security.patch
 look/command-bar-rows.patch
 look/bounded-tint-color-providers.patch
-spaces/keep-old-space-data.patch
 defaults/feature-defaults.patch
 look/sidebar-logo-menu.patch
 defaults/own-install-identity.patch
