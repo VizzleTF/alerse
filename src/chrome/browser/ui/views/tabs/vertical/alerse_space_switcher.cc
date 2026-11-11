@@ -37,6 +37,7 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
+#include "chrome/browser/ui/tabs/alerse_space_list.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/alerse_window_stack.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
@@ -1051,6 +1052,12 @@ void AlerseSpaceSwitcher::Rebuild() {
       home->GetMetaInfo(alerse::kSpaceColorMetaKey, &color);
     }
     alerse::UpdateSpaceCopy(own, name, icon, color);
+    alerse::RecordSpaceId(profile);
+    if (self.home) {
+      // Home's bookmarks carry the list of Spaces to the other devices.
+      alerse::UpdateSpaceList(
+          BookmarkModelFactory::GetForBrowserContext(profile));
+    }
   }
   // An incognito window is outside the stacks and shows no Spaces.
   const std::vector<alerse::SpaceInfo> spaces =
@@ -1552,6 +1559,7 @@ void AlerseSpaceSwitcher::DeleteSpace(const std::string& space,
       alerse::IsHomeSpacePath(path)) {
     return;
   }
+  alerse::RecordSpaceDeleted(path);
   // Deleting a Space deletes its profile: Chromium closes its windows and
   // removes its data.
   base::OnceClosure remove = base::BindOnce(

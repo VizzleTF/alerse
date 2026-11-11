@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/time/time.h"
 #include "components/sync/service/alerse_sync_code.h"
@@ -31,11 +32,45 @@ namespace syncer {
 // The server URL lives in prefs; the secret is kept encrypted with OSCrypt.
 // Sync runs in Chromium's local sync mode (no account, full sync) against the
 // server, with tokens signed by the chain's key as access tokens.
+//
+// On desktop a Space is a profile (docs/adr/0001-space-profiles.md), and the
+// user sets sync up once for all of them: the server, the secret and the
+// sign-in are the browser's, kept in Local State. Home syncs as the chain of
+// that secret. Every other Space has an id and syncs as a chain of its own,
+// whose secret is derived from the browser's and the id, so the server
+// cannot tell that the chains belong together. The functions below still
+// take a profile's prefs and find the browser's through PrepareProfile();
+// where that was never called (iOS, which has no Spaces) the profile's prefs
+// hold everything, as before Spaces were profiles.
 class AlerseSyncAccount {
  public:
   static constexpr size_t kSecretSize = 32;
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
+  static void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
+
+  // Call before the sync service of a profile is built, with the name of
+  // the profile's directory. `local_state` then holds the setup of every
+  // profile. A profile other than the first gets its Space's id here if it
+  // has none: the one SetSpaceIdOfNewProfile() left for it, else a new one.
+  static void PrepareProfile(PrefService* local_state,
+                             PrefService* profile_prefs,
+                             const std::string& profile_dir);
+
+  // Makes the profile about to be created in `profile_dir` the Space
+  // `space_id`, one that another device made.
+  static void SetSpaceIdOfNewProfile(PrefService* local_state,
+                                     const std::string& profile_dir,
+                                     const std::string& space_id);
+
+  // The ids of Spaces deleted on this device, kept until home's list of
+  // Spaces takes them (chrome/browser/ui/tabs/alerse_space_list.h).
+  static void AddDeletedSpace(PrefService* local_state,
+                              const std::string& space_id);
+  static std::vector<std::string> TakeDeletedSpaces(PrefService* local_state);
+
+  // The id of the profile's Space; empty for home.
+  static std::string GetSpaceId(const PrefService& profile_prefs);
 
   // Copies --alerse-sync-url into prefs. Call before SyncPrefs reads
   // whether sync is enabled.
@@ -63,14 +98,15 @@ class AlerseSyncAccount {
   static void SetLogin(PrefService* prefs, const std::string& login);
   static void ClearLogin(PrefService* prefs);
 
-  // Reads the saved secret, or nullopt.
+  // Reads the saved secret, the browser's, or nullopt.
   static std::optional<SyncChainSecret> LoadSecret(
       const PrefService& prefs,
       const os_crypt_async::Encryptor& encryptor);
 
-  // Reads the chain's secret: from --alerse-sync-secret (64 hex digits),
-  // which is then saved, or from prefs. Returns nullopt when there is none or
-  // it cannot be decrypted.
+  // The account of the profile's chain: of the browser's secret for home, of
+  // the secret derived for its Space otherwise. The browser's secret comes
+  // from --alerse-sync-secret (64 hex digits), which is then saved, or from
+  // prefs. Returns nullopt when there is none or it cannot be decrypted.
   static std::optional<AlerseSyncAccount> Load(
       PrefService* prefs,
       const os_crypt_async::Encryptor& encryptor);

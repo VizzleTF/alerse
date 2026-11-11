@@ -13,10 +13,12 @@
 #include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/numerics/byte_conversions.h"
+#include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "components/os_crypt/async/common/encryptor.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "third_party/boringssl/src/include/openssl/curve25519.h"
 #include "third_party/boringssl/src/include/openssl/digest.h"
 #include "third_party/boringssl/src/include/openssl/hkdf.h"
@@ -28,6 +30,16 @@ namespace {
 constexpr char kServerURLPref[] = "arcomium.sync.server_url";
 constexpr char kSecretPref[] = "arcomium.sync.secret";
 constexpr char kLoginPref[] = "arcomium.sync.login";
+// Profile pref: the id of the profile's Space, which names its chain.
+constexpr char kSpacePref[] = "alerse.sync.space";
+constexpr char kHomeSpace[] = "home";
+// The directory of the first profile, which is home.
+constexpr char kHomeProfileDir[] = "Default";
+// Local State: {profile directory: Space id} for profiles about to be made
+// for Spaces of other devices.
+constexpr char kNewSpacesPref[] = "alerse.sync.new_spaces";
+// Local State: ids of Spaces deleted on this device.
+constexpr char kDeletedSpacesPref[] = "alerse.sync.deleted_spaces";
 
 // For setting up a device by hand until the settings page exists. The secret
 // on a command line is visible to other programs of the user, so the switch
@@ -41,6 +53,19 @@ constexpr std::string_view kTokenContext = "arcomium-sync-token-v1";
 constexpr std::string_view kKdfSalt = "arcomium-sync";
 constexpr std::string_view kKeyInfo = "ed25519-key";
 constexpr std::string_view kPassphraseInfo = "nigori-passphrase";
+// Followed by the Space's id: the secret of a Space's chain.
+constexpr std::string_view kSpaceInfo = "space-chain:";
+
+// Local State once PrepareProfile() ran.
+PrefService* g_local_state = nullptr;
+
+// The prefs that hold the setup `prefs`, a profile's, syncs with.
+PrefService* SetupPrefs(PrefService* prefs) {
+  return g_local_state ? g_local_state : prefs;
+}
+const PrefService& SetupPrefs(const PrefService& prefs) {
+  return g_local_state ? *g_local_state : prefs;
+}
 
 std::array<uint8_t, 32> Derive(base::span<const uint8_t> secret,
                                std::string_view info) {
@@ -56,13 +81,78 @@ std::array<uint8_t, 32> Derive(base::span<const uint8_t> secret,
 
 // static
 void AlerseSyncAccount::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+  RegisterLocalStatePrefs(registry);
+  registry->RegisterStringPref(kSpacePref, std::string());
+}
+
+// static
+void AlerseSyncAccount::RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(kServerURLPref, std::string());
   registry->RegisterStringPref(kSecretPref, std::string());
   registry->RegisterStringPref(kLoginPref, std::string());
+  registry->RegisterDictionaryPref(kNewSpacesPref);
+  registry->RegisterListPref(kDeletedSpacesPref);
+}
+
+// static
+void AlerseSyncAccount::PrepareProfile(PrefService* local_state,
+                                         PrefService* profile_prefs,
+                                         const std::string& profile_dir) {
+  g_local_state = local_state;
+  if (profile_dir == kHomeProfileDir) {
+    profile_prefs->SetString(kSpacePref, kHomeSpace);
+    return;
+  }
+  const std::string* given =
+      local_state->GetDict(kNewSpacesPref).FindString(profile_dir);
+  if (profile_prefs->GetString(kSpacePref).empty()) {
+    profile_prefs->SetString(
+        kSpacePref,
+        given ? *given : base::HexEncode(base::RandBytesAsVector(16)));
+  }
+  if (given) {
+    ScopedDictPrefUpdate(local_state, kNewSpacesPref)->Remove(profile_dir);
+  }
+}
+
+// static
+void AlerseSyncAccount::SetSpaceIdOfNewProfile(PrefService* local_state,
+                                                 const std::string& profile_dir,
+                                                 const std::string& space_id) {
+  ScopedDictPrefUpdate(local_state, kNewSpacesPref)
+      ->Set(profile_dir, space_id);
+}
+
+// static
+void AlerseSyncAccount::AddDeletedSpace(PrefService* local_state,
+                                          const std::string& space_id) {
+  ScopedListPrefUpdate(local_state, kDeletedSpacesPref)->Append(space_id);
+}
+
+// static
+std::vector<std::string> AlerseSyncAccount::TakeDeletedSpaces(
+    PrefService* local_state) {
+  std::vector<std::string> spaces;
+  for (const base::Value& space : local_state->GetList(kDeletedSpacesPref)) {
+    if (space.is_string()) {
+      spaces.push_back(space.GetString());
+    }
+  }
+  if (!spaces.empty()) {
+    local_state->ClearPref(kDeletedSpacesPref);
+  }
+  return spaces;
+}
+
+// static
+std::string AlerseSyncAccount::GetSpaceId(const PrefService& profile_prefs) {
+  const std::string space = profile_prefs.GetString(kSpacePref);
+  return space == kHomeSpace ? std::string() : space;
 }
 
 // static
 void AlerseSyncAccount::ApplyCommandLine(PrefService* prefs) {
+  prefs = SetupPrefs(prefs);
 #if defined(OFFICIAL_BUILD)
   // A shortcut with these switches would join a profile to someone else's
   // sync chain; release builds take a server and a code only from the Sync
@@ -79,7 +169,7 @@ void AlerseSyncAccount::ApplyCommandLine(PrefService* prefs) {
 
 // static
 GURL AlerseSyncAccount::GetServerURL(const PrefService& prefs) {
-  GURL url(prefs.GetString(kServerURLPref));
+  GURL url(SetupPrefs(prefs).GetString(kServerURLPref));
   return url.is_valid() ? url : GURL();
 }
 
@@ -88,6 +178,7 @@ bool AlerseSyncAccount::Save(PrefService* prefs,
                                const os_crypt_async::Encryptor& encryptor,
                                const GURL& server_url,
                                const SyncChainSecret& secret) {
+  prefs = SetupPrefs(prefs);
   std::string ciphertext;
   // Encryption fails only when the OS keystore is unavailable; then nothing
   // is kept, so the profile is not left with a server and no secret.
@@ -103,6 +194,7 @@ bool AlerseSyncAccount::Save(PrefService* prefs,
 
 // static
 void AlerseSyncAccount::Clear(PrefService* prefs) {
+  prefs = SetupPrefs(prefs);
   prefs->ClearPref(kServerURLPref);
   prefs->ClearPref(kSecretPref);
   ClearLogin(prefs);
@@ -110,18 +202,18 @@ void AlerseSyncAccount::Clear(PrefService* prefs) {
 
 // static
 std::string AlerseSyncAccount::GetLogin(const PrefService& prefs) {
-  return prefs.GetString(kLoginPref);
+  return SetupPrefs(prefs).GetString(kLoginPref);
 }
 
 // static
 void AlerseSyncAccount::SetLogin(PrefService* prefs,
                                    const std::string& login) {
-  prefs->SetString(kLoginPref, login);
+  SetupPrefs(prefs)->SetString(kLoginPref, login);
 }
 
 // static
 void AlerseSyncAccount::ClearLogin(PrefService* prefs) {
-  prefs->ClearPref(kLoginPref);
+  SetupPrefs(prefs)->ClearPref(kLoginPref);
 }
 
 // static
@@ -130,7 +222,8 @@ std::optional<SyncChainSecret> AlerseSyncAccount::LoadSecret(
     const os_crypt_async::Encryptor& encryptor) {
   std::string ciphertext;
   std::string plaintext;
-  if (!base::Base64Decode(prefs.GetString(kSecretPref), &ciphertext) ||
+  if (!base::Base64Decode(SetupPrefs(prefs).GetString(kSecretPref),
+                          &ciphertext) ||
       ciphertext.empty() || !encryptor.DecryptString(ciphertext, &plaintext) ||
       plaintext.size() != kSecretSize) {
     return std::nullopt;
@@ -151,22 +244,26 @@ std::optional<AlerseSyncAccount> AlerseSyncAccount::Load(
 #else
   const bool secret_switch = command_line.HasSwitch(kSecretSwitch);
 #endif
+  std::optional<SyncChainSecret> secret;
   if (secret_switch) {
-    SyncChainSecret secret;
+    secret.emplace();
     if (!base::HexStringToSpan(command_line.GetSwitchValueASCII(kSecretSwitch),
-                               secret)) {
+                               *secret)) {
       LOG(ERROR) << "--" << kSecretSwitch << " needs 64 hex digits";
       return std::nullopt;
     }
-    Save(prefs, encryptor, GetServerURL(*prefs), secret);
-    return AlerseSyncAccount(secret);
+    Save(prefs, encryptor, GetServerURL(*prefs), *secret);
+  } else {
+    secret = LoadSecret(*prefs, encryptor);
   }
-
-  std::optional<SyncChainSecret> secret = LoadSecret(*prefs, encryptor);
   if (!secret) {
     return std::nullopt;
   }
-  return AlerseSyncAccount(*secret);
+  const std::string space = GetSpaceId(*prefs);
+  if (space.empty()) {
+    return AlerseSyncAccount(*secret);
+  }
+  return AlerseSyncAccount(Derive(*secret, std::string(kSpaceInfo) + space));
 }
 
 AlerseSyncAccount::AlerseSyncAccount(const SyncChainSecret& secret) {

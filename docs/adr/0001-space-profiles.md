@@ -1,6 +1,6 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Steps 1 to 4, 6 and 7 of the [order of work](#order-of-work) are
+Status: accepted, 2026-11-11. Steps 1 to 4 and 6 to 8 of the [order of work](#order-of-work) are
 built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
 
 ## Context
@@ -164,12 +164,31 @@ does not apply. Routes move from the profile pref `arcomium.link_routes` to the
 ### Sync
 
 Each profile has its own `SyncService`, so each Space syncs as its own chain: the
-server keeps Spaces as separate as the browser does. The user still signs in or enters
-the sync code once. The code is the root secret, stored for the browser, and each
-Space's chain key is derived from it and the Space id (HKDF). Home's chain also carries
-the registry (ids, names, colors, icons, positions) as a synced preference; a device
-that sees a Space it does not have creates its profile and joins its chain.
-`SAVED_TAB_GROUP` no longer represents a Space.
+server keeps Spaces as separate as the browser does and cannot tell that the chains
+belong to one user. The user still signs in or enters the sync code once.
+
+- The setup is the browser's: the server, the secret behind the sync code and the
+  sign-in live in `Local State`, not in a profile. Setting sync up or leaving it on
+  the Sync page of any Space does so for all of them.
+- Home syncs as the chain of that secret. Every other Space has an id, 16 random
+  bytes made with its profile and kept in the profile pref `alerse.sync.space`. Its
+  chain secret is HKDF-SHA256 of the browser's secret with the info `space-chain:`
+  and the id.
+- Home's chain carries the list of Spaces: home's Space folder holds it as the
+  bookmark meta info `arcomium.spaces`, a JSON object from id to the name, icon and
+  color the Space had when it was listed. Home's window keeps the list and the
+  device in line: it lists the Spaces the list lacks and makes a profile for each id
+  the device lacks, and that profile joins the Space's chain. A Space's current
+  name, icon and color come through its own chain.
+- Deleting a Space marks its id deleted in the list, so the list does not bring the
+  Space back on that device. Other devices keep their copy of the Space until it is
+  deleted there.
+- A Space is listed after its window was shown once on the device that made it,
+  and the list is read and written only while home is loaded.
+
+`SAVED_TAB_GROUP` no longer represents a Space. The server needs no change. Its
+limits for one address count every Space's chain: with the defaults, more than ten
+new Spaces a day from one address are refused (`NEW_CHAINS_PER_IP_PER_DAY`).
 
 ### Import
 
@@ -364,6 +383,9 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
 7. Swipe preview.
    Done on 2026-11-11 on macOS.
 8. Sync: derived chains, the registry in Home's chain, the server.
+   Done on 2026-11-11 on the client; the server did not change. Not tested: the
+   sign-in with a login and pairing, which now carry the browser's secret; iOS,
+   which has no Spaces and keeps the setup in its profile.
 9. Windows and Linux.
 
 ## Open questions

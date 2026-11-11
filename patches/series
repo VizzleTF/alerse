@@ -74,3 +74,4 @@ look/space-rename-title.patch
 look/windows-mac-command-bar.patch
 spaces/space-profiles.patch
 spaces/start-in-last-space.patch
+sync/space-sync-chains.patch

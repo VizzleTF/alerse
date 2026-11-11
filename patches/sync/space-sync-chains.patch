@@ -1,0 +1,38 @@
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index 0e7d322..eb99725 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -208,6 +208,7 @@
+ #include "components/supervised_user/core/browser/supervised_user_preferences.h"
+ #include "components/sync/base/account_pref_utils.h"
+ #include "components/sync/base/pref_names.h"
++#include "components/sync/service/alerse_sync_account.h"
+ #include "components/sync/service/device_statistics_scheduler.h"
+ #include "components/sync/service/glue/sync_transport_data_prefs.h"
+ #include "components/sync/service/sync_prefs.h"
+@@ -1656,6 +1657,9 @@ std::string GetCountry() {
+ }
+ 
+ void RegisterLocalState(PrefRegistrySimple* registry) {
++  // Alerse: one sync setup for every Space.
++  syncer::AlerseSyncAccount::RegisterLocalStatePrefs(registry);
++
+   // Call outs to individual subsystems that register Local State (browser-wide)
+   // prefs en masse. See RegisterProfilePrefs for per-profile prefs. Please
+   // keep this list alphabetized.
+diff --git a/chrome/browser/sync/sync_service_factory.cc b/chrome/browser/sync/sync_service_factory.cc
+index 89ad26c..f7c26c8 100644
+--- a/chrome/browser/sync/sync_service_factory.cc
++++ b/chrome/browser/sync/sync_service_factory.cc
+@@ -423,6 +423,11 @@ std::unique_ptr<KeyedService> BuildSyncService(
+   // ungoogled-chromium builds no sync service. Alerse builds one only for a
+   // profile set up to sync with an Alerse server, which runs in local sync
+   // mode: no Google account, no GCM.
++  // Each Space is a profile and syncs as a chain of its own; the setup is
++  // the browser's, in Local State.
++  syncer::AlerseSyncAccount::PrepareProfile(
++      g_browser_process->local_state(), profile->GetPrefs(),
++      profile->GetPath().BaseName().AsUTF8Unsafe());
+   syncer::AlerseSyncAccount::ApplyCommandLine(profile->GetPrefs());
+   if (!syncer::AlerseSyncAccount::GetServerURL(*profile->GetPrefs())
+            .is_valid()) {

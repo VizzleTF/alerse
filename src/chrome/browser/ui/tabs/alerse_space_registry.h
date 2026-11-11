@@ -38,6 +38,8 @@ inline constexpr char kSpaceEntryColorKey[] = "alerse_space_color";
 // The Space of Arc ("arc:<id>") an import made this Space of, so that
 // importing again fills the same Space.
 inline constexpr char kSpaceEntryArcKey[] = "alerse_arc_space";
+// The id of the Space, the same on every device (alerse_space_list.h).
+inline constexpr char kSpaceEntryIdKey[] = "alerse_space_id";
 
 struct SpaceInfo {
   // The profile's directory, which names the Space on this device.
