@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+index 09275cd..a9723e0 100644
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -1508,7 +1508,9 @@ void CloseTab(BrowserWindowInterface* browser) {
+   }
+ #endif
+ 
+-  ToastController* toast_controller = ToastController::From(browser);
++  // Alerse: a favorite's tab is a pinned tab, and its tile stays in the sidebar
++  // when the tab closes, as in Arc: no second press to confirm.
++  ToastController* toast_controller = nullptr;
+   if (!toast_controller) {
+     CloseSelectedTabAndRecordTabCountMetric(browser);
+     return;

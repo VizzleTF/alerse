@@ -83,3 +83,4 @@ look/mac-ctrl-tab.patch
 look/find-bar-on-page.patch
 defaults/download-without-prompt.patch
 look/command-bar-light.patch
+look/close-favorite-at-once.patch

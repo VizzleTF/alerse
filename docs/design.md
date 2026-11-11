@@ -1703,6 +1703,9 @@ these changes:
 - The bookmark bar does not show on the New Tab page, as pinned items live in the
   sidebar; `--bookmark-bar-ntp=always` brings it back.
 - The window stays open when its last tab closes (see Spaces).
+- Cmd+W closes a favorite's tab at once, as in Arc: Chromium asks for a second press
+  before it closes a pinned tab, which a favorite's tab is
+  (`look/close-favorite-at-once.patch`). The tile stays in the sidebar.
 - A download goes to the Downloads folder without the Save As question
   ungoogled-chromium asks, as in Arc (`defaults/download-without-prompt.patch`);
   Settings > Downloads turns the question on.
