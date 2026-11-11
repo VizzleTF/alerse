@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index e1b7009..a5695e4 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1252,7 +1252,9 @@ gfx::Rect BrowserView::GetFindBarBoundingBox() const {
+     const gfx::Rect bounding_box =
+         ToolbarButtonProvider::From(browser_)->GetFindBarBoundingBox(
+             contents_bounds.bottom());
+-    if (!bounding_box.IsEmpty()) {
++    // Alerse: not while the location bar sits in the sidebar, beside the page:
++    // the find bar would cover the sidebar. It then goes to the page's corner.
++    if (!bounding_box.IsEmpty() && bounding_box.x() >= contents_bounds.x()) {
+       return bounding_box;
+     }
+   }
