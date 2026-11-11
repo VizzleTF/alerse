@@ -72,7 +72,7 @@ index 6f872ee5a8d..655069d89fb 100644
  #include "content/public/common/content_features.h"
  #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
  #include "url/gurl.h"
-@@ -272,6 +276,19 @@ void TabLifecycleUnitSource::TabLifecycleUnit::FinishDiscard(
+@@ -272,6 +276,20 @@ void TabLifecycleUnitSource::TabLifecycleUnit::FinishDiscard(
      uint64_t tab_memory_footprint_estimate) {
    content::WebContents* const old_contents = web_contents();
    content::WebContents::CreateParams create_params(tab_strip_model_->profile());
@@ -83,7 +83,8 @@ index 6f872ee5a8d..655069d89fb 100644
 +        frame->GetStoragePartition()->GetConfig();
 +    const GURL& url = old_contents->GetLastCommittedURL();
 +    if (config.partition_domain() == "arcomium" && !config.in_memory() &&
-+        (url.SchemeIsHTTPOrHTTPS() || url.IsAboutBlank())) {
++        (url.SchemeIsHTTPOrHTTPS() || url.IsAboutBlank() ||
++         url.SchemeIs("chrome"))) {
 +      create_params.site_instance =
 +          content::SiteInstance::CreateForFixedStoragePartition(
 +              tab_strip_model_->profile(), url, config);

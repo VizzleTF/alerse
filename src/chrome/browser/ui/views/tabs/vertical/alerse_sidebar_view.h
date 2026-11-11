@@ -248,9 +248,6 @@ class AlerseSidebarView : public views::View,
   // Binds tabs to the pinned items their contents name, in every Space: the
   // binding a restored tab carried through the session.
   void BindTabsByUuid();
-  // Binds open tabs showing a pinned item's URL to it, as for tabs from
-  // before bindings were saved.
-  void BindTabsByUrl(const bookmarks::BookmarkNode* folder);
   // Records each tab's binding on its contents and in the session.
   void SaveBindings();
   // The Space whose folder holds `node`, or "" outside the Spaces' folders.
@@ -305,6 +302,8 @@ class AlerseSidebarView : public views::View,
   void RegisterRow(Row* row, int64_t node, tabs::TabInterface::Handle tab);
 
   void OnBookmarkPressed(int64_t id);
+  // Loads the saved page of pinned item `id` in its tab again and shows it.
+  void ResetPinnedTab(int64_t id);
   void OnFolderPressed(int64_t id);
   // Folder open and close animation: the rows that come or go grow or shrink.
   void StartFolderCollapse(const bookmarks::BookmarkNode* folder);

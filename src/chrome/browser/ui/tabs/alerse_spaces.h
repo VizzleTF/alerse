@@ -269,14 +269,26 @@ inline std::optional<std::string> GetSpaceOfGroupOrFolder(
   return found;
 }
 
-// SiteInstance that pins a new tab to the partition of `space`. Only web
-// pages and about:blank can live there; returns nullptr for anything else.
+// Whether a tab opened on `url` can start in a Space's partition: web pages,
+// about:blank and the browser's own pages (Settings, Downloads, History),
+// which would otherwise stay in the default partition, with its logins, once
+// they navigate to a site. Not the New Tab page, extensions' pages or files.
+inline bool CanLiveInSpace(const GURL& url) {
+  if (url.SchemeIsHTTPOrHTTPS() || url.IsAboutBlank()) {
+    return true;
+  }
+  return url.SchemeIs("chrome") && url.host() != "newtab" &&
+         !url.host().starts_with("new-tab-page");
+}
+
+// SiteInstance that pins a new tab to the partition of `space`; nullptr for
+// a page that cannot live there (CanLiveInSpace()).
 inline scoped_refptr<content::SiteInstance> CreateSpaceSiteInstance(
     content::BrowserContext* browser_context,
     const GURL& url,
     const std::string& space) {
   if (space.empty() || browser_context->IsOffTheRecord() ||
-      (!url.SchemeIsHTTPOrHTTPS() && !url.IsAboutBlank())) {
+      !CanLiveInSpace(url)) {
     return nullptr;
   }
   return content::SiteInstance::CreateForFixedStoragePartition(

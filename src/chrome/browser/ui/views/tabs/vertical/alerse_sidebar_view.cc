@@ -1333,6 +1333,12 @@ class AlerseSidebarView::Row : public views::Button {
 
   views::View* speaker() const { return speaker_; }
 
+  // As in Arc, a click on the icon of a pinned tab that left its saved page
+  // (the row shows "/") takes the tab back to it.
+  void SetIconCallback(base::RepeatingClosure callback) {
+    icon_callback_ = std::move(callback);
+  }
+
   void SetHoverCallback(base::RepeatingCallback<void(bool)> callback) {
     hover_callback_ = std::move(callback);
   }
@@ -1354,8 +1360,17 @@ class AlerseSidebarView::Row : public views::Button {
     }
   }
 
+  void NotifyClick(const ui::Event& event) override {
+    if (IsIconClick(event)) {
+      icon_callback_.Run();
+      return;
+    }
+    views::Button::NotifyClick(event);
+  }
+
   bool OnMousePressed(const ui::MouseEvent& event) override {
-    if (double_click_callback_ && event.IsOnlyLeftMouseButton()) {
+    if (double_click_callback_ && event.IsOnlyLeftMouseButton() &&
+        !IsIconClick(event)) {
       // The last press on an item, kept across rebuilds of the rows.
       static int64_t last_key = 0;
       static base::TimeTicks last_time;
@@ -1590,6 +1605,16 @@ class AlerseSidebarView::Row : public views::Button {
   }
 
  private:
+  // Whether `event` is a left click or a tap on the icon or its "/".
+  bool IsIconClick(const ui::Event& event) const {
+    if (!icon_callback_ || !slash_ || !event.IsLocatedEvent() ||
+        (event.IsMouseEvent() && !event.AsMouseEvent()->IsLeftMouseButton())) {
+      return false;
+    }
+    const int x = event.AsLocatedEvent()->location().x();
+    return x >= icon_->x() - 6 && x < slash_->bounds().right();
+  }
+
   // In the ink of the "/", which follows the Space's tint.
   void UpdateSpeakerImage() {
     if (!speaker_ || !GetWidget()) {
@@ -1695,6 +1720,7 @@ class AlerseSidebarView::Row : public views::Button {
   base::RepeatingTimer adopt_poll_;
   base::RepeatingCallback<void(bool)> hover_callback_;
   base::RepeatingClosure double_click_callback_;
+  base::RepeatingClosure icon_callback_;
   int64_t double_click_key_ = 0;
   base::RepeatingClosure drag_done_callback_;
 };
@@ -2245,28 +2271,6 @@ void AlerseSidebarView::SaveBindings() {
   }
 }
 
-void AlerseSidebarView::BindTabsByUrl(const bookmarks::BookmarkNode* folder) {
-  TabStripModel* tabs = browser_->GetTabStripModel();
-  for (const auto& child : folder->children()) {
-    const bookmarks::BookmarkNode* node = child.get();
-    if (node->is_folder()) {
-      BindTabsByUrl(node);
-      continue;
-    }
-    if (GetBoundTab(node->id())) {
-      continue;
-    }
-    for (int i = 0; i < tabs->count(); ++i) {
-      tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
-      if (IsInActiveSpace(tab) && !IsBound(tab) &&
-          tab->GetContents()->GetLastCommittedURL() == node->url()) {
-        bound_[node->id()] = tab->GetHandle();
-        break;
-      }
-    }
-  }
-}
-
 bool AlerseSidebarView::HasBoundDescendant(
     const bookmarks::BookmarkNode* folder) const {
   for (const auto& child : folder->children()) {
@@ -2698,7 +2702,6 @@ void AlerseSidebarView::BuildRows() {
   space_title_ = space_title;
 
   if (folder) {
-    BindTabsByUrl(folder);
     // Collapsed, only the pinned tabs that are open show, as in a folder.
     if (collapsed) {
       AddBoundTabRows(folder, 0);
@@ -2870,6 +2873,11 @@ void AlerseSidebarView::AddBookmarkRow(const bookmarks::BookmarkNode* node,
                           base::Unretained(this), node->id()),
       node->GetMetaInfo(kRenamedMetaKey, &renamed) && renamed == "1");
   if (tab) {
+    if (slash) {
+      row->SetIconCallback(
+          base::BindRepeating(&AlerseSidebarView::ResetPinnedTab,
+                              base::Unretained(this), node->id()));
+    }
     AddSpeaker(row, tab);
     // As in Arc, "-" closes the tab and keeps the item.
     row->SetCloseCallback(
@@ -2961,6 +2969,19 @@ void AlerseSidebarView::OnBookmarkPressed(int64_t id) {
   if (const bookmarks::BookmarkNode* node = GetNode(id)) {
     OpenBookmark(node);
   }
+}
+
+void AlerseSidebarView::ResetPinnedTab(int64_t id) {
+  const bookmarks::BookmarkNode* node = GetNode(id);
+  tabs::TabInterface* tab = GetBoundTab(id);
+  if (!node || !node->is_url() || !tab || !tab->GetContents()) {
+    return;
+  }
+  content::NavigationController::LoadURLParams params(node->url());
+  params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
+  tab->GetContents()->GetController().LoadURLWithParams(params);
+  // The click on the icon shows the tab too, as a click on its row.
+  OnTabPressed(tab->GetHandle());
 }
 
 void AlerseSidebarView::OnFolderPressed(int64_t id) {
@@ -4190,10 +4211,8 @@ void AlerseSidebarView::ExecuteCommand(int command_id, int event_flags) {
       }
       break;
     case kResetPinnedTab:
-      if (node && node->is_url() && tab && tab->GetContents()) {
-        content::NavigationController::LoadURLParams params(node->url());
-        params.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
-        tab->GetContents()->GetController().LoadURLWithParams(params);
+      if (node) {
+        ResetPinnedTab(node->id());
       }
       break;
     case kSplitView:

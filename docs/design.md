@@ -151,6 +151,11 @@ Implementation (patches in `patches/spaces/`):
   SiteInstance without a site reports the default partition, so
   `fixed-partition-blank-pages.patch` assigns one in fixed-partition BrowsingInstances,
   as content already does for `<webview>` guests.
+- A page a Space's tab opens stays in the Space (`spaces/space-new-windows.patch`).
+  Content keeps a fixed partition across a tab's navigations, but gave a `noopener`
+  window, which every `target=_blank` link opens, and a prerendered page a SiteInstance
+  in the default partition: a site's "Sign in" in a new tab showed the logins of home.
+  Both now get the opening tab's partition.
 - Session restore: the window extra data `arcomium.spaces` holds `{tab group id: Space id}`
   (written on every rebuild and on focus changes); restored tabs of those groups are
   recreated in their partition, without a renderer until shown. Startup continues the
@@ -206,9 +211,10 @@ Known gaps:
 
 - a deleted Space's partition stays on disk;
 - a tab dragged into a Space's group keeps its old partition;
-- recently closed tabs (Ctrl+Shift+T) and some restored tabs come back in the default
-  partition, without their logins: the Space of a tab is found from its partition or
-  its folder's name, not stored per tab;
+- a tab opened on an extension's page or a file is in the default partition and stays
+  there when it then navigates to a site. The browser's own pages (`chrome://settings`,
+  `chrome://downloads`) open in the Space's partition (`CanLiveInSpace()`), and a
+  reopened tab (Ctrl+Shift+T) carries its Space as the tab extra data `arcomium.space`;
 - a Space open in one window looks closed in a second window and opens there again;
 - notifications and push messages of a Space's sites use the default partition;
 - the incognito window's Space bar lists the regular profile's Spaces;
@@ -258,8 +264,11 @@ Windows' measurements still set (see `AlerseSidebarView`):
   Space's saved group the bookmark's meta `arcomium.saved_tab` holds the saved tab's
   guid, so a closed Space or one from another device reopens its tabs on their items.
   A tab binds only to an item of its own Space; once its item is deleted, or moved to
-  another Space with the tab, it is an ordinary tab. Tabs with no stored binding (from
-  before 0.1.5) are bound by URL.
+  another Space with the tab, it is an ordinary tab. A tab binds only through its
+  stored item, never by its address: closing an item's tab leaves another tab showing
+  the same page an ordinary tab. A click on the icon or the "/" of an item whose tab
+  navigated away loads the item's saved page again and shows the tab, as Reset Tab to
+  Original URL in the item's menu does.
 - A tab that plays sound shows a speaker between its icon (and "/") and its title, as in
   Arc: while the tab strip's audio alert is on (it outlasts the gaps between tracks) or
   while the tab is muted. Clicking it mutes or unmutes the tab
