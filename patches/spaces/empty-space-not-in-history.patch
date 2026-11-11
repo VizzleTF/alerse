@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/browser_tab_strip_model_delegate.cc b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+index a6da4cb..398c399 100644
+--- a/chrome/browser/ui/browser_tab_strip_model_delegate.cc
++++ b/chrome/browser/ui/browser_tab_strip_model_delegate.cc
+@@ -231,6 +231,11 @@ std::optional<SessionID> BrowserTabStripModelDelegate::CreateHistoricalTab(
+   if (!BrowserSupportsHistoricalEntries()) {
+     return std::nullopt;
+   }
++  // Alerse: an empty Space's blank tab is no tab to reopen; it would come back
++  // as a shown tab with no row.
++  if (TabStripModel::IsAlerseEmptySpace(contents)) {
++    return std::nullopt;
++  }
+ 
+   sessions::TabRestoreService* service =
+       TabRestoreServiceFactory::GetForProfile(browser_->GetProfile());

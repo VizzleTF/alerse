@@ -537,17 +537,101 @@ class PlusGlyph : public views::View {
 BEGIN_METADATA(PlusGlyph)
 END_METADATA
 
-// The 1px divider between the pinned area and the tabs.
+// A shade off the frame (the Space's tint), as Arc's tiles and plates are.
+SkColor FrameShade(const views::View* view, SkAlpha alpha) {
+  return color_utils::BlendTowardMaxContrast(alerse::FrameColor(view),
+                                              alpha);
+}
+
+// The end of the pinned items, for drag and drop. While the Space has tabs
+// below, it is Arc's line with Clear at its right end, which closes them.
 class Divider : public views::View {
   METADATA_HEADER(Divider, views::View)
 
  public:
-  Divider() {
-    // Arc for macOS has no line here; the view stays as the end of the
-    // pinned items for drag and drop.
-    SetPreferredSize(gfx::Size());
+  // `clear` is null while there is nothing to clear: no line then, as in Arc
+  // for macOS.
+  Divider(base::RepeatingClosure clear, const std::u16string& text)
+      : clear_(std::move(clear)), text_(text), font_(ArcFont(12, gfx::Font::Weight::MEDIUM)) {
+    if (!clear_) {
+      SetPreferredSize(gfx::Size());
+      return;
+    }
+    SetPreferredSize(gfx::Size(0, kHeight));
+    GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
+    GetViewAccessibility().SetName(text_);
   }
 
+  void OnPaint(gfx::Canvas* canvas) override {
+    if (!clear_) {
+      return;
+    }
+    const gfx::Rect button = ButtonBounds();
+    const float mid = height() / 2.0f;
+    canvas->FillRect(gfx::Rect(kInset, height() / 2,
+                               std::max(0, button.x() - kGap - kInset), 1),
+                     FrameShade(this, 0x1F));
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(1.2f);
+    const SkColor ink = alerse::SidebarInk(
+        this, hovered_ ? SkColorSetRGB(0xC4, 0xC4, 0xC4)
+                       : SkColorSetRGB(0x8B, 0x8B, 0x8B));
+    flags.setColor(ink);
+    // The arrow down: a stem and its head.
+    const float x = button.x() + kArrow / 2.0f;
+    canvas->DrawLine(gfx::PointF(x, mid - 4.5f), gfx::PointF(x, mid + 4), flags);
+    canvas->DrawLine(gfx::PointF(x - 3.5f, mid + 0.5f), gfx::PointF(x, mid + 4),
+                     flags);
+    canvas->DrawLine(gfx::PointF(x + 3.5f, mid + 0.5f), gfx::PointF(x, mid + 4),
+                     flags);
+    canvas->DrawStringRectWithFlags(
+        text_, font_, ink,
+        gfx::Rect(button.x() + kArrow + 4, 0, button.width() - kArrow - 4,
+                  height()),
+        gfx::Canvas::TEXT_ALIGN_LEFT | gfx::Canvas::NO_SUBPIXEL_RENDERING);
+  }
+
+  void OnMouseMoved(const ui::MouseEvent& event) override {
+    SetHovered(clear_ && ButtonBounds().Contains(event.location()));
+  }
+  void OnMouseExited(const ui::MouseEvent& event) override { SetHovered(false); }
+  bool OnMousePressed(const ui::MouseEvent& event) override {
+    return clear_ && event.IsOnlyLeftMouseButton() &&
+           ButtonBounds().Contains(event.location());
+  }
+  void OnMouseReleased(const ui::MouseEvent& event) override {
+    if (clear_ && ButtonBounds().Contains(event.location())) {
+      // Copied: the rows, and this view with them, are rebuilt as tabs close.
+      base::RepeatingClosure clear = clear_;
+      clear.Run();
+    }
+  }
+
+ private:
+  static constexpr int kHeight = 28;
+  static constexpr int kInset = 12;
+  static constexpr int kGap = 10;
+  static constexpr int kArrow = 9;
+
+  // The arrow and the word, at the right end.
+  gfx::Rect ButtonBounds() const {
+    const int width = kArrow + 4 + gfx::Canvas::GetStringWidth(text_, font_);
+    return gfx::Rect(this->width() - kInset - width, 0, width, height());
+  }
+
+  void SetHovered(bool hovered) {
+    if (hovered_ != hovered) {
+      hovered_ = hovered;
+      SchedulePaint();
+    }
+  }
+
+  base::RepeatingClosure clear_;
+  const std::u16string text_;
+  const gfx::FontList font_;
+  bool hovered_ = false;
 };
 
 BEGIN_METADATA(Divider)
@@ -570,12 +654,6 @@ class OverflowLine : public views::View {
 
 BEGIN_METADATA(OverflowLine)
 END_METADATA
-
-// A shade off the frame (the Space's tint), as Arc's tiles and plates are.
-SkColor FrameShade(const views::View* view, SkAlpha alpha) {
-  return color_utils::BlendTowardMaxContrast(alerse::FrameColor(view),
-                                              alpha);
-}
 
 // Arc for macOS' Space name: a row with the Space's icon, in semibold grey.
 // Hovered, it shows a plate, a chevron that collapses the pinned tabs in
@@ -2676,7 +2754,22 @@ void AlerseSidebarView::BuildRows() {
     }
   }
 
-  rows_->AddChildView(std::make_unique<Divider>());
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  // An empty Space's hidden tab has no row, nor does a pinned item's tab.
+  auto has_row = [this](tabs::TabInterface* tab) {
+    return IsInActiveSpace(tab) && !IsBound(tab) &&
+           !TabStripModel::IsAlerseEmptySpace(tab->GetContents());
+  };
+  bool has_tabs = false;
+  for (int i = 0; i < tabs->count() && !has_tabs; ++i) {
+    has_tabs = has_row(tabs->GetTabAtIndex(i));
+  }
+  rows_->AddChildView(std::make_unique<Divider>(
+      has_tabs && !preview_space_
+          ? base::BindRepeating(&AlerseSidebarView::RunMenuBarCommand,
+                                base::Unretained(this), IDC_ALERSE_CLEAR_TODAY)
+          : base::RepeatingClosure(),
+      l10n_util::GetStringUTF16(IDS_ALERSE_SIDEBAR_CLEAR)));
 
   // Arc's New Tab opens its command bar; what is picked there opens in a
   // new tab.
@@ -2705,12 +2798,6 @@ void AlerseSidebarView::BuildRows() {
   new_tab->SetTooltipText(std::u16string());
   alerse::SetArcTooltip(new_tab, std::u16string());
 
-  TabStripModel* tabs = browser_->GetTabStripModel();
-  // An empty Space's hidden tab has no row, nor does a pinned item's tab.
-  auto has_row = [this](tabs::TabInterface* tab) {
-    return IsInActiveSpace(tab) && !IsBound(tab) &&
-           !TabStripModel::IsAlerseEmptySpace(tab->GetContents());
-  };
   for (int i = 0; i < tabs->count(); ++i) {
     tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
     if (!has_row(tab)) {
@@ -3107,7 +3194,11 @@ void AlerseSidebarView::OnTabClosePressed(tabs::TabInterface::Handle handle) {
   if (tabs::TabInterface* tab = handle.Get()) {
     const int index = tabs->GetIndexOfTab(tab);
     if (index != TabStripModel::kNoTab) {
-      tabs->CloseWebContentsAt(index, TabCloseTypes::CLOSE_USER_GESTURE);
+      // In the closed tabs' history, as a tab of Chromium's strip: Reopen
+      // Closed Tab brings it back, which is what undoes Clear.
+      tabs->CloseWebContentsAt(index,
+                               TabCloseTypes::CLOSE_USER_GESTURE |
+                                   TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
     }
   }
 }

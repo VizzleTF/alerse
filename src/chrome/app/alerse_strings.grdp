@@ -6,6 +6,9 @@
     <message name="IDS_ALERSE_NEW_TAB" desc="The sidebar row that opens the command bar for a new tab.">
       New Tab
     </message>
+    <message name="IDS_ALERSE_SIDEBAR_CLEAR" desc="The sidebar's button at the right end of the line between the pinned items and the tabs: close the Space's tabs that are not pinned, as Arc's Clear.">
+      Clear
+    </message>
     <message name="IDS_ALERSE_CLOSE_TAB" desc="Tooltip and menu item: close the tab of a sidebar row.">
       Close tab
     </message>

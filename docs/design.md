@@ -306,6 +306,14 @@ Windows' measurements still set (see `AlerseSidebarView`):
   Manage Spaces are left out: each Space is already a profile, and the rest
   needs Arc's account and services. The "+"
   button's click offers a new Space, folder or tab.
+- Clear: while the Space has tabs that are not pinned, a line with "↓ Clear" at its
+  right end sits between the pinned items and New Tab, as in Arc. A click on Clear
+  closes those tabs (the menu bar's Clear Today, Shift+Cmd+K, does the same); a tab
+  open on a pinned item or a favorite stays. Arc archives the tabs; Alerse has no
+  archive, so they go to the closed tabs' history, and Reopen Closed Tab
+  (Shift+Cmd+T) brings them back one at a time. A tab closed with a row's "x" goes
+  there too. An empty Space's hidden blank tab is never recorded there
+  (`spaces/empty-space-not-in-history.patch`).
 - Rebuilds: a window has the rows of its own Space only. Theme changes rebuild once
   they settle (250 ms), and the Space bar rebuilds when a profile is added or removed
   or a Space's folder changes, not on every navigation.
