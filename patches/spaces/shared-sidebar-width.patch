@@ -1,0 +1,20 @@
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 494d398..40248d8 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -948,6 +948,15 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+ 
+   resize_area_width_ = collapsed ? kCollapsedResizeAreaWidth : kResizeAreaWidth;
+ 
++  // Alerse: a width set outside a drag comes from another Space of the window.
++  if (!resize_area_->is_resizing() &&
++      target_collapse_state_.uncollapsed_width !=
++          state_controller_->GetUncollapsedWidth()) {
++    target_collapse_state_.uncollapsed_width =
++        state_controller_->GetUncollapsedWidth();
++    InvalidateLayout();
++  }
++
+   if (tab_strip_view()) {
+     tab_strip_view()->SetCollapsedState(collapsed);
+   }

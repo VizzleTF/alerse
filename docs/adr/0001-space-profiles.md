@@ -87,8 +87,9 @@ closes them. Its rules:
   window is outside the stacks and belongs to the Space it was opened from.
 
 Switching (the Space bar, Control+1 to 9, the Spaces menu, a swipe, a routed link)
-shows the next member at the stack's bounds, then hides the previous one, in that
-order, so that no frame shows the desktop. The Space bar's color blend between Spaces
+shows the next member at the stack's bounds, with the sidebar as wide and as hidden
+as in the previous one, then hides the previous one, in that order, so that no frame
+shows the desktop. The Space bar's color blend between Spaces
 stays.
 
 ### Swipe preview
@@ -374,8 +375,10 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
 4. Startup, sessions, the empty Space, New Window, incognito.
    Done on 2026-11-11. A new Space and a Space with no tabs show an empty card with
    the command bar closed; New Window opens a second stack with the command bar open;
-   the incognito window's Space bar lists no Spaces. Not built: the stack's own
-   bounds and sidebar state, the dot for a prompt in a hidden member.
+   the incognito window's Space bar lists no Spaces. The sidebar's width
+   and hidden state follow the stack since 2026-11-11 (`shared-sidebar-width.patch`).
+   Not built: full screen in a member that was not in full screen, the dot for a
+   prompt in a hidden member.
 5. Migration from 0.1. Dropped on 2026-11-11 (No migration from 0.1).
 6. Link routing, import, the command bar and menu bar.
    Done on 2026-11-11 for link routing (in step 3), the Spaces menu of the menu bar

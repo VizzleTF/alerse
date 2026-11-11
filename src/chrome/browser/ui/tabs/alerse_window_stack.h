@@ -33,6 +33,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "ui/base/base_window.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
@@ -110,6 +111,17 @@ class WindowStacks : public BrowserCollectionObserver {
                          /*foreground=*/true);
       }
       stacks_[target] = stack;
+    }
+    // The sidebar is the stack's: as wide, and as hidden, in every Space.
+    auto* sidebar = tabs::VerticalTabStripStateController::From(shown);
+    auto* next_sidebar = tabs::VerticalTabStripStateController::From(target);
+    if (sidebar && next_sidebar) {
+      if (next_sidebar->GetUncollapsedWidth() != sidebar->GetUncollapsedWidth()) {
+        next_sidebar->SetUncollapsedWidth(sidebar->GetUncollapsedWidth());
+      }
+      if (next_sidebar->IsCollapsed() != sidebar->IsCollapsed()) {
+        next_sidebar->RequestCollapse(sidebar->IsCollapsed());
+      }
     }
     ui::BaseWindow* shown_window = shown->GetWindow();
     ui::BaseWindow* window = target->GetWindow();
