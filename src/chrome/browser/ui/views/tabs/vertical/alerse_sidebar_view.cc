@@ -98,6 +98,13 @@
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "ui/views/paint_info.h"
+#include "ui/base/models/image_model.h"
+#include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/compositor/canvas_painter.h"
+#include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
@@ -2287,8 +2294,52 @@ void AlerseSidebarView::CancelSpaceSlide() {
   pending_slide_ = 0;
 }
 
+std::unique_ptr<views::View> AlerseSidebarView::BuildSpaceSnapshot(
+    const AlerseSpaceRef& space) {
+  // The Space bar names another Space by its profile's directory.
+  constexpr std::string_view kPrefix = "profile:";
+  ProfileManager* manager = g_browser_process->profile_manager();
+  if (!manager || !space.space.starts_with(kPrefix) || !GetWidget()) {
+    return nullptr;
+  }
+  Profile* profile = manager->GetProfileByPath(manager->user_data_dir().Append(
+      base::FilePath::FromUTF8Unsafe(space.space.substr(kPrefix.size()))));
+  alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
+  BrowserWindowInterface* member =
+      profile ? stacks.FindMember(stacks.StackOf(browser_), profile) : nullptr;
+  BrowserView* view =
+      member ? BrowserView::GetBrowserViewForBrowser(member) : nullptr;
+  AlerseSidebarView* other = view ? FindSidebarIn(view) : nullptr;
+  if (!other || !other->rows_) {
+    return nullptr;
+  }
+  // A hidden window lays out late.
+  other->GetWidget()->LayoutRootViewIfNecessary();
+  const gfx::Size size = other->rows_->size();
+  if (size.IsEmpty()) {
+    return nullptr;
+  }
+  const ui::Compositor* compositor = GetWidget()->GetCompositor();
+  const float scale = compositor->device_scale_factor();
+  SkBitmap bitmap;
+  {
+    ui::CanvasPainter painter(&bitmap, size, scale, SK_ColorTRANSPARENT,
+                              compositor->is_pixel_canvas());
+    other->rows_->Paint(
+        views::PaintInfo::CreateRootPaintInfo(painter.context(), size));
+  }
+  auto image = std::make_unique<views::ImageView>(ui::ImageModel::FromImageSkia(
+      gfx::ImageSkia::CreateFromBitmap(bitmap, scale)));
+  image->SetHorizontalAlignment(views::ImageView::Alignment::kLeading);
+  image->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
+  return image;
+}
+
 std::unique_ptr<views::View> AlerseSidebarView::BuildSpacePreview(
     const AlerseSpaceRef& space) {
+  if (std::unique_ptr<views::View> snapshot = BuildSpaceSnapshot(space)) {
+    return snapshot;
+  }
   auto container = std::make_unique<views::View>();
   container->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));

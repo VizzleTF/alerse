@@ -272,6 +272,10 @@ class AlerseSidebarView : public views::View,
   void RestoreSlide();
   // The rows the sidebar shows for `space`, without switching to it.
   std::unique_ptr<views::View> BuildSpacePreview(const AlerseSpaceRef& space);
+  // A picture of the rows of `space`, painted off screen from the sidebar
+  // of its hidden window in this window's stack; null if the Space has no
+  // window there yet.
+  std::unique_ptr<views::View> BuildSpaceSnapshot(const AlerseSpaceRef& space);
   // Rebuild()'s rows of the active Space, or of preview_space_.
   void BuildRows();
   void HideSpacePreview();

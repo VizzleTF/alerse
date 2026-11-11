@@ -1,6 +1,6 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Steps 1 to 4 and 6 of the [order of work](#order-of-work) are
+Status: accepted, 2026-11-11. Steps 1 to 4, 6 and 7 of the [order of work](#order-of-work) are
 built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
 
 ## Context
@@ -94,11 +94,12 @@ stays.
 ### Swipe preview
 
 A hidden window does not paint, so the neighbour that follows the fingers during a
-swipe is a picture. Each member keeps a snapshot of its sidebar and of its page card,
-taken when it is hidden and again when its tabs or pinned items change while hidden
-(the sidebar is painted off screen into a bitmap). The swipe moves the visible sidebar
-and the snapshot together; lifting past 60 pt switches members and the real window
-replaces the snapshot.
+swipe is a picture. When a swipe starts, the visible sidebar paints the rows of the
+neighbour's hidden member off screen into a bitmap, so the picture is never stale and
+nothing is kept between swipes. The swipe moves the visible rows and the picture
+together; lifting past 60 pt switches members and the real window replaces the
+picture. A Space that has no member in the stack yet shows only its name. The page
+card does not move, as in 0.1.
 
 ### Sidebar
 
@@ -205,8 +206,8 @@ and the Space filtering in the sidebar and the Space bar.
 `keep-old-space-data.patch`, which was left of `space-data-lifecycle.patch`, went
 with the migration.
 
-Still to go: `enable-tab-group-focus.patch` and `no-focus-freezing.patch`, in step 7.
-The sidebar's swipe controller is built only with `kTabGroupsFocusing`.
+`enable-tab-group-focus.patch` and `no-focus-freezing.patch` stay: Chromium builds
+the swipe controller the sidebar uses only with `kTabGroupsFocusing`.
 
 ## Features on the stack
 
@@ -349,8 +350,7 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    Done on 2026-11-11. After a restart each profile's window opens as a stack of its
    own; step 4 stacks them again.
 3. Sidebar on one profile; delete the partition patches.
-   Done on 2026-11-11, with these gaps: the swipe shows an empty neighbour (step 7);
-   a tab's binding to its pinned item after a restart, and Windows and Linux were not
+   Done on 2026-11-11, with these gaps: a tab's binding to its pinned item after a restart, and Windows and Linux were not
    tested.
 4. Startup, sessions, the empty Space, New Window, incognito.
    Done on 2026-11-11. A new Space and a Space with no tabs show an empty card with
@@ -362,6 +362,7 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    Done on 2026-11-11 for link routing (in step 3), the Spaces menu of the menu bar
    and the import from Arc. Not tested: the command bar's Space commands.
 7. Swipe preview.
+   Done on 2026-11-11 on macOS.
 8. Sync: derived chains, the registry in Home's chain, the server.
 9. Windows and Linux.
 
