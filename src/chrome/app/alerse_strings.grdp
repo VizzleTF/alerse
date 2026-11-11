@@ -344,10 +344,10 @@
       Delete Space?
     </message>
     <message name="IDS_ALERSE_DELETE_SPACE_BODY" desc="Question asked before deleting a Space. The placeholder is the Space's name in quotes.">
-      “<ph name="SPACE_NAME">$1<ex>Work</ex></ph>”, its tabs and its pinned tabs will be deleted on all your devices.
+      “<ph name="SPACE_NAME">$1<ex>Work</ex></ph>”, its tabs, pinned tabs, logins and history will be deleted from this device.
     </message>
     <message name="IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY" desc="Question asked before deleting a Space that has no name.">
-      This Space, its tabs and its pinned tabs will be deleted on all your devices.
+      This Space, its tabs, pinned tabs, logins and history will be deleted from this device.
     </message>
     <message name="IDS_ALERSE_SPACE_ICON_SUN" desc="A Space icon: a sun.">Sun</message>
     <message name="IDS_ALERSE_SPACE_ICON_BOOK" desc="A Space icon: a book.">Book</message>

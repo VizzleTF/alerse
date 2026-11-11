@@ -32,7 +32,13 @@
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/profiles/delete_profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_avatar_icon_util.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile_metrics.h"
+#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+#include "chrome/browser/ui/tabs/alerse_window_stack.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -546,15 +552,23 @@ END_METADATA
 
 namespace alerse {
 
+// `icon` if a Space can show it, else the sun for home and the dot for the
+// other Spaces.
+std::string ValidSpaceIcon(const std::string& icon, bool home) {
+  if (FindSpaceIcon(icon) || alerse::IsArcGlyph(icon) ||
+      alerse::IsEmojiIcon(icon)) {
+    return icon;
+  }
+  return home ? "sunny" : "dot";
+}
+
 std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
                              const std::string& space) {
   std::string icon;
-  if (folder && folder->GetMetaInfo(kSpaceIconMetaKey, &icon) &&
-      (FindSpaceIcon(icon) || alerse::IsArcGlyph(icon) ||
-       alerse::IsEmojiIcon(icon))) {
-    return icon;
+  if (folder) {
+    folder->GetMetaInfo(kSpaceIconMetaKey, &icon);
   }
-  return space == kDefaultSpace ? "sunny" : "dot";
+  return ValidSpaceIcon(icon, space == kDefaultSpace);
 }
 
 void PaintSpaceIcon(gfx::Canvas* canvas,
@@ -607,7 +621,41 @@ AlerseSpaceSwitcher::AlerseSpaceSwitcher(BrowserWindowInterface* browser)
           BookmarkModelFactory::GetForBrowserContext(browser->GetProfile())) {
     bookmark_observation_.Observe(bookmarks);
   }
+  if (ProfileManager* manager = g_browser_process->profile_manager()) {
+    profiles_observation_.Observe(&manager->GetProfileAttributesStorage());
+  }
+  spaces_subscription_ = alerse::SpacesChangedCallbacks().Add(
+      base::BindRepeating(&AlerseSpaceSwitcher::ScheduleRebuild,
+                          base::Unretained(this)));
   Rebuild();
+}
+
+void AlerseSpaceSwitcher::OnProfileAdded(const base::FilePath& profile_path) {
+  ScheduleRebuild();
+}
+
+void AlerseSpaceSwitcher::OnProfileWasRemoved(
+    const base::FilePath& profile_path,
+    const std::u16string& profile_name) {
+  ScheduleRebuild();
+}
+
+void AlerseSpaceSwitcher::ShowSpaceOfPath(const base::FilePath& path) {
+  alerse::ShowSpaceInStack(browser_, path);
+}
+
+base::FilePath AlerseSpaceSwitcher::PathOfSpace(
+    const std::string& space) const {
+  constexpr char kPrefix[] = "profile:";
+  if (space == kDefaultSpace) {
+    return browser_->GetProfile()->GetOriginalProfile()->GetPath();
+  }
+  ProfileManager* manager = g_browser_process->profile_manager();
+  if (!manager || !space.starts_with(kPrefix)) {
+    return base::FilePath();
+  }
+  return manager->user_data_dir().Append(
+      base::FilePath::FromUTF8Unsafe(space.substr(strlen(kPrefix))));
 }
 
 AlerseSpaceSwitcher::~AlerseSpaceSwitcher() = default;
@@ -882,33 +930,28 @@ void AlerseSpaceSwitcher::ShowActiveSpaceMenuIn(
 
 // static
 void AlerseSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser) {
-  Profile* profile = browser->GetProfile();
-  TabStripModel* model = browser->GetTabStripModel();
-  if (profile->IsOffTheRecord() || !model->SupportsTabGroups()) {
+  if (browser->GetProfile()->IsOffTheRecord()) {
     return;
   }
-  const std::string space =
-      base::ToLowerASCII(base::Token::CreateRandom().ToString());
-
-  const size_t count = model->group_model()->ListTabGroups().size();
-  // Name the Space after a Space imported from Arc that has no Alerse Space
-  // yet; the sidebar then adopts its pinned folder.
-  std::u16string title = u"Space " + base::NumberToString16(count + 1);
-  if (bookmarks::BookmarkModel* bookmarks =
-          BookmarkModelFactory::GetForBrowserContext(profile);
-      bookmarks && bookmarks->loaded()) {
-    for (const auto& folder : bookmarks->other_node()->children()) {
-      std::string value;
-      if (folder->is_folder() &&
-          folder->GetMetaInfo(kSpaceMetaKey, &value) &&
-          value.starts_with("arc:")) {
-        title = folder->GetTitle();
-        break;
-      }
-    }
-  }
-  OpenSpace(browser, space, title);
-  chrome::FocusLocationBar(browser);
+  // A Space is a profile: Chromium makes its directory, and the window's
+  // stack shows it once it has loaded.
+  const int stack = alerse::WindowStacks::Get().StackOf(browser);
+  ProfileManager::CreateMultiProfileAsync(
+      u"Space " + base::NumberToString16(alerse::ListSpaces().size() + 1),
+      profiles::GetPlaceholderAvatarIndex(), /*is_hidden=*/false,
+      base::BindOnce(
+          [](int stack, base::FilePath from_path, Profile* profile) {
+            alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
+            Profile* from_profile =
+                g_browser_process->profile_manager()->GetProfileByPath(
+                    from_path);
+            BrowserWindowInterface* from =
+                from_profile ? stacks.FindMember(stack, from_profile) : nullptr;
+            if (from && profile) {
+              stacks.ShowSpace(from, profile);
+            }
+          },
+          stack, browser->GetProfile()->GetPath()));
 }
 
 // static
@@ -1111,23 +1154,8 @@ std::optional<AlerseSpaceRef> AlerseSpaceSwitcher::GetNeighborSpace(
 }
 
 void AlerseSpaceSwitcher::Rebuild() {
-  // Opening one changes the tab strip, which schedules another rebuild.
-  if (OpenSavedSpacesHere() || MergeDuplicateSpaces()) {
-    return;
-  }
   add_button_ = nullptr;
   RemoveAllChildViews();
-  TabGroupModel* groups = model_->group_model();
-  if (!groups) {
-    return;
-  }
-
-  std::vector<tab_groups::TabGroupId> spaces = groups->ListTabGroups();
-  std::ranges::sort(spaces, {}, [groups](const tab_groups::TabGroupId& id) {
-    return groups->GetTabGroup(id)->ListTabs().start();
-  });
-  const std::optional<tab_groups::TabGroupId> focused =
-      model_->GetFocusedGroup();
 
   AddChildView(std::make_unique<DownloadsButton>(base::BindRepeating(
       [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
@@ -1143,10 +1171,9 @@ void AlerseSpaceSwitcher::Rebuild() {
   space_refs_.clear();
   menu_bar_spaces_.clear();
   active_space_ = -1;
-  auto add_icon = [&](base::RepeatingClosure callback,
-                      std::string icon, bool active,
-                      const std::u16string& title, std::string space,
-                      std::string sync_id) {
+  auto add_icon = [&](base::RepeatingClosure callback, std::string icon,
+                      bool active, const std::u16string& title,
+                      std::string space, const std::string& color_value) {
     if (active) {
       active_space_ = static_cast<int>(space_actions_.size());
     }
@@ -1156,8 +1183,7 @@ void AlerseSpaceSwitcher::Rebuild() {
     menu_bar_spaces_.push_back({title, icon, std::nullopt});
     auto* view = icons->AddChildView(std::make_unique<SpaceIcon>(
         views::Button::PressedCallback(std::move(callback)), std::move(icon),
-        active, title, std::move(space),
-        std::move(sync_id)));
+        active, title, std::move(space), std::string()));
     // Arc for macOS' pill names the Space and its shortcut, "home" ^ 1.
     view->SetTooltipText(std::u16string());
     std::optional<ui::Accelerator> shortcut;
@@ -1166,113 +1192,52 @@ void AlerseSpaceSwitcher::Rebuild() {
     }
     alerse::SetArcTooltip(view, title, std::u16string(), shortcut);
     // Measured on Arc: a teal theme's book turns #96B6BC.
-    std::string color_value;
-    if (const bookmarks::BookmarkNode* folder =
-            FindSpaceFolder(view->space(), view->sync_id());
-        folder &&
-        folder->GetMetaInfo(alerse::kSpaceColorMetaKey, &color_value)) {
-      if (const std::optional<alerse::SpaceColor> space_color =
-              alerse::ParseSpaceColor(color_value);
-          space_color && space_color->saturation > 0) {
-        color_utils::HSL hsl;
-        hsl.h = space_color->hue / 360.0;
-        hsl.s = 0.45 * std::clamp(space_color->saturation, 0.0, 1.0);
-        hsl.l = 0.66;
-        view->SetHoverTint(color_utils::HSLToSkColor(hsl, 255));
-        menu_bar_spaces_.back().tint = color_utils::HSLToSkColor(hsl, 255);
-      }
+    if (const std::optional<alerse::SpaceColor> space_color =
+            alerse::ParseSpaceColor(color_value);
+        space_color && space_color->saturation > 0) {
+      color_utils::HSL hsl;
+      hsl.h = space_color->hue / 360.0;
+      hsl.s = 0.45 * std::clamp(space_color->saturation, 0.0, 1.0);
+      hsl.l = 0.66;
+      view->SetHoverTint(color_utils::HSLToSkColor(hsl, 255));
+      menu_bar_spaces_.back().tint = color_utils::HSLToSkColor(hsl, 255);
     }
     view->GetViewAccessibility().SetName(title);
     view->set_context_menu_controller(this);
   };
 
-  // The tabs outside of any Space form the first, default Space: "home",
-  // or the name it was renamed to, as the sidebar shows it.
-  std::u16string home_title = u"home";
-  if (const bookmarks::BookmarkNode* home =
-          FindSpaceFolder(kDefaultSpace, std::string());
-      home && !home->GetTitle().empty()) {
-    home_title = home->GetTitle();
-  }
-  add_icon(base::BindRepeating(
-               [](TabStripModel* model) {
-                 model->ExitFocusMode(
-                     TabGroupFocusExitReason::kActiveTabGroupOperation);
-               },
-               base::Unretained(model_.get())),
-           GetSpaceIcon(kDefaultSpace, std::string()), !focused.has_value(),
-           home_title, kDefaultSpace, std::string());
-  for (const tab_groups::TabGroupId& id : spaces) {
-    const tab_groups::TabGroupVisualData* visuals =
-        groups->GetTabGroup(id)->visual_data();
-    const std::string space =
-        alerse::GetSpaceOfGroupOrFolder(browser_->GetProfile(), model_, id)
-            .value_or(std::string());
-    add_icon(base::BindRepeating(&AlerseSpaceSwitcher::SwitchTo,
-                                 base::Unretained(this), id),
-             GetSpaceIcon(space, std::string()), focused == id,
-             visuals->title().empty() ? u"Space" : visuals->title(), space,
-             std::string());
-    space_refs_.back().group = id;
-    space_refs_.back().title = visuals->title();
-  }
-  // Saved Spaces without a tab group here: from other devices, or closed.
-  std::set<std::string> shown_saved;
-  if (sync_service_) {
-    // Only once its storage partition is known: opened before, its tabs would
-    // stay out of the Space's partition.
-    const std::set<std::string> linked = GetLinkedSavedGroups();
-    for (const tab_groups::SavedTabGroup& saved :
-         sync_service_->GetAllGroups()) {
-      const std::string sync_id = saved.saved_guid().AsLowercaseString();
-      if (saved.local_group_id() || saved.is_shared_tab_group() ||
-          saved.saved_tabs().empty() || !linked.contains(sync_id)) {
-        continue;
-      }
-      shown_saved.insert(sync_id);
-      add_icon(base::BindRepeating(&AlerseSpaceSwitcher::OpenSavedSpace,
-                                   base::Unretained(this), saved.saved_guid()),
-               GetSpaceIcon(std::string(), sync_id), /*active=*/false,
-               saved.title().empty() ? u"Space" : saved.title(), std::string(),
-               sync_id);
-    }
-  }
-  // Spaces whose tabs all closed, and with them their tab group: their
-  // bookmark folder is left, and they open from it again, as in Arc, where a
-  // Space stays until it is deleted.
+  // A Space is a profile (alerse_space_registry.h). This window shows one;
+  // its name, icon and color are its home folder's, and the registry gets a
+  // copy for the Space bars of the other Spaces' windows.
+  Profile* profile = browser_->GetProfile();
+  const base::FilePath own = profile->GetOriginalProfile()->GetPath();
   if (const bookmarks::BookmarkModel* bookmarks =
-          BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
-      bookmarks && bookmarks->loaded()) {
-    std::set<std::string> open_spaces;
-    for (const tab_groups::TabGroupId& id : spaces) {
-      if (std::optional<std::string> space =
-              alerse::GetSpaceOfGroupOrFolder(browser_->GetProfile(),
-                                                model_, id)) {
-        open_spaces.insert(*space);
+          BookmarkModelFactory::GetForBrowserContext(profile);
+      bookmarks && bookmarks->loaded() && !profile->IsOffTheRecord()) {
+    const alerse::SpaceInfo self = alerse::GetSpaceOfProfile(profile);
+    std::u16string name = self.home ? u"home" : self.name;
+    std::string icon;
+    std::string color;
+    if (const bookmarks::BookmarkNode* home =
+            FindSpaceFolder(kDefaultSpace, std::string())) {
+      if (!home->GetTitle().empty()) {
+        name = home->GetTitle();
       }
+      home->GetMetaInfo(kSpaceIconMetaKey, &icon);
+      home->GetMetaInfo(alerse::kSpaceColorMetaKey, &color);
     }
-    for (const auto& folder : bookmarks->other_node()->children()) {
-      std::string space;
-      std::string saved;
-      if (!folder->is_folder() ||
-          !folder->GetMetaInfo(kSpaceMetaKey, &space) || space.empty() ||
-          space == kDefaultSpace || space.starts_with("arc:") ||
-          open_spaces.contains(space) ||
-          shown_saved.contains(
-              alerse::SavedGroupGuidForSpace(space).AsLowercaseString()) ||
-          (folder->GetMetaInfo(kSavedGroupMetaKey, &saved) &&
-           shown_saved.contains(saved))) {
-        continue;
-      }
-      add_icon(base::BindRepeating(&AlerseSpaceSwitcher::OpenSpace,
-                                   base::Unretained(browser_.get()), space,
-                                   folder->GetTitle()),
-               GetSpaceIcon(space, std::string()), /*active=*/false,
-               folder->GetTitle().empty() ? u"Space" : folder->GetTitle(),
-               space, std::string());
-    }
+    alerse::UpdateSpaceCopy(own, name, icon, color);
   }
-  LinkSpaceFolders();
+  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+    const bool active = space.path == own;
+    add_icon(base::BindRepeating(&AlerseSpaceSwitcher::ShowSpaceOfPath,
+                                 base::Unretained(this), space.path),
+             alerse::ValidSpaceIcon(space.icon, space.home), active,
+             space.name,
+             active ? std::string(kDefaultSpace)
+                    : "profile:" + space.path.BaseName().AsUTF8Unsafe(),
+             space.color);
+  }
   ApplyActiveSpaceColor();
 
   auto add = std::make_unique<AddButton>(base::BindRepeating(
@@ -1354,17 +1319,10 @@ void AlerseSpaceSwitcher::ApplyActiveSpaceColor() {
   if (!GetWidget()) {
     return;
   }
-  std::string space = kDefaultSpace;
-  if (std::optional<tab_groups::TabGroupId> focused =
-          model_->GetFocusedGroup()) {
-    space = alerse::GetSpaceOfGroupOrFolder(browser_->GetProfile(), model_,
-                                              *focused)
-                .value_or(std::string());
-  }
   std::optional<alerse::SpaceColor> color;
   std::string value;
   if (const bookmarks::BookmarkNode* folder =
-          space.empty() ? nullptr : FindSpaceFolder(space, std::string());
+          FindSpaceFolder(kDefaultSpace, std::string());
       folder && folder->GetMetaInfo(alerse::kSpaceColorMetaKey, &value)) {
     color = alerse::ParseSpaceColor(value);
   }
@@ -1444,8 +1402,21 @@ void AlerseSpaceSwitcher::ShowSpaceMenu(
   menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
   menu_model_->AddItem(kDeleteSpaceCommand,
                        l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE));
-  menu_model_->SetEnabledAt(menu_model_->GetItemCount() - 1,
-                            menu_space_ != kDefaultSpace);
+  menu_model_->SetEnabledAt(
+      menu_model_->GetItemCount() - 1,
+      !alerse::IsHomeSpacePath(PathOfSpace(menu_space_)));
+  // The icon, name, theme and folders are the Space's own profile's: only
+  // the window of that Space edits them.
+  if (menu_space_ != kDefaultSpace) {
+    for (int command : {kChangeIconCommand, kRenameSpaceCommand,
+                        kEditColorCommand, kNewFolderCommand,
+                        kToggleFoldersCommand}) {
+      if (std::optional<size_t> index =
+              menu_model_->GetIndexOfCommandId(command)) {
+        menu_model_->SetEnabledAt(*index, false);
+      }
+    }
+  }
   menu_runner_ = std::make_unique<views::MenuRunner>(
       menu_model_.get(), views::MenuRunner::CONTEXT_MENU);
   menu_runner_->RunMenuAt(GetWidget(), nullptr, gfx::Rect(point, gfx::Size()),
@@ -1627,22 +1598,8 @@ std::optional<tab_groups::TabGroupId> AlerseSpaceSwitcher::FindGroupOfSpace(
 }
 
 void AlerseSpaceSwitcher::ActivateMenuSpace() {
-  if (menu_space_ == kDefaultSpace) {
-    model_->ExitFocusMode(TabGroupFocusExitReason::kActiveTabGroupOperation);
-    return;
-  }
-  if (std::optional<tab_groups::TabGroupId> group =
-          FindGroupOfSpace(menu_space_)) {
-    SwitchTo(*group);
-    return;
-  }
-  if (!menu_sync_id_.empty()) {
-    OpenSavedSpace(base::Uuid::ParseLowercase(menu_sync_id_));
-    return;
-  }
-  if (const bookmarks::BookmarkNode* folder =
-          FindSpaceFolder(menu_space_, std::string())) {
-    OpenSpace(browser_, menu_space_, folder->GetTitle());
+  if (menu_space_ != kDefaultSpace) {
+    ShowSpaceOfPath(PathOfSpace(menu_space_));
   }
 }
 
@@ -1688,18 +1645,8 @@ AlerseSpaceSwitcher::GetOrAddMenuSpaceFolder() {
     // The Space has no folder yet: home before anything was pinned to it.
     bookmarks::BookmarkNode::MetaInfoMap meta;
     meta[kSpaceMetaKey] = menu_space_;
-    std::u16string title = u"Space";
-    if (menu_space_ == kDefaultSpace) {
-      title = u"home";
-    } else if (std::optional<tab_groups::TabGroupId> group =
-                   FindGroupOfSpace(menu_space_);
-               group && !model_->group_model()
-                             ->GetTabGroup(*group)
-                             ->visual_data()
-                             ->title()
-                             .empty()) {
-      title = model_->group_model()->GetTabGroup(*group)->visual_data()->title();
-    }
+    const std::u16string title =
+        alerse::GetSpaceOfProfile(browser_->GetProfile()).name;
     folder = bookmarks->AddFolder(bookmarks->other_node(),
                                   bookmarks->other_node()->children().size(),
                                   title, &meta);
@@ -1745,7 +1692,10 @@ void AlerseSpaceSwitcher::ShowMenuSpaceIconPicker() {
   }
   alerse::ShowArcIconPicker(
       this, anchor, arrow_x, alerse::IconPickerKind::kSpace,
-      alerse::GetSpaceIconName(folder, menu_space_),
+      alerse::GetSpaceIconName(
+          folder, alerse::GetSpaceOfProfile(browser_->GetProfile()).home
+                      ? std::string(kDefaultSpace)
+                      : std::string()),
       base::BindOnce(
           [](base::WeakPtr<AlerseSpaceSwitcher> switcher, int64_t id,
              const std::string& name) {
@@ -1799,35 +1749,26 @@ void AlerseSpaceSwitcher::RenameMenuSpace() {
 
 void AlerseSpaceSwitcher::BookmarkNodeChanged(
     const bookmarks::BookmarkNode* node) {
-  if (node->id() == renaming_folder_) {
-    if (std::optional<tab_groups::TabGroupId> group =
-            FindGroupOfSpace(renaming_space_)) {
-      const tab_groups::TabGroupVisualData* visuals =
-          model_->group_model()->GetTabGroup(*group)->visual_data();
-      model_->ChangeTabGroupVisuals(
-          *group, tab_groups::TabGroupVisualData(node->GetTitle(),
-                                                 visuals->color(),
-                                                 visuals->is_collapsed()));
-    }
-  }
   ScheduleRebuild();
 }
 
 void AlerseSpaceSwitcher::ConfirmDeleteMenuSpace() {
-  if (menu_space_ == kDefaultSpace || !GetWidget()) {
+  const base::FilePath path = PathOfSpace(menu_space_);
+  if (path.empty() || alerse::IsHomeSpacePath(path) || !GetWidget()) {
     return;
   }
-  std::u16string body =
-      l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY);
-  if (const bookmarks::BookmarkNode* folder =
-          FindSpaceFolder(menu_space_, menu_sync_id_);
-      folder && !folder->GetTitle().empty()) {
-    body = l10n_util::GetStringFUTF16(IDS_ALERSE_DELETE_SPACE_BODY,
-                                      folder->GetTitle());
+  std::u16string name;
+  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+    if (space.path == path) {
+      name = space.name;
+    }
   }
   chrome::ShowQuestionMessageBoxAsync(
       GetWidget()->GetNativeWindow(),
-      l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE_TITLE), body,
+      l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE_TITLE),
+      name.empty()
+          ? l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY)
+          : l10n_util::GetStringFUTF16(IDS_ALERSE_DELETE_SPACE_BODY, name),
       base::BindOnce(&AlerseSpaceSwitcher::DeleteSpace,
                      weak_factory_.GetWeakPtr(), menu_space_, menu_sync_id_));
 }
@@ -1835,39 +1776,32 @@ void AlerseSpaceSwitcher::ConfirmDeleteMenuSpace() {
 void AlerseSpaceSwitcher::DeleteSpace(const std::string& space,
                                         const std::string& sync_id,
                                         chrome::MessageBoxResult result) {
-  if (result != chrome::MESSAGE_BOX_RESULT_YES || space == kDefaultSpace) {
+  const base::FilePath path = PathOfSpace(space);
+  if (result != chrome::MESSAGE_BOX_RESULT_YES || path.empty() ||
+      alerse::IsHomeSpacePath(path)) {
     return;
   }
-  // Found before the folder goes: an open Space is known by its folder too.
-  const bookmarks::BookmarkNode* folder = FindSpaceFolder(space, sync_id);
-  const int64_t folder_id = folder ? folder->id() : 0;
-  std::optional<base::Uuid> saved;
-  if (!sync_id.empty()) {
-    saved = base::Uuid::ParseLowercase(sync_id);
+  // Deleting a Space deletes its profile: Chromium closes its windows and
+  // removes its data.
+  base::OnceClosure remove = base::BindOnce(
+      [](base::FilePath path) {
+        g_browser_process->profile_manager()
+            ->GetDeleteProfileHelper()
+            .MaybeScheduleProfileForDeletion(
+                path, base::DoNothing(),
+                ProfileMetrics::DELETE_PROFILE_SETTINGS);
+      },
+      path);
+  if (space != kDefaultSpace) {
+    std::move(remove).Run();
+    return;
   }
-  if (std::optional<tab_groups::TabGroupId> group = FindGroupOfSpace(space)) {
-    if (sync_service_) {
-      if (std::optional<tab_groups::SavedTabGroup> saved_group =
-              sync_service_->GetGroup(*group)) {
-        saved = saved_group->saved_guid();
-      }
-    }
-    model_->CloseAllTabsInGroup(*group);
-  }
-  if (saved && saved->is_valid() && sync_service_ &&
-      sync_service_->GetGroup(*saved)) {
-    sync_service_->RemoveGroup(*saved);
-  }
-  bookmarks::BookmarkModel* bookmarks =
-      BookmarkModelFactory::GetForBrowserContext(browser_->GetProfile());
-  if (bookmarks && bookmarks->loaded() && folder_id) {
-    if (const bookmarks::BookmarkNode* node =
-            bookmarks::GetBookmarkNodeByID(bookmarks, folder_id)) {
-      bookmarks->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
-                        FROM_HERE);
-    }
-  }
-  ScheduleRebuild();
+  // The shown Space: home takes its place first, or closing the visible
+  // window would close the whole stack.
+  ProfileManager* manager = g_browser_process->profile_manager();
+  alerse::ShowSpaceInStack(
+      browser_, manager->user_data_dir().AppendASCII(chrome::kInitialProfile),
+      std::move(remove));
 }
 
 void AlerseSpaceSwitcher::SwitchTo(const tab_groups::TabGroupId& group) {

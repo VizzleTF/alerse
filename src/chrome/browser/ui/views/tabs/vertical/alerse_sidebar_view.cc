@@ -41,6 +41,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/alerse_spaces.h"
 #include "chrome/browser/ui/tabs/alerse_sidebar_drag.h"
 #include "chrome/browser/ui/tabs/alerse_split.h"
@@ -2683,13 +2684,21 @@ void AlerseSidebarView::BuildRows() {
   const bookmarks::BookmarkNode* folder = GetSpaceFolder(false);
 
   // Space name.
+  // The window's Space is its profile (alerse_space_registry.h): named by
+  // its home folder, or as the registry names a Space without one yet.
+  const alerse::SpaceInfo space_info =
+      alerse::GetSpaceOfProfile(browser_->GetProfile());
   std::u16string title = GetActiveSpaceTitle();
   if (title.empty()) {
-    title = folder ? folder->GetTitle() : u"home";
+    title = folder && !folder->GetTitle().empty() ? folder->GetTitle()
+                                                  : space_info.name;
   }
   const bool collapsed = IsPinnedCollapsed(folder);
   auto* space_title = rows_->AddChildView(std::make_unique<SpaceTitle>(
-      title, alerse::GetSpaceIconName(folder, GetActiveSpace()), collapsed,
+      title,
+      alerse::GetSpaceIconName(
+          folder, space_info.home ? GetActiveSpace() : std::string()),
+      collapsed,
       base::BindRepeating(&AlerseSidebarView::ToggleCollapsedPinned,
                           base::Unretained(this)),
       base::BindRepeating(

@@ -1,0 +1,18 @@
+diff --git a/chrome/browser/profiles/profile_attributes_entry.h b/chrome/browser/profiles/profile_attributes_entry.h
+index c260d92..2ea89af 100644
+--- a/chrome/browser/profiles/profile_attributes_entry.h
++++ b/chrome/browser/profiles/profile_attributes_entry.h
+@@ -290,6 +290,13 @@ class ProfileAttributesEntry {
+ 
+   void SetAiSubscriptionTier(int tier);
+ 
++  // Alerse: a Space is a profile, and its entry keeps a copy of what its
++  // Space bar icon shows (chrome/browser/ui/tabs/alerse_space_registry.h).
++  std::string GetAlerseValue(const char* key) const { return GetString(key); }
++  void SetAlerseValue(const char* key, const std::string& value) {
++    SetString(key, value);
++  }
++
+   // Lock/Unlock the profile, should be called only if force-sign-in is enabled.
+   void LockForceSigninProfile(bool is_lock);
+ 

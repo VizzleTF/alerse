@@ -13,12 +13,16 @@
 #include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
 #include "base/uuid.h"
 #include "build/build_config.h"
+#include "chrome/browser/profiles/profile_attributes_storage.h"
+#include "chrome/browser/profiles/profile_attributes_storage_observer.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
@@ -54,6 +58,9 @@ class SpaceColorTransition;
 // without one; `folder` may be null.
 std::string GetSpaceIconName(const bookmarks::BookmarkNode* folder,
                              const std::string& space);
+// `icon` if a Space can show it, else the sun for home and the dot for the
+// other Spaces.
+std::string ValidSpaceIcon(const std::string& icon, bool home);
 // Draws the Space icon `name` centered on `center`; an emoji icon ignores
 // `color` and is drawn at `emoji_alpha`.
 void PaintSpaceIcon(gfx::Canvas* canvas,
@@ -83,6 +90,7 @@ class AlerseSpaceSwitcher : public views::View,
                               public TabStripModelObserver,
                               public tab_groups::TabGroupSyncService::Observer,
                               public bookmarks::BaseBookmarkModelObserver,
+                              public ProfileAttributesStorageObserver,
                               public views::ContextMenuController,
                               public ui::SimpleMenuModel::Delegate {
   METADATA_HEADER(AlerseSpaceSwitcher, views::View)
@@ -151,6 +159,11 @@ class AlerseSpaceSwitcher : public views::View,
   void BookmarkMetaInfoChanged(const bookmarks::BookmarkNode* node) override;
   void BookmarkModelBeingDeleted() override;
 
+  // ProfileAttributesStorageObserver: a Space is a profile.
+  void OnProfileAdded(const base::FilePath& profile_path) override;
+  void OnProfileWasRemoved(const base::FilePath& profile_path,
+                           const std::u16string& profile_name) override;
+
   // views::ContextMenuController: a Space's icon offers the icons to pick.
   void ShowContextMenuForViewImpl(
       views::View* source,
@@ -201,6 +214,12 @@ class AlerseSpaceSwitcher : public views::View,
   };
   std::vector<MenuBarSpace> menu_bar_spaces_;
   void SwitchTo(const tab_groups::TabGroupId& group);
+  // Shows the Space whose profile lives in `path` in this window's place
+  // (alerse_window_stack.h).
+  void ShowSpaceOfPath(const base::FilePath& path);
+  // The profile directory of the Space an icon names: kDefaultSpace is this
+  // window's own, "profile:<directory>" another one.
+  base::FilePath PathOfSpace(const std::string& space) const;
   // Opens a saved Space that has no tab group here, then switches to it.
   void OpenSavedSpace(const base::Uuid& sync_id);
   // Opens every saved Space without a tab group here, as Arc keeps every
@@ -263,6 +282,11 @@ class AlerseSpaceSwitcher : public views::View,
   base::ScopedObservation<bookmarks::BookmarkModel,
                           bookmarks::BookmarkModelObserver>
       bookmark_observation_{this};
+  base::ScopedObservation<ProfileAttributesStorage,
+                          ProfileAttributesStorageObserver>
+      profiles_observation_{this};
+  // Another window changed what its Space shows (alerse_space_registry.h).
+  base::CallbackListSubscription spaces_subscription_;
   // Makes the tab a Space was last on active again, once switched to it.
   void RestoreActiveTab(std::optional<tab_groups::TabGroupId> space);
 

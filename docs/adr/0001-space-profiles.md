@@ -54,11 +54,14 @@ patches nothing in content to get it.
 ### Space registry
 
 The registry is Chromium's `ProfileAttributesStorage`, kept in `Local State`
-(`profile.info_cache`). An entry's name is the Space's name. Alerse adds its own keys
-to the entry: `alerse.space_id` (the Space id of 0.1 for a migrated Space, a new random
-token otherwise), `alerse.color`, `alerse.icon` and `alerse.position`. The bookmark
-meta info `arcomium.space`, `arcomium.space_color`, `arcomium.space_icon` and the
-window extra data `arcomium.spaces` are no longer written.
+(`profile.info_cache`). A Space's name, icon and color belong to its own profile: its
+home folder records them in the bookmark meta info `arcomium.space_icon` and
+`arcomium.space_color`, as in 0.1, so they sync with the Space's bookmarks. The
+profile's entry keeps a copy under `alerse_space_name`, `alerse_space_icon` and
+`alerse_space_color`, and the Space's own window rewrites the copy when they change.
+The Space bar of every window draws the other Spaces from the copies, without loading
+their profiles. The entry's name follows the Space's name. The Space bar lists home
+first and then the other Spaces in the order they were made.
 
 "+" in the Space bar creates a profile with `ProfileManager::CreateMultiProfileAsync()`.
 Delete Space runs `DeleteProfileHelper::MaybeScheduleProfileForDeletion()`, which
