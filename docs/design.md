@@ -125,6 +125,9 @@ repositories hold the core as the `alerse` submodule.
 A Space is a named set of tabs with its own color and its own
 cookie jar. All Spaces live in one window and one Chromium profile.
 
+This is to change: [ADR-0001](adr/0001-space-profiles.md) makes each Space a Chromium
+profile with a window of its own. This section describes what is built today.
+
 Implementation (patches in `patches/spaces/`):
 
 - A Space is a tab group shown in Chromium's tab group focus mode
