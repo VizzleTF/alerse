@@ -39,6 +39,7 @@
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/rect.h"
+#include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
 namespace alerse {
@@ -140,6 +141,17 @@ class WindowStacks : public BrowserCollectionObserver {
     }
     window->Show();
     window->Activate();
+    // A dialog of the tab shows again with its window, without the keys:
+    // the window has just taken them.
+    if (views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
+            window->GetNativeWindow())) {
+      for (views::Widget* child :
+           views::Widget::GetAllChildWidgets(widget->GetNativeView())) {
+        if (child != widget && child->IsModal() && child->IsVisible()) {
+          child->Activate();
+        }
+      }
+    }
     visible_[stack] = target;
     for (const auto& [member, id] : stacks_) {
       if (id == stack && member != target) {
