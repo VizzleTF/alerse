@@ -482,6 +482,9 @@ Windows' numbers for those:
   the same 13.5 pt square, and "+" is Arc's 13.5 pt cross, 1.7 pt thick. The book Space icon is
   Arc's filled open book, two pages at a spine gap, not the outlined one. "+" has no
   tooltip, as Arc's.
+  In a sidebar too narrow for all the Spaces, the buttons first move closer (down to
+  24 pt apart), then only the run that fits around the shown Space's stays
+  (`SpaceIconRow`); the menu bar's Spaces menu and Control-1 to 9 reach the others.
 - While the rows overflow, a 1 pt line, barely off the frame (#212121 on
   #161616), shows at the edge they scroll under, as Arc's; Chromium's scroll view would
   draw a bright separator.

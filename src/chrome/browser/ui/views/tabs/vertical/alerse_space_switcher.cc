@@ -345,6 +345,7 @@ class SpaceIcon : public views::Button {
   // kDefaultSpace for the window's own Space, "profile:<directory>" for
   // another one.
   const std::string& space() const { return space_; }
+  bool active() const { return active_; }
 
   // Arc for macOS tints a hovered Space's icon with a light shade of the
   // Space's theme color.
@@ -378,6 +379,51 @@ class SpaceIcon : public views::Button {
 };
 
 BEGIN_METADATA(SpaceIcon)
+END_METADATA
+
+// The Space icons, centered between the bar's two buttons. In a sidebar too
+// narrow for all of them they first move closer, down to 24 pt apart, and
+// then only the run that fits around the shown Space's shows; the menu bar
+// and Control-1 to 9 reach the others.
+class SpaceIconRow : public views::View {
+  METADATA_HEADER(SpaceIconRow, views::View)
+
+ public:
+  gfx::Size CalculatePreferredSize(
+      const views::SizeBounds& available_size) const override {
+    return kButtonBox;
+  }
+
+  void Layout(PassKey) override {
+    const int count = static_cast<int>(children().size());
+    if (!count) {
+      return;
+    }
+    constexpr int kClosest = 24;
+    const int slot =
+        std::clamp(width() / count, kClosest, kButtonBox.width() + kIconGap);
+    const int shown = std::clamp(width() / slot, 1, count);
+    int active = 0;
+    for (int i = 0; i < count; ++i) {
+      const SpaceIcon* icon = views::AsViewClass<SpaceIcon>(children()[i]);
+      if (icon && icon->active()) {
+        active = i;
+      }
+    }
+    const int first = std::clamp(active - shown / 2, 0, count - shown);
+    int x = (width() - shown * slot) / 2;
+    for (int i = 0; i < count; ++i) {
+      views::View* icon = children()[i];
+      icon->SetVisible(i >= first && i < first + shown);
+      if (icon->GetVisible()) {
+        icon->SetBounds(x, 0, slot, height());
+        x += slot;
+      }
+    }
+  }
+};
+
+BEGIN_METADATA(SpaceIconRow)
 END_METADATA
 
 // The Space bar's left button: Downloads (where Arc has its archive, which
@@ -986,11 +1032,7 @@ void AlerseSpaceSwitcher::Rebuild() {
   AddChildView(std::make_unique<DownloadsButton>(base::BindRepeating(
       [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
       base::Unretained(browser_.get()))));
-  views::View* icons = AddChildView(std::make_unique<views::View>());
-  icons->SetLayoutManager(std::make_unique<views::BoxLayout>(
-                              views::BoxLayout::Orientation::kHorizontal,
-                              gfx::Insets(), kIconGap))
-      ->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
+  views::View* icons = AddChildView(std::make_unique<SpaceIconRow>());
   layout_->SetFlexForView(icons, 1);
 
   space_actions_.clear();
