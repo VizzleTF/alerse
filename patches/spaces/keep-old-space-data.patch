@@ -1,0 +1,19 @@
+diff --git a/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc b/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
+index ecb3123778d..43177de2428 100644
+--- a/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
++++ b/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
+@@ -74,6 +74,14 @@ void GarbageCollectStoragePartitionsCommand::DoGarbageCollection() {
+   // Get all paths from Web App system.
+   allowlist.merge(lock_->isolation_delegate().GetIsolatedStoragePaths());
+ 
++  // Alerse: in 0.1 each Space kept its logins and site data in a storage
++  // partition under this directory. Nothing opens them now, and the
++  // migration to profiles (docs/adr/0001-space-profiles.md) has to find them.
++  allowlist.insert(profile_->GetPath()
++                       .Append(FILE_PATH_LITERAL("Storage"))
++                       .Append(FILE_PATH_LITERAL("ext"))
++                       .Append(FILE_PATH_LITERAL("arcomium")));
++
+   base::ListValue* debug_paths =
+       GetMutableDebugValue().EnsureList("allow_list_paths");
+   for (const auto& path : allowlist) {

@@ -16,6 +16,7 @@
 
 #include "base/callback_list.h"
 #include "base/containers/flat_map.h"
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
@@ -166,9 +167,6 @@ class AlerseSidebarView : public views::View,
   void OnTabChangedAt(tabs::TabInterface* tab,
                       TabChangeType change_type) override;
   void OnTabGroupChanged(const TabGroupChange& change) override;
-  void OnTabGroupFocusChanged(
-      std::optional<tab_groups::TabGroupId> new_focused_group_id,
-      std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
 
   // views::ContextMenuController:
   void ShowContextMenuForViewImpl(
@@ -214,7 +212,8 @@ class AlerseSidebarView : public views::View,
  private:
   class Row;
 
-  // Space id of the focused tab group, or "default" outside of Spaces.
+  // The Space the rows are built for: "default", the window's own, or the
+  // neighbor a swipe previews.
   std::string GetActiveSpace() const;
   std::u16string GetActiveSpaceTitle() const;
   // The bookmark folder of the active Space; created on demand.
@@ -224,18 +223,19 @@ class AlerseSidebarView : public views::View,
                                                    const std::u16string& title,
                                                    bool create);
 
-  // A Space the context menu can move an item to.
+  // A Space the context menu can move an item to: another profile.
   struct SpaceTarget {
-    // Unset for home, the tabs outside of groups.
-    std::optional<tab_groups::TabGroupId> group;
-    std::string space;
+    base::FilePath path;
     std::u16string title;
   };
   std::vector<SpaceTarget> GetOtherSpaces() const;
-  // Moves the context menu's item: a pinned item to the target's pinned
-  // folder, a tab into the target, opened anew in the target's storage.
+  // Moves the context menu's item: a pinned item or folder into the target's
+  // folder, a tab into the target's window, opened anew in its storage.
   void MoveToSpace(const SpaceTarget& target);
   void MoveTabToSpace(tabs::TabInterface* tab, const SpaceTarget& target);
+  // Removes `node`, copied to another Space, and closes the tabs bound to
+  // it and to what it holds.
+  void RemoveMovedNode(const bookmarks::BookmarkNode* node);
   void DuplicateItem();
   // The context menu's page: its link and title.
   std::pair<GURL, std::u16string> GetMenuLink() const;
@@ -245,17 +245,13 @@ class AlerseSidebarView : public views::View,
   // The open tab bound to a pinned item, if any.
   tabs::TabInterface* GetBoundTab(int64_t id) const;
   bool IsBound(const tabs::TabInterface* tab) const;
-  // Binds tabs to the pinned items their contents name, in every Space: the
-  // binding a restored tab carried through the session.
+  // Binds tabs to the pinned items their contents name: the binding a
+  // restored tab carried through the session.
   void BindTabsByUuid();
   // Records each tab's binding on its contents and in the session.
   void SaveBindings();
   // The Space whose folder holds `node`, or "" outside the Spaces' folders.
   std::string GetSpaceOfNode(const bookmarks::BookmarkNode* node) const;
-  // The Space `tab` is shown in, as GetActiveSpace() names it.
-  std::string GetSpaceOfTab(const tabs::TabInterface* tab) const;
-  // The guid of `tab` in its Space's saved tab group, or "".
-  std::string GetSavedTabGuid(const tabs::TabInterface* tab) const;
   // Records on `tab` the uuid of the item it is bound to, "" for none.
   void WritePinnedItem(tabs::TabInterface* tab, const std::string& uuid);
   bool HasBoundDescendant(const bookmarks::BookmarkNode* folder) const;
@@ -279,7 +275,6 @@ class AlerseSidebarView : public views::View,
   // Rebuild()'s rows of the active Space, or of preview_space_.
   void BuildRows();
   void HideSpacePreview();
-  std::optional<tab_groups::TabGroupId> GetActiveGroup() const;
   // Arc's Add Split View: `picked`, shown while `chooser` (the "Choose a
   // tab" pane of a new split) was, takes the chooser's place in the split.
   void FillSplitChooser(base::WeakPtr<content::WebContents> chooser,
@@ -357,8 +352,8 @@ class AlerseSidebarView : public views::View,
   // Arc's Share Folder...: the system's share picker for its links.
   void ShareFolder(int64_t id);
 #endif
-  // Makes `folder` a new Space of its own, its items the Space's pinned ones,
-  // and switches to it, as Arc's Turn into Space.
+  // Makes a new Space of `folder`, its items the Space's pinned ones, and
+  // shows it, as Arc's Turn into Space.
   void TurnIntoSpace(const bookmarks::BookmarkNode* folder);
   // Edits the name (and address) of a pinned item or folder.
   void RenameNode(int64_t id);

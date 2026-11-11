@@ -1,8 +1,16 @@
 diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
-index 50dff8a..690760b 100644
+index ee887ad..95a6d34 100644
 --- a/chrome/browser/sessions/session_service_base.cc
 +++ b/chrome/browser/sessions/session_service_base.cc
-@@ -676,6 +676,15 @@ void SessionServiceBase::BuildCommandsForTab(
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -675,6 +676,15 @@ void SessionServiceBase::BuildCommandsForTab(
          sessions::CreatePinnedStateCommand(session_id, true));
    }
  
@@ -19,7 +27,7 @@ index 50dff8a..690760b 100644
    content::SessionStorageNamespaceHandle* session_storage_namespace =
        tab->GetController().GetDefaultSessionStorageNamespace();
 diff --git a/chrome/browser/ui/browser_live_tab_context.cc b/chrome/browser/ui/browser_live_tab_context.cc
-index d48ee3c..a4a74ae 100644
+index d48ee3c..93bbb97 100644
 --- a/chrome/browser/ui/browser_live_tab_context.cc
 +++ b/chrome/browser/ui/browser_live_tab_context.cc
 @@ -33,6 +33,7 @@
@@ -45,10 +53,18 @@ index d48ee3c..a4a74ae 100644
    return extra_data;
  }
 diff --git a/chrome/browser/ui/browser_tabrestore.cc b/chrome/browser/ui/browser_tabrestore.cc
-index 10ea8ad..589a914 100644
+index 6aca93a..128a6ed 100644
 --- a/chrome/browser/ui/browser_tabrestore.cc
 +++ b/chrome/browser/ui/browser_tabrestore.cc
-@@ -101,6 +101,11 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+@@ -20,6 +20,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_activation_tracker.h"
+ #include "chrome/browser/ui/tab_ui_helper.h"
++#include "chrome/browser/ui/tabs/alerse_spaces.h"
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -85,6 +86,11 @@ std::unique_ptr<WebContents> CreateRestoredTab(
    glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
    send_tab_to_self::SendTabToSelfActivationTracker::RestoreFromExtraData(
        web_contents.get(), extra_data);
@@ -60,18 +76,3 @@ index 10ea8ad..589a914 100644
  
    std::vector<std::unique_ptr<NavigationEntry>> entries =
        ContentSerializedNavigationBuilder::ToNavigationEntries(
-diff --git a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-index 8a16279..f1765a1 100644
---- a/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-+++ b/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-@@ -431,6 +431,10 @@ TabGroupSyncDelegateDesktop::OpenTabsAndMapToUuids(
-     tabs::TabInterface* const tab =
-         MaybeOpenTabInSpace(saved_tab, browser, space);
-     if (tab) {
-+      // Alerse: a tab bound to a pinned item before its Space closed binds
-+      // to it again.
-+      alerse::RestorePinnedItemOfSavedTab(tab->GetContents(),
-+                                            saved_tab.saved_tab_guid());
-       tab_guid_mapping.emplace(tab, saved_tab.saved_tab_guid());
-     }
-   }

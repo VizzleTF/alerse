@@ -14,31 +14,24 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
-#include "base/token.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/alerse_spaces.h"
-#include "chrome/browser/ui/tabs/tab_enums.h"
-#include "chrome/browser/ui/tabs/tab_group_model.h"
-#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/profiles/profile_avatar_icon_util.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/tabs/alerse_space_folder.h"
+#include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_bookmarks.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
+#include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/strings/grit/components_strings.h"
-#include "components/tab_groups/tab_group_color.h"
-#include "components/tab_groups/tab_group_visual_data.h"
-#include "components/tabs/public/tab_group.h"
-#include "components/tabs/public/tab_interface.h"
-#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
-#include "content/public/common/referrer.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 
 namespace {
@@ -51,13 +44,6 @@ using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 
 constexpr size_t kMaxIdLength = 512;
-constexpr tab_groups::TabGroupColorId kSpaceColors[] = {
-    tab_groups::TabGroupColorId::kBlue,   tab_groups::TabGroupColorId::kPurple,
-    tab_groups::TabGroupColorId::kGreen,  tab_groups::TabGroupColorId::kPink,
-    tab_groups::TabGroupColorId::kOrange, tab_groups::TabGroupColorId::kCyan,
-    tab_groups::TabGroupColorId::kYellow, tab_groups::TabGroupColorId::kRed,
-};
-
 std::string GetMeta(const BookmarkNode* node, const std::string& key) {
   std::string value;
   node->GetMetaInfo(key, &value);
@@ -87,133 +73,94 @@ ImportMark GetImportMark(PrefService* prefs, std::string_view source_id) {
   return ImportMark(key, source_id);
 }
 
-// Opens Space `space` named `title` with its blank tab at the end of
-// `browser`'s tab strip, without switching to it, as
-// AlerseSpaceSwitcher::OpenSpace() does in the foreground.
-bool OpenSpaceInBackground(BrowserWindowInterface* browser,
-                           const std::string& space,
-                           const std::u16string& title) {
-  Profile* profile = browser->GetProfile();
-  TabStripModel* model = browser->GetTabStripModel();
-  if (profile->IsOffTheRecord() || !model || !model->SupportsTabGroups()) {
-    return false;
-  }
-  const GURL url("about:blank#arcomium-space");
-  content::WebContents::CreateParams params(
-      profile, alerse::CreateSpaceSiteInstance(profile, url, space));
-  std::unique_ptr<content::WebContents> contents =
-      content::WebContents::Create(params);
-  content::WebContents* raw = contents.get();
-  contents->GetController().LoadURL(url, content::Referrer(),
-                                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
-                                    std::string());
-  TabStripModel::MarkAlerseEmptySpace(raw);
-  const size_t groups = model->group_model()->ListTabGroups().size();
-  model->AddWebContents(std::move(contents), model->count(),
-                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
-                        AddTabTypes::ADD_FORCE_INDEX);
-  const int index = model->GetIndexOfWebContents(raw);
-  if (index == TabStripModel::kNoTab) {
-    return false;
-  }
-  const tab_groups::TabGroupId group = model->AddToNewGroup({index});
-  model->ChangeTabGroupVisuals(
-      group, tab_groups::TabGroupVisualData(
-                 title, kSpaceColors[groups % std::size(kSpaceColors)]));
-  return true;
+// Makes a Space of `folder`, the folder of an imported Arc Space that no
+// Space has: a new profile, whose own folder takes what `folder` holds and
+// its icon and color. `folder` then goes from `profile`'s bookmarks. No
+// window opens: the Space shows in the Space bar.
+void MakeSpaceOfFolder(Profile* profile,
+                       const BookmarkNode* folder,
+                       const std::u16string& title) {
+  ProfileManager::CreateMultiProfileAsync(
+      title.empty() ? std::u16string(u"Space") : title,
+      profiles::GetPlaceholderAvatarIndex(), /*is_hidden=*/false,
+      base::BindOnce(
+          [](base::FilePath from_path, int64_t id, Profile* created) {
+            if (!created) {
+              return;
+            }
+            alerse::WithBookmarksOf(
+                created,
+                base::BindOnce(
+                    [](base::FilePath from_path, int64_t id, Profile* created,
+                       BookmarkModel* to) {
+                      Profile* from =
+                          g_browser_process->profile_manager()
+                              ->GetProfileByPath(from_path);
+                      BookmarkModel* model =
+                          from ? BookmarkModelFactory::GetForBrowserContext(
+                                     from)
+                               : nullptr;
+                      const BookmarkNode* folder =
+                          model ? bookmarks::GetBookmarkNodeByID(model, id)
+                                : nullptr;
+                      if (!folder) {
+                        return;
+                      }
+                      const BookmarkNode* space =
+                          alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
+                      if (const BookmarkNode::MetaInfoMap* meta =
+                              folder->GetMetaInfoMap()) {
+                        for (const auto& [key, value] : *meta) {
+                          // All but the mark of a folder no Space has: Arc's
+                          // id of the Space, its icon and its color.
+                          if (key != alerse_import::kSpaceMetaKey) {
+                            to->SetNodeMetaInfo(space, key, value);
+                          }
+                        }
+                      }
+                      for (const auto& child : folder->children()) {
+                        alerse::CopyNodeTo(child.get(), to, space);
+                      }
+                      model->Remove(
+                          folder, bookmarks::metrics::BookmarkEditSource::kOther,
+                          FROM_HERE);
+                    },
+                    from_path, id));
+          },
+          profile->GetPath(), folder->id()));
 }
 
-// Imports Arc's Spaces into `model` (see ImportArcSpaces()) and opens a
-// Space in `browser` for each one no Space has yet. Returns the result for
-// the page.
+// Imports Arc's Spaces into `model` (see ImportArcSpaces()) and makes a
+// Space for each one no Space has yet. Returns the result for the page.
 base::DictValue ApplyArc(BookmarkModel* model,
                          Profile* profile,
-                         BrowserWindowInterface* browser,
                          const std::vector<ArcSpace>& spaces) {
   alerse_import::ArcResult result = alerse_import::ImportArcSpaces(
       model,
       GetImportMark(profile->GetPrefs(), alerse_import::kArcSourceId),
       spaces);
-
-  // A Space for each imported one that has none: a fresh Space id that the
-  // folder names, then the Space's tab group.
-  int created = 0;
   for (const auto& [folder, title] : result.unadopted) {
-    if (!browser) {
-      break;
-    }
-    const std::string space =
-        base::ToLowerASCII(base::Token::CreateRandom().ToString());
-    const std::string arc_space =
-        GetMeta(folder, alerse_import::kSpaceMetaKey);
-    model->SetNodeMetaInfo(folder, alerse_import::kSpaceMetaKey, space);
-    if (OpenSpaceInBackground(browser, space, title)) {
-      ++created;
-    } else {
-      // Left for the Space bar's "+" to adopt.
-      model->SetNodeMetaInfo(folder, alerse_import::kSpaceMetaKey, arc_space);
-    }
+    MakeSpaceOfFolder(profile, folder, title);
   }
-
   return base::DictValue()
       .Set("spaces", static_cast<int>(spaces.size()))
       .Set("links", result.links)
       .Set("folders", result.folders)
       .Set("icons", result.icons)
-      .Set("createdSpaces", created)
-      .Set("pendingSpaces",
-           static_cast<int>(result.unadopted.size()) - created);
+      .Set("createdSpaces", static_cast<int>(result.unadopted.size()))
+      .Set("pendingSpaces", 0);
 }
 
-// The Space folder bookmarks imported from a tab of `browser` go to: the
-// Space of `tab`, or Home.
-const BookmarkNode* GetTargetFolder(BookmarkModel* model,
-                                    Profile* profile,
-                                    tabs::TabInterface* tab) {
-  std::string space = alerse_import::kHomeSpace;
-  std::u16string title = u"home";
-  BrowserWindowInterface* browser =
-      tab ? tab->GetBrowserWindowInterface() : nullptr;
-  if (browser && tab->GetGroup()) {
-    TabStripModel* tabs = browser->GetTabStripModel();
-    if (std::optional<std::string> group_space =
-            alerse::GetSpaceOfGroupOrFolder(profile, tabs,
-                                              *tab->GetGroup())) {
-      space = *group_space;
-      title = tabs->group_model()
-                  ->GetTabGroup(*tab->GetGroup())
-                  ->visual_data()
-                  ->title();
-    }
-  }
-  if (const BookmarkNode* folder = FindSpaceFolder(model, space)) {
-    return folder;
-  }
-  // As the sidebar does: adopt a folder imported from Arc for a Space of the
-  // same name, else make the Space's folder.
-  if (space != alerse_import::kHomeSpace) {
-    for (const auto& child : model->other_node()->children()) {
-      if (child->is_folder() && child->GetTitle() == title &&
-          GetMeta(child.get(), alerse_import::kSpaceMetaKey)
-              .starts_with("arc:")) {
-        model->SetNodeMetaInfo(child.get(), alerse_import::kSpaceMetaKey,
-                               space);
-        return child.get();
-      }
-    }
-  }
-  const BookmarkNode::MetaInfoMap meta = {
-      {alerse_import::kSpaceMetaKey, space}};
-  return model->AddFolder(
-      model->other_node(), model->other_node()->children().size(),
-      title.empty() ? std::u16string(u"home") : title, &meta);
+// The folder bookmarks imported into `profile` go to: its Space's.
+const BookmarkNode* GetTargetFolder(BookmarkModel* model, Profile* profile) {
+  return alerse::GetOrAddSpaceFolder(
+      model, alerse::GetSpaceOfProfile(profile).name);
 }
 
 // Imports `root` as the folder of `source`, replacing what an earlier import
 // of it into this profile put there; the user's items in the folder stay.
 base::DictValue ApplyBookmarks(BookmarkModel* model,
                                Profile* profile,
-                               tabs::TabInterface* tab,
                                const Source& source,
                                const Node& root) {
   std::u16string title = base::UTF8ToUTF16(source.browser);
@@ -235,7 +182,7 @@ base::DictValue ApplyBookmarks(BookmarkModel* model,
     model->SetTitle(folder, title,
                     bookmarks::metrics::BookmarkEditSource::kOther);
   } else {
-    const BookmarkNode* parent = GetTargetFolder(model, profile, tab);
+    const BookmarkNode* parent = GetTargetFolder(model, profile);
     const BookmarkNode::MetaInfoMap meta = {
         {alerse_import::kImportMetaKey, source.id}};
     folder = model->AddFolder(parent, parent->children().size(), title, &meta);
@@ -371,12 +318,8 @@ void AlerseImportHandler::OnArcRead(
     Reject(callback_id, "notReady");
     return;
   }
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_ui()->GetWebContents());
-  BrowserWindowInterface* browser =
-      tab ? tab->GetBrowserWindowInterface() : nullptr;
   ResolveJavascriptCallback(base::Value(callback_id),
-                            ApplyArc(model, profile_, browser, *spaces));
+                            ApplyArc(model, profile_, *spaces));
 }
 
 void AlerseImportHandler::OnBookmarksRead(const std::string& callback_id,
@@ -392,11 +335,9 @@ void AlerseImportHandler::OnBookmarksRead(const std::string& callback_id,
     Reject(callback_id, "notReady");
     return;
   }
-  tabs::TabInterface* tab =
-      tabs::TabInterface::MaybeGetFromContents(web_ui()->GetWebContents());
   ResolveJavascriptCallback(
       base::Value(callback_id),
-      ApplyBookmarks(model, profile_, tab, source, *root));
+      ApplyBookmarks(model, profile_, source, *root));
 }
 
 void AlerseImportHandler::Reject(const std::string& callback_id,

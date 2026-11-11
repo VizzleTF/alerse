@@ -1,5 +1,5 @@
 diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
-index 9991a320976..10f5fcfade5 100644
+index 9991a32..739d307 100644
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
 @@ -293,6 +293,8 @@
@@ -12,7 +12,7 @@ index 9991a320976..10f5fcfade5 100644
  // Spell-check
  #define IDC_SPELLCHECK_SUGGESTION_0     41000
 diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
-index f8535695034..793eb8042bb 100644
+index f853569..e68b951 100644
 --- a/chrome/app/generated_resources.grd
 +++ b/chrome/app/generated_resources.grd
 @@ -1933,6 +1933,9 @@ are declared in tools/grit/grit_args.gni.
@@ -36,7 +36,7 @@ index f8535695034..793eb8042bb 100644
            &amp;Options
          </message>
 diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
-index 0476350e565..a521657655a 100644
+index 0476350..8dbf0a9 100644
 --- a/chrome/browser/prefs/browser_prefs.cc
 +++ b/chrome/browser/prefs/browser_prefs.cc
 @@ -91,6 +91,7 @@
@@ -47,7 +47,16 @@ index 0476350e565..a521657655a 100644
  #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
  #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
  #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
-@@ -1991,6 +1992,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -1675,6 +1676,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+   enterprise_connectors::RegisterLocalStatePrefs(registry);
+   enterprise_groups::RegisterLocalStatePrefs(registry);
+   enterprise_util::RegisterLocalStatePrefs(registry);
++  // Alerse: link routes are the browser's, shared by every Space.
++  alerse::RegisterLinkRoutesLocalState(registry);
+   component_updater::RegisterPrefs(registry);
+   domain_reliability::RegisterPrefs(registry);
+   embedder_support::OriginTrialPrefs::RegisterPrefs(registry);
+@@ -1991,6 +1994,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
@@ -56,7 +65,7 @@ index 0476350e565..a521657655a 100644
    ttc::AiOverlayDialogController::RegisterProfilePrefs(registry);
  #endif
 diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
-index 77745e436d5..8033830e65f 100644
+index 77745e4..47732b0 100644
 --- a/chrome/browser/ui/browser_command_controller.cc
 +++ b/chrome/browser/ui/browser_command_controller.cc
 @@ -990,6 +990,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
@@ -78,168 +87,32 @@ index 77745e436d5..8033830e65f 100644
    command_updater_->UpdateCommandEnabled(IDC_TURN_ON_SYNC, true);
    command_updater_->UpdateCommandEnabled(IDC_SHOW_SIGNIN_WHEN_PAUSED, true);
 diff --git a/chrome/browser/ui/navigator/browser_navigator.cc b/chrome/browser/ui/navigator/browser_navigator.cc
-index c2f3d996b85..0013fe141c1 100644
+index 1e98a3d..ada5940 100644
 --- a/chrome/browser/ui/navigator/browser_navigator.cc
 +++ b/chrome/browser/ui/navigator/browser_navigator.cc
-@@ -42,7 +42,9 @@
+@@ -41,6 +41,7 @@
  #include "chrome/browser/ui/singleton_tabs.h"
  #include "chrome/browser/ui/status_bubble.h"
  #include "chrome/browser/ui/tab_helpers.h"
-+#include "chrome/browser/ui/tabs/alerse_link_routes.h"
- #include "chrome/browser/ui/tabs/alerse_spaces.h"
-+#include "components/tab_groups/tab_group_visual_data.h"
++#include "chrome/browser/ui/tabs/alerse_link_router.h"
  #include "chrome/browser/ui/tabs/split_tab_metrics.h"
  #include "chrome/browser/ui/tabs/tab_enums.h"
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
-@@ -116,6 +118,9 @@ namespace {
- 
- struct AdditionalParams {
-   bool tab_modal_popup = false;
-+  // Alerse: the route of a link another app opened, see
-+  // GetLinkRouteForNewTab().
-+  std::optional<alerse::LinkRoute> link_route;
- };
- 
- // Returns true if |params.browser| exists and can open a new tab for
-@@ -498,13 +503,39 @@ Profile* GetSourceProfile(NavigateParams* params) {
- // Space of the page it was opened from, else the Space of its tab group
- // (explicit or the focused one). --arcomium-space=<id> forces a Space, for
- // testing.
--std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
-+// Alerse: the link route for a link another app opens in a new tab (see
-+// alerse_link_routes.h). Links opened inside the browser have a source tab
-+// and stay in its Space. Call it before Navigate() makes the active tab the
-+// source of a navigation that has none.
-+std::optional<alerse::LinkRoute> GetLinkRouteForNewTab(
-+    const NavigateParams& params) {
-+  if (!params.browser || params.source_contents || params.opener ||
-+      !ui::PageTransitionCoreTypeIs(params.transition,
-+                                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL) ||
-+      (params.tabstrip_add_types & AddTabTypes::ADD_PINNED) ||
-+      (params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
-+       params.disposition != WindowOpenDisposition::NEW_BACKGROUND_TAB) ||
-+      params.browser->GetProfile()->IsOffTheRecord()) {
-+    return std::nullopt;
-+  }
-+  return alerse::FindLinkRoute(
-+      alerse::GetLinkRoutes(*params.browser->GetProfile()->GetPrefs()),
-+      params.url);
-+}
-+
-+std::optional<std::string> GetSpaceForNewTab(
-+    const NavigateParams& params,
-+    const std::optional<alerse::LinkRoute>& route) {
-   const std::string forced =
-       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
-           "arcomium-space");
-   if (!forced.empty()) {
-     return forced;
+@@ -725,6 +726,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+     }
    }
-+  if (route) {
-+    return route->space.empty() ? std::nullopt
-+                                : std::optional<std::string>(route->space);
-+  }
-   if (params.source_contents) {
-     if (std::optional<std::string> space =
-             alerse::GetSpaceOfContents(params.source_contents)) {
-@@ -523,7 +554,8 @@ std::optional<std::string> GetSpaceForNewTab(const NavigateParams& params) {
  
- std::unique_ptr<content::WebContents> CreateTargetContents(
-     const NavigateParams& params,
--    const GURL& url) {
-+    const GURL& url,
-+    const std::optional<alerse::LinkRoute>& link_route) {
-   // Always create the new WebContents in a new SiteInstance (and therefore a
-   // new BrowsingInstance), *unless* there's a |params.opener|.
-   //
-@@ -538,7 +570,8 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
-   if (params.opener) {
-     initial_site_instance_for_new_contents = params.opener->GetSiteInstance();
-   } else {
--    if (std::optional<std::string> space = GetSpaceForNewTab(params)) {
-+    if (std::optional<std::string> space =
-+            GetSpaceForNewTab(params, link_route)) {
-       GURL effective_url = url;
-       content::BrowserURLHandler::GetInstance()->RewriteURLIfNecessary(
-           &effective_url, params.browser->GetProfile());
-@@ -773,6 +806,7 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
++  // Alerse: a link another app opens goes to the Space its route names,
++  // whose window opens it (alerse_link_router.h).
++  if (alerse::RouteLinkToSpace(*params)) {
++    return nullptr;
++  }
++
+   // If no source WebContents was specified, we use the selected one from the
    // target browser. This must happen before GetBrowserAndTabForDisposition()
    // has a chance to replace |params->browser| with another one, but after the
-   // above check that relies on the original source_contents value.
-+  additional_params.link_route = GetLinkRouteForNewTab(*params);
-   if (!params->source_contents && params->browser) {
-     params->source_contents =
-         params->browser->GetTabStripModel()->GetActiveWebContents();
-@@ -969,11 +1003,12 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
-       // partition, so a new tab of a Space starts blank.
-       if (params->url.SchemeIs(content::kChromeUIScheme) &&
-           params->url.host() == chrome::kChromeUINewTabHost &&
--          GetSpaceForNewTab(*params)) {
-+          GetSpaceForNewTab(*params, additional_params.link_route)) {
-         params->url = GURL(url::kAboutBlankURL);
-       }
-       tab_to_insert = std::make_unique<tabs::TabModel>(
--          CreateTargetContents(*params, params->url),
-+          CreateTargetContents(*params, params->url,
-+                               additional_params.link_route),
-           params->browser->GetTabStripModel());
-       if (params->source_contents &&
-           ((params->tabstrip_add_types & AddTabTypes::ADD_INHERIT_OPENER) ||
-@@ -1061,16 +1096,47 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
-     }
- 
-     DCHECK(tab_to_insert);
-+    TabStripModel* const target_model = params->browser->GetTabStripModel();
-     std::optional<tab_groups::TabGroupId> group = params->group;
--    if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
-+    const std::optional<alerse::LinkRoute>& route =
-+        additional_params.link_route;
-+    if (route) {
-+      // Alerse: open the routed link in its Space and show that Space. A
-+      // Space without tabs has no group; the tab goes in outside of focus
-+      // mode and gets a new group below.
-+      group = route->space.empty()
-+                  ? std::nullopt
-+                  : alerse::FindGroupOfSpace(target_model, route->space);
-+      if (group) {
-+        target_model->EnterFocusMode(*group);
-+      } else if (target_model->GetFocusedGroup()) {
-+        target_model->ExitFocusMode(
-+            TabGroupFocusExitReason::kActiveTabGroupOperation);
-+      }
-+    } else if (!(params->tabstrip_add_types & AddTabTypes::ADD_PINNED)) {
-       if (!group.has_value()) {
--        group = params->browser->GetTabStripModel()->GetFocusedGroup();
-+        group = target_model->GetFocusedGroup();
-       }
-     }
-     // The navigation should insert a new tab into the target Browser.
--    params->browser->GetTabStripModel()->AddTab(
--        std::move(tab_to_insert), params->tabstrip_index, params->transition,
--        params->tabstrip_add_types, group);
-+    target_model->AddTab(std::move(tab_to_insert), params->tabstrip_index,
-+                         params->transition, params->tabstrip_add_types,
-+                         group);
-+    if (route && !route->space.empty() && !group) {
-+      const int index =
-+          target_model->GetIndexOfWebContents(contents_to_navigate_or_insert);
-+      if (index != TabStripModel::kNoTab) {
-+        const tab_groups::TabGroupId new_group =
-+            target_model->AddToNewGroup({index});
-+        target_model->ChangeTabGroupVisuals(
-+            new_group, tab_groups::TabGroupVisualData(
-+                           base::UTF8ToUTF16(route->name.empty()
-+                                                 ? std::string("Space")
-+                                                 : route->name),
-+                           tab_groups::TabGroupColorId::kBlue));
-+        target_model->EnterFocusMode(new_group);
-+      }
-+    }
- 
-     // For NEW_SPLIT_VIEW, pair the new tab with the active tab. The
-     // "already split" case is handled in
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
-index 0e71d492421..3fef161944a 100644
+index 03c61fc..abbf190 100644
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -2328,6 +2328,10 @@ void AppMenuModel::Build() {
@@ -254,7 +127,7 @@ index 0e71d492421..3fef161944a 100644
    AddItemWithStringIdAndVectorIcon(
        this, IDC_OPTIONS, IDS_SETTINGS,
 diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
-index 726b5a9c842..af583dd4f80 100644
+index aac1e1a..33750a4 100644
 --- a/chrome/browser/ui/webui/BUILD.gn
 +++ b/chrome/browser/ui/webui/BUILD.gn
 @@ -42,6 +42,7 @@ source_set("configs") {
@@ -266,7 +139,7 @@ index 726b5a9c842..af583dd4f80 100644
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index f7d1b75fb76..0c90234fcff 100644
+index 71a755d..0810eff 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -9,6 +9,7 @@

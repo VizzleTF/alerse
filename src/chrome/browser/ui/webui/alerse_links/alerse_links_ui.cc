@@ -17,8 +17,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/alerse_link_routes.h"
-#include "chrome/browser/ui/tabs/alerse_spaces.h"
-#include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/tab_group.h"
@@ -51,33 +50,17 @@ struct Space {
   std::string name;
 };
 
-// The Spaces a link can go to: the default one, those open in the profile's
-// windows, and those that routes name but have no tabs now.
-std::vector<Space> ListSpaces(Profile* profile,
-                              const std::vector<alerse::LinkRoute>& routes) {
-  std::vector<Space> spaces = {{std::string(), "Home"}};
+// The Spaces a link can go to: Home, the other Spaces of the registry, and
+// those that routes name but that are gone.
+std::vector<Space> ListSpaces(const std::vector<alerse::LinkRoute>& routes) {
+  std::vector<Space> spaces;
   auto known = [&spaces](const std::string& id) {
     return std::ranges::any_of(spaces,
                                [&id](const Space& s) { return s.id == id; });
   };
-  for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
-    if (browser->GetProfile() != profile) {
-      continue;
-    }
-    const TabStripModel* model = browser->GetTabStripModel();
-    if (!model || !model->group_model()) {
-      continue;
-    }
-    for (const tab_groups::TabGroupId& group :
-         model->group_model()->ListTabGroups()) {
-      std::optional<std::string> id = alerse::GetSpaceOfGroup(model, group);
-      if (!id || known(*id)) {
-        continue;
-      }
-      const std::u16string& title =
-          model->group_model()->GetTabGroup(group)->visual_data()->title();
-      spaces.push_back({*id, title.empty() ? "Space" : base::UTF16ToUTF8(title)});
-    }
+  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+    spaces.push_back({alerse::LinkRouteSpaceOf(space.path),
+                      base::UTF16ToUTF8(space.name)});
   }
   for (const alerse::LinkRoute& route : routes) {
     if (!known(route.space)) {
@@ -129,8 +112,8 @@ void AlerseLinksHandler::RegisterMessages() {
 
 base::DictValue AlerseLinksHandler::BuildState() const {
   const std::vector<alerse::LinkRoute> routes =
-      alerse::GetLinkRoutes(*profile_->GetPrefs());
-  const std::vector<Space> spaces = ListSpaces(profile_, routes);
+      alerse::GetLinkRoutes();
+  const std::vector<Space> spaces = ListSpaces(routes);
 
   base::ListValue space_list;
   for (const Space& space : spaces) {
@@ -172,9 +155,9 @@ void AlerseLinksHandler::HandleAddRoute(const base::ListValue& args) {
     return;
   }
   std::vector<alerse::LinkRoute> routes =
-      alerse::GetLinkRoutes(*profile_->GetPrefs());
+      alerse::GetLinkRoutes();
   std::string name = "Space";
-  for (const Space& s : ListSpaces(profile_, routes)) {
+  for (const Space& s : ListSpaces(routes)) {
     if (s.id == space) {
       name = s.name;
     }
@@ -185,7 +168,7 @@ void AlerseLinksHandler::HandleAddRoute(const base::ListValue& args) {
   });
   routes.push_back({pattern, space, name});
   std::ranges::sort(routes, {}, &alerse::LinkRoute::pattern);
-  alerse::SetLinkRoutes(profile_->GetPrefs(), routes);
+  alerse::SetLinkRoutes(routes);
   ResolveJavascriptCallback(args[0], BuildState());
 }
 
@@ -193,10 +176,10 @@ void AlerseLinksHandler::HandleRemoveRoute(const base::ListValue& args) {
   AllowJavascript();
   const std::string& pattern = args[1].GetString();
   std::vector<alerse::LinkRoute> routes =
-      alerse::GetLinkRoutes(*profile_->GetPrefs());
+      alerse::GetLinkRoutes();
   std::erase_if(routes, [&pattern](const alerse::LinkRoute& route) {
     return route.pattern == pattern;
   });
-  alerse::SetLinkRoutes(profile_->GetPrefs(), routes);
+  alerse::SetLinkRoutes(routes);
   ResolveJavascriptCallback(args[0], BuildState());
 }

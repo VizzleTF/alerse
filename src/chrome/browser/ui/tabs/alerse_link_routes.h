@@ -18,38 +18,51 @@
 #include <vector>
 
 #include "base/strings/string_util.h"
-#include "chrome/browser/ui/tabs/alerse_spaces.h"
+#include "base/files/file_path.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_data.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "url/gurl.h"
 
 namespace alerse {
 
-// Profile pref: a list of {"pattern", "space", "name"}.
-inline constexpr char kLinkRoutesPref[] = "arcomium.link_routes";
+// Local State pref, shared by every Space: a list of {"pattern", "space",
+// "name"}. The profile pref "arcomium.link_routes" of 0.1 named storage
+// partitions and is not read.
+inline constexpr char kLinkRoutesPref[] = "alerse.link_routes";
 
 struct LinkRoute {
   std::string pattern;
-  // The Space's id; empty for the default Space, the tabs outside Spaces.
+  // The Space: its profile's directory name ("Profile 1"); empty for Home.
   std::string space;
-  // The Space's name when the route was made, to bring the Space back if it
-  // has no tabs left.
+  // The Space's name when the route was made, shown once the Space is gone.
   std::string name;
 };
 
-inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {
+// How a route names the Space whose profile lives in `path`.
+inline std::string LinkRouteSpaceOf(const base::FilePath& path) {
+  const std::string name = path.BaseName().AsUTF8Unsafe();
+  return name == "Default" ? std::string() : name;
+}
+
+inline void RegisterLinkRoutesLocalState(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kLinkRoutesPref);
+}
+
+inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {
   // chrome://alerse-import's prefs, local to this profile, registered here:
   // this is the call browser_prefs.cc makes for Alerse's profile prefs.
   registry->RegisterDictionaryPref(alerse_import::kImportFoldersPref);
   registry->RegisterStringPref(alerse_import::kImportKeyPref, std::string());
 }
 
-inline std::vector<LinkRoute> GetLinkRoutes(const PrefService& prefs) {
+inline std::vector<LinkRoute> GetLinkRoutes() {
   std::vector<LinkRoute> routes;
-  for (const base::Value& value : prefs.GetList(kLinkRoutesPref)) {
+  for (const base::Value& value :
+       g_browser_process->local_state()->GetList(kLinkRoutesPref)) {
     const base::DictValue* dict = value.GetIfDict();
     if (!dict) {
       continue;
@@ -64,8 +77,7 @@ inline std::vector<LinkRoute> GetLinkRoutes(const PrefService& prefs) {
   return routes;
 }
 
-inline void SetLinkRoutes(PrefService* prefs,
-                          const std::vector<LinkRoute>& routes) {
+inline void SetLinkRoutes(const std::vector<LinkRoute>& routes) {
   base::ListValue list;
   for (const LinkRoute& route : routes) {
     list.Append(base::DictValue()
@@ -73,7 +85,7 @@ inline void SetLinkRoutes(PrefService* prefs,
                     .Set("space", route.space)
                     .Set("name", route.name));
   }
-  prefs->SetList(kLinkRoutesPref, std::move(list));
+  g_browser_process->local_state()->SetList(kLinkRoutesPref, std::move(list));
 }
 
 // Reads a pattern as people type it ("https://www.GitHub.com/acme/") into
@@ -123,23 +135,6 @@ inline bool LinkPatternMatches(std::string_view pattern, const GURL& url) {
   const std::string url_path(url.path());
   return url_path.starts_with(path) &&
          (url_path.size() == path.size() || url_path[path.size()] == '/');
-}
-
-// The group of `space` in `model`, or nullopt: a Space without tabs has
-// none.
-inline std::optional<tab_groups::TabGroupId> FindGroupOfSpace(
-    const TabStripModel* model,
-    const std::string& space) {
-  if (!model->group_model()) {
-    return std::nullopt;
-  }
-  for (const tab_groups::TabGroupId& group :
-       model->group_model()->ListTabGroups()) {
-    if (GetSpaceOfGroup(model, group) == space) {
-      return group;
-    }
-  }
-  return std::nullopt;
 }
 
 // The route for a link opened from another app, if one matches.

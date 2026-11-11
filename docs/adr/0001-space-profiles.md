@@ -1,7 +1,7 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Not implemented yet; [design.md](../design.md) describes
-the browser as it is built today.
+Status: accepted, 2026-11-11. Steps 1 to 3 of the [order of work](#order-of-work) are
+built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
 
 ## Context
 
@@ -107,7 +107,9 @@ A member's sidebar shows its own profile only, so the code that filters by Space
 - Tabs: every tab of the member's tab strip. Tab groups in focus mode are no longer
   Spaces, and `GetSpaceOfContents()`, `GetSpaceOfGroup()` and
   `GetSpaceOfGroupOrFolder()` are deleted.
-- Pinned tree: one bookmark folder of the profile (meta `arcomium.pinned_root = 1`).
+- Pinned tree: the Space's folder, one folder of the profile's Other Bookmarks with
+  the meta info `arcomium.space = default`. That is the mark home's folder had in 0.1,
+  so home's pinned items need no migration.
 - Favorites: the profile's favorites folder, opened as Chromium pinned tabs of that
   member, in that Space's storage. Each Space has its own, as in Arc.
 - Bindings of tabs to pinned items stay as they are (the item's uuid in the tab's
@@ -141,15 +143,20 @@ and tab discarding are deleted.
 
 ### Tabs between Spaces
 
-Move to a Space, a route and Turn folder into Space open the address again in the
-other profile. History of the tab and form state do not move, as in 0.1. A pinned item
-or folder moves between the two profiles' bookmark models.
+Move to a Space and a route open the address again in the other profile, and the
+stack switches to that Space. History of the tab and form state do not move, as in
+0.1. A pinned item or folder is copied to the other profile's bookmark model and then
+removed from its own, which closes the tabs bound to it; the Space shown does not
+change. Turn folder into Space creates a Space, moves the folder's items there and
+shows it.
 
 ### Link routing
 
-A route names a Space id. A link from another app opens in the member of that Space in
-the last active stack, which creates the member if needed and switches to it. Routes
-move from the profile pref `arcomium.link_routes` to `Local State`.
+A route names a Space by the directory of its profile (`Profile 1`; empty for home).
+A link from another app opens in the member of that Space in the last active stack,
+which creates the member if needed and switches to it. A route whose Space was deleted
+does not apply. Routes move from the profile pref `arcomium.link_routes` to the
+`Local State` pref `alerse.link_routes`.
 
 ### Sync
 
@@ -194,12 +201,18 @@ is shown. iOS has no Spaces and does not change.
 
 ### Code that goes
 
-`spaces/space-storage-partitions.patch`, `fixed-partition-blank-pages.patch`,
-`space-new-windows.patch`, `space-data-lifecycle.patch`, `enable-tab-group-focus.patch`,
-`no-focus-freezing.patch`, `space-identity.patch`, `space-group-identity.patch`,
-`space-sync.patch`, `synced-empty-space.patch`, `lazy-saved-space-tabs.patch`,
-`open-space-quietly.patch`, most of `alerse_spaces.h`, and the Space filtering in the
-sidebar and the Space bar.
+Deleted in step 3: `spaces/space-storage-partitions.patch`,
+`fixed-partition-blank-pages.patch`, `space-new-windows.patch`, `space-identity.patch`,
+`space-group-identity.patch`, `space-sync.patch`, `synced-empty-space.patch`,
+`lazy-saved-space-tabs.patch`, `open-space-quietly.patch`, most of `alerse_spaces.h`,
+and the Space filtering in the sidebar and the Space bar.
+
+Still to go:
+
+| Patch | Why it stays | Goes in |
+|---|---|---|
+| `keep-old-space-data.patch` (what is left of `space-data-lifecycle.patch`) | Chromium deletes storage partitions no extension owns. Without the patch a 0.1 user's logins under `Storage/ext/arcomium` are gone before the migration reads them | Step 5 |
+| `enable-tab-group-focus.patch`, `no-focus-freezing.patch` | The sidebar's swipe controller is built only with `kTabGroupsFocusing` | Step 7 |
 
 ## Features on the stack
 
@@ -340,7 +353,13 @@ be undone except from the backup.
    switches 15 to 18 ms, and a 55 frames per second screen recording of four switches
    has no frame that shows the desktop. Not measured: a full-screen member.
 2. Space registry, create and delete, the Space bar on the registry.
+   Done on 2026-11-11. After a restart each profile's window opens as a stack of its
+   own; step 4 stacks them again.
 3. Sidebar on one profile; delete the partition patches.
+   Done on 2026-11-11, with these gaps: the swipe shows an empty neighbour (step 7);
+   importing from Arc a second time makes the Spaces again, because the import does
+   not look for them in other profiles (step 6); the import from Arc, a tab's binding
+   to its pinned item after a restart, and Windows and Linux were not tested.
 4. Startup, sessions, the empty Space, New Window, incognito.
 5. Migration from 0.1, with the backup.
 6. Link routing, import, the command bar and menu bar.

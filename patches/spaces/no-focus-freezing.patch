@@ -3,12 +3,12 @@ index 88517af5a16..6fd5afe5f6a 100644
 --- a/chrome/browser/ui/ui_features.cc
 +++ b/chrome/browser/ui/ui_features.cc
 @@ -550,7 +550,9 @@ BASE_FEATURE(kAiOverlayDisableNavigationContext,
- // Alerse: focus mode is how a Space shows only its own tabs.
+ // Alerse: the swipe between Spaces uses this feature's swipe controller.
  BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_ENABLED_BY_DEFAULT);
  
 -BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, true);
-+// Alerse: tabs of the Spaces not shown keep running, as in Arc: a page
-+// playing music or receiving messages in another Space must not freeze.
++// Alerse: no tab freezes when a session of 0.1 comes back with a focused
++// tab group, which was a Space then.
 +BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, false);
  
  bool IsTabGroupsFocusFreezingEnabled() {

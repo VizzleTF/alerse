@@ -15,36 +15,31 @@
 
 #include "base/callback_list.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
-#include "base/timer/timer.h"
-#include "base/uuid.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_attributes_storage_observer.h"
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
-#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
-#include "components/tabs/public/tab_interface.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_model.h"
-#include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/context_menu_controller.h"
-#include "components/tab_groups/tab_group_id.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
 #include "third_party/skia/include/core/SkColor.h"
 
 class BrowserWindowInterface;
+class Profile;
 
 namespace views {
 class MenuRunner;
 }
-class TabStripModel;
 
 namespace gfx {
 class Canvas;
@@ -72,23 +67,19 @@ void PaintSpaceIcon(gfx::Canvas* canvas,
 std::vector<std::string> GetSpaceIconNames();
 }  // namespace alerse
 
-// Alerse: row of Spaces at the bottom of the vertical tab strip. Every Space
-// is a tab group; its dot switches the strip into focus mode for that group.
-// The "+" button creates a Space with its own storage partition. Spaces sync
-// as saved tab groups: one from another device, or closed here, shows too and
-// opens with its tabs.
-// A Space as the switcher's row lists it: open, closed or synced.
+// A Space as the Space bar lists it.
 struct AlerseSpaceRef {
-  // The Space's id; kDefaultSpace for home, empty for a synced Space.
+  // kDefaultSpace for the window's own Space, "profile:<directory>" for
+  // another one.
   std::string space;
   std::u16string title;
-  // Its tab group here, if it is open.
-  std::optional<tab_groups::TabGroupId> group;
 };
 
+// Alerse: the Space bar, the row of Spaces at the bottom of the sidebar. A
+// Space is a Chromium profile (alerse_space_registry.h) and the window shows
+// one: an icon shows that Space's window in this one's place
+// (alerse_window_stack.h). The "+" button creates a Space.
 class AlerseSpaceSwitcher : public views::View,
-                              public TabStripModelObserver,
-                              public tab_groups::TabGroupSyncService::Observer,
                               public bookmarks::BaseBookmarkModelObserver,
                               public ProfileAttributesStorageObserver,
                               public views::ContextMenuController,
@@ -101,9 +92,12 @@ class AlerseSpaceSwitcher : public views::View,
   AlerseSpaceSwitcher& operator=(const AlerseSpaceSwitcher&) = delete;
   ~AlerseSpaceSwitcher() override;
 
-  // Creates a Space with a blank tab in a fresh storage partition and switches
-  // to it.
-  static void CreateSpace(BrowserWindowInterface* browser);
+  // Creates a Space named `name` ("Space N" if empty) and shows it in
+  // `browser`'s place. `created` runs with its profile before it shows.
+  using SpaceCreatedCallback = base::OnceCallback<void(Profile*)>;
+  static void CreateSpace(BrowserWindowInterface* browser,
+                          const std::u16string& name = std::u16string(),
+                          SpaceCreatedCallback created = {});
   // Runs IDC_ALERSE_NEW_SPACE, _NEXT_SPACE or _PREVIOUS_SPACE in `browser`'s
   // Space bar (alerse_space_command_hook.h); false without one.
   static bool RunSpaceCommand(BrowserWindowInterface* browser, int command_id);
@@ -126,35 +120,8 @@ class AlerseSpaceSwitcher : public views::View,
   static void ShowActiveSpaceMenuIn(BrowserWindowInterface* browser,
                                     const gfx::Point& point,
                                     ui::mojom::MenuSourceType source_type);
-  // Opens the Space `space` named `title` with a blank tab in its storage
-  // partition and switches to it.
-  static void OpenSpace(BrowserWindowInterface* browser,
-                        const std::string& space,
-                        const std::u16string& title);
-
-  // TabStripModelObserver:
-  void OnTabStripModelChanged(
-      TabStripModel* tab_strip_model,
-      const TabStripModelChange& change,
-      const TabStripSelectionChange& selection) override;
-  void OnTabGroupChanged(const TabGroupChange& change) override;
-  void OnTabGroupFocusChanged(
-      std::optional<tab_groups::TabGroupId> new_focused_group_id,
-      std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
-
-  // tab_groups::TabGroupSyncService::Observer:
-  using TabStripModelObserver::OnTabGroupAdded;
-  using tab_groups::TabGroupSyncService::Observer::OnTabGroupRemoved;
-  void OnInitialized() override;
-  void OnTabGroupAdded(const tab_groups::SavedTabGroup& group,
-                       tab_groups::TriggerSource source) override;
-  void OnTabGroupUpdated(const tab_groups::SavedTabGroup& group,
-                         tab_groups::TriggerSource source) override;
-  void OnTabGroupRemoved(const base::Uuid& sync_id,
-                         tab_groups::TriggerSource source) override;
-
-  // bookmarks::BaseBookmarkModelObserver: a saved Space shows once the bookmark
-  // folder that names its storage partition has synced.
+  // bookmarks::BaseBookmarkModelObserver: the Space's folder records its
+  // name, icon and color.
   void BookmarkModelChanged() override;
   void BookmarkMetaInfoChanged(const bookmarks::BookmarkNode* node) override;
   void BookmarkModelBeingDeleted() override;
@@ -185,8 +152,8 @@ class AlerseSpaceSwitcher : public views::View,
   void AddedToWidget() override;
   bool AcceleratorPressed(const ui::Accelerator& accelerator) override;
 
-  // Switches to the next or the previous Space in the row, closed ones
-  // included, as the trackpad's horizontal swipe asks. False at either end.
+  // Switches to the next or the previous Space in the row, as the trackpad's
+  // horizontal swipe asks. False at either end.
   bool RotateSpace(bool forward);
   // Whether there is a Space to go to that way.
   bool CanRotateSpace(bool forward) const;
@@ -197,9 +164,6 @@ class AlerseSpaceSwitcher : public views::View,
   // Rebuilds asynchronously: a change may come from a click on one of the
   // buttons being rebuilt.
   void ScheduleRebuild();
-  // ScheduleRebuild() in two seconds, for a step that waits on session
-  // restore or on the bookmark model.
-  void RetryRebuildLater();
   void Rebuild();
   // What each icon in the row does, in order, and which one is active.
   std::vector<base::RepeatingClosure> space_actions_;
@@ -213,38 +177,17 @@ class AlerseSpaceSwitcher : public views::View,
     std::optional<SkColor> tint;
   };
   std::vector<MenuBarSpace> menu_bar_spaces_;
-  void SwitchTo(const tab_groups::TabGroupId& group);
   // Shows the Space whose profile lives in `path` in this window's place
   // (alerse_window_stack.h).
   void ShowSpaceOfPath(const base::FilePath& path);
   // The profile directory of the Space an icon names: kDefaultSpace is this
   // window's own, "profile:<directory>" another one.
   base::FilePath PathOfSpace(const std::string& space) const;
-  // Opens a saved Space that has no tab group here, then switches to it.
-  void OpenSavedSpace(const base::Uuid& sync_id);
-  // Opens every saved Space without a tab group here, as Arc keeps every
-  // Space open, without leaving the Space shown. True if it opened one.
-  bool OpenSavedSpacesHere();
-  // Folds the tab groups of a Space that has more than one here (one saved
-  // group per device, from before the group id derived from the Space) into
-  // the group with the derived id, once per profile. True if it merged any.
-  bool MergeDuplicateSpaces();
-  // Records in each Space's bookmark folder the saved tab group it syncs as,
-  // so other devices open its tabs in the Space's storage partition.
-  void LinkSpaceFolders();
-  // Ids of the saved tab groups that a Space's bookmark folder links to.
-  std::set<std::string> GetLinkedSavedGroups() const;
-  // The bookmark folder of the Space `space`, or of the saved Space `sync_id`.
-  const bookmarks::BookmarkNode* FindSpaceFolder(
-      const std::string& space,
-      const std::string& sync_id) const;
-  // The tab group of the Space `space` in this window, if it is open.
-  std::optional<tab_groups::TabGroupId> FindGroupOfSpace(
-      const std::string& space) const;
+  // The folder of this window's Space (alerse_space_folder.h), if it has one.
+  const bookmarks::BookmarkNode* SpaceFolder() const;
   // The plus button's menu: a new Space, folder or tab.
   void ShowAddMenu(const ui::Event& event);
   void ShowSpaceMenu(const std::string& space,
-                     const std::string& sync_id,
                      const gfx::Point& point,
                      ui::mojom::MenuSourceType source_type);
   // The bookmark folder of the menu's Space, added if it has none yet.
@@ -256,29 +199,18 @@ class AlerseSpaceSwitcher : public views::View,
   // Collapse / Expand All Folders: closes every folder of the menu's Space
   // while one is open, else opens them all.
   void ToggleMenuSpaceFolders();
-  // Switches to the Space of the icon menu, opening it if it is closed.
+  // Shows the Space of the icon menu.
   void ActivateMenuSpace();
   // Opens the sidebar's theme color picker for the Space of the icon menu.
   void EditMenuSpaceColor();
-  // Asks, then deletes the Space of the icon menu: its tabs, its saved tab
-  // group and its folder of pinned tabs.
+  // Asks, then deletes the Space of the icon menu: its profile.
   void ConfirmDeleteMenuSpace();
   void DeleteSpace(const std::string& space,
-                   const std::string& sync_id,
                    chrome::MessageBoxResult result);
   // Tints the window with the active Space's theme color.
   void ApplyActiveSpaceColor();
-  // The icon a Space's folder records (its "arcomium.space_icon").
-  std::string GetSpaceIcon(const std::string& space,
-                           const std::string& sync_id) const;
-
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<views::BoxLayout> layout_ = nullptr;
-  raw_ptr<TabStripModel> model_;
-  raw_ptr<tab_groups::TabGroupSyncService> sync_service_ = nullptr;
-  base::ScopedObservation<tab_groups::TabGroupSyncService,
-                          tab_groups::TabGroupSyncService::Observer>
-      sync_observation_{this};
   base::ScopedObservation<bookmarks::BookmarkModel,
                           bookmarks::BookmarkModelObserver>
       bookmark_observation_{this};
@@ -287,36 +219,19 @@ class AlerseSpaceSwitcher : public views::View,
       profiles_observation_{this};
   // Another window changed what its Space shows (alerse_space_registry.h).
   base::CallbackListSubscription spaces_subscription_;
-  // Makes the tab a Space was last on active again, once switched to it.
-  void RestoreActiveTab(std::optional<tab_groups::TabGroupId> space);
-
-  // The tab each Space was last on, by its tab group; home has none.
-  std::map<std::optional<tab_groups::TabGroupId>, tabs::TabHandle>
-      last_active_tabs_;
   // The Space folder being renamed, and its Space.
   int64_t renaming_folder_ = 0;
   std::string renaming_space_;
   // The Space whose icon menu is open.
   std::string menu_space_;
-  std::string menu_sync_id_;
   gfx::Point menu_point_;
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
   // The plus button at the row's end.
   raw_ptr<views::View> add_button_ = nullptr;
-  // Whether the tab group sync service has loaded its groups: before, a
-  // Space's group looks missing.
-  bool sync_initialized_ = false;
-  // Saved Spaces OpenSavedSpacesHere() has looked at: open here already or
-  // opened by it. None is opened twice.
-  std::set<std::string> opened_saved_;
-  // What the icons last showed of each saved group (OnTabGroupUpdated()).
-  std::map<base::Uuid, std::string> group_signatures_;
   // Blends the window's color into the shown Space's.
   std::unique_ptr<alerse::SpaceColorTransition> color_transition_;
-  // The delayed retry of MergeDuplicateSpaces() and OpenSavedSpacesHere().
-  base::OneShotTimer retry_timer_;
-  // Never invalidated: the delete dialog and RestoreActiveTab() hold these.
+  // Never invalidated: the delete dialog and the popover hold these.
   base::WeakPtrFactory<AlerseSpaceSwitcher> weak_factory_{this};
   // Only for the pending rebuild, which ScheduleRebuild() replaces.
   base::WeakPtrFactory<AlerseSpaceSwitcher> rebuild_weak_factory_{this};

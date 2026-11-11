@@ -1,7 +1,5 @@
 # Alerse patches, applied after ungoogled-chromium and the platform patches
 defaults/vertical-tabs-by-default.patch
-spaces/fixed-partition-blank-pages.patch
-spaces/space-storage-partitions.patch
 spaces/enable-tab-group-focus.patch
 spaces/space-sidebar.patch
 look/content-card.patch
@@ -22,10 +20,8 @@ look/alerse-name-in-pages.patch
 look/mac-window-controls.patch
 look/mac-header-clicks.patch
 sync/sync-all-types.patch
-spaces/space-sync.patch
 extensions/web-store.patch
 look/sidebar-address-bar.patch
-spaces/space-identity.patch
 look/address-bar-center.patch
 look/no-toolbar.patch
 look/crash-bubble-in-window.patch
@@ -44,19 +40,15 @@ defaults/mac-own-profile-dir.patch
 extensions/site-controls.patch
 spaces/space-swipe.patch
 look/sidebar-placeholder-sticks.patch
-spaces/open-space-quietly.patch
 look/alerse-strings.patch
 look/alerse-colors.patch
-spaces/synced-empty-space.patch
 spaces/empty-space-blank-focus.patch
 defaults/no-dangling-ptr-crash.patch
-spaces/space-group-identity.patch
 spaces/no-focus-freezing.patch
 look/command-bar-input-and-security.patch
 look/command-bar-rows.patch
 look/bounded-tint-color-providers.patch
-spaces/space-data-lifecycle.patch
-spaces/lazy-saved-space-tabs.patch
+spaces/keep-old-space-data.patch
 defaults/feature-defaults.patch
 look/sidebar-logo-menu.patch
 defaults/own-install-identity.patch
@@ -81,5 +73,4 @@ look/mac-menu-bar-arc.patch
 look/mac-arc-polish.patch
 look/space-rename-title.patch
 look/windows-mac-command-bar.patch
-spaces/space-new-windows.patch
 spaces/space-profiles.patch

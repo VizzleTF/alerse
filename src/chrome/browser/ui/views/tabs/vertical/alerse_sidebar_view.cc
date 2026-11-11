@@ -31,7 +31,6 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service.h"
 #include "chrome/browser/sessions/session_service_factory.h"
-#include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/tab_contents/tab_util.h"
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -41,7 +40,9 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
+#include "chrome/browser/ui/tabs/alerse_window_stack.h"
 #include "chrome/browser/ui/tabs/alerse_spaces.h"
 #include "chrome/browser/ui/tabs/alerse_sidebar_drag.h"
 #include "chrome/browser/ui/tabs/alerse_split.h"
@@ -69,9 +70,6 @@
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/sessions/content/session_tab_helper.h"
-#include "components/saved_tab_groups/public/saved_tab_group.h"
-#include "components/saved_tab_groups/public/saved_tab_group_tab.h"
-#include "components/saved_tab_groups/public/tab_group_sync_service.h"
 #include "components/sessions/core/session_id.h"
 #include "components/tabs/public/tab_alert.h"
 #include "components/tabs/public/tab_group.h"
@@ -1962,16 +1960,6 @@ void AlerseSidebarView::FillSplitChooser(
 
 void AlerseSidebarView::OnTabChangedAt(tabs::TabInterface* tab,
                                          TabChangeType change_type) {
-  // A tab of a Space not shown changes nothing here (its title, its loading),
-  // unless a pinned item shown is bound to it.
-  if (tab && tab->GetGroup() != GetActiveGroup()) {
-    const tabs::TabInterface::Handle handle = tab->GetHandle();
-    if (std::ranges::none_of(bound_, [&handle](const auto& entry) {
-          return entry.second == handle;
-        })) {
-      return;
-    }
-  }
   // A page that ticks in its title would otherwise rebuild every row several
   // times a second.
   if (tab && UpdateTabRows(tab)) {
@@ -2018,47 +2006,13 @@ void AlerseSidebarView::OnTabGroupChanged(const TabGroupChange& change) {
   ScheduleRebuild();
 }
 
-void AlerseSidebarView::OnTabGroupFocusChanged(
-    std::optional<tab_groups::TabGroupId> new_focused_group_id,
-    std::optional<tab_groups::TabGroupId> old_focused_group_id) {
-  ScheduleRebuild();
-}
-
-std::optional<tab_groups::TabGroupId> AlerseSidebarView::GetActiveGroup()
-    const {
-  return preview_space_ ? preview_space_->group
-                        : browser_->GetTabStripModel()->GetFocusedGroup();
-}
-
 std::string AlerseSidebarView::GetActiveSpace() const {
-  if (preview_space_) {
-    return preview_space_->space;
-  }
-  const TabStripModel* tabs = browser_->GetTabStripModel();
-  if (std::optional<tab_groups::TabGroupId> group = tabs->GetFocusedGroup()) {
-    if (std::optional<std::string> space = alerse::GetSpaceOfGroupOrFolder(
-            browser_->GetProfile(), tabs, *group)) {
-      return *space;
-    }
-  }
-  return kDefaultSpace;
+  // The window shows one Space, its profile's; a swipe previews a neighbor.
+  return preview_space_ ? preview_space_->space : kDefaultSpace;
 }
 
 std::u16string AlerseSidebarView::GetActiveSpaceTitle() const {
-  if (preview_space_) {
-    return preview_space_->title;
-  }
-  const TabStripModel* tabs = browser_->GetTabStripModel();
-  std::optional<tab_groups::TabGroupId> group = tabs->GetFocusedGroup();
-  if (group && tabs->group_model() &&
-      tabs->group_model()->ContainsTabGroup(*group)) {
-    const std::u16string& title =
-        tabs->group_model()->GetTabGroup(*group)->visual_data()->title();
-    if (!title.empty()) {
-      return title;
-    }
-  }
-  return std::u16string();
+  return preview_space_ ? preview_space_->title : std::u16string();
 }
 
 const bookmarks::BookmarkNode* AlerseSidebarView::GetSpaceFolder(
@@ -2106,12 +2060,9 @@ const bookmarks::BookmarkNode* AlerseSidebarView::GetNode(int64_t id) const {
 }
 
 bool AlerseSidebarView::IsInActiveSpace(const tabs::TabInterface* tab) const {
-  const std::optional<tab_groups::TabGroupId> focused = GetActiveGroup();
-  if (!focused && preview_space_ && preview_space_->space != kDefaultSpace) {
-    // A closed or synced Space has no tabs here.
-    return false;
-  }
-  return focused ? tab->GetGroup() == focused : !tab->GetGroup().has_value();
+  // Every tab of the window is the Space's. A previewed neighbor's tabs are
+  // in its own window.
+  return !preview_space_;
 }
 
 tabs::TabInterface* AlerseSidebarView::GetBoundTab(int64_t id) const {
@@ -2144,12 +2095,11 @@ void AlerseSidebarView::BindTabsByUuid() {
     const bookmarks::BookmarkNode* node = model_->GetNodeByUuid(
         uuid, bookmarks::BookmarkModel::NodeTypeForUuidLookup::
                   kLocalOrSyncableNodes);
-    // Only in the tab's own Space: an item elsewhere has no row where the tab
-    // is shown, and the tab would be lost from the sidebar.
-    // A favorite's tab is outside the Spaces.
+    // Only to an item of the Space's folder: one elsewhere has no row, and
+    // the tab would be lost from the sidebar. A favorite's tab is pinned.
     if (node && node->is_url() && !GetBoundTab(node->id()) &&
         (IsFavorite(node) ? tab->IsPinned()
-                          : GetSpaceOfNode(node) == GetSpaceOfTab(tab))) {
+                          : GetSpaceOfNode(node) == kDefaultSpace)) {
       bound_[node->id()] = tab->GetHandle();
     }
   }
@@ -2167,33 +2117,6 @@ std::string AlerseSidebarView::GetSpaceOfNode(
     return std::string();
   }
   return space;
-}
-
-std::string AlerseSidebarView::GetSpaceOfTab(
-    const tabs::TabInterface* tab) const {
-  const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
-  if (!group) {
-    return kDefaultSpace;
-  }
-  return alerse::GetSpaceOfGroupOrFolder(browser_->GetProfile(),
-                                           browser_->GetTabStripModel(), *group)
-      .value_or(kDefaultSpace);
-}
-
-std::string AlerseSidebarView::GetSavedTabGuid(
-    const tabs::TabInterface* tab) const {
-  const std::optional<tab_groups::TabGroupId> group = tab->GetGroup();
-  tab_groups::TabGroupSyncService* sync =
-      tab_groups::TabGroupSyncServiceFactory::GetForProfile(
-          browser_->GetProfile());
-  if (!group || !sync) {
-    return std::string();
-  }
-  const std::optional<tab_groups::SavedTabGroup> saved = sync->GetGroup(*group);
-  const tab_groups::SavedTabGroupTab* saved_tab =
-      saved ? saved->GetTab(tab->GetHandle().raw_value()) : nullptr;
-  return saved_tab ? saved_tab->saved_tab_guid().AsLowercaseString()
-                   : std::string();
 }
 
 void AlerseSidebarView::WritePinnedItem(tabs::TabInterface* tab,
@@ -2232,20 +2155,9 @@ void AlerseSidebarView::SaveBindings() {
     auto it = pinned.find(tab);
     if (it != pinned.end()) {
       const bookmarks::BookmarkNode* node = it->second;
-      // The item names its tab in the Space's saved group too: a closed Space
-      // keeps only that. A tab not saved yet leaves it as it is.
-      if (const std::string guid = GetSavedTabGuid(tab); !guid.empty()) {
-        std::string value;
-        if (!node->GetMetaInfo(alerse::kPinnedSavedTabMetaKey, &value) ||
-            value != guid) {
-          model_->SetNodeMetaInfo(node, alerse::kPinnedSavedTabMetaKey,
-                                  guid);
-        }
-      }
-      // Also after a discard, whose new contents start without it, and for a
-      // tab opened from a saved group, which the session does not have yet.
+      // Also after a discard, whose new contents start without it.
       const std::string uuid = node->uuid().AsLowercaseString();
-      if (uuid != current || !alerse::IsPinnedTabUuidInSession(contents)) {
+      if (uuid != current) {
         WritePinnedItem(tab, uuid);
       }
       continue;
@@ -2253,9 +2165,8 @@ void AlerseSidebarView::SaveBindings() {
     if (current.empty()) {
       continue;
     }
-    // A tab whose item is in another Space, or outside the Spaces, is shown
-    // as an ordinary tab but keeps its item: it may be in the middle of a
-    // move, as while a restored tab joins its group.
+    // A tab whose item is outside the Space's folder is shown as an ordinary
+    // tab but keeps its item: it may be in the middle of a move.
     const bookmarks::BookmarkNode* node = model_->GetNodeByUuid(
         base::Uuid::ParseLowercase(current),
         bookmarks::BookmarkModel::NodeTypeForUuidLookup::kLocalOrSyncableNodes);
@@ -2263,11 +2174,6 @@ void AlerseSidebarView::SaveBindings() {
       continue;
     }
     // Its item is gone, or has another tab now.
-    if (std::string value;
-        node && node->GetMetaInfo(alerse::kPinnedSavedTabMetaKey, &value) &&
-        value == GetSavedTabGuid(tab)) {
-      model_->DeleteNodeMetaInfo(node, alerse::kPinnedSavedTabMetaKey);
-    }
     WritePinnedItem(tab, std::string());
   }
 }
@@ -2597,7 +2503,7 @@ void AlerseSidebarView::Rebuild() {
   row_targets_.clear();
   row_pitch_offset_ = 0;
   // A tab dragged to another window goes with its binding: that window's
-  // sidebar binds it again by uuid. An item moved out of its tab's Space
+  // sidebar binds it again by uuid. An item moved out of the Space's folder
   // lets the tab go.
   std::erase_if(bound_, [this](const auto& entry) {
     tabs::TabInterface* tab = entry.second.Get();
@@ -2606,7 +2512,7 @@ void AlerseSidebarView::Rebuild() {
            browser_->GetTabStripModel()->GetIndexOfTab(tab) ==
                TabStripModel::kNoTab ||
            (IsFavorite(node) ? !tab->IsPinned()
-                             : GetSpaceOfNode(node) != GetSpaceOfTab(tab));
+                             : GetSpaceOfNode(node) != kDefaultSpace);
   });
   BindTabsByUuid();
 
@@ -3300,7 +3206,6 @@ void AlerseSidebarView::OpenBookmark(const bookmarks::BookmarkNode* node) {
   NavigateParams params(browser_, node->url(),
                         ui::PAGE_TRANSITION_AUTO_BOOKMARK);
   params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-  params.group = browser_->GetTabStripModel()->GetFocusedGroup();
   Navigate(&params);
   if (params.navigated_or_inserted_contents) {
     if (tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(
@@ -3742,23 +3647,8 @@ void AlerseSidebarView::ShowContextMenuForViewImpl(
   const bookmarks::BookmarkNode* node = GetNode(menu_node_);
   tabs::TabInterface* tab = menu_tab_.Get();
 
-  // "Move to": the other Spaces. As in Arc, a pinned item or folder can also
-  // go to a Space that is not open here: into its pinned folder.
+  // "Move to": the other Spaces.
   menu_spaces_ = GetOtherSpaces();
-  if (node && model_ && model_->loaded()) {
-    const std::string active = GetActiveSpace();
-    for (const auto& child : model_->other_node()->children()) {
-      std::string space;
-      if (!child->is_folder() || !child->GetMetaInfo(kSpaceMetaKey, &space) ||
-          space.starts_with("arc:") || space == active ||
-          std::ranges::any_of(menu_spaces_, [&space](const SpaceTarget& t) {
-            return t.space == space;
-          })) {
-        continue;
-      }
-      menu_spaces_.push_back({std::nullopt, space, child->GetTitle()});
-    }
-  }
   move_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
   for (size_t i = 0; i < menu_spaces_.size(); ++i) {
     move_menu_model_->AddItem(kMoveToFirst + static_cast<int>(i),
@@ -3940,27 +3830,15 @@ void AlerseSidebarView::ShowContextMenuForViewImpl(
 std::vector<AlerseSidebarView::SpaceTarget>
 AlerseSidebarView::GetOtherSpaces() const {
   std::vector<SpaceTarget> spaces;
-  TabStripModel* tabs = browser_->GetTabStripModel();
-  const std::optional<tab_groups::TabGroupId> focused = tabs->GetFocusedGroup();
-  if (focused) {
-    spaces.push_back({std::nullopt, kDefaultSpace, u"home"});
-  }
-  TabGroupModel* groups = tabs->group_model();
-  if (!groups) {
+  Profile* profile = browser_->GetProfile();
+  if (profile->IsOffTheRecord()) {
     return spaces;
   }
   // In the Space bar's order.
-  std::vector<tab_groups::TabGroupId> ids = groups->ListTabGroups();
-  std::ranges::sort(ids, {}, [groups](const tab_groups::TabGroupId& id) {
-    return groups->GetTabGroup(id)->ListTabs().start();
-  });
-  for (const tab_groups::TabGroupId& id : ids) {
-    std::optional<std::string> space = alerse::GetSpaceOfGroup(tabs, id);
-    if (id == focused || !space) {
-      continue;
+  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+    if (space.path != profile->GetPath()) {
+      spaces.push_back({space.path, space.name});
     }
-    const std::u16string& title = groups->GetTabGroup(id)->visual_data()->title();
-    spaces.push_back({id, *space, title.empty() ? u"Space" : title});
   }
   return spaces;
 }
@@ -3974,59 +3852,67 @@ void AlerseSidebarView::MoveToSpace(const SpaceTarget& target) {
     }
     return;
   }
-  const bookmarks::BookmarkNode* folder =
-      GetSpaceFolderFor(target.space, target.title, /*create=*/true);
-  if (!folder || folder == node || folder->HasAncestor(node)) {
-    return;
-  }
+  // The other Space's bookmarks are another profile's: the item is copied
+  // into its folder, then removed here.
+  alerse::WithSpaceBookmarks(
+      target.path,
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSidebarView> sidebar, int64_t id,
+             std::u16string title, Profile* profile,
+             bookmarks::BookmarkModel* to) {
+            const bookmarks::BookmarkNode* node =
+                sidebar ? sidebar->GetNode(id) : nullptr;
+            if (!node) {
+              return;
+            }
+            alerse::CopyNodeTo(node, to,
+                                 alerse::GetOrAddSpaceFolder(to, title));
+            sidebar->RemoveMovedNode(node);
+          },
+          drop_weak_factory_.GetWeakPtr(), node->id(), target.title));
+}
+
+void AlerseSidebarView::RemoveMovedNode(const bookmarks::BookmarkNode* node) {
   // A pinned item's open tab stays behind in this Space's storage, so it
-  // closes; the item opens again in the target Space.
-  tabs::TabInterface* bound = node->is_folder() ? nullptr : GetBoundTab(node->id());
-  model_->Move(node, folder, folder->children().size());
-  if (bound) {
+  // closes; the item opens again in the other Space.
+  std::vector<tabs::TabInterface*> bound;
+  std::vector<const bookmarks::BookmarkNode*> pending = {node};
+  while (!pending.empty()) {
+    const bookmarks::BookmarkNode* next = pending.back();
+    pending.pop_back();
+    for (const auto& child : next->children()) {
+      pending.push_back(child.get());
+    }
+    if (tabs::TabInterface* tab = GetBoundTab(next->id())) {
+      bound.push_back(tab);
+      bound_.erase(next->id());
+    }
+  }
+  model_->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
+                 FROM_HERE);
+  for (tabs::TabInterface* tab : bound) {
     // At once: a close its page cancels leaves an ordinary tab behind.
-    model_->DeleteNodeMetaInfo(node, alerse::kPinnedSavedTabMetaKey);
-    WritePinnedItem(bound, std::string());
-    bound_.erase(node->id());
-    OnTabClosePressed(bound->GetHandle());
+    WritePinnedItem(tab, std::string());
+    OnTabClosePressed(tab->GetHandle());
   }
 }
 
 void AlerseSidebarView::MoveTabToSpace(tabs::TabInterface* tab,
                                          const SpaceTarget& target) {
-  TabStripModel* tabs = browser_->GetTabStripModel();
   content::WebContents* old_contents = tab->GetContents();
   GURL url = old_contents->GetLastCommittedURL();
   if (!url.is_valid()) {
     url = old_contents->GetVisibleURL();
   }
-  // Each Space has its own storage, so the page opens anew in the target's.
-  Profile* profile = browser_->GetProfile();
-  content::WebContents::CreateParams create_params(
-      profile, target.group
-                   ? alerse::CreateSpaceSiteInstance(profile, url, target.space)
-                   : tab_util::GetSiteInstanceForNewTab(profile, url));
-  std::unique_ptr<content::WebContents> contents =
-      content::WebContents::Create(create_params);
-  contents->GetController().LoadURL(url, content::Referrer(),
-                                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
-                                    std::string());
-  int index = tabs->count();
-  if (target.group && tabs->group_model() &&
-      tabs->group_model()->ContainsTabGroup(*target.group)) {
-    index = static_cast<int>(
-        tabs->group_model()->GetTabGroup(*target.group)->ListTabs().end());
-  }
-  tabs->AddWebContents(std::move(contents), index,
-                       ui::PAGE_TRANSITION_AUTO_TOPLEVEL, AddTabTypes::ADD_NONE,
-                       target.group);
-
   // The Space it leaves stays, empty, as in Arc.
   {
     tabs::TabInterface* const leaving[] = {tab};
-    tabs->AlerseKeepSpaces(leaving);
+    browser_->GetTabStripModel()->AlerseKeepSpaces(leaving);
   }
   OnTabClosePressed(tab->GetHandle());
+  // Each Space has its own storage, so the page opens anew in the target's
+  // window, which takes this one's place.
+  alerse::OpenUrlInSpace(browser_, target.path, url);
 }
 
 void AlerseSidebarView::DuplicateItem() {
@@ -4045,7 +3931,6 @@ void AlerseSidebarView::DuplicateItem() {
     NavigateParams params(browser_, node->url(),
                           ui::PAGE_TRANSITION_AUTO_BOOKMARK);
     params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-    params.group = tabs->GetFocusedGroup();
     Navigate(&params);
   }
 }
@@ -4784,7 +4669,6 @@ void AlerseSidebarView::PerformDrop(
       NavigateParams params(browser_, node->url(),
                             ui::PAGE_TRANSITION_AUTO_BOOKMARK);
       params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
-      params.group = browser_->GetTabStripModel()->GetFocusedGroup();
       Navigate(&params);
     }
     model_->Remove(node, bookmarks::metrics::BookmarkEditSource::kUser,
@@ -4810,9 +4694,7 @@ void AlerseSidebarView::MoveTabToSlot(tabs::TabInterface* tab, int slot) {
   const int to =
       std::clamp(slot > from ? slot - 1 : slot, 0, tabs->count() - 1);
   if (to != from) {
-    // Within the Space's group, which stays contiguous.
-    tabs->MoveWebContentsAt(from, to, /*select_after_move=*/false,
-                            tabs->GetFocusedGroup());
+    tabs->MoveWebContentsAt(from, to, /*select_after_move=*/false);
   }
 }
 
@@ -5139,15 +5021,33 @@ void AlerseSidebarView::TurnIntoSpace(
   if (!model_ || !model_->loaded() || browser_->GetProfile()->IsOffTheRecord()) {
     return;
   }
-  // The folder becomes the new Space's folder, beside the other Spaces'.
-  const std::string space =
-      base::ToLowerASCII(base::Token::CreateRandom().ToString());
-  const std::u16string title = folder->GetTitle();
-  model_->Move(folder, model_->other_node(),
-               model_->other_node()->children().size());
-  model_->DeleteNodeMetaInfo(folder, kOpenMetaKey);
-  model_->SetNodeMetaInfo(folder, kSpaceMetaKey, space);
-  AlerseSpaceSwitcher::OpenSpace(browser_, space, title);
+  // The new Space's profile has its own bookmarks: what the folder holds is
+  // copied into the Space's folder there, and the folder goes from here.
+  AlerseSpaceSwitcher::CreateSpace(
+      browser_, folder->GetTitle(),
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSidebarView> sidebar, int64_t id,
+             Profile* profile) {
+            alerse::WithBookmarksOf(
+                profile,
+                base::BindOnce(
+                    [](base::WeakPtr<AlerseSidebarView> sidebar, int64_t id,
+                       Profile* profile, bookmarks::BookmarkModel* to) {
+                      const bookmarks::BookmarkNode* folder =
+                          sidebar ? sidebar->GetNode(id) : nullptr;
+                      if (!folder) {
+                        return;
+                      }
+                      const bookmarks::BookmarkNode* space =
+                          alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
+                      for (const auto& child : folder->children()) {
+                        alerse::CopyNodeTo(child.get(), to, space);
+                      }
+                      sidebar->RemoveMovedNode(folder);
+                    },
+                    sidebar, id));
+          },
+          drop_weak_factory_.GetWeakPtr(), folder->id()));
 }
 
 std::vector<GURL> AlerseSidebarView::GetFolderLinks(
