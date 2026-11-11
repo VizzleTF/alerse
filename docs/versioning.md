@@ -91,7 +91,10 @@ shows "Update to Alerse MAJOR.MINOR.PATCH" at the top of its menus
 (builds of 0.1.7 and before find the same releases: the repositories were renamed,
 and GitHub redirects their old names). So the
 tag of every release must be its `VERSION`, with a `v`; drafts and
-pre-releases are not "latest" and are not offered. A build whose
+pre-releases are not "latest" and are not offered. macOS is the exception: its
+releases are all pre-releases while it trails Windows' Chromium version, so there
+the browser reads the last twenty releases and takes the newest that is not a
+draft (`NewestRelease()`), or it would never offer an update. A build whose
 `chrome/VERSION` has no ALERSE_VERSION does not check, nor does a browser
 in headless mode or started with `--disable-background-networking`.
 

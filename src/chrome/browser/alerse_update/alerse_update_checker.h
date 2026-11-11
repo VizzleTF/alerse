@@ -47,6 +47,11 @@ GURL GetReleaseUrl(std::string_view version);
 // out), or nullopt for any other tag.
 std::optional<base::Version> ParseReleaseTag(std::string_view tag);
 
+// The newest release in GitHub's answer `body`: one release (the answer to
+// /releases/latest) or a list of them (/releases), of which drafts and tags
+// that are not releases are skipped. nullopt when it names none.
+std::optional<base::Version> NewestRelease(std::string_view body);
+
 // Whether `latest`, a release's MAJOR.MINOR.PATCH, is newer than `running`.
 // False when either is not such a version.
 bool IsNewerRelease(std::string_view latest, std::string_view running);

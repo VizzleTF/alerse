@@ -48,6 +48,17 @@ constexpr char kRepository[] = "VizzleTF/alerse-mac";
 constexpr char kRepository[] = "VizzleTF/alerse-linux";
 #endif
 
+// What is asked of GitHub. macOS releases are all pre-releases while they
+// trail Windows' Chromium version, and "latest" never names a pre-release
+// (it answers 404 where there is nothing else), so there the newest of the
+// last releases is taken instead; elsewhere a pre-release is a trial build
+// and is not offered.
+#if BUILDFLAG(IS_MAC)
+constexpr char kReleasesPath[] = "/releases?per_page=20";
+#else
+constexpr char kReleasesPath[] = "/releases/latest";
+#endif
+
 // The first check waits for startup to settle; later ones come once a day. A
 // check that gets no answer (offline, rate-limited, a server error) is
 // retried sooner.
@@ -55,7 +66,8 @@ constexpr base::TimeDelta kStartupDelay = base::Minutes(5);
 constexpr base::TimeDelta kCheckInterval = base::Days(1);
 constexpr base::TimeDelta kRetryDelay = base::Hours(1);
 
-// A release's JSON, with its notes and assets, is a few kilobytes.
+// A release's JSON, with its notes and assets, is a few kilobytes; twenty of
+// them fit with room to spare.
 constexpr size_t kMaxResponseSize = 1024 * 1024;
 
 constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
@@ -123,6 +135,35 @@ std::optional<base::Version> ParseReleaseTag(std::string_view tag) {
     tag.remove_prefix(1);
   }
   return ParseVersion(tag);
+}
+
+std::optional<base::Version> NewestRelease(std::string_view body) {
+  std::optional<base::Value> answer =
+      base::JSONReader::Read(body, base::JSON_PARSE_RFC);
+  if (!answer) {
+    return std::nullopt;
+  }
+  std::optional<base::Version> newest;
+  auto take = [&newest](const base::Value& release) {
+    const base::DictValue* dict = release.GetIfDict();
+    if (!dict || dict->FindBool("draft").value_or(false)) {
+      return;
+    }
+    const std::string* tag = dict->FindString("tag_name");
+    std::optional<base::Version> version =
+        tag ? ParseReleaseTag(*tag) : std::nullopt;
+    if (version && (!newest || *version > *newest)) {
+      newest = std::move(version);
+    }
+  };
+  if (const base::ListValue* releases = answer->GetIfList()) {
+    for (const base::Value& release : *releases) {
+      take(release);
+    }
+  } else {
+    take(*answer);
+  }
+  return newest;
 }
 
 bool IsNewerRelease(std::string_view latest, std::string_view running) {
@@ -201,7 +242,7 @@ void UpdateChecker::Check() {
   }
   auto request = std::make_unique<network::ResourceRequest>();
   request->url = GURL(base::StrCat(
-      {"https://api.github.com/repos/", kRepository, "/releases/latest"}));
+      {"https://api.github.com/repos/", kRepository, kReleasesPath}));
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   request->headers.SetHeader("Accept", "application/vnd.github+json");
   loader_ =
@@ -229,15 +270,8 @@ void UpdateChecker::OnResponse(std::optional<std::string> body) {
   // An answer that names no release this build knows (none yet, a tag that
   // is not vMAJOR.MINOR.PATCH, a broken body) keeps the last one found, and
   // the next check is a day away all the same.
-  std::optional<base::Version> latest;
-  if (body) {
-    std::optional<base::DictValue> release =
-        base::JSONReader::ReadDict(*body, base::JSON_PARSE_RFC);
-    if (const std::string* tag =
-            release ? release->FindString("tag_name") : nullptr) {
-      latest = ParseReleaseTag(*tag);
-    }
-  }
+  std::optional<base::Version> latest =
+      body ? NewestRelease(*body) : std::nullopt;
   if (latest) {
     local_state_->SetString(kUpdateCheckLatest, latest->GetString());
   }
