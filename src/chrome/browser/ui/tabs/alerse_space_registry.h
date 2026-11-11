@@ -35,6 +35,9 @@ namespace alerse {
 inline constexpr char kSpaceEntryNameKey[] = "alerse_space_name";
 inline constexpr char kSpaceEntryIconKey[] = "alerse_space_icon";
 inline constexpr char kSpaceEntryColorKey[] = "alerse_space_color";
+// The Space of Arc ("arc:<id>") an import made this Space of, so that
+// importing again fills the same Space.
+inline constexpr char kSpaceEntryArcKey[] = "alerse_arc_space";
 
 struct SpaceInfo {
   // The profile's directory, which names the Space on this device.

@@ -73,59 +73,107 @@ ImportMark GetImportMark(PrefService* prefs, std::string_view source_id) {
   return ImportMark(key, source_id);
 }
 
-// Makes a Space of `folder`, the folder of an imported Arc Space that no
-// Space has: a new profile, whose own folder takes what `folder` holds and
-// its icon and color. `folder` then goes from `profile`'s bookmarks. No
-// window opens: the Space shows in the Space bar.
+// The Space that took Arc's Space `arc_space` in an earlier import; empty if
+// none did or it was deleted.
+base::FilePath FindSpaceOfArcSpace(const std::string& arc_space) {
+  if (arc_space.empty()) {
+    return base::FilePath();
+  }
+  for (const ProfileAttributesEntry* entry :
+       g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetAllProfilesAttributes()) {
+    if (!entry->IsOmitted() &&
+        entry->GetAlerseValue(alerse::kSpaceEntryArcKey) == arc_space) {
+      return entry->GetPath();
+    }
+  }
+  return base::FilePath();
+}
+
+// Moves what the folder `id` of the profile in `from_path` holds into the
+// Space folder of `space_profile`, whose bookmarks are `to`. A Space made
+// now (`fresh`) takes the folder's icon and color too; one that took this
+// Arc Space before keeps its own and loses only what that import brought.
+void MoveFolderToSpace(base::FilePath from_path,
+                       int64_t id,
+                       bool fresh,
+                       Profile* space_profile,
+                       BookmarkModel* to) {
+  Profile* from =
+      g_browser_process->profile_manager()->GetProfileByPath(from_path);
+  BookmarkModel* model =
+      from ? BookmarkModelFactory::GetForBrowserContext(from) : nullptr;
+  const BookmarkNode* folder =
+      model ? bookmarks::GetBookmarkNodeByID(model, id) : nullptr;
+  if (!folder) {
+    return;
+  }
+  const BookmarkNode* space =
+      alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
+  std::string arc_space;
+  folder->GetMetaInfo(alerse_import::kSpaceMetaKey, &arc_space);
+  if (fresh) {
+    if (ProfileAttributesEntry* entry =
+            g_browser_process->profile_manager()
+                ->GetProfileAttributesStorage()
+                .GetProfileAttributesWithPath(space_profile->GetPath())) {
+      entry->SetAlerseValue(alerse::kSpaceEntryArcKey, arc_space);
+    }
+    if (const BookmarkNode::MetaInfoMap* meta = folder->GetMetaInfoMap()) {
+      for (const auto& [key, value] : *meta) {
+        // All but the mark of a folder no Space has: Arc's id of the Space,
+        // its icon and its color.
+        if (key != alerse_import::kSpaceMetaKey) {
+          to->SetNodeMetaInfo(space, key, value);
+        }
+      }
+    }
+  } else {
+    // By the mark's presence: the copies have new uuids, which the mark of
+    // the importing profile does not sign.
+    for (size_t i = space->children().size(); i-- > 0;) {
+      std::string mark;
+      if (space->children()[i]->GetMetaInfo(alerse_import::kImportedMetaKey,
+                                            &mark)) {
+        to->Remove(space->children()[i].get(),
+                   bookmarks::metrics::BookmarkEditSource::kOther, FROM_HERE);
+      }
+    }
+  }
+  for (const auto& child : folder->children()) {
+    alerse::CopyNodeTo(child.get(), to, space);
+  }
+  model->Remove(folder, bookmarks::metrics::BookmarkEditSource::kOther,
+                FROM_HERE);
+}
+
+// Gives `folder`, the folder of an imported Arc Space that no folder of
+// `profile` took, to a Space: the one that took this Arc Space in an earlier
+// import, else a new profile. `folder` then goes from `profile`'s bookmarks.
+// No window opens: a new Space shows in the Space bar.
 void MakeSpaceOfFolder(Profile* profile,
                        const BookmarkNode* folder,
                        const std::u16string& title) {
+  std::string arc_space;
+  folder->GetMetaInfo(alerse_import::kSpaceMetaKey, &arc_space);
+  if (const base::FilePath taken = FindSpaceOfArcSpace(arc_space);
+      !taken.empty()) {
+    alerse::WithSpaceBookmarks(
+        taken, base::BindOnce(&MoveFolderToSpace, profile->GetPath(),
+                              folder->id(), /*fresh=*/false));
+    return;
+  }
   ProfileManager::CreateMultiProfileAsync(
       title.empty() ? std::u16string(u"Space") : title,
       profiles::GetPlaceholderAvatarIndex(), /*is_hidden=*/false,
       base::BindOnce(
           [](base::FilePath from_path, int64_t id, Profile* created) {
-            if (!created) {
-              return;
+            if (created) {
+              alerse::WithBookmarksOf(
+                  created, base::BindOnce(&MoveFolderToSpace, from_path, id,
+                                          /*fresh=*/true));
             }
-            alerse::WithBookmarksOf(
-                created,
-                base::BindOnce(
-                    [](base::FilePath from_path, int64_t id, Profile* created,
-                       BookmarkModel* to) {
-                      Profile* from =
-                          g_browser_process->profile_manager()
-                              ->GetProfileByPath(from_path);
-                      BookmarkModel* model =
-                          from ? BookmarkModelFactory::GetForBrowserContext(
-                                     from)
-                               : nullptr;
-                      const BookmarkNode* folder =
-                          model ? bookmarks::GetBookmarkNodeByID(model, id)
-                                : nullptr;
-                      if (!folder) {
-                        return;
-                      }
-                      const BookmarkNode* space =
-                          alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
-                      if (const BookmarkNode::MetaInfoMap* meta =
-                              folder->GetMetaInfoMap()) {
-                        for (const auto& [key, value] : *meta) {
-                          // All but the mark of a folder no Space has: Arc's
-                          // id of the Space, its icon and its color.
-                          if (key != alerse_import::kSpaceMetaKey) {
-                            to->SetNodeMetaInfo(space, key, value);
-                          }
-                        }
-                      }
-                      for (const auto& child : folder->children()) {
-                        alerse::CopyNodeTo(child.get(), to, space);
-                      }
-                      model->Remove(
-                          folder, bookmarks::metrics::BookmarkEditSource::kOther,
-                          FROM_HERE);
-                    },
-                    from_path, id));
           },
           profile->GetPath(), folder->id()));
 }
@@ -139,7 +187,11 @@ base::DictValue ApplyArc(BookmarkModel* model,
       model,
       GetImportMark(profile->GetPrefs(), alerse_import::kArcSourceId),
       spaces);
+  int created = 0;
   for (const auto& [folder, title] : result.unadopted) {
+    std::string arc_space;
+    folder->GetMetaInfo(alerse_import::kSpaceMetaKey, &arc_space);
+    created += FindSpaceOfArcSpace(arc_space).empty();
     MakeSpaceOfFolder(profile, folder, title);
   }
   return base::DictValue()
@@ -147,7 +199,7 @@ base::DictValue ApplyArc(BookmarkModel* model,
       .Set("links", result.links)
       .Set("folders", result.folders)
       .Set("icons", result.icons)
-      .Set("createdSpaces", static_cast<int>(result.unadopted.size()))
+      .Set("createdSpaces", created)
       .Set("pendingSpaces", 0);
 }
 

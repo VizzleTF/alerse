@@ -1,6 +1,6 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Steps 1 to 4 of the [order of work](#order-of-work) are
+Status: accepted, 2026-11-11. Steps 1 to 4 and 6 of the [order of work](#order-of-work) are
 built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
 
 ## Context
@@ -173,7 +173,10 @@ that sees a Space it does not have creates its profile and joins its chain.
 ### Import
 
 Arc: each Arc Space becomes a Space; its pinned tree and the favorites of its Arc
-profile go to that Space's bookmarks. Other browsers: each source profile is imported
+profile go to that Space's bookmarks. The first Arc Space goes to home. The profile
+entry of a Space made by the import records Arc's id of the Space
+(`alerse_arc_space`), and importing again replaces in that Space what the earlier
+import brought. Other browsers: each source profile is imported
 into the Space that is visible, as today.
 
 ### No migration from 0.1
@@ -347,9 +350,8 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    own; step 4 stacks them again.
 3. Sidebar on one profile; delete the partition patches.
    Done on 2026-11-11, with these gaps: the swipe shows an empty neighbour (step 7);
-   importing from Arc a second time makes the Spaces again, because the import does
-   not look for them in other profiles (step 6); the import from Arc, a tab's binding
-   to its pinned item after a restart, and Windows and Linux were not tested.
+   a tab's binding to its pinned item after a restart, and Windows and Linux were not
+   tested.
 4. Startup, sessions, the empty Space, New Window, incognito.
    Done on 2026-11-11. A new Space and a Space with no tabs show an empty card with
    the command bar closed; New Window opens a second stack with the command bar open;
@@ -357,6 +359,8 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    bounds and sidebar state, the dot for a prompt in a hidden member.
 5. Migration from 0.1. Dropped on 2026-11-11 (No migration from 0.1).
 6. Link routing, import, the command bar and menu bar.
+   Done on 2026-11-11 for link routing (in step 3), the Spaces menu of the menu bar
+   and the import from Arc. Not tested: the command bar's Space commands.
 7. Swipe preview.
 8. Sync: derived chains, the registry in Home's chain, the server.
 9. Windows and Linux.
