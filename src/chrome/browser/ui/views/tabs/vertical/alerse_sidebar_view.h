@@ -437,6 +437,8 @@ class AlerseSidebarView : public views::View,
   // The row of the shown tab, for Reveal Tab in Sidebar; null when it has
   // none drawn (a favorite's tab, an empty Space).
   views::View* FindActiveTabRow() const;
+  // Scrolls the rows to it.
+  void RevealActiveTab();
 
   // Where a dragged row would land.
   struct DropTarget {
@@ -494,6 +496,9 @@ class AlerseSidebarView : public views::View,
   // The row being dragged; rows are not rebuilt meanwhile.
   std::optional<RowTarget> drag_source_;
   bool rebuild_after_drag_ = false;
+  // The next rebuild scrolls the rows to the active tab's: it has changed,
+  // or the sidebar is new.
+  bool reveal_active_tab_ = true;
   raw_ptr<views::View> drop_indicator_ = nullptr;
   // Running position used to give rows Arc's fractional pitch.
   float row_pitch_offset_ = 0;

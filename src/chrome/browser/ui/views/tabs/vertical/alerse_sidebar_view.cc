@@ -103,6 +103,7 @@
 #include "ui/views/paint_info.h"
 #include "ui/base/models/image_model.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "components/viz/common/frame_timing_details.h"
 #include "ui/compositor/canvas_painter.h"
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
@@ -2009,6 +2010,7 @@ void AlerseSidebarView::OnTabStripModelChanged(
                        selection.old_contents->GetWeakPtr(),
                        selection.new_contents->GetWeakPtr()));
   }
+  reveal_active_tab_ |= selection.active_tab_changed();
   ScheduleRebuild();
 }
 
@@ -2713,6 +2715,24 @@ void AlerseSidebarView::Rebuild() {
   }
 
   PreferredSizeChanged();
+  if (std::exchange(reveal_active_tab_, false) && GetWidget()) {
+    // The new rows have no place before the layout asked for above.
+    GetWidget()->LayoutRootViewIfNecessary();
+    RevealActiveTab();
+    // The compositor limits a scroll to the height it last drew the rows
+    // at, a row short of a tab just added (crbug.com/40772386): once more
+    // when it has drawn them.
+    if (ui::Compositor* compositor = GetWidget()->GetCompositor()) {
+      compositor->RequestSuccessfulPresentationTimeForNextFrame(base::BindOnce(
+          [](base::WeakPtr<AlerseSidebarView> view,
+             const viz::FrameTimingDetails&) {
+            if (view) {
+              view->RevealActiveTab();
+            }
+          },
+          drop_weak_factory_.GetWeakPtr()));
+    }
+  }
 }
 
 void AlerseSidebarView::BuildRows() {
@@ -3248,9 +3268,7 @@ void AlerseSidebarView::RunMenuBarCommand(int command_id) {
       OnTabPressed(items[index].tab);
     }
   } else if (command_id == IDC_ALERSE_REVEAL_TAB) {
-    if (views::View* row = FindActiveTabRow()) {
-      row->ScrollViewToVisible();
-    }
+    RevealActiveTab();
   } else if (command_id == IDC_ALERSE_COPY_URL_QUOTE) {
     if (const std::u16string quote = GetQuote(browser_); !quote.empty()) {
       ui::ScopedClipboardWriter(ui::ClipboardBuffer::kCopyPaste)
@@ -5330,6 +5348,12 @@ AlerseSidebarView::GetSidebarItems() const {
     }
   }
   return items;
+}
+
+void AlerseSidebarView::RevealActiveTab() {
+  if (views::View* row = FindActiveTabRow()) {
+    row->ScrollViewToVisible();
+  }
 }
 
 views::View* AlerseSidebarView::FindActiveTabRow() const {
