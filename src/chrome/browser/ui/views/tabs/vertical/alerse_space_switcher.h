@@ -25,6 +25,7 @@
 #include "chrome/browser/ui/simple_message_box.h"
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "ui/menus/simple_menu_model.h"
@@ -120,6 +121,12 @@ class AlerseSpaceSwitcher : public views::View,
   static void ShowActiveSpaceMenuIn(BrowserWindowInterface* browser,
                                     const gfx::Point& point,
                                     ui::mojom::MenuSourceType source_type);
+  // views::View:
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    alerse::RepaintTree(this);
+  }
+
   // bookmarks::BaseBookmarkModelObserver: the Space's folder records its
   // name, icon and color.
   void BookmarkModelChanged() override;

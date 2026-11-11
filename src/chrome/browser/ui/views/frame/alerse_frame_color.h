@@ -103,6 +103,16 @@ inline bool PaintsInactiveFrame(const views::View* view) {
 #endif
 }
 
+// Repaints `view` and every view below it. A view paints from its cache
+// until told otherwise, and a change of theme alone does not tell one that
+// paints the theme's colors itself.
+inline void RepaintTree(views::View* view) {
+  view->SchedulePaint();
+  for (views::View* child : view->children()) {
+    RepaintTree(child);
+  }
+}
+
 }  // namespace alerse
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_ALERSE_FRAME_COLOR_H_

@@ -16,6 +16,7 @@
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
 #include "chrome/browser/ui/views/extensions/alerse_site_controls.h"
+#include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/events/event_observer.h"
 #include "ui/views/focus/focus_manager.h"
@@ -79,6 +80,10 @@ class AlerseAddressBar : public views::View,
   // While the location bar is in the command bar, the field it left stays
   // drawn, as Arc's does.
   void OnPaint(gfx::Canvas* canvas) override;
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    alerse::RepaintTree(this);
+  }
 
   // views::ViewObserver: a placeholder goes with the toolbar when the window
   // closes; the location bar then stays where it is and goes with it.
