@@ -1008,7 +1008,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   New Window, New Incognito Window, Pin Tab or Unpin Tab (by whether the shown tab is
   pinned), Add Split View (see Split View), New Space, Rename Space…, Edit Theme…, New Folder, Collapse or Expand
   Pinned Tabs (macOS, where the pinned tabs collapse; a Space with pinned items),
-  Settings and View History. Arc's archive actions (Archive Tab, View Archive, Clear
+  Settings and View History, and Switch to <Space> for each other Space of the window
+  (found by the Space's name, "switch" or "space"). Arc's archive actions (Archive Tab, View Archive, Clear
   Today, which archives) are not there: Alerse has no tab archive (see Left out on
   purpose). A name matches as a whole (3), by its start (2) or when every typed
   word starts a word of the name or of a few aliases ("preferences" finds Settings,

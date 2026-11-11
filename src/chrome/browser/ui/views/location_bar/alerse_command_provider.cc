@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
+#include "base/notreached.h"
 #include "base/i18n/case_conversion.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
@@ -22,6 +24,7 @@
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -45,6 +48,8 @@ enum class Kind {
   kBrowser,
   // A Space bar or sidebar command (alerse_space_command_hook.h).
   kSidebar,
+  // Shows a Space: the command id is its place in the Space bar.
+  kSpace,
 };
 
 struct Command {
@@ -168,6 +173,10 @@ void RunCommandNow(base::WeakPtr<BrowserWindowInterface> weak_browser,
     case Kind::kSidebar:
       alerse::RunSpaceCommand(browser, command_id);
       break;
+    case Kind::kSpace:
+      alerse::RunMenuBarEntry(browser, alerse::MenuBarList::kSpaces,
+                              static_cast<size_t>(command_id));
+      break;
   }
 }
 
@@ -248,8 +257,9 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
   struct Found {
     int quality;
     std::u16string name;
-    const Command* command;
-    bool on;
+    int command_id;
+    Kind kind;
+    raw_ptr<const gfx::VectorIcon> icon;
   };
   std::vector<Found> found;
   for (const Command& command : kCommands) {
@@ -284,12 +294,30 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
         on = state == alerse::SpaceCommandState::kOn;
         break;
       }
+      case Kind::kSpace:
+        NOTREACHED();
     }
     const std::u16string name = l10n_util::GetStringUTF16(
         on && command.on_name_id ? command.on_name_id : command.name_id);
     const int quality = MatchQuality(query, name, command.aliases);
     if (quality > 0) {
-      found.push_back({quality, name, &command, on});
+      found.push_back({quality, name, command.command_id, command.kind,
+                       on && command.on_icon ? command.on_icon : command.icon});
+    }
+  }
+  // The window's other Spaces, by name or by "space".
+  const std::vector<alerse::MenuBarEntry> spaces =
+      alerse::GetMenuBarList(browser, alerse::MenuBarList::kSpaces);
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i].checked) {
+      continue;
+    }
+    const std::u16string name = l10n_util::GetStringFUTF16(
+        IDS_ALERSE_SWITCH_TO_SPACE, spaces[i].title);
+    const int quality = MatchQuality(query, name, u"space");
+    if (quality > 0) {
+      found.push_back({quality, name, static_cast<int>(i), Kind::kSpace,
+                       &kChevronRightIcon});
     }
   }
   // The best match first, then the shorter name.
@@ -315,8 +343,8 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
     // Each row its own address, so they are not merged as duplicates; it is
     // never opened, the action runs instead.
     match.destination_url = GURL(base::StrCat(
-        {"chrome://alerse-command/",
-         base::NumberToString(row.command->command_id)}));
+        {"chrome://alerse-command/", row.kind == Kind::kSpace ? "space-" : "",
+         base::NumberToString(row.command_id)}));
     // The name is the description and the shortcut the contents: the
     // controller swaps the two of a match that has a description, so the name
     // shows first and the popup draws the shortcut as Arc's key chip
@@ -324,7 +352,9 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
     match.description = row.name;
     match.description_class = {
         ACMatchClassification(0, ACMatchClassification::NONE)};
-    match.contents = ShortcutFor(browser, row.command->command_id);
+    if (row.kind != Kind::kSpace) {
+      match.contents = ShortcutFor(browser, row.command_id);
+    }
     if (!match.contents.empty()) {
       match.contents_class = {
           ACMatchClassification(0, ACMatchClassification::NONE)};
@@ -332,9 +362,7 @@ void AlerseCommandProvider::Start(const AutocompleteInput& input,
     // Arrowing onto the row shows its name, as Arc's does.
     match.fill_into_edit = row.name;
     match.takeover_action = base::MakeRefCounted<AlerseCommandAction>(
-        browser_, row.command->command_id, row.command->kind, row.name,
-        row.on && row.command->on_icon ? *row.command->on_icon
-                                       : *row.command->icon);
+        browser_, row.command_id, row.kind, row.name, *row.icon);
     matches_.push_back(std::move(match));
   }
 }

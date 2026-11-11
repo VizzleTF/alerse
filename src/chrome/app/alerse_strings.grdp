@@ -277,6 +277,9 @@
     <message name="IDS_ALERSE_FAVORITES" desc="Name of the bookmark folder that holds the favorites tiles.">
       Favorites
     </message>
+    <message name="IDS_ALERSE_SWITCH_TO_SPACE" desc="Command bar action: show another Space in this window. $1 is the Space's name.">
+      Switch to <ph name="SPACE_NAME">$1<ex>Work</ex></ph>
+    </message>
     <message name="IDS_ALERSE_RENAME_SPACE" desc="Space menu item: rename the Space.">
       Rename Space…
     </message>
