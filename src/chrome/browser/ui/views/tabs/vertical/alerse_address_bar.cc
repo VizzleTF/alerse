@@ -1163,6 +1163,8 @@ void AlerseAddressBar::OnActiveWebContentsChanged(
   if (!is_same_document && !pinned_ids_.empty()) {
     UpdateExtensions();
   }
+  // The buttons follow the page: an empty Space has none.
+  UpdateCopyButton();
 }
 
 void AlerseAddressBar::CopyAddress() {

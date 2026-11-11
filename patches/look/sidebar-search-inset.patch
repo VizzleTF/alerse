@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+index 4c7426c..6ff3923 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -1612,8 +1612,10 @@ void LocationBarView::Layout(PassKey) {
+ 
+   // Alerse: Arc for macOS' sidebar field sets its address 13 pt in, with no
+   // site icon before it (but a warning).
++  // Alerse: not "Search...", which starts after its magnifier.
+   if (alerse_compact_ && !alerse_centered_ && !alerse_command_bar_ &&
+-      !omnibox_view_->HasFocus() && !location_icon_view_->GetVisible()) {
++      !omnibox_view_->HasFocus() && !location_icon_view_->GetVisible() &&
++      !IsAlerseSidebarSearch()) {
+     constexpr int kAlerseFieldTextX = 13;
+     omnibox_view_->SetBounds(
+         kAlerseFieldTextX, omnibox_view_->y(),

@@ -1,0 +1,43 @@
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index 21d45c9..3d54859 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -1364,6 +1364,11 @@ bool TabStripModel::IsAlerseEmptySpace(content::WebContents* contents) {
+   }
+   // Once it goes somewhere, it is a tab like any other.
+   const GURL& url = contents->GetVisibleURL();
++  // The blank tab's own address: it has no mark while it loads in a new
++  // window, nor after a restart.
++  if (url.IsAboutBlank() && url.ref() == "arcomium-space") {
++    return true;
++  }
+   if (!url.is_empty() && !url.IsAboutBlank() &&
+       !(url.SchemeIs(content::kChromeUIScheme) &&
+         (url.host() == chrome::kChromeUINewTabHost ||
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+index 7fdbdb9..1a482a6 100644
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+@@ -104,16 +104,17 @@ bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {
+   // - The view-source test must come before the NTP test because of the case
+   //   of view-source:chrome://newtab, which should display its URL despite what
+   //   chrome://newtab says.
++  // Alerse: an empty Space has no address, so the bar offers to search. Before
++  // the initial entry's case: a new window's blank tab has not committed yet.
++  if (TabStripModel::IsAlerseEmptySpace(GetActiveWebContents())) {
++    return false;
++  }
++
+   content::NavigationEntry* entry = GetNavigationEntry();
+   if (!entry || entry->IsInitialEntry()) {
+     return true;
+   }
+ 
+-  // Alerse: an empty Space has no address, so the bar offers to search.
+-  if (TabStripModel::IsAlerseEmptySpace(GetActiveWebContents())) {
+-    return false;
+-  }
+-
+   security_interstitials::SecurityInterstitialTabHelper*
+       security_interstitial_tab_helper =
+           security_interstitials::SecurityInterstitialTabHelper::

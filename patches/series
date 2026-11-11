@@ -76,3 +76,5 @@ spaces/space-profiles.patch
 spaces/start-in-last-space.patch
 sync/space-sync-chains.patch
 spaces/shared-sidebar-width.patch
+spaces/empty-space-address.patch
+look/sidebar-search-inset.patch
