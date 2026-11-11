@@ -175,10 +175,9 @@ feature does on it. In short:
 
 Known gaps:
 
-- sections of this document below that mention storage partitions, tab groups or
-  saved tab groups as Spaces describe 0.1 and are to be rewritten;
-- the windows of a stack do not yet share their size, position and sidebar width
-  after one of them is resized while shown;
+- on macOS, after a window that showed several Spaces in full screen leaves full
+  screen, it takes the screen's size instead of the size it had before;
+- the mini player shows only the media of the Space shown;
 - a prompt in a hidden Space (a permission, a page dialog) shows only when the Space
   is opened, with no mark in the Space bar;
 - moving a tab to another Space reopens it there, losing its history and form state;
@@ -223,9 +222,7 @@ Windows' measurements still set (see `AlerseSidebarView`):
   As in Arc, a tab stays on its item across restarts, crash restore and Ctrl+Shift+T,
   wherever it has navigated: the item's bookmark uuid is session tab extra data
   `arcomium.pinned` (`pinned-tab-binding.patch` writes it in full session rewrites and
-  carries it onto restored tabs and through TabRestoreService), and for a tab of a
-  Space's saved group the bookmark's meta `arcomium.saved_tab` holds the saved tab's
-  guid, so a closed Space or one from another device reopens its tabs on their items.
+  carries it onto restored tabs and through TabRestoreService).
   A tab binds only to an item of its own Space; once its item is deleted, or moved to
   another Space with the tab, it is an ordinary tab. A tab binds only through its
   stored item, never by its address: closing an item's tab leaves another tab showing
@@ -275,7 +272,7 @@ Windows' measurements still set (see `AlerseSidebarView`):
   items, favorites and folders get Change Icon... (Arc's picker, see
   [Icon pickers](#icon-pickers)). Pinned items and tabs get Copy Link, Rename, Mute,
   Duplicate, Move to a Space (a pinned item or folder
-  moves to that Space's pinned folder, a tab reopens in that Space's partition; a Space
+  moves to that Space's pinned folder, a tab reopens in that Space; a Space
   whose last tab leaves keeps a New Tab) and Add to Favorites (on macOS only for tabs,
   as in Arc for macOS, whose pinned items go to the favorites by dragging). Mute stays in the menu,
   dimmed while the tab is silent, as in Arc. Open in Split View, as in Arc, shows the
@@ -294,8 +291,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   address field (on Windows and Linux only around its text, which keeps the text
   field's menu), the empty space below the rows, a Space's button and "+" in the Space
   bar, and on macOS the header's "...". It holds Change Space Icon... (Arc's picker,
-  see [Icon pickers](#icon-pickers)), Rename Space (the Space's folder's name, which
-  its tab group takes on save; Chromium's bookmark editor opens on the folder titled
+  see [Icon pickers](#icon-pickers)), Rename Space (the Space's folder's name;
+  Chromium's bookmark editor opens on the folder titled
   "Edit Space name", "Edit Space Name" in macOS' title case, instead of "Edit folder
   name": `EditDetails::alerse_title_id`, `look/space-rename-title.patch`, set only
   by `AlerseSpaceSwitcher::RenameMenuSpace`, which the Space menu, the command
@@ -306,13 +303,12 @@ Windows' measurements still set (see `AlerseSidebarView`):
   Folders writes every folder's open state (`arcomium.open`) at once, nested ones
   too, so the rows change without the 150 ms animation of a single folder; the
   open state syncs like any other meta info. Arc's Set Profile, Live Folders, Share Space, Export and
-  Manage Spaces are left out: Spaces are already separate partitions, and the rest
+  Manage Spaces are left out: each Space is already a profile, and the rest
   needs Arc's account and services. The "+"
   button's click offers a new Space, folder or tab.
-- Rebuilds: rows exist only for the active Space. Changes to tabs of hidden Spaces that
-  are not bound to a pinned item are ignored, theme changes rebuild once they settle
-  (250 ms), and the Space bar rebuilds only when a saved Space's title, color, open
-  state or emptiness changes, not on every navigation.
+- Rebuilds: a window has the rows of its own Space only. Theme changes rebuild once
+  they settle (250 ms), and the Space bar rebuilds when a profile is added or removed
+  or a Space's folder changes, not on every navigation.
 - When the sidebar is hidden it floats back over the page from the window's left edge,
   as on macOS (Hidden sidebar, under On macOS); on Windows and Linux the address moves
   to the top bar meanwhile and Ctrl+Shift+L brings the sidebar back.
@@ -1228,12 +1224,17 @@ the bookmark model on the UI thread. Each node an import adds is marked
 uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy the user
 made (another uuid) and what another device imported (synced, another key) are not
 marked here, so importing again replaces only this profile's imported nodes and keeps
-the rest. Arc's Spaces become folders under Other bookmarks: the first one is Home
-(`default`), the others get a fresh Space id and a Space opened in the background (its
-tab group with the hidden blank tab). Each folder is bound to Arc's Space by
-`arcomium.arc_space` (Arc's id) and `arcomium.arc_space_mark` (the same HMAC), so an
-import again reuses the same folders and Spaces whatever Arc's order; a folder whose
-Space Arc no longer has loses its imported items and the binding. Cached favicons
+the rest. Arc's first Space goes to Home's Space folder. Every other Arc Space
+becomes a Space of its own (`MakeSpaceOfFolder` in `alerse_import_handler.cc`): the
+import writes its folder into the importing profile, moves what the folder holds into
+the Space folder of a new profile, and removes the folder. No window opens: the new
+Space shows in the Space bar. The new Space's profile entry in `Local State` records
+Arc's id of the Space (`alerse_arc_space`), so an import again finds that Space
+whatever Arc's order and replaces in it only what the earlier import brought; the
+Space keeps its own icon and color. In the importing profile a folder is bound to
+Arc's Space by `arcomium.arc_space` (Arc's id) and `arcomium.arc_space_mark` (the same
+HMAC); a folder whose Space Arc no longer has loses its imported items and the
+binding. Cached favicons
 (`SidebarItemsFaviconCache`, PNG, named after the MD5 of the item id) go to
 `arcomium.icon`. A browser profile's bookmarks go to one folder in the current
 Space's (or Home's) pinned folder, marked `arcomium.import = <browser>/<profile>` and
@@ -1275,7 +1276,7 @@ The page:
 Matching Space folders on an import again: first by Arc id (with the folder's mark), then
 by title among folders bound to no Arc Space, so an Arc Space named like one of the
 user's Spaces fills that Space instead of making a second one. A matched folder is kept
-(id, position, title, color, icon, saved group); only its imported items are replaced.
+(id, position, title, color, icon); only its imported items are replaced.
 Its icon changes only while it is still the one Arc gave it (`arcomium.arc_icon`). Home
 takes Arc's first Space unless Home is already bound to another. The user's own
 bookmarks in an imported folder are kept: each largest unmarked subtree is moved out
@@ -1306,6 +1307,18 @@ every link to Chromium's sync settings leads there). There is no default server:
 user runs one, at home or in their own cloud account, and the browser only needs its
 URL. A free public server is planned, not running. The server only ever sees ciphertext,
 so such a server would need no trust in its operator.
+
+Each Space is a profile with its own sync service, so each Space syncs as its own
+chain, and the server cannot tell that the chains belong to one user. The setup is
+the browser's, not a Space's: the server URL, the secret behind the sync code and the
+sign-in are in `Local State` (`arcomium.sync.*`), and the Sync page of any Space sets
+sync up or leaves it for all of them. Home syncs as the chain of the secret. Every
+other Space has an id (the profile pref `alerse.sync.space`), and its chain's secret
+is derived from the browser's secret and that id. Home's chain carries the list of
+Spaces, so a second device makes the same Spaces and joins their chains.
+[ADR-0001](adr/0001-space-profiles.md#sync) has the derivation and the list's format;
+the code is `alerse_sync_account.cc`, `alerse_space_list.h` and
+`sync/space-sync-chains.patch`.
 
 ### Identity and encryption: a sync code instead of an account
 
@@ -1524,19 +1537,19 @@ and it uploads everything again.
 
 ### Data mapping
 
-No new sync data types are needed:
+No new sync data types are needed. Each Space syncs these types in its own chain:
 
 | Alerse data | Chromium sync type |
 |---|---|
 | Pinned tree of each Space (nested folders), Space colors and icons | `BOOKMARKS` (the Space folders with `arcomium.*` meta info) |
 | Open tabs on other devices | `SESSIONS` |
-| Spaces: name, color, open tabs | `SAVED_TAB_GROUP`, one saved group per Space |
+| The list of Spaces | `BOOKMARKS` of Home's chain (`arcomium.spaces` on Home's Space folder) |
 | Space settings | `PREFERENCES` (syncable prefs) |
 | History and its deletions, tabs sent to a device | `HISTORY`, `HISTORY_DELETE_DIRECTIVE`, `SEND_TAB_TO_SELF`, encrypted with the chain's passphrase; deletions reach other devices without Google's web history |
 | Passwords, extensions | their standard types |
 
-Link routes and import bookkeeping (`arcomium.import_key`, `arcomium.import_folders`)
-stay local.
+Link routes (`alerse.link_routes` in `Local State`) and import bookkeeping
+(`arcomium.import_key`, `arcomium.import_folders`) stay local.
 
 ### Order of work
 
@@ -1605,9 +1618,10 @@ the dash before `#description`; there an empty description still holds a span, s
 dash shows only before one with text (`:has(span:not(:empty))`, in that tree only).
 
 The iPhone app is a different code base (WebKit inside, its own UI); it shares the sync
-engine, so it gets bookmarks, tabs and Spaces through the same server. Spaces there are a
-tab list only: WebKit has no storage partition per tab, so separate accounts per Space
-stay desktop-only unless each Space maps to its own `WKWebsiteDataStore` (iOS 17+).
+engine and the server. It was not changed for the profiles: it syncs the chain of the
+sync code, which is Home's, and does not join the other Spaces' chains. Separate
+accounts for each Space stay desktop-only unless each Space maps to its own
+`WKWebsiteDataStore` (iOS 17+).
 
 ## Link routing
 
@@ -1617,22 +1631,25 @@ Routes of the form "site -> Space", set at **Link routing** in the app menu
 
 Routes apply to links that arrive from outside the browser, with Alerse as the default
 browser: `Navigate()` sees a new tab with no source tab and an `AUTO_TOPLEVEL` transition,
-opens it in the route's Space, in that Space's partition, and switches to the Space. A
-closed Space (its tab group is gone; an emptied Space keeps a hidden blank tab) is
-opened again under the name it had. Links clicked inside pages stay in their Space, same as Arc.
+opens it in the route's Space: that Space's window takes the place of the one shown,
+loading the Space's profile if it was not open (`alerse_link_router.h`). A link routed
+to a Space that was deleted opens in the Space shown, and the Link routing page shows
+the name the Space had. Links clicked inside pages stay in their Space, same as Arc.
 
-Routes are a local pref (`arcomium.link_routes`), not synced, by choice: Space ids do
-sync (the folder meta `arcomium.space`), so a route would resolve on another device
-too, and syncing routes is possible later.
+Routes are the `Local State` pref `alerse.link_routes`, shared by every Space and not
+synced: a route names its Space by the profile's directory (`Profile 1`; empty for
+Home), which differs between devices. The profile pref `arcomium.link_routes` of 0.1
+is not read.
 
 ## Media and picture-in-picture
 
 - **Mini player** at the bottom of the sidebar (`AlerseMiniPlayer`): the media
-  session that last took audio focus, in any Space or window of the profile, while its
+  session that last took audio focus in the Space shown, in any of its windows, while its
   tab is not the one you are looking at. It shows the artwork (or the site's icon), the
   title and the artist, pauses and resumes, and a click goes to the tab and its Space.
-  Only media of the window's own profile shows: an incognito tab's media never shows
-  in a regular window, nor the other way round. It is push-based (Chromium's media
+  Only media of the window's own profile shows: media playing in another Space does
+  not, and an incognito tab's media never shows in a regular window, nor the other
+  way round. It is push-based (Chromium's media
   session controller), with no polling.
 - **Automatic picture-in-picture** when you leave a playing video's tab or Space, on any
   site: Chromium's browser-initiated automatic picture-in-picture

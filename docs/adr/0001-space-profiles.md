@@ -377,8 +377,9 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    the command bar closed; New Window opens a second stack with the command bar open;
    the incognito window's Space bar lists no Spaces. The sidebar's width
    and hidden state follow the stack since 2026-11-11 (`shared-sidebar-width.patch`).
-   Not built: full screen in a member that was not in full screen, the dot for a
-   prompt in a hidden member.
+   A member left in full screen after the stack left it leaves it when shown. Gap on
+   macOS: after full screen with several Spaces shown, the stack takes the screen's
+   size. Not built: the dot for a prompt in a hidden member.
 5. Migration from 0.1. Dropped on 2026-11-11 (No migration from 0.1).
 6. Link routing, import, the command bar and menu bar.
    Done on 2026-11-11 for link routing (in step 3), the Spaces menu of the menu bar

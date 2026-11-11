@@ -24,6 +24,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -125,6 +126,11 @@ class WindowStacks : public BrowserCollectionObserver {
     }
     ui::BaseWindow* shown_window = shown->GetWindow();
     ui::BaseWindow* window = target->GetWindow();
+    // A member keeps its own full screen state: one left in full screen after
+    // the stack left it would come back at the screen's size.
+    if (window->IsFullscreen() && !shown_window->IsFullscreen()) {
+      chrome::ToggleFullscreenMode(target, /*user_initiated=*/false);
+    }
     if (shown_window->IsMaximized()) {
       window->Maximize();
     } else if (!shown_window->IsFullscreen()) {
