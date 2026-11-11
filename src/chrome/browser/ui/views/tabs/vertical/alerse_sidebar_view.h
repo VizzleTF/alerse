@@ -151,6 +151,8 @@ class AlerseSidebarView : public views::View,
   // bookmarks::BaseBookmarkModelObserver:
   void BookmarkModelChanged() override;
   void BookmarkNodeChanged(const bookmarks::BookmarkNode* node) override;
+  void BookmarkNodeFaviconChanged(
+      const bookmarks::BookmarkNode* node) override;
 
   // gfx::AnimationDelegate:
   void AnimationProgressed(const gfx::Animation* animation) override;
@@ -261,6 +263,12 @@ class AlerseSidebarView : public views::View,
   ui::ImageModel GetBookmarkIcon(const bookmarks::BookmarkNode* node);
   bool HasOwnIcon(const bookmarks::BookmarkNode* node);
   ui::ImageModel GetTabIcon(tabs::TabInterface* tab) const;
+  // The tab's title, or what stands for one while it has none.
+  std::u16string GetTabTitle(tabs::TabInterface* tab) const;
+  // Whether `tab` shows another page than its pinned item's: not for a
+  // redirect of the item's own address nor for another fragment of it.
+  bool LeftItsPage(tabs::TabInterface* tab,
+                   const bookmarks::BookmarkNode* node) const;
 
   // Rebuilds asynchronously: a change may come from a click on a row.
   void ScheduleRebuild();

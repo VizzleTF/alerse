@@ -39,7 +39,13 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
+#include "components/strings/grit/components_strings.h"
+#include "components/grit/components_scaled_resources.h"
+#include "ui/base/resource/resource_bundle.h"
+#include "content/public/browser/navigation_entry.h"
+#include "components/favicon/content/content_favicon_driver.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/alerse_window_stack.h"
@@ -897,6 +903,8 @@ class FavoriteTile : public views::Button {
     icon_->SetImageSize(gfx::Size(kIconSize, kIconSize));
     icon_->SetCanProcessEventsWithinSubtree(false);
     GetViewAccessibility().SetName(title);
+    // A tile has no label: its name is in Arc's pill, as a row's is.
+    alerse::SetArcTooltip(this, title);
     SetInstallFocusRingOnFocus(false);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON);
   }
@@ -1108,6 +1116,35 @@ bool ShowsSpeaker(tabs::TabInterface* tab) {
   }
   const tabs::TabAlertController* alerts = tabs::TabAlertController::From(tab);
   return alerts && alerts->IsAlertActive(tabs::TabAlert::kAudioPlaying);
+}
+
+// What else a tab is doing that its row must show, as the tab strip's alert
+// indicator does: the camera, the microphone, sharing the screen, a
+// Bluetooth, USB, HID or serial device, picture-in-picture. Sound has the
+// row's speaker; this is every other alert, the most important one first.
+std::optional<tabs::TabAlert> OtherAlert(tabs::TabInterface* tab) {
+  const tabs::TabAlertController* alerts = tabs::TabAlertController::From(tab);
+  if (!alerts) {
+    return std::nullopt;
+  }
+  const std::optional<tabs::TabAlert> alert = alerts->GetAlertToShow();
+  if (!alert || *alert == tabs::TabAlert::kAudioPlaying ||
+      *alert == tabs::TabAlert::kAudioMuting) {
+    return std::nullopt;
+  }
+  return alert;
+}
+
+// One number for what a row's indicator shows: 0 nothing, 1 sound, 2 muted,
+// 100 and up another alert. A row is rebuilt when it changes.
+int RowAlertState(tabs::TabInterface* tab) {
+  if (const std::optional<tabs::TabAlert> alert = OtherAlert(tab)) {
+    return 100 + static_cast<int>(*alert);
+  }
+  if (!ShowsSpeaker(tab)) {
+    return 0;
+  }
+  return tab->GetContents()->IsAudioMuted() ? 2 : 1;
 }
 
 AlerseSidebarView* FindSidebarIn(views::View* view) {
@@ -1400,6 +1437,7 @@ class AlerseSidebarView::Row : public views::Button {
   void SetSpeaker(PressedCallback callback, bool muted) {
     auto speaker = std::make_unique<views::ImageButton>(std::move(callback));
     speaker_muted_ = muted;
+    alert_state_ = muted ? 2 : 1;
     speaker->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
     speaker->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
     speaker->SetPreferredSize(gfx::Size(kSpeakerSize, kSpeakerSize));
@@ -1413,6 +1451,26 @@ class AlerseSidebarView::Row : public views::Button {
     // open no menu; it opens the row's.
     speaker->set_context_menu_controller(context_menu_controller());
     speaker_ = AddChildView(std::move(speaker));
+    UpdateSpeakerImage();
+  }
+
+  // Another alert of the tab in the speaker's place (see OtherAlert()): an
+  // image, not a button, in the alert's own color where it has one (a
+  // recording is red in the tab strip too).
+  void SetAlert(tabs::TabAlert alert, const std::u16string& name) {
+    auto indicator =
+        std::make_unique<views::ImageButton>(views::Button::PressedCallback());
+    alert_ = alert;
+    alert_state_ = 100 + static_cast<int>(alert);
+    indicator->SetImageHorizontalAlignment(views::ImageButton::ALIGN_CENTER);
+    indicator->SetImageVerticalAlignment(views::ImageButton::ALIGN_MIDDLE);
+    indicator->SetPreferredSize(gfx::Size(kSpeakerSize, kSpeakerSize));
+    indicator->SetTooltipText(name);
+    indicator->GetViewAccessibility().SetName(name);
+    indicator->SetInstallFocusRingOnFocus(false);
+    // Clicks go to the row: there is nothing to press.
+    indicator->SetCanProcessEventsWithinSubtree(false);
+    speaker_ = AddChildView(std::move(indicator));
     UpdateSpeakerImage();
   }
 
@@ -1522,10 +1580,8 @@ class AlerseSidebarView::Row : public views::Button {
     }
   }
 
-  // Whether the row's speaker shows the tab muted; nullopt without one.
-  std::optional<bool> speaker_muted() const {
-    return speaker_ ? std::optional<bool>(speaker_muted_) : std::nullopt;
-  }
+  // What the row's indicator shows, as RowAlertState() counts it.
+  int alert_state() const { return alert_state_; }
 
   void SetDragDoneCallback(base::RepeatingClosure callback) {
     drag_done_callback_ = std::move(callback);
@@ -1705,6 +1761,23 @@ class AlerseSidebarView::Row : public views::Button {
     if (!speaker_ || !GetWidget()) {
       return;
     }
+    if (alert_) {
+      const ui::ColorId color =
+          tabs::GetAlertIndicatorColor(*alert_, /*is_tab_active=*/true,
+                                       /*is_frame_active=*/true);
+      // The alerts without a color of their own use the tab's text color,
+      // which is not the sidebar's ink.
+      const bool colored = color != kColorTabAlertAudioPlayingActiveFrameActive;
+      speaker_->SetImageModel(
+          views::Button::STATE_NORMAL,
+          ui::ImageModel::FromVectorIcon(
+              tabs::GetAlertIcon(*alert_),
+              colored && GetColorProvider()
+                  ? GetColorProvider()->GetColor(color)
+                  : alerse::SidebarInk(this, kSubtleColor),
+              kSpeakerSize));
+      return;
+    }
     speaker_->SetImageModel(
         views::Button::STATE_NORMAL,
         ui::ImageModel::FromVectorIcon(
@@ -1798,6 +1871,8 @@ class AlerseSidebarView::Row : public views::Button {
   std::optional<SkColor> color_override_;
   std::optional<SkColor> hover_label_color_;
   bool speaker_muted_ = false;
+  std::optional<tabs::TabAlert> alert_;
+  int alert_state_ = 0;
   bool adopt_hover_ = false;
   bool polled_hover_ = false;
   bool adopted_hover_ = false;
@@ -1966,6 +2041,34 @@ AlerseSidebarView::~AlerseSidebarView() {
   }
 }
 
+void AlerseSidebarView::BookmarkNodeFaviconChanged(
+    const bookmarks::BookmarkNode* node) {
+  // A pinned item's icon loads after its row is built, and arrives through
+  // sync later still.
+  ScheduleRebuild();
+}
+
+bool AlerseSidebarView::LeftItsPage(tabs::TabInterface* tab,
+                                    const bookmarks::BookmarkNode* node) const {
+  content::WebContents* contents = tab->GetContents();
+  if (!contents) {
+    return false;
+  }
+  const GURL& url = contents->GetLastCommittedURL();
+  if (!url.is_valid() || url.EqualsIgnoringRef(node->url())) {
+    return false;
+  }
+  // Where the item's own address leads (a redirect, the upgrade to https) is
+  // still its page.
+  content::NavigationEntry* entry =
+      contents->GetController().GetLastCommittedEntry();
+  if (entry && !entry->GetRedirectChain().empty() &&
+      entry->GetRedirectChain().front().EqualsIgnoringRef(node->url())) {
+    return false;
+  }
+  return true;
+}
+
 void AlerseSidebarView::BookmarkNodeChanged(
     const bookmarks::BookmarkNode* node) {
   if (renaming_node_ && node->id() == renaming_node_ &&
@@ -2061,9 +2164,7 @@ bool AlerseSidebarView::UpdateTabRows(tabs::TabInterface* tab) {
     return false;
   }
   const tabs::TabInterface::Handle handle = tab->GetHandle();
-  const std::optional<bool> speaker =
-      ShowsSpeaker(tab) ? std::optional<bool>(contents->IsAudioMuted())
-                        : std::nullopt;
+  const int alert_state = RowAlertState(tab);
   std::vector<Row*> rows;
   for (const auto& [view, target] : row_targets_) {
     if (!(target.tab == handle)) {
@@ -2071,9 +2172,9 @@ bool AlerseSidebarView::UpdateTabRows(tabs::TabInterface* tab) {
     }
     // Only a plain tab's row is its title and icon alone: a pinned item's
     // also shows whether the tab left its address, a favorite is a tile, and
-    // a speaker that comes or goes changes the row's layout.
+    // an indicator that comes, goes or changes rebuilds the row.
     Row* row = views::AsViewClass<Row>(view);
-    if (target.node || !row || row->speaker_muted() != speaker) {
+    if (target.node || !row || row->alert_state() != alert_state) {
       return false;
     }
     rows.push_back(row);
@@ -2081,7 +2182,7 @@ bool AlerseSidebarView::UpdateTabRows(tabs::TabInterface* tab) {
   if (rows.empty()) {
     return false;
   }
-  const std::u16string title = TabUIHelper::From(tab)->GetTitle();
+  const std::u16string title = GetTabTitle(tab);
   const ui::ImageModel icon = GetTabIcon(tab);
   for (Row* row : rows) {
     row->UpdateTab(title, icon);
@@ -2283,9 +2384,9 @@ std::string AlerseSidebarView::SpeakerState(
     if (child->is_folder()) {
       state += SpeakerState(child.get());
     } else if (tabs::TabInterface* tab = GetBoundTab(child->id());
-               tab && ShowsSpeaker(tab)) {
-      state += base::NumberToString(child->id()) +
-               (tab->GetContents()->IsAudioMuted() ? "m;" : "p;");
+               tab && RowAlertState(tab)) {
+      state += base::NumberToString(child->id()) + ":" +
+               base::NumberToString(RowAlertState(tab)) + ";";
     }
   }
   return state;
@@ -2333,16 +2434,45 @@ bool AlerseSidebarView::HasOwnIcon(const bookmarks::BookmarkNode* node) {
 }
 
 ui::ImageModel AlerseSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
-  ui::ImageModel icon = TabUIHelper::From(tab)->GetFavicon();
-  // A page without a favicon shows Chromium's default one.
-  if (icon.IsImage() &&
-      icon.GetImage().AsImageSkia().BackedBySameObjectAs(
-          favicon::GetDefaultFavicon().AsImageSkia())) {
+  TabUIHelper* helper = TabUIHelper::From(tab);
+  // A crashed tab shows the sad tab, as in the tab strip: its page's icon
+  // would say it is alive.
+  if (helper->IsCrashed()) {
+    return ui::ImageModel::FromImageSkia(
+        *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+            IDR_CRASH_SAD_FAVICON));
+  }
+  // A page without a favicon of its own shows Arc's globe, as a pinned item
+  // does. Asked of the favicon's source: what Chromium hands out for "none"
+  // is an image on one version and an image generator on the next.
+  content::WebContents* contents = tab->GetContents();
+  const favicon::ContentFaviconDriver* driver =
+      contents ? favicon::ContentFaviconDriver::FromWebContents(contents)
+               : nullptr;
+  if (!driver || !driver->FaviconIsValid()) {
     return DefaultPageIcon(this);
   }
-  return icon.IsEmpty()
-             ? DefaultPageIcon(this)
-             : icon;
+  ui::ImageModel icon = helper->GetFavicon();
+  return icon.IsEmpty() ? DefaultPageIcon(this) : icon;
+}
+
+std::u16string AlerseSidebarView::GetTabTitle(tabs::TabInterface* tab) const {
+  TabUIHelper* helper = TabUIHelper::From(tab);
+  std::u16string title = helper->GetTitle();
+  if (!title.empty()) {
+    return title;
+  }
+  // Off macOS a page that has not named itself yet has no title: "Loading..."
+  // while it loads, as the tab strip says, and its site after.
+  if (helper->ShouldRenderLoadingTitle()) {
+    return l10n_util::GetStringUTF16(IDS_TAB_LOADING_TITLE);
+  }
+  content::WebContents* contents = tab->GetContents();
+  const GURL url = contents ? contents->GetVisibleURL() : GURL();
+  if (url.is_valid() && !url.IsAboutBlank()) {
+    return base::UTF8ToUTF16(url.has_host() ? std::string(url.host()) : url.spec());
+  }
+  return l10n_util::GetStringUTF16(IDS_DEFAULT_TAB_TITLE);
 }
 
 void AlerseSidebarView::ScheduleRebuild() {
@@ -2748,6 +2878,15 @@ void AlerseSidebarView::BuildRows() {
     title = folder && !folder->GetTitle().empty() ? folder->GetTitle()
                                                   : space_info.name;
   }
+  // An incognito window says so where a window names its Space, and lists
+  // none of the Space's pinned items or favorites: with them it would look
+  // like the Space it was opened from, and a pinned item opened there would
+  // bind to an incognito tab. Chromium's own incognito mark is in the
+  // toolbar, which the sidebar hides.
+  const bool incognito = browser_->GetProfile()->IsOffTheRecord();
+  if (incognito) {
+    title = l10n_util::GetStringUTF16(IDS_INCOGNITO_PROFILE_MENU_TITLE);
+  }
   const bool collapsed = IsPinnedCollapsed(folder);
   auto* space_title = rows_->AddChildView(std::make_unique<SpaceTitle>(
       title,
@@ -2765,7 +2904,7 @@ void AlerseSidebarView::BuildRows() {
   space_title->SetHighlighted(space_title_highlighted_);
   space_title_ = space_title;
 
-  if (folder) {
+  if (folder && !incognito) {
     // Collapsed, only the pinned tabs that are open show, as in a folder.
     if (collapsed) {
       AddBoundTabRows(folder, 0);
@@ -2929,8 +3068,7 @@ void AlerseSidebarView::AddBookmarkRow(const bookmarks::BookmarkNode* node,
     if (!HasOwnIcon(node)) {
       icon = GetTabIcon(tab);
     }
-    const GURL& url = tab->GetContents()->GetLastCommittedURL();
-    slash = url.is_valid() && url != node->url();
+    slash = LeftItsPage(tab, node);
   }
   Row* row =
       AddRow(std::make_unique<Row>(
@@ -2990,7 +3128,7 @@ std::unique_ptr<AlerseSidebarView::Row> AlerseSidebarView::MakeTabRow(
             }
           },
           base::Unretained(this), tab->GetHandle()),
-      MakeImageIcon(GetTabIcon(tab)), TabUIHelper::From(tab)->GetTitle(), 0,
+      MakeImageIcon(GetTabIcon(tab)), GetTabTitle(tab), 0,
       ItemFont(false), color, /*slash=*/false, active);
 }
 
@@ -3030,6 +3168,11 @@ void AlerseSidebarView::AddSplitRow(tabs::TabInterface* start,
 void AlerseSidebarView::AddSpeaker(Row* row, tabs::TabInterface* tab) {
   // Rows are rebuilt when a tab's sound starts, stops or is muted (the tab
   // strip reports it through OnTabChangedAt), so the state is read once here.
+  if (const std::optional<tabs::TabAlert> alert = OtherAlert(tab)) {
+    row->SetAlert(*alert,
+                  tabs::TabAlertController::GetTabAlertStateText(*alert));
+    return;
+  }
   if (ShowsSpeaker(tab)) {
     row->SetSpeaker(
         base::BindRepeating(&AlerseSidebarView::OnTabMutePressed,
@@ -5028,7 +5171,8 @@ void AlerseSidebarView::BindFavoritesByUrl(
 void AlerseSidebarView::BuildFavorites() {
   favorites_->RemoveAllChildViews();
   const bookmarks::BookmarkNode* folder = GetFavoritesFolder(false);
-  if (folder) {
+  // None in an incognito window (see BuildRows()).
+  if (folder && !browser_->GetProfile()->IsOffTheRecord()) {
     BindFavoritesByUrl(folder);
     TabStripModel* tabs = browser_->GetTabStripModel();
     for (const auto& child : folder->children()) {

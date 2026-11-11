@@ -98,7 +98,11 @@ constexpr int kTilesPerRow = 4;
 constexpr float kTileRadius = 8;
 constexpr SkAlpha kTileShade = 0x1B;
 constexpr SkAlpha kTileHoverShade = 0x25;
-constexpr int kExtensionIconSize = 16;
+// An extension's image is asked for at the toolbar button's size, as
+// Chromium's toolbar does: the 16 pt icon sits in its middle and the badge
+// (a blocker's count, unread mail) in its corner. Asked for at 16 pt, the
+// 14 pt badge would cover the icon.
+constexpr int kExtensionImageSize = 28;
 constexpr base::TimeDelta kSidebarHoverPoll = base::Milliseconds(80);
 #if BUILDFLAG(IS_MAC)
 // Arc for macOS' command bar: 765 pt wide and centred on the window, rims
@@ -202,8 +206,11 @@ class ExtensionTile : public views::Button {
       return;
     }
     const gfx::ImageSkia image = icon_.Rasterize(GetColorProvider());
+    // Bottom-aligned when the image is taller than the tile, so the badge
+    // at its foot is whole.
     canvas->DrawImageInt(image, (width() - image.width()) / 2,
-                         (height() - image.height()) / 2);
+                         std::min((height() - image.height()) / 2,
+                                  height() - image.height()));
   }
 
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
@@ -439,12 +446,14 @@ void AlerseAddressBar::Layout(PassKey) {
   // From the field's end: site controls, Copy Link, a single pinned
   // extension.
   int center_x = field.right() - kHoverButtonEndCenter;
-  const int button_y = field.y() + (field.height() - kCopyButtonSize) / 2;
   int leftmost = field.right();
   for (views::ImageButton* button :
        {site_button_.get(), copy_button_.get(), pinned_button_.get()}) {
-    button->SetBounds(center_x - kCopyButtonSize / 2, button_y,
-                      kCopyButtonSize, kCopyButtonSize);
+    // The pinned extension's button holds the whole 28 pt image.
+    const int size = button == pinned_button_.get() ? kExtensionImageSize
+                                                    : kCopyButtonSize;
+    button->SetBounds(center_x - size / 2,
+                      field.y() + (field.height() - size) / 2, size, size);
     if (button->GetVisible()) {
       leftmost = button->x();
     }
@@ -1085,7 +1094,7 @@ void AlerseAddressBar::UpdateExtensions() {
     ToolbarActionViewModel* action =
         extensions_model_->GetActionModelForId(ids[0]);
     const ui::ImageModel icon = action->GetIcon(
-        contents, gfx::Size(kExtensionIconSize, kExtensionIconSize));
+        contents, gfx::Size(kExtensionImageSize, kExtensionImageSize));
     for (const auto state : {views::Button::STATE_NORMAL,
                              views::Button::STATE_HOVERED,
                              views::Button::STATE_PRESSED}) {
@@ -1109,7 +1118,7 @@ void AlerseAddressBar::UpdateExtensions() {
                               base::Unretained(this), id),
           action->GetActionName(),
           action->GetIcon(contents,
-                          gfx::Size(kExtensionIconSize, kExtensionIconSize)));
+                          gfx::Size(kExtensionImageSize, kExtensionImageSize)));
       extension_menus_.push_back(
           alerse_site_controls::CreateExtensionMenu(action, base::DoNothing()));
       tile->set_context_menu_controller(extension_menus_.back().get());

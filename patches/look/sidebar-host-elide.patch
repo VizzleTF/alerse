@@ -1,0 +1,33 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+index 9030b1b..4f11665 100644
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -345,6 +345,8 @@ class LocationBarView
+   void SetAlerseNewTab(bool new_tab) { alerse_new_tab_ = new_tab; }
+   bool AlerseOpensNewTab() const override;
+   bool IsAlerseCommandBar() const { return alerse_command_bar_; }
++  // Alerse: whether the bar is the sidebar's narrow field.
++  bool IsAlerseCompact() const { return alerse_compact_; }
+   // Alerse: Arc for macOS' compact command bar, opened by clicking the
+   // sidebar's field: its input is smaller. Set before SetAlerseCommandBar.
+   void SetAlerseCommandBarCompact(bool compact) {
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+index ac36fa3..1449848 100644
+--- a/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
+@@ -2064,7 +2064,14 @@ void OmniboxViewViews::ElideAndResetScrollPosition() {
+   // set the display offset directly to 0 (not simply scroll to the start of the
+   // text, since the start of the text may not be at the left edge).
+   gfx::RenderText* render_text = GetRenderText();
+-  render_text->SetElideBehavior(gfx::ELIDE_TAIL);
++  // Alerse: the sidebar's field shows the site alone and is a third as wide
++  // as a toolbar's. A long host keeps its end there, where the site's own
++  // domain is: cut at the end, "accounts.example.com.evil.net" would read
++  // "accounts.example.com...".
++  render_text->SetElideBehavior(
++      location_bar_view_ && location_bar_view_->IsAlerseCompact()
++          ? gfx::ELIDE_HEAD
++          : gfx::ELIDE_TAIL);
+ 
+ #if BUILDFLAG(SUPPORTS_AX_TEXT_OFFSETS)
+   // The text offsets are no longer valid when the elide behavior changes.
