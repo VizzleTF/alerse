@@ -55,7 +55,6 @@ find the earlier installation; renaming them would lose data:
 |---|---|---|
 | `arcomium.*` preferences and bookmark meta info (`arcomium.space`, `arcomium.favorites`, `arcomium.update_check.*`...) | every profile; bookmark meta info also in sync | every Space, pinned item and setting of existing profiles |
 | the `"arcomium"` Preferences member a profile is recognised by | the profile takeover below | taking over a profile of 0.1.0 to 0.1.7 |
-| storage partition domain `arcomium` (`kSpacePartitionDomain`, `Storage/ext/arcomium`) | each Space's cookies and site data | every Space's logins |
 | the empty Space's page `about:blank#arcomium-space` | sessions | restoring empty Spaces |
 | the sync key derivation salt `arcomium-sync` and the protocol's labels (`arcomium-sync-token-v1`, `arcomium-sync-login-*`, `arcomium-pair-*`) | every sync chain's keys and the server | decrypting every chain's data |
 | the sync server's Go module, binary, image, environment variables and tables (`alerse-sync` repository) | its deployment | the running server, until it is redeployed with a renamed configuration |
@@ -122,86 +121,48 @@ repositories hold the core as the `alerse` submodule.
 
 ## Spaces
 
-A Space is a named set of tabs with its own color and its own
-cookie jar. All Spaces live in one window and one Chromium profile.
+A Space is a named set of tabs and pinned items with its own color and its own
+logins, history, passwords, extensions and settings.
 
-This is changing: [ADR-0001](adr/0001-space-profiles.md) makes each Space a Chromium
-profile with a window of its own, and the branch `space-profiles` has its first three
-steps. This section, and every mention of partitions and tab groups below, describes
-release 0.1.
+Each Space is a Chromium profile with a window of its own.
+[ADR-0001](adr/0001-space-profiles.md) gives the reasons, the design and what each
+feature does on it. In short:
 
-Implementation (patches in `patches/spaces/`):
-
-- A Space is a tab group shown in Chromium's tab group focus mode
-  (`features::kTabGroupsFocusing`, enabled by default). In focus mode the vertical tab
-  strip lists only the focused group's tabs, new tabs land in that group, and the focused
-  group survives restarts. Pinned tabs are shared by all Spaces (Arc's favorites).
-- Each Space owns a storage partition: `StoragePartitionConfig::Create(profile, "arcomium",
-  <space id>, /*in_memory=*/false)`, where the Space id is a random token picked when the
-  Space is created. Its tabs are created with
-  `SiteInstance::CreateForFixedStoragePartition()`, so cookies, localStorage, IndexedDB,
-  cache and service workers are per Space. Passwords, history, bookmarks and extensions
-  stay per profile, so the password manager serves every Space. Isolation cannot be
-  turned off: a new Space starts logged out of every site. Incognito windows never get
-  Space partitions.
-- Space tabs are ordinary tabs, not guest processes, so extensions and their content
-  scripts run in them as in any other tab.
-- Isolation costs memory and disk: renderer processes are not shared across partitions,
-  so a site open in two Spaces runs in two processes, and each Space has its own network
-  context and HTTP cache of the full default size.
-- The Space of a group is the partition of its tabs, so there is no separate registry.
-  A new tab gets the Space of the page that opened it, else of its group (explicit or
-  focused). The New Tab page is WebUI and cannot live in a partition, so a new tab of a
-  Space opens `about:blank`. Content does not assign a site to `about:blank`, and a
-  SiteInstance without a site reports the default partition, so
-  `fixed-partition-blank-pages.patch` assigns one in fixed-partition BrowsingInstances,
-  as content already does for `<webview>` guests.
-- A page a Space's tab opens stays in the Space (`spaces/space-new-windows.patch`).
-  Content keeps a fixed partition across a tab's navigations, but gave a `noopener`
-  window, which every `target=_blank` link opens, and a prerendered page a SiteInstance
-  in the default partition: a site's "Sign in" in a new tab showed the logins of home.
-  Both now get the opening tab's partition.
-- Session restore: the window extra data `arcomium.spaces` holds `{tab group id: Space id}`
-  (written on every rebuild and on focus changes); restored tabs of those groups are
-  recreated in their partition, without a renderer until shown. Startup continues the
-  last session by default (`defaults/continue-session.patch`): otherwise the Spaces' tabs
-  would be lost on restart.
-- Each Space has one saved tab group, whose id is a UUIDv5 of the Space id
-  (`SavedGroupGuidForSpace()`), so every device and every restored session share one
-  group, as a client tag does in Chromium sync. Every saved Space opens in the window
-  once sync, session restore and bookmarks are ready, without changing the Space shown;
-  its tabs from another device load only when shown (`spaces/lazy-saved-space-tabs.patch`).
+- The windows of one Alerse window form a stack: one `Browser` for each Space opened
+  in it, all in one place on screen, one visible. Switching Spaces shows the next and
+  hides the previous (`alerse_window_stack.h`).
+- The list of Spaces is Chromium's profile registry in `Local State`. Home is the
+  first profile, `Default` (`alerse_space_registry.h`).
+- A Space's pinned items are the folder of its profile's Other Bookmarks marked with
+  the meta info `arcomium.space = default`. The folder's title is the Space's name
+  (`alerse_space_folder.h`).
+- At startup only the Space shown last opens (`spaces/start-in-last-space.patch`).
+  Another Space loads, and restores its session, when it is first shown. Startup
+  continues the last session by default (`defaults/continue-session.patch`).
 - An empty Space stays, as in Arc: closing its last tab leaves a hidden blank tab
-  (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays open.
-  `--close-window-with-last-tab=always` turns this off. Closing through Chromium's
-  close commands (Ctrl+W / Cmd+W, Close Other Tabs) keeps the Space before Chromium
-  counts the groups to delete, so its "Close Tab and Delete Group?" dialog never
-  shows for a Space's last tab. The empty page takes no focus
-  and opens no command bar until asked. It shows the page card's blank color rather
-  than white or the dark canvas (#121212) Blink gives a user's `about:blank` in dark
-  mode: Blink keeps the page marked `#arcomium-space` clear (`local_frame_view.cc`), so
-  the card looks empty, as Arc's does on both platforms. It opens no context menu
-  either, as Arc's empty card. A Space whose tab group is gone (all its tabs
-  closed) stays in the Space bar through its bookmark folder and opens again from it.
-- Tabs of the Spaces not shown are not frozen (`spaces/no-focus-freezing.patch`): focus
-  mode would freeze them, stopping music or a messenger in another Space, which Arc
-  does not do. Memory Saver, on by default, unloads idle tabs instead.
-- Data: Clear browsing data clears every Space's partition, open or not, which logs the
-  user out in every Space. Chromium's partition cleanup always keeps
-  `Storage/ext/arcomium`, so a closed Space keeps its logins. A tab Memory Saver
-  discarded comes back in its Space's partition (`spaces/space-data-lifecycle.patch`).
+  (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays
+  open. `--close-window-with-last-tab=always` turns this off. The empty page takes no
+  focus, opens no command bar until asked, shows the page card's blank color and
+  opens no context menu.
+- Tabs of the Spaces not shown are background tabs of hidden windows and keep
+  running, so music or a messenger in another Space goes on. Memory Saver, on by
+  default, unloads idle tabs.
+- A release before the profiles (0.1) kept every Space in one profile, each in a
+  storage partition. Nothing is migrated: such a profile opens as home, and its other
+  Spaces' folders stay in Other Bookmarks as ordinary folders.
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; opens `chrome://downloads`, as Ctrl+J and
   Shift+Cmd+J), an icon per Space (the active one bright), "+" at the
   right. A Space's icon is picked from its menu and stored in its bookmark folder as
   `arcomium.space_icon`, so it syncs; Home is a sun until another is picked. The same
-  menu has Edit Theme Color and Delete Space (after a question; it closes the tabs and
-  removes the saved group and the folder; dimmed for Home, which cannot go, as Arc's
-  menu always has it). Alt+1 to Alt+9 show the Spaces in the bar's order, Home first;
+  menu has Edit Theme Color and Delete Space (after a question; it deletes the
+  Space's profile with its tabs, pinned items, logins and history; dimmed for Home,
+  which cannot go, as Arc's menu always has it). A Space's own window edits its name,
+  icon and color; in another Space's window those items are dimmed. Alt+1 to Alt+9 show the Spaces in the bar's order, Home first;
   on macOS, where Option+digit types characters, Control+1 to Control+9, as in Arc
   for macOS, whose tooltips name them ("home ^1"). A horizontal
-  trackpad swipe walks the bar, closed Spaces included: the sidebar follows the fingers
-  with the next Space's rows beside the current ones, and a lift past 60 pt switches.
+  trackpad swipe walks the bar: the sidebar follows the fingers with a picture of the
+  next Space's rows beside the current ones, and a lift past 60 pt switches.
   Each Space returns to the tab that was active in it.
 - Color: Edit Theme Color (in the Space's menu, or a right click in the sidebar's empty
   space) picks hue and saturation, light or dark, intensity and brightness, or a preset.
@@ -214,18 +175,15 @@ Implementation (patches in `patches/spaces/`):
 
 Known gaps:
 
-- a deleted Space's partition stays on disk;
-- a tab dragged into a Space's group keeps its old partition;
-- a tab opened on an extension's page or a file is in the default partition and stays
-  there when it then navigates to a site. The browser's own pages (`chrome://settings`,
-  `chrome://downloads`) open in the Space's partition (`CanLiveInSpace()`), and a
-  reopened tab (Ctrl+Shift+T) carries its Space as the tab extra data `arcomium.space`;
-- a Space open in one window looks closed in a second window and opens there again;
-- notifications and push messages of a Space's sites use the default partition;
-- the incognito window's Space bar lists the regular profile's Spaces;
+- sections of this document below that mention storage partitions, tab groups or
+  saved tab groups as Spaces describe 0.1 and are to be rewritten;
+- the windows of a stack do not yet share their size, position and sidebar width
+  after one of them is resized while shown;
+- a prompt in a hidden Space (a permission, a page dialog) shows only when the Space
+  is opened, with no mark in the Space bar;
 - moving a tab to another Space reopens it there, losing its history and form state;
-- not yet checked: downloads and the PDF viewer in a Space tab. Bitwarden's passkeys
-  work in 0.1.4, DevTools too.
+- favorites are a set for each Space;
+- Windows and Linux were not built with the profiles yet.
 
 ## Sidebar look
 
