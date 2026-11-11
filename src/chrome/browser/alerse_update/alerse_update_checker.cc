@@ -88,7 +88,7 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
         policy {
           cookies_allowed: NO
           setting:
-            "Off when the Local State pref alerse.update_check.enabled is "
+            "Off when the Local State pref arcomium.update_check.enabled is "
             "false, and in headless mode or with "
             "--disable-background-networking."
           policy_exception_justification:

@@ -168,6 +168,19 @@ Headless mode and `--disable-background-networking` turn it off too.
 Besides these, the sync server you set up and the Web Store, Alerse makes no network
 requests of its own.
 
+What the same defaults leave out, so that you can decide knowingly:
+
+- **No Safe Browsing.** Alerse does not check pages or downloads against Google's
+  lists of phishing and malware, and it saves downloads without asking. Be as careful
+  with a download as you would be without a browser's warning.
+- **No background security data.** Chrome fetches certificate revocation lists and
+  the list of Certificate Transparency logs between releases; Alerse has no component
+  updater, so these are as old as the build. Chromium stops enforcing Certificate
+  Transparency about ten weeks after a build was made.
+- **Security fixes arrive with releases only.** Alerse follows ungoogled-chromium,
+  which follows Chrome's stable channel by some days, and does not update itself. Keep
+  to the latest release; a build more than a few weeks old is missing fixes.
+
 ungoogled-chromium rewrites Google domains in the source after the patches apply. The
 Web Store's addresses in `extensions/web-store.patch` are written split
 (`"clients2.goo" "gle.com"`) so that this rewriting leaves them working.
