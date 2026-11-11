@@ -1,6 +1,6 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Steps 1 to 3 of the [order of work](#order-of-work) are
+Status: accepted, 2026-11-11. Steps 1 to 4 of the [order of work](#order-of-work) are
 built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
 
 ## Context
@@ -138,8 +138,10 @@ Each profile keeps its own session, with Chromium's session service unchanged. A
 startup Alerse opens the stack with the Space that was visible last and loads no other
 profile. The other members are created when they are first shown or routed to
 (decided on 2026-11-11), so a messenger in another Space starts only once that Space
-is opened. The patches that carried a Space through session restore, tab restore
-and tab discarding are deleted.
+is opened. A Space shown for the first time since startup opens on a blank tab, and
+its session takes that tab's place when it has been read. Chromium's profile picker
+never shows at startup (`spaces/start-in-last-space.patch`). The patches that carried
+a Space through session restore, tab restore and tab discarding are deleted.
 
 ### Tabs between Spaces
 
@@ -361,6 +363,10 @@ be undone except from the backup.
    not look for them in other profiles (step 6); the import from Arc, a tab's binding
    to its pinned item after a restart, and Windows and Linux were not tested.
 4. Startup, sessions, the empty Space, New Window, incognito.
+   Done on 2026-11-11. A new Space and a Space with no tabs show an empty card with
+   the command bar closed; New Window opens a second stack with the command bar open;
+   the incognito window's Space bar lists no Spaces. Not built: the stack's own
+   bounds and sidebar state, the dot for a prompt in a hidden member.
 5. Migration from 0.1, with the backup.
 6. Link routing, import, the command bar and menu bar.
 7. Swipe preview.

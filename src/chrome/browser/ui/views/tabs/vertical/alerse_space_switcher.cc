@@ -1052,7 +1052,11 @@ void AlerseSpaceSwitcher::Rebuild() {
     }
     alerse::UpdateSpaceCopy(own, name, icon, color);
   }
-  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+  // An incognito window is outside the stacks and shows no Spaces.
+  const std::vector<alerse::SpaceInfo> spaces =
+      profile->IsOffTheRecord() ? std::vector<alerse::SpaceInfo>()
+                                : alerse::ListSpaces();
+  for (const alerse::SpaceInfo& space : spaces) {
     const bool active = space.path == own;
     add_icon(base::BindRepeating(&AlerseSpaceSwitcher::ShowSpaceOfPath,
                                  base::Unretained(this), space.path),

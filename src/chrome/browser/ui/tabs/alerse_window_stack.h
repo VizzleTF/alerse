@@ -24,13 +24,15 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "chrome/browser/ui/browser_commands.h"
+#include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "ui/base/base_window.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
@@ -91,10 +93,21 @@ class WindowStacks : public BrowserCollectionObserver {
       return;
     }
     if (!target) {
-      target = chrome::OpenEmptyWindow(profile,
-                                       /*should_trigger_session_restore=*/true);
-      if (!target) {
+      if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+          BrowserWindowInterface::CreationStatus::kOk) {
         return;
+      }
+      // Not chrome::OpenEmptyWindow(), which opens the command bar: a Space
+      // shows what it had, and an empty one shows nothing, as in Arc.
+      BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
+                                       profile, /*from_user_gesture=*/true);
+      params.should_trigger_session_restore = true;
+      target = CreateBrowserWindow(std::move(params));
+      if (target->GetTabStripModel()->empty()) {
+        // The Space's session, if it has one, takes this tab's place
+        // (session_restore.cc).
+        chrome::AddTabAt(target, GURL("about:blank#arcomium-space"), -1,
+                         /*foreground=*/true);
       }
       stacks_[target] = stack;
     }

@@ -1,0 +1,66 @@
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index d9a0869..a68e672 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -2079,10 +2079,8 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
+   // them this early as the cryptohome hasn't yet been mounted (which happens
+   // only once we log in). And if we're launching a web app, we don't want to
+   // restore the last opened profiles.
+-  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
+-    last_opened_profiles =
+-        g_browser_process->profile_manager()->GetLastOpenedProfiles();
+-  }
++  // Alerse: a Space is a profile, and only the Space shown last opens at
++  // startup; another loads when it is first shown.
+ #endif
+ 
+ #if BUILDFLAG(CHROME_FOR_TESTING)
+diff --git a/chrome/browser/sessions/session_restore.cc b/chrome/browser/sessions/session_restore.cc
+index 816c2a0..9362890 100644
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -923,7 +923,14 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+       WebContents* active_tab =
+           browser->GetTabStripModel()->GetActiveWebContents();
+       int initial_tab_count = browser->GetTabStripModel()->count();
+-      bool close_active_tab = clobber_existing_tab_ && is_first_window &&
++      // Alerse: a Space's window opens on a blank tab while its session is
++      // read (alerse_window_stack.h); the session replaces it. By its
++      // address: the tab is still loading it.
++      const bool waits_for_session =
++          active_tab && active_tab->GetVisibleURL().IsAboutBlank() &&
++          active_tab->GetVisibleURL().ref() == "arcomium-space";
++      bool close_active_tab = (clobber_existing_tab_ || waits_for_session) &&
++                              is_first_window &&
+                               is_normal_window && active_tab &&
+                               browser == browser_ && !window->tabs.empty();
+       if (close_active_tab) {
+diff --git a/chrome/browser/ui/profiles/profile_picker.cc b/chrome/browser/ui/profiles/profile_picker.cc
+index 886649a..ff77b5e 100644
+--- a/chrome/browser/ui/profiles/profile_picker.cc
++++ b/chrome/browser/ui/profiles/profile_picker.cc
+@@ -168,6 +168,8 @@ bool ProfilePicker::Shown() {
+ 
+ // static
+ StartupProfileMode ProfilePicker::GetStartupMode() {
++  // Alerse: profiles are Spaces, picked in the Space bar.
++  return StartupProfileMode::kBrowserWindow;
+   AvailabilityOnStartup availability_on_startup = GetAvailabilityOnStartup();
+ 
+   if (availability_on_startup == AvailabilityOnStartup::kDisabled) {
+diff --git a/chrome/browser/ui/startup/startup_browser_creator.cc b/chrome/browser/ui/startup/startup_browser_creator.cc
+index 49f777f..a70db0e 100644
+--- a/chrome/browser/ui/startup/startup_browser_creator.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator.cc
+@@ -1567,10 +1567,7 @@ void StartupBrowserCreator::ProcessCommandLineWithProfile(
+   // On ChromeOS multiple profiles doesn't apply.
+   // If no browser windows are open, i.e. the browser is being kept alive in
+   // background mode or for other processing, restore |last_opened_profiles|.
+-  if (GlobalBrowserCollection::GetInstance()->GetSize() == 0) {
+-    last_opened_profiles =
+-        g_browser_process->profile_manager()->GetLastOpenedProfiles();
+-  }
++  // Alerse: only the Space shown last opens; see chrome_browser_main.cc.
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   StartupBrowserCreator startup_browser_creator;
