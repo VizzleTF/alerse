@@ -180,7 +180,8 @@ Known gaps:
   once;
 - the mini player shows only the media of the Space shown;
 - a prompt in a hidden Space (a permission, a page dialog) shows only when the Space
-  is opened, with no mark in the Space bar;
+  is opened, with no mark in the Space bar (it then has the keyboard: `ShowSpace`
+  activates the window's visible modal dialog after the window);
 - moving a tab to another Space reopens it there, losing its history and form state;
 - favorites are a set for each Space;
 - Windows and Linux were not built with the profiles yet.
@@ -315,6 +316,10 @@ Windows' measurements still set (see `AlerseSidebarView`):
   (Shift+Cmd+T) brings them back one at a time. A tab closed with a row's "x" goes
   there too. An empty Space's hidden blank tab is never recorded there
   (`spaces/empty-space-not-in-history.patch`).
+- The rows scroll to the tab that becomes active, so a tab opened by a link from
+  another app, the command bar or Ctrl+Tab is never below the visible rows. The
+  scroll repeats after the next frame: the compositor limits it to the height it
+  last drew the rows at, a row short of a tab just added (crbug.com/40772386).
 - Rebuilds: a window has the rows of its own Space only. Theme changes rebuild once
   they settle (250 ms), and the Space bar rebuilds when a profile is added or removed
   or a Space's folder changes, not on every navigation.
@@ -1096,7 +1101,11 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 Text the user sees is in `IDS_ARCOMIUM_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids
 (see [patching](patching.md)), set from the frame: Arc's greys on a dark frame, inverted
-on a light one, system colors in high contrast.
+on a light one, system colors in high contrast. The command bar's rows are a web
+page: their light set is in `look/command-bar-light.patch`, under
+`prefers-color-scheme: light`. The Space bar and the address field repaint when
+the theme changes (`alerse::RepaintTree`), as their views paint its colors
+themselves.
 
 ## Split View
 
@@ -1691,6 +1700,9 @@ these changes:
 - The bookmark bar does not show on the New Tab page, as pinned items live in the
   sidebar; `--bookmark-bar-ntp=always` brings it back.
 - The window stays open when its last tab closes (see Spaces).
+- A download goes to the Downloads folder without the Save As question
+  ungoogled-chromium asks, as in Arc (`defaults/download-without-prompt.patch`);
+  Settings > Downloads turns the question on.
 - `defaults/feature-defaults.patch`: Back in a tab a link opened returns to the opener
   tab; parallel downloads everywhere; Memory Saver on; three performance-manager
   policies Chrome runs from its field trials (`kTransientKeepAlivePolicy`,
