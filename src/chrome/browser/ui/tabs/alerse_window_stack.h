@@ -37,7 +37,6 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
-#include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -120,12 +119,28 @@ class WindowStacks : public BrowserCollectionObserver {
     // Not always `from`: a hidden member asks too, when a link is routed
     // through it.
     BrowserWindowInterface* shown = Shown(stack) ? Shown(stack) : from;
-    if (FindMember(stack, profile) == shown) {
+    BrowserWindowInterface* target = FindMember(stack, profile);
+    if (target == shown) {
       return;
     }
-    BrowserWindowInterface* target = AddMember(stack, profile);
     if (!target) {
-      return;
+      if (GetBrowserWindowCreationStatusForProfile(*profile) !=
+          BrowserWindowInterface::CreationStatus::kOk) {
+        return;
+      }
+      // Not chrome::OpenEmptyWindow(), which opens the command bar: a Space
+      // shows what it had, and an empty one shows nothing, as in Arc.
+      BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
+                                       profile, /*from_user_gesture=*/true);
+      params.should_trigger_session_restore = true;
+      target = CreateBrowserWindow(std::move(params));
+      if (target->GetTabStripModel()->empty()) {
+        // The Space's session, if it has one, takes this tab's place
+        // (session_restore.cc).
+        chrome::AddTabAt(target, GURL("about:blank#arcomium-space"), -1,
+                         /*foreground=*/true);
+      }
+      stacks_[target] = stack;
     }
     // The sidebar is the stack's: as wide, and as hidden, in every Space.
     auto* sidebar = tabs::VerticalTabStripStateController::From(shown);
@@ -188,35 +203,6 @@ class WindowStacks : public BrowserCollectionObserver {
     visible_[stack] = target;
     HideOthersOnceDrawn(stack, target, std::move(locks));
   }
-
-  // The member of `stack` for the Space of `profile`, opened hidden if it
-  // has none; null if the profile cannot have a window.
-  BrowserWindowInterface* AddMember(int stack, Profile* profile) {
-    if (BrowserWindowInterface* member = FindMember(stack, profile)) {
-      return member;
-    }
-    if (GetBrowserWindowCreationStatusForProfile(*profile) !=
-        BrowserWindowInterface::CreationStatus::kOk) {
-      return nullptr;
-    }
-    // Not chrome::OpenEmptyWindow(), which opens the command bar: a Space
-    // shows what it had, and an empty one shows nothing, as in Arc.
-    BrowserWindowCreateParams params(BrowserWindowInterface::TYPE_NORMAL,
-                                     profile, /*from_user_gesture=*/true);
-    params.should_trigger_session_restore = true;
-    BrowserWindowInterface* member = CreateBrowserWindow(std::move(params));
-    if (member->GetTabStripModel()->empty()) {
-      // The Space's session, if it has one, takes this tab's place
-      // (session_restore.cc).
-      chrome::AddTabAt(member, GURL("about:blank#arcomium-space"), -1,
-                       /*foreground=*/true);
-    }
-    stacks_[member] = stack;
-    return member;
-  }
-
-  // Marks `stack`'s other Spaces as preloaded; false if they already were.
-  bool MarkPreloaded(int stack) { return preloaded_.insert(stack).second; }
 
   // BrowserCollectionObserver:
   void OnBrowserClosed(BrowserWindowInterface* browser) override {
@@ -322,8 +308,6 @@ class WindowStacks : public BrowserCollectionObserver {
   // Counts each stack's switches: a pending hide of an earlier one does
   // nothing.
   std::map<int, int> hide_generation_;
-  // The stacks whose other Spaces' windows were opened ahead (PreloadSpaces).
-  std::set<int> preloaded_;
   // Each stack's windows kept in an active window's colors over a switch.
   std::map<int, std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>>>
       paint_locks_;
@@ -362,38 +346,6 @@ inline void ShowSpaceInStack(BrowserWindowInterface* from,
                                     : nullptr);
           },
           stack, from->GetProfile()->GetPath(), std::move(done)));
-}
-
-// Opens the window of every other Space in the stack of `browser`, hidden,
-// once per stack: a Space's first switch then shows a window that has
-// already restored its session and drawn its sidebar, not one that builds
-// itself on screen. Only for the member a stack shows.
-inline void PreloadSpaces(BrowserWindowInterface* browser) {
-  Profile* own = browser->GetProfile();
-  if (own->IsOffTheRecord() ||
-      browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) {
-    return;
-  }
-  WindowStacks& stacks = WindowStacks::Get();
-  const int stack = stacks.StackOf(browser);
-  if (stacks.Shown(stack) != browser || !stacks.MarkPreloaded(stack)) {
-    return;
-  }
-  for (const SpaceInfo& space : ListSpaces()) {
-    if (space.path == own->GetPath()) {
-      continue;
-    }
-    g_browser_process->profile_manager()->CreateProfileAsync(
-        space.path, base::BindOnce(
-                        [](int stack, Profile* profile) {
-                          WindowStacks& stacks = WindowStacks::Get();
-                          // The stack may have closed while it loaded.
-                          if (profile && stacks.Shown(stack)) {
-                            stacks.AddMember(stack, profile);
-                          }
-                        },
-                        stack));
-  }
 }
 
 // Opens `url` in a new tab of the Space in `path` and shows that Space in

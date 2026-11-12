@@ -138,10 +138,8 @@ feature does on it. In short:
 - A Space's pinned items are the folder of its profile's Other Bookmarks marked with
   the meta info `arcomium.space = default`. The folder's title is the Space's name
   (`alerse_space_folder.h`).
-- At startup the Space shown last opens (`spaces/start-in-last-space.patch`). A
-  second later the other Spaces' windows open hidden in its stack and restore their
-  sessions (`alerse::PreloadSpaces`), so the first switch to a Space shows a window
-  that is already drawn instead of one that builds itself on screen. Startup
+- At startup only the Space shown last opens (`spaces/start-in-last-space.patch`).
+  Another Space loads, and restores its session, when it is first shown. Startup
   continues the last session by default (`defaults/continue-session.patch`).
 - An empty Space stays, as in Arc: closing its last tab leaves a hidden blank tab
   (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays
