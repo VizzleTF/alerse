@@ -38,6 +38,7 @@
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/flex_layout_view.h"
@@ -219,6 +220,16 @@ void AlerseMiniPlayer::UpdateVisibility() {
   if (GetVisible() != visible) {
     SetVisible(visible);
     PreferredSizeChanged();
+    if (visible) {
+      // It rises into its place. Leaving is one jump: the rows take its
+      // room at once.
+      SetPaintToLayer();
+      layer()->SetFillsBoundsOpaquely(false);
+      alerse::motion::Arrive(this, gfx::Vector2d(0, 12),
+                             alerse::motion::kStandard);
+    } else if (layer()) {
+      DestroyLayer();
+    }
   }
 }
 

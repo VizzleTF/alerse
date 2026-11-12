@@ -508,7 +508,7 @@ void SpaceColorTransition::AnimateTo(views::Widget* widget,
       color ? std::optional<SkColor>(GetSpaceFrameColor(*color))
             : default_frame_;
   if (!animate || !to || !top->IsVisible() ||
-      !gfx::Animation::ShouldRenderRichAnimation()) {
+      gfx::Animation::PrefersReducedMotion()) {
     animation_.Stop();
     ApplySpaceColor(top, color);
     return;

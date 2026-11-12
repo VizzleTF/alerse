@@ -22,6 +22,7 @@
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
+#include "ui/views/view_tracker.h"
 #include "ui/gfx/font_list.h"
 #include "ui/views/widget/widget_observer.h"
 
@@ -100,6 +101,8 @@ class AlerseAddressBar : public views::View,
   // views::WidgetObserver: the floating field closes with the window; the
   // location bar must not go with it.
   void OnWidgetDestroying(views::Widget* widget) override;
+  void OnWidgetActivationChanged(views::Widget* widget, bool active) override;
+  void OnWidgetVisibilityChanged(views::Widget* widget, bool visible) override;
 
   // ExtensionsToolbarViewModel::Observer: Arc's pinned extensions, in the
   // field (one) or as tiles under it (two or more).
@@ -113,6 +116,7 @@ class AlerseAddressBar : public views::View,
 
  private:
   class ClickWatcher;
+  class SidebarHoverWatcher;
 
   // A click anywhere in the window outside the command bar and its
   // suggestions closes it, as in Arc, even where the click takes no focus
@@ -140,8 +144,11 @@ class AlerseAddressBar : public views::View,
   // Rebuilds the pinned extensions' button and tiles.
   void UpdateExtensions();
   void RunExtension(const ToolbarActionsModel::ActionId& id);
-  // Polls whether the pointer is over the sidebar.
+  // Asks where the pointer is: over the sidebar or not.
   void PollSidebarHover();
+  // Shows or hides the hover buttons, and polls only while an exit may be
+  // missed.
+  void SetSidebarHovered(bool hovered);
   // The field's rect, and how many rows of extension tiles go under it.
   gfx::Rect GetFieldBounds() const;
   int GetTileRows() const;
@@ -186,6 +193,12 @@ class AlerseAddressBar : public views::View,
       extensions_container_observation_{this};
   bool extensions_container_gone_ = false;
   base::RepeatingTimer sidebar_hover_poll_;
+  // The sidebar's region and the handler that hears the pointer on it.
+  views::ViewTracker hover_region_;
+  std::unique_ptr<SidebarHoverWatcher> hover_watcher_;
+  // The window: its activation and visibility decide the poll.
+  base::ScopedObservation<views::Widget, views::WidgetObserver>
+      window_observation_{this};
   // Puts the link back on the copy button after the check mark of a copy.
   base::OneShotTimer copy_feedback_timer_;
   // The pointer is on the field itself, and anywhere on the sidebar.

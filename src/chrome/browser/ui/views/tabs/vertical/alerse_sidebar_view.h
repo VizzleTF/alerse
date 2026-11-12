@@ -33,7 +33,7 @@
 #include "ui/color/color_id.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/geometry/point.h"
-#include "ui/gfx/animation/animation_delegate.h"
+#include "ui/views/animation/animation_delegate_views.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/base/clipboard/clipboard_format_type.h"
@@ -94,7 +94,7 @@ class AlerseSidebarView : public views::View,
                             public views::ContextMenuController,
                             public views::DragController,
                             public ui::SimpleMenuModel::Delegate,
-                            public gfx::AnimationDelegate {
+                            public views::AnimationDelegateViews {
   METADATA_HEADER(AlerseSidebarView, views::View)
 
  public:
@@ -154,7 +154,7 @@ class AlerseSidebarView : public views::View,
   void BookmarkNodeFaviconChanged(
       const bookmarks::BookmarkNode* node) override;
 
-  // gfx::AnimationDelegate:
+  // views::AnimationDelegateViews:
   void AnimationProgressed(const gfx::Animation* animation) override;
   void AnimationEnded(const gfx::Animation* animation) override;
   // Folders keep their open state in meta info.
@@ -197,10 +197,18 @@ class AlerseSidebarView : public views::View,
   void OnDragExited() override;
   DropCallback GetDropCallback(const ui::DropTargetEvent& event) override;
 
-  // Alerse: a horizontal swipe is about to switch Spaces, forward or back;
-  // the next Space's rows slide in. CancelSpaceSlide() if it did not switch.
-  void PrepareSpaceSlide(bool forward, int distance = 48);
-  void CancelSpaceSlide();
+  // This window's Space takes the place of another in the stack: its rows
+  // slide in from the side it lies on in the Space bar (`forward`: the
+  // trailing side) while a picture of the rows of `source`, the sidebar of
+  // the window left, slides out. Prepare, before the window shows, puts both
+  // where the slide starts; Play, once it has drawn that, runs the slide.
+  void PrepareSpaceEnter(bool forward, AlerseSidebarView* source);
+  void PlaySpaceEnter();
+  // alerse::SpaceShownHook(): `to` is about to show in the place of `from`.
+  static void OnSpaceShown(BrowserWindowInterface* from,
+                           BrowserWindowInterface* to);
+  // alerse::SpaceDrawnHook(): `to` shows its first frame.
+  static void OnSpaceDrawn(BrowserWindowInterface* to);
   // While the fingers move: the rows follow them by `dx`, the rows of the
   // `neighbor` Space butted against their side; with no Space that way, they
   // give only a little.
@@ -273,9 +281,9 @@ class AlerseSidebarView : public views::View,
   // Rebuilds asynchronously: a change may come from a click on a row.
   void ScheduleRebuild();
   void Rebuild();
-  // Slides the rows of a Space that a swipe just switched to in from the side
-  // the swipe went to.
-  void RunPendingSlide();
+  // Puts the rows of the Space a swipe switched to where its preview was.
+  void DropSwipePreview();
+  void EndSpaceEnter();
   // Shows the rows again if a committed swipe switched nothing.
   void RestoreSlide();
   // The rows the sidebar shows for `space`, without switching to it.
@@ -284,6 +292,10 @@ class AlerseSidebarView : public views::View,
   // of its hidden window in this window's stack; null if the Space has no
   // window there yet.
   std::unique_ptr<views::View> BuildSpaceSnapshot(const AlerseSpaceRef& space);
+  // A picture of the rows `other` shows, where it shows them.
+  std::unique_ptr<views::View> SnapshotRowsOf(AlerseSidebarView* other);
+  // Puts `rows` over the scroll view, clipped to it, on a layer that slides.
+  views::View* AddSlideFrame(std::unique_ptr<views::View> rows);
   // Rebuild()'s rows of the active Space, or of preview_space_.
   void BuildRows();
   void HideSpacePreview();
@@ -314,6 +326,8 @@ class AlerseSidebarView : public views::View,
   void OnFolderPressed(int64_t id);
   // Folder open and close animation: the rows that come or go grow or shrink.
   void StartFolderCollapse(const bookmarks::BookmarkNode* folder);
+  // Runs folder_anim_, as long as its distance asks.
+  void StartFolderAnimation();
   void FinishFolderAnimation();
   // Shows the folder's rows `progress` of the way, on layers only: the rows
   // are clipped and the ones below shifted, with no layout or repaint.
@@ -415,16 +429,16 @@ class AlerseSidebarView : public views::View,
   raw_ptr<bookmarks::BookmarkModel> model_;
   raw_ptr<views::View> rows_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
-  int pending_slide_ = 0;
   // The neighbor Space's rows beside these during a swipe.
   raw_ptr<views::View> space_preview_ = nullptr;
   std::optional<AlerseSpaceRef> preview_space_;
+  // 1 or -1: the side a swipe's neighbor stands on. 2: the picture of the
+  // Space left, sliding out as this one enters.
   int space_preview_side_ = 0;
+  // The side a prepared entrance comes from, until it plays; 0: none.
+  int enter_side_ = 0;
   bool drop_preview_after_rebuild_ = false;
-  int pending_slide_distance_ = 48;
   base::WeakPtrFactory<AlerseSidebarView> slide_weak_factory_{this};
-  std::string pending_slide_from_;
-  base::TimeTicks pending_slide_until_;
   // Alerse: its address bar, which opens Arc's command bar.
   raw_ptr<AlerseAddressBar> address_bar_ = nullptr;
   // The favorites' tiles, between the address bar and the rows; they stay
@@ -495,6 +509,8 @@ class AlerseSidebarView : public views::View,
     int to = 0;
   };
   std::optional<FolderAnimation> folder_anim_;
+  // A rebuild asked for while the curtain ran.
+  bool rebuild_after_folder_animation_ = false;
   // The folder whose rows are shrinking; it closes when they are gone.
   int64_t collapsing_folder_ = 0;
   // The folder being opened, and the height its rows took while closed.
@@ -508,6 +524,9 @@ class AlerseSidebarView : public views::View,
   // or the sidebar is new.
   bool reveal_active_tab_ = true;
   raw_ptr<views::View> drop_indicator_ = nullptr;
+  // What the indicator shows now: a folder's plate, a split's outline.
+  bool drop_indicator_folder_ = false;
+  bool drop_indicator_outlined_ = false;
   // Running position used to give rows Arc's fractional pitch.
   float row_pitch_offset_ = 0;
   // Pinned item id -> the tab opened from it.

@@ -28,7 +28,7 @@ index 087dd2230f0..59a76a1e91f 100644
  
      // Trigger exactly once per physical swipe gesture. Subsequent events in
      // the same touch are consumed until fingers lift or gesture times out.
-@@ -139,17 +150,110 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
+@@ -139,17 +150,104 @@ void VerticalTabStripFocusSwipeController::ProcessSwipeOffset(
    }
  }
  
@@ -127,13 +127,7 @@ index 087dd2230f0..59a76a1e91f 100644
 +  // Alerse: through the Spaces as the switcher shows them, closed ones
 +  // included, which have no tab group to rotate to until they open.
 +  if (AlerseSpaceSwitcher* switcher = FindSpaceSwitcher(region_view_)) {
-+    AlerseSidebarView* sidebar = FindSidebar(region_view_);
-+    if (sidebar) {
-+      sidebar->PrepareSpaceSlide(forward);
-+    }
-+    if (!switcher->RotateSpace(forward) && sidebar) {
-+      sidebar->CancelSpaceSlide();
-+    }
++    switcher->RotateSpace(forward);
 +    return;
 +  }
  

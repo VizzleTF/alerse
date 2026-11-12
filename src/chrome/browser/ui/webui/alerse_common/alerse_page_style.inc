@@ -111,6 +111,15 @@ button.primary {
 button.danger { color: var(--bad); border-color: var(--bad); }
 button.quiet { color: var(--muted); }
 button:disabled { opacity: .6; cursor: default; }
+/* The motion system's quick token (docs/design.md, "Motion"): states fade,
+   and a part of the page that appears fades in; leaving is instant. */
+button, input, select, textarea {
+  transition: background-color .09s, border-color .09s, opacity .09s;
+}
+section, .sub, .confirm, .banner, .error, .result, .note {
+  transition: opacity .16s cubic-bezier(0, 0, .2, 1);
+  @starting-style { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

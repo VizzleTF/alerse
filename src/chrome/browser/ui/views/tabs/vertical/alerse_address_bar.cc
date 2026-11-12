@@ -44,7 +44,11 @@
 #include "chrome/browser/ui/views/extensions/alerse_site_controls.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_tooltip.h"
+#include "ui/events/event.h"
+#include "ui/events/event_handler.h"
+#include "ui/gfx/geometry/transform_util.h"
 #include "ui/views/animation/ink_drop.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_space_color.h"
 #include "ui/base/models/image_model.h"
@@ -103,7 +107,9 @@ constexpr SkAlpha kTileHoverShade = 0x25;
 // (a blocker's count, unread mail) in its corner. Asked for at 16 pt, the
 // 14 pt badge would cover the icon.
 constexpr int kExtensionImageSize = 28;
-constexpr base::TimeDelta kSidebarHoverPoll = base::Milliseconds(80);
+// Mouse events say when the pointer comes to the sidebar; this poll only
+// catches an exit that no event told of, and runs while it may be needed.
+constexpr base::TimeDelta kSidebarHoverPoll = base::Milliseconds(100);
 #if BUILDFLAG(IS_MAC)
 // Arc for macOS' command bar: 765 pt wide and centred on the window, rims
 // and all (the panel 764 pt and its dark outer ring), its 327 pt panel (five
@@ -361,6 +367,32 @@ class AlerseAddressBar::ClickWatcher : public ui::EventObserver {
   raw_ptr<AlerseAddressBar> bar_;
 };
 
+// Hears the pointer come to and leave the sidebar: a handler on the region
+// sees the events of every view in it.
+class AlerseAddressBar::SidebarHoverWatcher : public ui::EventHandler {
+ public:
+  explicit SidebarHoverWatcher(AlerseAddressBar* bar) : bar_(bar) {}
+
+  // ui::EventHandler:
+  void OnMouseEvent(ui::MouseEvent* event) override {
+    switch (event->type()) {
+      case ui::EventType::kMouseEntered:
+      case ui::EventType::kMouseMoved:
+        bar_->SetSidebarHovered(true);
+        break;
+      case ui::EventType::kMouseExited:
+        // To another view of the sidebar, or away from it.
+        bar_->PollSidebarHover();
+        break;
+      default:
+        break;
+    }
+  }
+
+ private:
+  raw_ptr<AlerseAddressBar> bar_;
+};
+
 AlerseAddressBar::AlerseAddressBar(BrowserWindowInterface* browser)
     : browser_(browser) {
   SetNotifyEnterExitOnChild(true);
@@ -492,33 +524,75 @@ void AlerseAddressBar::AddedToWidget() {
     focus_manager_->AddFocusChangeListener(this);
   }
   ScheduleUpdatePlacement();
-  sidebar_hover_poll_.Start(FROM_HERE, kSidebarHoverPoll,
-                            base::BindRepeating(
-                                &AlerseAddressBar::PollSidebarHover,
-                                base::Unretained(this)));
-}
-
-void AlerseAddressBar::PollSidebarHover() {
   // The sidebar: the vertical tab strip's region this field sits in.
-  const views::View* sidebar = this;
-  for (const views::View* view = parent(); view; view = view->parent()) {
+  views::View* sidebar = this;
+  for (views::View* view = parent(); view; view = view->parent()) {
     if (view->GetClassName() == "VerticalTabStripRegionView") {
       sidebar = view;
       break;
     }
   }
-  const bool hovered =
-      GetWidget() && GetWidget()->IsVisible() && sidebar->IsDrawn() &&
-      sidebar->GetBoundsInScreen().Contains(
-          display::Screen::Get()->GetCursorScreenPoint());
+  hover_region_.SetView(sidebar);
+  if (!hover_watcher_) {
+    hover_watcher_ = std::make_unique<SidebarHoverWatcher>(this);
+  }
+  sidebar->AddPreTargetHandler(hover_watcher_.get());
+  window_observation_.Observe(GetWidget());
+  PollSidebarHover();
+}
+
+void AlerseAddressBar::SetSidebarHovered(bool hovered) {
   if (hovered != sidebar_hovered_) {
     sidebar_hovered_ = hovered;
     UpdateCopyButton();
+  }
+  // While hovered, an exit may go unheard (a popup over the sidebar, rows
+  // rebuilt under the pointer).
+  bool poll = hovered;
+#if BUILDFLAG(IS_MAC)
+  // An inactive window gets no mouse moves on macOS.
+  const views::Widget* widget = GetWidget();
+  poll = poll || (widget && widget->IsVisible() && !widget->IsActive());
+#endif
+  if (!poll) {
+    sidebar_hover_poll_.Stop();
+  } else if (!sidebar_hover_poll_.IsRunning()) {
+    sidebar_hover_poll_.Start(
+        FROM_HERE, kSidebarHoverPoll,
+        base::BindRepeating(&AlerseAddressBar::PollSidebarHover,
+                            base::Unretained(this)));
+  }
+}
+
+void AlerseAddressBar::PollSidebarHover() {
+  const views::View* sidebar = hover_region_.view();
+  SetSidebarHovered(sidebar && GetWidget() && GetWidget()->IsVisible() &&
+                    sidebar->IsDrawn() &&
+                    sidebar->GetBoundsInScreen().Contains(
+                        display::Screen::Get()->GetCursorScreenPoint()));
+}
+
+void AlerseAddressBar::OnWidgetActivationChanged(views::Widget* widget,
+                                                   bool active) {
+  if (widget != editor_.get()) {
+    PollSidebarHover();
+  }
+}
+
+void AlerseAddressBar::OnWidgetVisibilityChanged(views::Widget* widget,
+                                                   bool visible) {
+  if (widget != editor_.get()) {
+    PollSidebarHover();
   }
 }
 
 void AlerseAddressBar::RemovedFromWidget() {
   sidebar_hover_poll_.Stop();
+  window_observation_.Reset();
+  if (hover_region_.view() && hover_watcher_) {
+    hover_region_.view()->RemovePreTargetHandler(hover_watcher_.get());
+  }
+  hover_region_.SetView(nullptr);
   StopEditing();
   ReturnLocationBar();
   if (focus_manager_) {
@@ -725,6 +799,11 @@ void AlerseAddressBar::CloseCommandBar() {
 }
 
 void AlerseAddressBar::OnWidgetDestroying(views::Widget* widget) {
+  if (widget != editor_.get()) {
+    // The window itself.
+    window_observation_.Reset();
+    return;
+  }
   StopEditing();
   editor_->RemoveObserver(this);
 }
@@ -847,7 +926,7 @@ void AlerseAddressBar::StartEditing(LocationBarView* location_bar) {
   }
   editor_->GetContentsView()->AddChildView(location_bar);
   editor_->SetBounds(bounds);
-  editor_->Show();
+  alerse::motion::FadeInWidget(editor_.get(), /*activate=*/true);
   moving_ = false;
   if (!click_watcher_) {
     click_watcher_ = std::make_unique<ClickWatcher>(this);
@@ -1021,10 +1100,12 @@ void AlerseAddressBar::UpdateCopyButton() {
   const bool show = (hovered_ || sidebar_hovered_) && location_bar_ &&
                     !editing_ && contents &&
                     !TabStripModel::IsAlerseEmptySpace(contents);
-  copy_button_->SetVisible(show);
-  site_button_->SetVisible(show);
-  pinned_button_->SetVisible(show && pinned_ids_.size() == 1);
-  text_fade_->SetVisible(show);
+  // They fade: popping in as the pointer crosses the sidebar's edge reads
+  // as a flicker.
+  alerse::motion::SetShown(copy_button_, show);
+  alerse::motion::SetShown(site_button_, show);
+  alerse::motion::SetShown(pinned_button_, show && pinned_ids_.size() == 1);
+  alerse::motion::SetShown(text_fade_, show);
   static_cast<TextFade*>(text_fade_.get())
       ->set_shade(hovered_ ? kTileHoverShade : kTileShade);
   InvalidateLayout();
@@ -1201,6 +1282,23 @@ void AlerseAddressBar::ShowCopied(bool copied) {
                            views::Button::STATE_PRESSED}) {
     copy_button_->SetImageModel(state, image);
   }
+  if (!copied || !copy_button_->layer()) {
+    return;
+  }
+  // The check mark grows in: the answer to the click.
+  ui::Layer* layer = copy_button_->layer();
+  layer->SetOpacity(0.0f);
+  if (!alerse::motion::Move(alerse::motion::kQuick).is_zero()) {
+    layer->SetTransform(gfx::TransformAboutPivot(
+        gfx::PointF(copy_button_->GetLocalBounds().CenterPoint()),
+        gfx::Transform::MakeScale(0.7f)));
+  }
+  views::AnimationBuilder()
+      .SetPreemptionStrategy(alerse::motion::kRetarget)
+      .Once()
+      .SetDuration(alerse::motion::Fade(alerse::motion::kQuick))
+      .SetOpacity(layer, 1.0f, alerse::motion::kEnter)
+      .SetTransform(layer, gfx::Transform(), alerse::motion::kEnter);
 }
 
 BEGIN_METADATA(AlerseAddressBar)

@@ -10,7 +10,7 @@ index 1c2b3c6ca3c..60c102eea67 100644
  #include "ui/display/screen.h"
  #include "ui/display/win/screen_win.h"
  #include "ui/gfx/canvas.h"
-@@ -753,14 +754,23 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
+@@ -753,14 +754,28 @@ void BrowserFrameViewWin::LayoutCaptionButtons() {
    caption_button_container_->SetVisible(
        !hide_window_buttons &&
        (!browser_widget()->IsFullscreen() ||
@@ -31,13 +31,18 @@ index 1c2b3c6ca3c..60c102eea67 100644
 +    const float opacity = alerse_caption_revealed_ ? 1.0f : kIdleOpacity;
 +    ui::Layer* layer = caption_button_container_->layer();
 +    if (layer->GetTargetOpacity() != opacity) {
++      // The motion system's quick fade (alerse_motion.h, which this file
++      // cannot include): 90 ms, decelerating, from where the layer is now.
 +      ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
-+      fade.SetTransitionDuration(base::Milliseconds(150));
++      fade.SetTransitionDuration(base::Milliseconds(90));
++      fade.SetTweenType(gfx::Tween::LINEAR_OUT_SLOW_IN);
++      fade.SetPreemptionStrategy(
++          ui::LayerAnimator::IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
 +      layer->SetOpacity(opacity);
      }
      if (children().back() != caption_button_container_) {
        ReorderChildView(caption_button_container_, children().size());
-@@ -803,10 +813,10 @@ bool BrowserFrameViewWin::IsAlerseCaptionOverlay() const {
+@@ -803,10 +818,10 @@ bool BrowserFrameViewWin::IsAlerseCaptionOverlay() const {
  }
  
  void BrowserFrameViewWin::UpdateAlerseCaptionReveal() {
@@ -51,7 +56,7 @@ index 1c2b3c6ca3c..60c102eea67 100644
  
    const bool overlay = IsAlerseCaptionOverlay();
    bool reveal = false;
-@@ -829,8 +839,8 @@ void BrowserFrameViewWin::UpdateAlerseCaptionReveal() {
+@@ -829,8 +844,8 @@ void BrowserFrameViewWin::UpdateAlerseCaptionReveal() {
      reveal = now - alerse_caption_left_at_ < kHideDelay;
    }
  

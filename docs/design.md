@@ -168,8 +168,8 @@ feature does on it. In short:
   space) picks hue and saturation, light or dark, intensity and brightness, or a preset.
   The color tints the window frame and the sidebar and is stored in the Space's folder
   as `arcomium.space_color`, so it syncs; on a light frame the sidebar inverts its
-  colors. Switching Spaces blends the tint into the next Space's over 200 ms in six fixed
-  steps (`alerse_space_color.cc`). Every tint is a new color provider key, so
+  colors. Each Space's window has its own tint, so a switch changes it at once, with the
+  windows; picking a color in the picker applies it at once too (see Motion). Every tint is a new color provider key, so
   `look/bounded-tint-color-providers.patch` keeps at most 32 tinted providers, oldest out
   first, instead of all of them for the session.
 
@@ -242,9 +242,9 @@ Windows' measurements still set (see `AlerseSidebarView`):
   of its speakers changes.
 - Hovering a collapsed folder pops up its links (subfolders open in place); picking
   one opens it as a bound tab without expanding the folder. The popup is a non-modal
-  bubble, not a menu, so the mouse stays with the sidebar: it opens after 200 ms (400 ms
-  on macOS), fades in over 120 ms, follows the pointer to another folder and closes
-  when the pointer leaves. It opens inactive; on Windows it may activate on a click, which Windows
+  bubble, not a menu, so the mouse stays with the sidebar: it opens after 400 ms, fades in over 90 ms,
+  follows the pointer to another folder and fades out when the pointer has been away
+  for 300 ms. It opens inactive; on Windows it may activate on a click, which Windows
   would otherwise drop. On macOS an inactive popup gets no mouse moves, so its rows take
   hover from the popup's pointer polls.
 - Divider, "+ New Tab", then the Space's other tabs. A tab's close button shows only
@@ -257,8 +257,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   and plate. Their tooltips are "Close Tab" and "Remove": Arc's pill on macOS
   (a row's own pill gives way to a child with a pill of its own,
   `alerse_tooltip.cc`), the native tooltip elsewhere.
-- Folders open and close in 150 ms, animated on layers (rows clipped like a curtain,
-  rows below shifted by transforms): resizing the rows relaid out the whole browser view
+- Folders open and close in 140 to 260 ms by their height (see Motion), animated on
+  layers (rows clipped like a curtain, rows below shifted by transforms): resizing the rows relaid out the whole browser view
   every frame and stuttered. A folder's open state is meta info, which
   `BaseBookmarkModelObserver` does not forward, so the sidebar redraws on it itself.
 - Drag and drop: rows move within the pinned tree and into folders; a tab dropped among
@@ -305,7 +305,7 @@ Windows' measurements still set (see `AlerseSidebarView`):
   (while any folder of the Space's pinned tree is open; else Expand All Folders,
   dimmed when the Space has no folders) and Delete Space. Collapse / Expand All
   Folders writes every folder's open state (`arcomium.open`) at once, nested ones
-  too, so the rows change without the 150 ms animation of a single folder; the
+  too, so the rows change without the animation of a single folder; the
   open state syncs like any other meta info. Arc's Set Profile, Live Folders, Share Space, Export and
   Manage Spaces are left out: each Space is already a profile, and the rest
   needs Arc's account and services. The "+"
@@ -675,7 +675,7 @@ Windows' numbers for those:
 - Hidden sidebar (View > Hide Sidebar, Cmd+S; the menu then says Show Sidebar; every
   platform, see below for Windows and Linux): as in Arc for macOS the page takes the whole window but its 10 pt margin, with no toolbar
   and no window controls, and the sidebar floats back over the page while the pointer
-  is at the window's left edge (Chromium's expand on hover, 350 ms): a #0D0D0D panel
+  is at the window's left edge (Chromium's expand on hover, 200 ms in and 160 ms out): a #0D0D0D panel
   5 pt in from the window's edges with 11 pt corners and a 1 pt #565656 rim, casting
   a faint shadow (a quarter of Chromium's, a couple of levels off the page beside it
   as Arc's), holding
@@ -802,6 +802,65 @@ tree roles); Alerse's own text is English only: most of it is in
 `alerse_strings.grdp` and translatable, but the sync page's error messages are
 hard-coded English (`alerse_sync_handler.cc`); tab rows show a speaker for sound but
 no camera, microphone or screen-capture indicator.
+
+## Motion
+
+One header, `alerse_motion.h`, holds every duration, curve and reduced-motion rule of
+the sidebar and its popups. Animations run on compositor layers (transform and
+opacity), never through layout, a rebuild or a timer used as a frame clock.
+
+| Token | Duration | Curve (`gfx::Tween`) | Used for |
+|---|---|---|---|
+| instant | 0 ms | none | Hover and selection highlights, pressed states, closing anything that holds the keyboard, the drop indicator's place during a drag |
+| `kQuick` | 90 ms in, 63 ms out | in `LINEAR_OUT_SLOW_IN`, out `FAST_OUT_LINEAR_IN` | Things that appear in place, by opacity alone: the address field's hover buttons, popovers and pickers, Arc tooltips, site controls, the folder popup, the command bar, the copy check mark, the drop indicator |
+| `kStandard` | 160 ms, or by distance | `LINEAR_OUT_SLOW_IN` | Movement inside the sidebar: the folder curtain, the mini player rising in, a swipe settling |
+| `kEmphasized` | 240 ms in, 200 ms out (floating sidebar 200 / 160) | `LINEAR_OUT_SLOW_IN` for the rows, `ACCEL_20_DECEL_100` for the sidebar | A Space's rows entering, sidebar show and hide, the floating sidebar |
+
+Rules:
+
+- **Curves decelerate from the first frame.** The folder curtain first used
+  `FAST_OUT_SLOW_IN`; a screen recording showed about 100 ms after the click with a pixel
+  or two of movement, which reads as lag.
+- **Distance.** The folder curtain takes `clamp(110 ms + 0.18 ms x px, 140, 260)`; a swipe
+  that is let go takes `clamp(260 ms x the way left, 70, 220)`.
+- **Interruption.** Every layer animation uses `IMMEDIATELY_ANIMATE_TO_NEW_TARGET`: a new
+  target starts from where the layer is drawn. Nothing queues or restarts from zero.
+- **Leaving is shorter than arriving** (0.7x) and never delays the action: a popover that
+  holds the keyboard hides at once, and its pick runs at once.
+- **Reduced motion** (`gfx::Animation::PrefersReducedMotion()`): movement takes 0 ms, fades
+  stay and are capped at 90 ms. `Move()` and `Fade()` decide it, nowhere else.
+- A rebuild of the rows waits for a running folder curtain instead of cutting it short.
+- Layers made for an animation go when it ends (the curtain's rows, the mini player's).
+
+What animates:
+
+- **Space switch** (click, shortcut, menu, command bar, routed link). The next Space's
+  window is put where the slide starts before it shows: its rows a sidebar's width to
+  the side the Space lies on in the Space bar, and a picture of the rows of the Space
+  left in their place (`PrepareSpaceEnter`). When that first frame is on screen both
+  slide as one strip for 240 ms (`PlaySpaceEnter`), as Arc's do (measured in Arc: 240 ms,
+  decelerating). The header, the field and the favorites stand still. A swipe has brought
+  the rows in already, so its commit plays no second entrance.
+- **The swap of the two windows** (`alerse_window_stack.h`). The window left hides only
+  when the next one has presented a frame, with a 250 ms limit. On macOS a window that
+  was hidden shows the last frame it drew (the rows as they were, in an inactive
+  window's lighter colors; seen as a grey flash in a 60 fps recording), so the next
+  window comes in transparent and turns opaque with that first frame, and both windows
+  keep an active window's colors meanwhile (`LockPaintAsActive`). In full screen the
+  swap is as before: each member is a desktop of its own.
+- **Folder curtain**: rows clipped and the rows below shifted on layers, driven on the
+  compositor's vsync (`views::AnimationDelegateViews`), with layers only for rows the
+  scroll view can show.
+- **Sidebar show / hide and the floating sidebar** keep Chromium's animation, at the
+  emphasized token (`look/sidebar-motion.patch`). They still lay the sidebar out on each
+  frame.
+- **Caption buttons' dim** (Windows): the quick fade (`look/caption-buttons-dim.patch`).
+- **Alerse's pages** (sync, import, links): controls change state over 90 ms and a part
+  that appears fades in over 160 ms (`alerse_page_style.inc`).
+
+Not animated, on purpose: the Space's tint (each Space's window has its own; a
+cross-fade needs a cover layer whose order in the window is not verified), row hover,
+tab rows added or removed (the rows are rebuilt on every change), closing popovers.
 
 ## Icon pickers
 

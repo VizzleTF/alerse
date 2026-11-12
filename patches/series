@@ -85,3 +85,4 @@ defaults/download-without-prompt.patch
 look/command-bar-light.patch
 look/close-favorite-at-once.patch
 look/sidebar-host-elide.patch
+look/sidebar-motion.patch

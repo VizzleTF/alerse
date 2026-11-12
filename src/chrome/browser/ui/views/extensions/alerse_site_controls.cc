@@ -56,6 +56,7 @@
 #include "ui/gfx/paint_vector_icon.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
@@ -671,7 +672,7 @@ views::Widget* Show(views::View* anchor,
       std::make_unique<SiteControlsView>(browser, extensions));
   views::Widget* widget = views::BubbleDialogDelegate::CreateBubbleDeprecated(
       std::move(delegate), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
-  widget->Show();
+  alerse::motion::FadeInWidget(widget, /*activate=*/true);
   return widget;
 }
 

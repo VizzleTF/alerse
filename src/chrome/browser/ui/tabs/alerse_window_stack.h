@@ -12,15 +12,21 @@
 // shows the next and hides the previous.
 
 #include <map>
+#include <memory>
 #include <set>
 #include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
+#include "base/location.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -35,14 +41,36 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "components/viz/common/frame_timing_details.h"
 #include "ui/base/base_window.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
+#include "ui/compositor/compositor.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
 namespace alerse {
+
+// Runs as a stack is about to show `to` in the place of `from`, before `to`
+// draws: the sidebar (the views layer) puts the arriving rows where their
+// entrance starts (AlerseSidebarView::OnSpaceShown).
+using SpaceShownFunction = void (*)(BrowserWindowInterface* from,
+                                    BrowserWindowInterface* to);
+
+inline SpaceShownFunction& SpaceShownHook() {
+  static SpaceShownFunction hook = nullptr;
+  return hook;
+}
+
+// Runs once `to` has presented that first frame and is alone on screen: the
+// entrance plays from here, so none of it is spent before it can be seen.
+using SpaceDrawnFunction = void (*)(BrowserWindowInterface* to);
+
+inline SpaceDrawnFunction& SpaceDrawnHook() {
+  static SpaceDrawnFunction hook = nullptr;
+  return hook;
+}
 
 // Which stack each window is a member of, and which member each stack shows.
 // A window opened by Chromium (New Window, a restored session) starts a stack
@@ -81,7 +109,7 @@ class WindowStacks : public BrowserCollectionObserver {
   }
 
   // Shows the Space of `profile` in the stack of `from`, in the place of the
-  // member it shows now. The next member shows before the others hide, so
+  // member it shows now. The others hide once the next member has drawn, so
   // that no frame shows what is behind the window.
   void ShowSpace(BrowserWindowInterface* from, Profile* profile) {
     if (!profile) {
@@ -139,12 +167,32 @@ class WindowStacks : public BrowserCollectionObserver {
     } else if (!shown_window->IsFullscreen()) {
       window->SetBounds(shown_window->GetBounds());
     }
+    if (SpaceShownHook()) {
+      SpaceShownHook()(shown, target);
+    }
+    views::Widget* shown_widget = views::Widget::GetWidgetForNativeWindow(
+        shown_window->GetNativeWindow());
+    views::Widget* widget =
+        views::Widget::GetWidgetForNativeWindow(window->GetNativeWindow());
+    std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>> locks;
+#if BUILDFLAG(IS_MAC)
+    // macOS shows a window that was hidden with the last frame it drew: the
+    // rows as they were, in an inactive window's lighter colors. The next
+    // member comes in transparent and shows with its first new frame
+    // (HideOthersOnceDrawn), and until then the member it replaces keeps an
+    // active window's colors though the keyboard has left it. Not in full
+    // screen, where each member is a desktop of its own.
+    if (widget && shown_widget && !shown_window->IsFullscreen()) {
+      locks.push_back(shown_widget->LockPaintAsActive());
+      locks.push_back(widget->LockPaintAsActive());
+      widget->SetOpacity(0.0f);
+    }
+#endif
     window->Show();
     window->Activate();
     // A dialog of the tab shows again with its window, without the keys:
     // the window has just taken them.
-    if (views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
-            window->GetNativeWindow())) {
+    if (widget) {
       for (views::Widget* child :
            views::Widget::GetAllChildWidgets(widget->GetNativeView())) {
         if (child != widget && child->IsModal() && child->IsVisible()) {
@@ -153,11 +201,7 @@ class WindowStacks : public BrowserCollectionObserver {
       }
     }
     visible_[stack] = target;
-    for (const auto& [member, id] : stacks_) {
-      if (id == stack && member != target) {
-        member->GetWindow()->Hide();
-      }
-    }
+    HideOthersOnceDrawn(stack, target, std::move(locks));
   }
 
   // BrowserCollectionObserver:
@@ -172,6 +216,8 @@ class WindowStacks : public BrowserCollectionObserver {
       return;
     }
     visible_.erase(stack);
+    hide_generation_.erase(stack);
+    paint_locks_.erase(stack);
     // The user closed the window they see: its hidden members go with it,
     // each saving its own session.
     std::set<BrowserWindowInterface*> members;
@@ -190,9 +236,81 @@ class WindowStacks : public BrowserCollectionObserver {
   WindowStacks() { observation_.Observe(GlobalBrowserCollection::GetInstance()); }
   ~WindowStacks() override = default;
 
+  // A window shown again has nothing new to present until its first frame
+  // (Windows and Linux drop a hidden window's buffers), so the members of
+  // `stack` other than `target` stay until `target` has presented one.
+  // `locks` are held until then.
+  void HideOthersOnceDrawn(
+      int stack,
+      BrowserWindowInterface* target,
+      std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>> locks) {
+    const int generation = ++hide_generation_[stack];
+    paint_locks_[stack] = std::move(locks);
+    base::RepeatingClosure hide = base::BindRepeating(
+        [](int stack, int generation) {
+          WindowStacks& stacks = WindowStacks::Get();
+          auto it = stacks.hide_generation_.find(stack);
+          // A later switch owns the hiding now.
+          if (it != stacks.hide_generation_.end() &&
+              it->second == generation) {
+            stacks.HideAllBut(stack);
+          }
+        },
+        stack, generation);
+    views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
+        target->GetWindow()->GetNativeWindow());
+    if (ui::Compositor* compositor = widget ? widget->GetCompositor()
+                                            : nullptr) {
+      compositor->RequestSuccessfulPresentationTimeForNextFrame(base::BindOnce(
+          [](base::RepeatingClosure hide, const viz::FrameTimingDetails&) {
+            hide.Run();
+          },
+          hide));
+      // A window with nothing new to draw presents no frame by itself.
+      compositor->ScheduleFullRedraw();
+    }
+    // A window that presents nothing (occluded, minimized) must not keep two
+    // members on screen. Hiding twice is harmless.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, hide, base::Milliseconds(250));
+  }
+
+  void HideAllBut(int stack) {
+    BrowserWindowInterface* shown = Shown(stack);
+    if (!shown) {
+      return;
+    }
+    auto opaque = [](BrowserWindowInterface* member) {
+#if BUILDFLAG(IS_MAC)
+      if (views::Widget* widget = views::Widget::GetWidgetForNativeWindow(
+              member->GetWindow()->GetNativeWindow())) {
+        widget->SetOpacity(1.0f);
+      }
+#endif
+    };
+    opaque(shown);
+    if (SpaceDrawnHook()) {
+      SpaceDrawnHook()(shown);
+    }
+    for (const auto& [member, id] : stacks_) {
+      if (id == stack && member != shown) {
+        member->GetWindow()->Hide();
+        // One a later switch overtook while it was still transparent.
+        opaque(member);
+      }
+    }
+    paint_locks_.erase(stack);
+  }
+
   std::map<BrowserWindowInterface*, int> stacks_;
   // The member each stack shows.
   std::map<int, BrowserWindowInterface*> visible_;
+  // Counts each stack's switches: a pending hide of an earlier one does
+  // nothing.
+  std::map<int, int> hide_generation_;
+  // Each stack's windows kept in an active window's colors over a switch.
+  std::map<int, std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>>>
+      paint_locks_;
   int next_stack_ = 1;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       observation_{this};

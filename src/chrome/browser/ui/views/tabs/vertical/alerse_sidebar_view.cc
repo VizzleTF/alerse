@@ -63,6 +63,7 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_glyphs.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_mini_player.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "ui/views/view_utils.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_popover.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_space_switcher.h"
@@ -114,7 +115,6 @@
 #include "ui/compositor/compositor.h"
 #include "ui/compositor/layer.h"
 #include "ui/compositor/layer_tree_owner.h"
-#include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/events/event.h"
 #include "ui/display/screen.h"
 #include "ui/accessibility/ax_enums.mojom.h"
@@ -245,15 +245,6 @@ constexpr ui::ColorId kGlyphFillColor = kColorAlerseSidebarGlyphFill;
 constexpr ui::ColorId kHoverColor = kColorAlerseSidebarHover;
 constexpr ui::ColorId kActiveColor = kColorAlerseSidebarActive;
 
-// Animations: folders opening and closing, the folder popup fading in.
-constexpr base::TimeDelta kFolderAnimationDuration = base::Milliseconds(150);
-constexpr base::TimeDelta kPopupFadeDuration = base::Milliseconds(120);
-
-// `duration`, or none where the system asks for reduced motion.
-base::TimeDelta Motion(base::TimeDelta duration) {
-  return gfx::Animation::PrefersReducedMotion() ? base::TimeDelta() : duration;
-}
-
 // Folder popup: hover delay, size, color and pointer polling.
 // Arc for macOS shows a folder's links 0.3 to 0.6 s into the hover.
 constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(400);
@@ -286,9 +277,9 @@ constexpr SkColor kPopupGlyph = SkColorSetRGB(0x8C, 0x8C, 0x8C);
 // The line Arc for macOS draws above the Space bar while the rows overflow:
 // 1 pt #212121 on #161616.
 constexpr SkAlpha kOverflowLineShade = 0x0C;
-constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(30);
-// Polls the pointer may spend outside before the popup closes.
-constexpr int kPopupOutsideTicks = 10;
+constexpr base::TimeDelta kPopupPollInterval = base::Milliseconds(50);
+// Polls the pointer may spend outside before the popup closes: 300 ms.
+constexpr int kPopupOutsideTicks = 6;
 
 enum Command {
   kPinTab = 1,
@@ -1942,7 +1933,8 @@ END_METADATA
 }  // namespace
 
 AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
-    : browser_(browser),
+    : views::AnimationDelegateViews(this),
+      browser_(browser),
       model_(
           BookmarkModelFactory::GetForBrowserContext(browser->GetProfile())) {
   // The address bar stays at the top, the rows scroll, the mini player stays
@@ -1991,13 +1983,18 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
   drop_indicator_->SetProperty(views::kViewIgnoredByLayoutKey, true);
   drop_indicator_->SetCanProcessEventsWithinSubtree(false);
   drop_indicator_->SetVisible(false);
+  // A layer, to fade in on.
+  drop_indicator_->SetPaintToLayer();
+  drop_indicator_->layer()->SetFillsBoundsOpaquely(false);
 
   if (model_) {
     model_->AddObserver(this);
   }
   browser_->GetTabStripModel()->AddObserver(this);
-  folder_animation_.SetSlideDuration(Motion(kFolderAnimationDuration));
+  // Eased in ApplyFolderAnimation(); its duration is set where it starts.
   folder_animation_.SetTweenType(gfx::Tween::LINEAR);
+  alerse::SpaceShownHook() = &AlerseSidebarView::OnSpaceShown;
+  alerse::SpaceDrawnHook() = &AlerseSidebarView::OnSpaceDrawn;
   alerse::NewTabCommandBarHook() = &AlerseSidebarView::OpenNewTabCommandBar;
   alerse::CommandBarHook() = &AlerseSidebarView::OpenSplitCommandBar;
   alerse::SplitDraggedRowHook() = &AlerseSidebarView::SplitDraggedRow;
@@ -2476,6 +2473,11 @@ std::u16string AlerseSidebarView::GetTabTitle(tabs::TabInterface* tab) const {
 }
 
 void AlerseSidebarView::ScheduleRebuild() {
+  // A rebuild would cut the folder's curtain short: it waits for its end.
+  if (folder_animation_.is_animating()) {
+    rebuild_after_folder_animation_ = true;
+    return;
+  }
   if (drag_source_) {
     // A rebuild would destroy the row being dragged.
     if (GetWidget() && GetWidget()->dragged_view()) {
@@ -2491,17 +2493,6 @@ void AlerseSidebarView::ScheduleRebuild() {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&AlerseSidebarView::Rebuild,
                                 weak_factory_.GetWeakPtr()));
-}
-
-void AlerseSidebarView::PrepareSpaceSlide(bool forward, int distance) {
-  pending_slide_ = forward ? 1 : -1;
-  pending_slide_distance_ = distance;
-  pending_slide_from_ = GetActiveSpace();
-  pending_slide_until_ = base::TimeTicks::Now() + base::Seconds(1);
-}
-
-void AlerseSidebarView::CancelSpaceSlide() {
-  pending_slide_ = 0;
 }
 
 std::unique_ptr<views::View> AlerseSidebarView::BuildSpaceSnapshot(
@@ -2520,14 +2511,26 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpaceSnapshot(
   BrowserView* view =
       member ? BrowserView::GetBrowserViewForBrowser(member) : nullptr;
   AlerseSidebarView* other = view ? FindSidebarIn(view) : nullptr;
-  if (!other || !other->rows_) {
+  return other ? SnapshotRowsOf(other) : nullptr;
+}
+
+std::unique_ptr<views::View> AlerseSidebarView::SnapshotRowsOf(
+    AlerseSidebarView* other) {
+  if (!other->rows_ || !other->scroll_ || !other->GetWidget() ||
+      !GetWidget() || !scroll_) {
     return nullptr;
   }
   // A hidden window lays out late.
   other->GetWidget()->LayoutRootViewIfNecessary();
-  const gfx::Size size = other->rows_->size();
+  gfx::Size size = other->rows_->size();
   if (size.IsEmpty()) {
     return nullptr;
+  }
+  // Scrolled to the top, the usual case, only the rows that fit are seen:
+  // painting a long list whole is the hitch at a swipe's start.
+  const int scrolled = other->scroll_->GetVisibleRect().y();
+  if (scrolled == 0) {
+    size.set_height(std::min(size.height(), std::max(1, scroll_->height())));
   }
   const ui::Compositor* compositor = GetWidget()->GetCompositor();
   const float scale = compositor->device_scale_factor();
@@ -2542,7 +2545,24 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpaceSnapshot(
       gfx::ImageSkia::CreateFromBitmap(bitmap, scale)));
   image->SetHorizontalAlignment(views::ImageView::Alignment::kLeading);
   image->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
+  // Where the other window shows them: its rows may start higher or lower
+  // than this one's (favorites, extension tiles).
+  image->SetBounds(0, other->scroll_->y() - scroll_->y() - scrolled,
+                   size.width(), size.height());
   return image;
+}
+
+views::View* AlerseSidebarView::AddSlideFrame(
+    std::unique_ptr<views::View> rows) {
+  auto frame = std::make_unique<views::View>();
+  frame->SetProperty(views::kViewIgnoredByLayoutKey, true);
+  frame->SetCanProcessEventsWithinSubtree(false);
+  frame->SetPaintToLayer();
+  frame->layer()->SetFillsBoundsOpaquely(false);
+  frame->layer()->SetMasksToBounds(true);
+  frame->AddChildView(std::move(rows));
+  frame->SetBoundsRect(scroll_->bounds());
+  return AddChildView(std::move(frame));
 }
 
 std::unique_ptr<views::View> AlerseSidebarView::BuildSpacePreview(
@@ -2550,6 +2570,7 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpacePreview(
   if (std::unique_ptr<views::View> snapshot = BuildSpaceSnapshot(space)) {
     return snapshot;
   }
+  const int width = std::max(1, scroll_->width());
   auto container = std::make_unique<views::View>();
   container->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -2576,12 +2597,14 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpacePreview(
   bound_ = std::move(bound);
   row_targets_ = std::move(targets);
   rows_ = rows;
+  container->SetBounds(0, 0, width, container->GetHeightForWidth(width));
   return container;
 }
 
 void AlerseSidebarView::HideSpacePreview() {
   drop_preview_after_rebuild_ = false;
   space_preview_side_ = 0;
+  enter_side_ = 0;
   if (space_preview_) {
     views::View* preview = space_preview_;
     space_preview_ = nullptr;
@@ -2606,7 +2629,6 @@ void AlerseSidebarView::TrackSpaceSwipe(
   if (space_preview_ && space_preview_->layer()) {
     space_preview_->layer()->GetAnimator()->StopAnimating();
   }
-  pending_slide_ = 0;
   drop_preview_after_rebuild_ = false;
   const int width = std::max(1, scroll_->width());
   // The side the neighbor stands on: right of these rows going forward.
@@ -2619,17 +2641,7 @@ void AlerseSidebarView::TrackSpaceSwipe(
     }
     space_preview_side_ = side;
     if (side) {
-      auto frame = std::make_unique<views::View>();
-      frame->SetProperty(views::kViewIgnoredByLayoutKey, true);
-      frame->SetCanProcessEventsWithinSubtree(false);
-      frame->SetPaintToLayer();
-      frame->layer()->SetFillsBoundsOpaquely(false);
-      frame->layer()->SetMasksToBounds(true);
-      std::unique_ptr<views::View> rows = BuildSpacePreview(*neighbor);
-      rows->SetBounds(0, 0, width, rows->GetHeightForWidth(width));
-      frame->AddChildView(std::move(rows));
-      frame->SetBoundsRect(scroll_->bounds());
-      space_preview_ = AddChildView(std::move(frame));
+      space_preview_ = AddSlideFrame(BuildSpacePreview(*neighbor));
     }
   }
   float offset = side ? std::clamp(dx, -1.0f * width, 1.0f * width)
@@ -2658,8 +2670,8 @@ void AlerseSidebarView::EndSpaceSwipe(bool commit,
   const float done =
       std::abs(scroll_->layer()->transform().To2dTranslation().x()) / width;
   const float left = commit ? 1.0f - done : done;
-  const base::TimeDelta duration =
-      Motion(base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f)));
+  const base::TimeDelta duration = alerse::motion::Move(
+      base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f)));
   gfx::Transform rows_to;
   gfx::Transform preview_to;
   if (commit) {
@@ -2693,12 +2705,12 @@ void AlerseSidebarView::EndSpaceSwipe(bool commit,
   views::AnimationBuilder builder;
   builder.OnEnded(std::move(on_ended))
       .OnAborted(std::move(on_aborted))
-      .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
-                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET);
+      .SetPreemptionStrategy(alerse::motion::kRetarget);
   auto& step = builder.Once().SetDuration(duration).SetTransform(
-      scroll_.get(), rows_to, gfx::Tween::EASE_OUT);
+      scroll_.get(), rows_to, alerse::motion::kEnter);
   if (space_preview_) {
-    step.SetTransform(space_preview_.get(), preview_to, gfx::Tween::EASE_OUT);
+    step.SetTransform(space_preview_.get(), preview_to,
+                      alerse::motion::kEnter);
   }
 }
 
@@ -2708,42 +2720,125 @@ void AlerseSidebarView::RestoreSlide() {
   }
 }
 
-void AlerseSidebarView::RunPendingSlide() {
+void AlerseSidebarView::DropSwipePreview() {
   if (drop_preview_after_rebuild_ && !preview_space_) {
     // The swipe's Space is in: its rows where its preview was.
     scroll_->ScrollToPosition(scroll_->vertical_scroll_bar(), 0);
     HideSpacePreview();
+  }
+}
+
+void AlerseSidebarView::PrepareSpaceEnter(bool forward,
+                                            AlerseSidebarView* source) {
+  if (!scroll_ || !scroll_->layer() || !GetWidget()) {
     return;
   }
-  if (!pending_slide_ || !scroll_ || !scroll_->layer()) {
+  HideSpacePreview();
+  enter_side_ = 0;
+  // The window is hidden still, and may have a new size.
+  GetWidget()->LayoutRootViewIfNecessary();
+  const int width = scroll_->width();
+  if (width <= 0) {
     return;
   }
-  if (base::TimeTicks::Now() > pending_slide_until_) {
-    pending_slide_ = 0;
+  const base::TimeDelta duration =
+      alerse::motion::Move(alerse::motion::kEmphasized);
+  if (duration.is_zero()) {
+    // Reduced motion: the rows fade in where they stand.
+    alerse::motion::Arrive(scroll_, gfx::Vector2d(), alerse::motion::kQuick);
     return;
   }
-  if (GetActiveSpace() == pending_slide_from_) {
+  // As Arc: the Space left slides out to the side it lies on while this
+  // one's rows come in from the other, as one strip.
+  const int side = (forward != base::i18n::IsRTL()) ? 1 : -1;
+  std::unique_ptr<views::View> leaving =
+      source ? SnapshotRowsOf(source) : nullptr;
+  if (leaving) {
+    space_preview_ = AddSlideFrame(std::move(leaving));
+    // Neither side of a swipe: one that starts now builds its own preview.
+    space_preview_side_ = 2;
+  }
+  // The first frame the window shows: the Space left, as it stood.
+  scroll_->layer()->SetTransform(
+      gfx::Transform::MakeTranslation(side * width, 0));
+  enter_side_ = side;
+}
+
+void AlerseSidebarView::PlaySpaceEnter() {
+  const int side = std::exchange(enter_side_, 0);
+  if (!side || !scroll_ || !scroll_->layer()) {
     return;
   }
-  // Quick, as Arc's: in from the side the fingers moved away from, fading
-  // in.
-  constexpr base::TimeDelta kSlideDuration = base::Milliseconds(170);
-  gfx::Transform start;
-  start.Translate(pending_slide_ * pending_slide_distance_, 0);
-  pending_slide_ = 0;
-  scroll_->layer()->SetTransform(start);
-  scroll_->layer()->SetOpacity(0.0f);
-  views::AnimationBuilder()
-      .SetPreemptionStrategy(ui::LayerAnimator::PreemptionStrategy::
-                                 IMMEDIATELY_ANIMATE_TO_NEW_TARGET)
-      .Once()
-      .SetDuration(Motion(kSlideDuration))
-      .SetTransform(scroll_.get(), gfx::Transform(), gfx::Tween::EASE_OUT)
-      .SetOpacity(scroll_.get(), 1.0f, gfx::Tween::EASE_OUT);
+  auto [on_ended, on_aborted] = base::SplitOnceCallback(base::BindOnce(
+      &AlerseSidebarView::EndSpaceEnter, slide_weak_factory_.GetWeakPtr()));
+  views::AnimationBuilder builder;
+  builder.OnEnded(std::move(on_ended))
+      .OnAborted(std::move(on_aborted))
+      .SetPreemptionStrategy(alerse::motion::kRetarget);
+  auto& step = builder.Once()
+                   .SetDuration(
+                       alerse::motion::Move(alerse::motion::kEmphasized))
+                   .SetTransform(scroll_->layer(), gfx::Transform(),
+                                 alerse::motion::kEnter);
+  if (space_preview_ && space_preview_side_ == 2) {
+    step.SetTransform(
+        space_preview_->layer(),
+        gfx::Transform::MakeTranslation(-side * scroll_->width(), 0),
+        alerse::motion::kEnter);
+  }
+}
+
+void AlerseSidebarView::EndSpaceEnter() {
+  // Not a swipe's preview, which a swipe begun meanwhile has put there.
+  if (space_preview_side_ == 2) {
+    HideSpacePreview();
+  }
+}
+
+// static
+void AlerseSidebarView::OnSpaceShown(BrowserWindowInterface* from,
+                                       BrowserWindowInterface* to) {
+  auto sidebar_of = [](BrowserWindowInterface* browser) {
+    BrowserView* view =
+        browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
+    return view ? FindSidebarIn(view) : nullptr;
+  };
+  AlerseSidebarView* source = sidebar_of(from);
+  AlerseSidebarView* target = sidebar_of(to);
+  if (!target) {
+    return;
+  }
+  if (source && source->drop_preview_after_rebuild_) {
+    // A swipe brought the rows in already (EndSpaceSwipe): at rest.
+    target->HideSpacePreview();
+    return;
+  }
+  int from_index = -1;
+  int to_index = -1;
+  int i = 0;
+  for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
+    if (from && space.path == from->GetProfile()->GetPath()) {
+      from_index = i;
+    }
+    if (space.path == to->GetProfile()->GetPath()) {
+      to_index = i;
+    }
+    ++i;
+  }
+  target->PrepareSpaceEnter(to_index > from_index, source);
+}
+
+// static
+void AlerseSidebarView::OnSpaceDrawn(BrowserWindowInterface* to) {
+  BrowserView* view =
+      to ? BrowserView::GetBrowserViewForBrowser(to) : nullptr;
+  if (AlerseSidebarView* sidebar = view ? FindSidebarIn(view) : nullptr) {
+    sidebar->PlaySpaceEnter();
+  }
 }
 
 void AlerseSidebarView::Rebuild() {
-  absl::Cleanup slide = [this] { RunPendingSlide(); };
+  absl::Cleanup slide = [this] { DropSwipePreview(); };
   hover_timer_.Stop();
   FinishFolderAnimation();
   folder_anim_.reset();
@@ -2815,8 +2910,7 @@ void AlerseSidebarView::Rebuild() {
   expanding_folder_ = 0;
   if (folder_anim_ && folder_anim_->to > folder_anim_->from) {
     ApplyFolderAnimation(0);
-    folder_animation_.Reset(0);
-    folder_animation_.Show();
+    StartFolderAnimation();
   } else {
     folder_anim_.reset();
   }
@@ -3258,7 +3352,20 @@ void AlerseSidebarView::StartFolderCollapse(
   }
   folder_anim_ = anim;
   collapsing_folder_ = folder->id();
+  StartFolderAnimation();
+}
+
+void AlerseSidebarView::StartFolderAnimation() {
   folder_animation_.Reset(0);
+  const base::TimeDelta duration =
+      alerse::motion::ForDistance(folder_anim_->to - folder_anim_->from);
+  if (duration.is_zero()) {
+    // Reduced motion: the rows change at once.
+    AnimationEnded(&folder_animation_);
+    return;
+  }
+  // A long folder takes longer than a short one, at a speed the eye follows.
+  folder_animation_.SetSlideDuration(duration);
   folder_animation_.Show();
 }
 
@@ -3268,10 +3375,23 @@ void AlerseSidebarView::ApplyFolderAnimation(double progress) {
   if (anim.first + anim.count > children.size()) {
     return;
   }
+  // Decelerating from the first frame: a curve that eases in spent 100 ms
+  // after the click moving a pixel or two, which read as lag.
   const double eased =
-      gfx::Tween::CalculateValue(gfx::Tween::FAST_OUT_SLOW_IN, progress);
+      gfx::Tween::CalculateValue(alerse::motion::kEnter, progress);
   const int shown = static_cast<int>(
       std::round(anim.from + (anim.to - anim.from) * eased));
+  // Rows the scroll view cannot show at any point of the animation get no
+  // layer: a layer for each row of a long list is a texture for each, made in
+  // the animation's first frame.
+  const gfx::Rect seen = rows_->GetVisibleBounds();
+  auto layer_of = [](views::View* child) {
+    if (!child->layer()) {
+      child->SetPaintToLayer();
+      child->layer()->SetFillsBoundsOpaquely(false);
+    }
+    return child->layer();
+  };
   // The folder's rows, revealed top to bottom like a curtain.
   int offset = 0;
   int full = 0;
@@ -3279,27 +3399,33 @@ void AlerseSidebarView::ApplyFolderAnimation(double progress) {
     views::View* child = children[i];
     const int height = child->GetPreferredSize().height();
     full += height;
-    if (!child->layer()) {
-      child->SetPaintToLayer();
-      child->layer()->SetFillsBoundsOpaquely(false);
-    }
     const int visible = std::clamp(shown - offset, 0, height);
     offset += height;
-    child->layer()->SetOpacity(visible > 0 ? 1 : 0);
+    if (!child->layer() && (child->bounds().bottom() <= seen.y() ||
+                            child->y() >= seen.bottom())) {
+      continue;
+    }
+    ui::Layer* layer = layer_of(child);
+    layer->SetOpacity(visible > 0 ? 1 : 0);
     // An empty clip rect means no clipping.
-    child->layer()->SetClipRect(visible < height
-                                    ? gfx::Rect(0, 0, width(), visible)
-                                    : gfx::Rect());
+    layer->SetClipRect(visible < height ? gfx::Rect(0, 0, width(), visible)
+                                        : gfx::Rect());
   }
-  // Everything below moves with the curtain's edge.
+  // Everything below moves with the curtain's edge, as far up as the
+  // curtain's shortest.
   const gfx::Transform shift = gfx::Transform::MakeTranslation(0, shown - full);
+  const int highest_shift = std::min(anim.from, anim.to) - full;
   for (size_t i = anim.first + anim.count; i < children.size(); ++i) {
     views::View* child = children[i];
     if (!child->layer()) {
-      child->SetPaintToLayer();
-      child->layer()->SetFillsBoundsOpaquely(false);
+      if (child->bounds().bottom() <= seen.y()) {
+        continue;
+      }
+      if (child->y() + highest_shift >= seen.bottom()) {
+        break;
+      }
     }
-    child->layer()->SetTransform(shift);
+    layer_of(child)->SetTransform(shift);
   }
 }
 
@@ -3309,10 +3435,9 @@ void AlerseSidebarView::ResetFolderAnimation() {
   }
   const auto& children = rows_->children();
   for (size_t i = folder_anim_->first; i < children.size(); ++i) {
-    if (ui::Layer* layer = children[i]->layer()) {
-      layer->SetOpacity(1);
-      layer->SetClipRect(gfx::Rect());
-      layer->SetTransform(gfx::Transform());
+    // The layers were the animation's: none is left behind.
+    if (children[i]->layer()) {
+      children[i]->DestroyLayer();
     }
   }
   folder_anim_.reset();
@@ -3339,6 +3464,9 @@ void AlerseSidebarView::AnimationEnded(const gfx::Animation* animation) {
     FinishFolderAnimation();
   } else {
     ResetFolderAnimation();
+  }
+  if (std::exchange(rebuild_after_folder_animation_, false)) {
+    ScheduleRebuild();
   }
 }
 
@@ -3609,18 +3737,8 @@ void AlerseSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
 #if BUILDFLAG(IS_MAC)
   alerse::RemoveWindowShadow(folder_popup_.get());
 #endif
-  ui::Layer* layer = folder_popup_->GetLayer();
-  if (layer) {
-    layer->SetOpacity(0);
-  }
   // Arc's popup takes the keyboard: its search field has the caret.
-  folder_popup_->Show();
-  if (layer) {
-    ui::ScopedLayerAnimationSettings fade(layer->GetAnimator());
-    fade.SetTransitionDuration(Motion(kPopupFadeDuration));
-    fade.SetTweenType(gfx::Tween::EASE_OUT);
-    layer->SetOpacity(1);
-  }
+  alerse::motion::FadeInWidget(folder_popup_.get(), /*activate=*/true);
   folder_popup_id_ = id;
   folder_popup_outside_ticks_ = 0;
   folder_popup_timer_.Start(FROM_HERE, kPopupPollInterval, this,
@@ -3908,10 +4026,16 @@ void AlerseSidebarView::CloseFolderPopup() {
   folder_popup_field_ = nullptr;
   folder_popup_rows_ = nullptr;
   folder_popup_items_.clear();
-  // Deleted later: this may run from inside the popup's own events.
-  folder_popup_->Hide();
-  DeleteBubbleSoon(std::move(folder_popup_),
-                   std::move(folder_popup_delegate_));
+  // Deleted later: this may run from inside the popup's own events. One the
+  // pointer left fades out; one with the keyboard hides at once.
+  alerse::motion::FadeOutWidget(
+      std::move(folder_popup_),
+      base::BindOnce(
+          [](std::unique_ptr<views::BubbleDialogDelegate> delegate,
+             std::unique_ptr<views::Widget> widget) {
+            DeleteBubbleSoon(std::move(widget), std::move(delegate));
+          },
+          std::move(folder_popup_delegate_)));
 }
 
 void AlerseSidebarView::OnFolderPopupClosed(
@@ -4886,20 +5010,31 @@ void AlerseSidebarView::ShowDropIndicator(
     drop_indicator_->SetVisible(false);
     return;
   }
+  // A drag reports every move of the pointer, most of them over one target.
+  const bool outlined = !!target->split_with.Get();
+  if (drop_indicator_->GetVisible() &&
+      drop_indicator_->bounds() == target->indicator &&
+      drop_indicator_folder_ == target->into_folder &&
+      drop_indicator_outlined_ == outlined) {
+    return;
+  }
+  drop_indicator_folder_ = target->into_folder;
+  drop_indicator_outlined_ = outlined;
   drop_indicator_->SetBackground(
       target->into_folder
           ? views::CreateRoundedRectBackground(
-                alerse::SidebarInk(this, kActiveColor),
-                                               kRowBackgroundRadius)
+                alerse::SidebarInk(this, kActiveColor), kRowBackgroundRadius)
           : views::CreateSolidBackground(alerse::SidebarInk(this, kItemColor)));
   // A split's target is outlined, so it differs from the shown tab's plate.
   drop_indicator_->SetBorder(
-      target->split_with.Get()
-          ? views::CreateRoundedRectBorder(
-                2, kRowBackgroundRadius, alerse::SidebarInk(this, kItemColor))
-          : nullptr);
+      outlined ? views::CreateRoundedRectBorder(
+                     2, kRowBackgroundRadius,
+                     alerse::SidebarInk(this, kItemColor))
+               : nullptr);
+  // Its place changes at once: lag in a drag reads as missed input.
   drop_indicator_->SetBoundsRect(target->indicator);
-  drop_indicator_->SetVisible(true);
+  drop_indicator_->SchedulePaint();
+  alerse::motion::SetShown(drop_indicator_, true);
 }
 
 void AlerseSidebarView::PerformDrop(

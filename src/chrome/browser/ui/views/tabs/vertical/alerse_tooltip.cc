@@ -33,6 +33,7 @@
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/scoped_canvas.h"
 #include "ui/gfx/text_utils.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "ui/views/view.h"
 #include "ui/views/view_observer.h"
 #include "ui/views/widget/widget.h"
@@ -399,7 +400,7 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
     params.name = "AlerseTooltip";
     widget_->Init(std::move(params));
     widget_->SetContentsView(std::move(pill));
-    widget_->ShowInactive();
+    alerse::motion::FadeInWidget(widget_.get(), /*activate=*/false);
     Showing() = this;
     // The pointer may leave without an exit event (rows are rebuilt).
     hover_poll_.Start(FROM_HERE, kHoverPoll,
@@ -444,7 +445,7 @@ class TooltipHandler : public ui::EventHandler, public views::ViewObserver {
     settle_poll_.Stop();
     hover_poll_.Stop();
     if (widget_) {
-      widget_.reset();
+      alerse::motion::FadeOutAndDelete(std::move(widget_));
       LastHidden() = base::TimeTicks::Now();
     }
     if (Showing() == this) {

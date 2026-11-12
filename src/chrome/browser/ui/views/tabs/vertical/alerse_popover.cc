@@ -59,6 +59,7 @@
 #include "ui/gfx/text_utils.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/border.h"
+#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
 #include "ui/views/controls/focus_ring.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
@@ -1518,7 +1519,8 @@ class Popover : public views::WidgetObserver {
     observation_.Observe(widget_.get());
     Current() = this;
     SetArcTooltipsSuppressed(true);
-    widget_->Show();
+    // In only: it has the keyboard, and a pick must not wait for it to leave.
+    alerse::motion::FadeInWidget(widget_.get(), /*activate=*/true);
     widget_->Activate();
     focus->RequestFocus();
   }

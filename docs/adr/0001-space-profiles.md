@@ -88,9 +88,9 @@ closes them. Its rules:
 
 Switching (the Space bar, Control+1 to 9, the Spaces menu, a swipe, a routed link)
 shows the next member at the stack's bounds, with the sidebar as wide and as hidden
-as in the previous one, then hides the previous one, in that order, so that no frame
-shows the desktop. The Space bar's color blend between Spaces
-stays.
+as in the previous one, then hides the previous one once the next has presented a frame, so that no frame
+shows the desktop (docs/design.md, "Motion"). Each member has its own tint: there is
+no color blend between Spaces.
 
 ### Swipe preview
 
@@ -243,7 +243,7 @@ Peek, Little Arc, Easels, Boosts, the AI features and Set Profile stay left out
 | Space bar, Control+1 to 9, Next and Previous Space, the Spaces menu | Read the registry and call the stack. Every member draws the same bar and watches `ProfileAttributesStorage` for changes |
 | New Space | Creates a profile, then its member, and switches to it |
 | Rename Space, Change Space Icon, emoji, Edit Theme Color | Write the registry entry. The pickers and dialogs stay |
-| Space color and the blend when switching | The shown member starts in the previous Space's color and blends to its own |
+| Space color when switching | Each member has its own color; the rows slide, the color changes with the window |
 | Delete Space | Deletes the profile and its data. Home cannot be deleted |
 | A Space returns to the tab that was active in it | Free: each member keeps its own active tab |
 | Empty Space | The member keeps a hidden blank tab, as today |
