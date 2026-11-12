@@ -173,19 +173,31 @@ feature does on it. In short:
   `look/bounded-tint-color-providers.patch` keeps at most 32 tinted providers, oldest out
   first, instead of all of them for the session.
 
+What a Space that is not shown has to tell is on its icon in the Space bar
+(`AlerseSpaceSwitcher::NoticeOfTabs`), the most pressing first: a dot while one of its
+tabs waits for the user (a page dialog, a page that asked for attention, a crashed page,
+a permission request waiting for its answer); the alert's glyph, in its own color, while
+one records or shares (camera, microphone, screen, a device); a small speaker while one
+plays sound. A window tells the other Space bars only when its own notice changed, on
+its tabs' changes and on its tabs' permission requests (`PermissionWatch`: a request
+changes nothing the tab strip reports). The mini player shows the media of every Space
+of the window (a member of its stack; never an incognito window's in a regular one, nor
+the reverse), and a click on it shows that Space with the tab. Verified on macOS on
+2026-11-12 with sound, a microphone request and a video-less audio page in a second
+Space; geolocation cannot test it, since Blink holds a hidden page's request back.
+
 Known gaps:
 
 - on macOS in full screen, each Space's window is a full screen desktop of its own,
   so switching Spaces slides between desktops (about 0.7 s) instead of switching at
   once;
-- the mini player shows only the media of the Space shown;
 - a prompt in a hidden Space shows only when the Space is opened (it then has the
   keyboard: `ShowSpace` activates the window's visible modal dialog after the
-  window). A page dialog marks its Space's icon in the Space bar with a dot
-  (`SpaceNeedsAttention`: a tab of the hidden window is blocked or has Chromium's
-  needs-attention flag); a permission prompt leaves no mark;
+  window);
 - moving a tab to another Space reopens it there, losing its history and form state;
 - favorites are a set for each Space;
+- a Space's folder, made with its first pinned item or theme color, was named "home"
+  whatever the Space (fixed 2026-11-12: it takes the Space's name);
 - Windows and Linux were not built with the profiles yet.
 
 ## Sidebar look
@@ -202,7 +214,16 @@ Windows' measurements still set (see `AlerseSidebarView`):
   created by the first Add to Favorites), so they sync like pinned tabs. Tiles are 47
   high, 8 apart, up to four in a row filling the sidebar's width (two are 70 pt wide on
   macOS, as in Arc), a shade off the frame (#2F2F2F on #161616), lighter on hover
-  (#383839) and while their tab shows; the site's icon sits in the middle. A favorite
+  (#383839); the site's icon sits in the middle. The tile whose tab is shown is Arc's
+  (measured 2026-11-12 on a 70x47 pt tile): a light fill, about #92 grey, tinted a
+  little by its rim, inside a 2 pt rim whose pastel changes round the tile: #C5CFEF at
+  the right, #BBD7CA at the bottom, #E9D8B3 at the left, #EAC4C4 at the top, with
+  #B5C8DB, #C7D1B2, #DEC4B2 and #DCCBD6 at the corners between them (a sweep gradient
+  through the eight, `FavoriteTile::RimShader`). A tile shows what a row shows beside
+  its name, in its corners: a 10 pt speaker (crossed when muted) or the tab's other
+  alert (camera, microphone, screen...) at the top right, a "/" at the top left once
+  its tab left the favorite's page, and the attention dot on its icon. What Arc draws
+  there was not measured (it needs a favorite that plays sound in the user's Arc). A favorite
   opens as a Chromium pinned tab outside the Spaces, in their default storage, bound to
   it like a pinned item; the binding survives restarts as a pinned item's does. Add to
   Favorites (tab and pinned-item menus) and dragging a row onto the tiles, or onto the
@@ -413,7 +434,15 @@ Windows' numbers for those:
   from the end), Copy Link 28 pt before it, and, with exactly one pinned extension,
   that extension 28 pt before Copy Link; the address fades out over 16 pt before
   them. The link and sliders are Arc's SF Symbols traced and drawn (#ACACAC, 1.2 pt
-  strokes), with Arc's pill tooltips and no plate. A release on a button runs it (the
+  strokes). The button under the pointer has Arc's plate, 28 pt with 8 pt corners, a 7%
+  veil over the hovered field (#4D4D4F on #3F3F40), and Arc's pill tooltips: "Site Control
+  Center", and "Copy URL" with the ⇧ ⌘ C keycaps (measured 2026-11-12). The address is
+  set in one grey, #AEAEAE, as Arc's, not a bright site before a dim rest
+  (`LocationBarView::GetAlerseSidebarAddressColor`, `look/command-bar-on-page.patch`); in
+  the command bar it is the bar's white again. A single pinned extension stays in the
+  field without the pointer while its icon has something to say on this page (badge
+  text, or it was kept from running there): shown only on hover, a blocker's count
+  would never be seen. A release on a button runs it (the
   field takes the press). The sliders open the site controls under themselves. Copy
   Link shows it copied: its link turns into a check mark for 1.5 s.
 - Two or more pinned extensions are tiles under the field, always shown, as Arc for
@@ -427,9 +456,16 @@ Windows' numbers for those:
   highlight too (it starts where the row does, as Arc's). Tab
   and folder text is #DADADA and ends 16 pt before the highlight's edge, where Arc
   elides it; New Tab's "+" is #8B8B8B and its text #7F7F7F. Every pinned tab shows
-  Arc's cross on hover (11 pt, #A9A9A9), or its "−" while its tab is open (see the
+  Arc's cross on hover (11 pt, #A9A9A9; under the pointer #ADADAD on Arc's plate, 24 pt
+  with 6 pt corners, an 8% veil over the hovered row, #454545 on #353535: `RowCloseButton`),
+  or its "−" while its tab is open (see the
   hover buttons above). No divider line before New Tab (the view stays for drag and drop). While the
   command bar is open for a new tab, New Tab is the active row, as in Arc.
+- The Space's name stays put above the rows, which scroll under it, as Arc's (measured
+  2026-11-12); once they are scrolled a hairline shows under the name (the scroll view's
+  top overflow line). The name and the rows are one list (`list_` in
+  `alerse_sidebar_view.cc`) and slide together between Spaces. No tooltip on the name's
+  "...", as in Arc.
 - The Space's name is a row of its own: the Space's icon, 15 pt in the active white,
   centred at x = 26 and the name in 13 pt semibold #808080. Hovered, it gets a 148x36
   plate (#2F2F2F), a chevron in place of the icon that collapses the Space's pinned
@@ -445,7 +481,10 @@ Windows' numbers for those:
 - The page card (every platform) keeps 10 pt from the window's top (on Windows and
   Linux it starts under the top bar), right and bottom edges and touches
   the sidebar, with 6 pt corners, no rim and a faint shadow; its blank color is
-  #2B2B2B. A split's two panes share the same rectangle. The insets are set on every
+  #2B2B2B, and in a Space with a theme color the frame's tint a shade lighter, as Arc's
+  (9% white over the frame: #324240 on #1E2F2D, Arc's #394B4D on #273A3E;
+  `look/blank-page-tint.patch`). The find bar's place is the card's top right corner,
+  inside the card (`BrowserView::GetFindBarBoundingBox`). A split's two panes share the same rectangle. The insets are set on every
   layout (`look/page-card-insets.patch`): Chromium set its own 8 px ones for a split and
   never took them back, so after the first split a single page sat 8 pt off the sidebar
   with no top margin until restart. Full screen without the sidebar (a page's own full
@@ -664,9 +703,20 @@ Windows' numbers for those:
 - Compact command bar: a click on the sidebar's field opens Arc for macOS' compact
   command bar over it, 348 pt wide from a point right of the field's left edge and two
   points above it (its dark outer ring 8 pt in and 44 pt down, as Arc's),
-  with a 45 pt input in 15 pt (3 pt below its row's middle) and the same rows; it opens empty, listing the open
-  tabs, as Arc's. File > New Tab, Cmd+T, Cmd+L and New Tab open the centred one, as
-  in Arc (`compact_command_bar_` in `alerse_address_bar.cc`). The suggestions
+  with a 45 pt input in 15 pt (3 pt below its row's middle) and the same rows. On a page it
+  opens on the page's address, selected, as Arc's (measured 2026-11-12): typing replaces
+  it and Cmd+C copies it; on an empty Space it opens empty, listing the open tabs.
+  File > New Tab, Cmd+T, Cmd+L and New Tab open the centred one, as
+  in Arc (`compact_command_bar_` in `alerse_address_bar.cc`).
+- On a page's address (the click above, or Cmd+L) the command bar shows the page's icon
+  in the magnifier's place and lists the page itself first, by its title, the row
+  selected, then up to four pages from history, the latest first, as "Title — site/path"
+  (`look/command-bar-on-page.patch`: `open_tab_provider.cc`, `omnibox_edit_model.cc`,
+  `LocationBarView::GetAlerseCommandBarIcon`). History here is Chromium's in-memory
+  database, the addresses typed or picked in the command bar: it is read at once, with
+  no wait for the history thread; pages reached only by links are not in it. Arc's fifth
+  row, Contact the Team, is left out. Chromium's "Ask Google about this page" row
+  (`ContextualSearchProvider`) is gone from the on-focus list: there is no Lens to ask. The suggestions
   follow the panel's width; their old 560 px minimum, from before the command bar
   took the location bar into its panel, is 320 (`omnibox_popup_presenter_base.h`). Windows keeps the centred one for a click on the
   address: Arc for Windows opens its command bar from the top bar's address in the
@@ -803,11 +853,32 @@ tag). The Space bar's left button, Arc's Library (archive and media), is
 Downloads since 0.1.7: tooltip "Downloads" Shift+Cmd+J, it opens `chrome://downloads`,
 and it has no menu (Arc's "Show media from" is left out).
 
-Known gaps: no keyboard navigation of the sidebar (rows draw no focus ring and have no
-tree roles); Alerse's own text is English only: most of it is in
+What a tab is doing shows on its row (and in a favorite's tile, see Favorites):
+
+- while its page loads, Chromium's throbber (`views::Throbber`, in the sidebar's subtle
+  grey) stands in the icon's place, except for the tabs the tab strip hides it for
+  (restored in the background). The start and the end of a load change only that, on a
+  pinned item's row too, without rebuilding the rows (`TabChangeType::kLoadingOnly`);
+  memory and CPU updates (`kResourceUsageOnly`) change nothing;
+- a background tab that waits for the user (a dialog of its page, a question before
+  leaving it, a page that asked for attention: `TabNeedsUser`) has a 6 pt dot at its
+  icon's corner, in the glyphs' ink with a ring of the frame;
+- the one-color icons of the browser's own pages (Settings, History, Extensions,
+  Downloads) go through Chromium's `favicon::ThemeFavicon` against the sidebar's frame:
+  recolored to the item ink where they would not read (`TabUIHelper::
+  ShouldThemifyFavicon`). On the dark frame and on a light Space color they read as
+  they are (blue), so nothing changes there;
+- the row or tile that has the keyboard's focus has a 2 pt ring in the Space's item ink
+  just inside its plate, and Up and Down move the focus to the row above or below (a
+  split's halves one after the other). Rows keep the platform's focus rule: on Windows
+  and Linux Tab reaches them; on macOS only with the system's keyboard navigation on,
+  as for every button.
+
+Known gaps: the focus ring and the arrow keys were not seen on screen (the Mac used for
+testing has keyboard navigation off, and it is a system setting); rows have no
+tree roles; Alerse's own text is English only: most of it is in
 `alerse_strings.grdp` and translatable, but the sync page's error messages are
-hard-coded English (`alerse_sync_handler.cc`); tab rows show a speaker for sound but
-no camera, microphone or screen-capture indicator.
+hard-coded English (`alerse_sync_handler.cc`).
 
 ## Motion
 
@@ -994,7 +1065,12 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   "Not secure" or dangerous-site warning: without Safe Browsing it is the last warning
   left. It also hides the page actions and content-setting icons (blocked popups,
   location, downloads); camera and microphone use still shows through Chromium's
-  activity indicator, and the rest is in the site controls. Clicking it opens the
+  activity indicator, and the rest is in the site controls: their first rows are the
+  page's zoom while it is not the default (a click sets it back) and one row for each
+  content-setting icon Chromium would show now ("Pop-ups were blocked on this page.",
+  a blocked download, the clipboard...), whose click opens Chromium's own bubble for
+  it under the address field (`SiteControlsView::AddPageStates`). Translate and the
+  password key are page actions of their own and still have no row. Clicking it opens the
   command bar. The address field's placeholder is Arc's "Search..." whatever the
   search engine (`look/sidebar-search-placeholder.patch`).
 - **Command bar**: Chromium's omnibox in a 722 px panel centered in the window, opened

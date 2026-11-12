@@ -88,3 +88,5 @@ look/sidebar-host-elide.patch
 look/sidebar-motion.patch
 look/floating-sidebar-slide.patch
 look/page-card-insets.patch
+look/command-bar-on-page.patch
+look/blank-page-tint.patch

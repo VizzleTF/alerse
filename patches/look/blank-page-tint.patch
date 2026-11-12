@@ -1,0 +1,18 @@
+diff --git a/chrome/browser/ui/color/chrome_color_mixers.cc b/chrome/browser/ui/color/chrome_color_mixers.cc
+index 3ce9109..dcf271d 100644
+--- a/chrome/browser/ui/color/chrome_color_mixers.cc
++++ b/chrome/browser/ui/color/chrome_color_mixers.cc
+@@ -162,6 +162,13 @@ void AddChromeColorMixers(ui::ColorProvider* provider,
+     ui::ColorMixer& mixer = provider->AddMixer();
+     mixer[ui::kColorFrameActive] = {*key.app_background_color};
+     mixer[ui::kColorFrameInactive] = {*key.app_background_color};
++    // Alerse: a blank page takes the tint, as Arc's does: the frame's color
++    // a shade lighter (#394B4D on #273A3E, as #2B2B2B is on #161616), not
++    // the untinted grey.
++    if (key.color_mode == ui::ColorProviderKey::ColorMode::kDark) {
++      mixer[kColorNewTabPageBackground] =
++          ui::AlphaBlend({SK_ColorWHITE}, {ui::kColorFrameActive}, 0x17);
++    }
+   }
+ 
+ #if BUILDFLAG(IS_MAC)
