@@ -1910,7 +1910,7 @@ these changes:
   (`extensions/web-store.patch`): CRX3 publisher proofs are still checked, update URLs
   are forced to https, and on Windows extensions registered in the registry are not
   loaded. The store's address is split in C++ strings and written with an escaped "."
-  (`.`) in `_api_features.json`, so ungoogled-chromium's domain substitution leaves
+  (`\u002e`) in `_api_features.json`, so ungoogled-chromium's domain substitution leaves
   it alone; substituted, the store page lost `webstorePrivate` and offered "Switch to
   Chrome" instead of Add to Chrome.
 - The bookmark bar does not show on the New Tab page, as pinned items live in the
