@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1179,6 +1179,12 @@
+         break;
+       }
+       base::RecordAction(base::UserMetricsAction("Accel_Focus_Location"));
++      // Alerse: opens the command bar as a click on the address does; moving
++      // the focused field into the panel lost the focus on an empty Space,
++      // which left the panel showing the idle field and no rows.
++      if (alerse::OpenCommandBar(browser_)) {
++        break;
++      }
+       FocusLocationBar(browser_);
+       break;
+     case IDC_FOCUS_SEARCH:

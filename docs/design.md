@@ -733,7 +733,11 @@ Windows' numbers for those:
   opens on the page's address, selected, as Arc's (measured 2026-11-12): typing replaces
   it and Cmd+C copies it; on an empty Space it opens empty, listing the open tabs.
   File > New Tab, Cmd+T, Cmd+L and New Tab open the centred one, as
-  in Arc (`compact_command_bar_` in `alerse_address_bar.cc`).
+  in Arc (`compact_command_bar_` in `alerse_address_bar.cc`). Cmd+L and Ctrl+L
+  (`IDC_FOCUS_LOCATION`) open it the way a click on the address does
+  (`look/focus-location-command-bar.patch`): Chromium's own focus path lost the focus
+  when the field moved into the panel on an empty Space, which left the panel showing
+  the idle field and no rows.
 - On a page's address (the click above, or Cmd+L) the command bar shows the page's icon
   in the magnifier's place and lists the page itself first, by its title, the row
   selected, then up to four pages from history, the latest first, as "Title — site/path"
@@ -1905,7 +1909,10 @@ these changes:
 - The Chrome Web Store installs and updates extensions, so they sync between devices
   (`extensions/web-store.patch`): CRX3 publisher proofs are still checked, update URLs
   are forced to https, and on Windows extensions registered in the registry are not
-  loaded.
+  loaded. The store's address is split in C++ strings and written with an escaped "."
+  (`.`) in `_api_features.json`, so ungoogled-chromium's domain substitution leaves
+  it alone; substituted, the store page lost `webstorePrivate` and offered "Switch to
+  Chrome" instead of Add to Chrome.
 - The bookmark bar does not show on the New Tab page, as pinned items live in the
   sidebar; `--bookmark-bar-ntp=always` brings it back.
 - The window stays open when its last tab closes (see Spaces).

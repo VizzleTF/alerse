@@ -238,20 +238,24 @@ diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_a
 index bff2cbf3d54..8e5f2d528f8 100644
 --- a/extensions/common/api/_api_features.json
 +++ b/extensions/common/api/_api_features.json
-@@ -355,6 +355,7 @@
+@@ -355,6 +355,8 @@
    }, {
      "channel": "stable",
      "contexts": ["web_page"],
-+    // Alerse: "." keeps domain substitution away from the Web Store.
-     "matches": ["https://chromewebstore.google.com/*"]
++    // Alerse: the escaped "." keeps domain substitution away from the Web
++    // Store, which would otherwise lose its webstorePrivate API.
+-    "matches": ["https://chromewebstore.google.com/*"]
++    "matches": ["https://chromewebstore.google\u002ecom/*"]
    }, {
      // Used for webstore testing. See comment in
-@@ -991,6 +992,7 @@
+@@ -991,6 +993,8 @@
    "webstorePrivate": [{
      "channel": "stable",
      "contexts": ["web_page"],
-+    // Alerse: "." keeps domain substitution away from the Web Store.
-     "matches": ["https://chromewebstore.google.com/*"]
++    // Alerse: the escaped "." keeps domain substitution away from the Web
++    // Store, which would otherwise lose its webstorePrivate API.
+-    "matches": ["https://chromewebstore.google.com/*"]
++    "matches": ["https://chromewebstore.google\u002ecom/*"]
    }, {
      // Used for webstore testing. See comment in
 diff --git a/extensions/common/extension_urls.cc b/extensions/common/extension_urls.cc
