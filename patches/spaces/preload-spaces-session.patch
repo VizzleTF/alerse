@@ -1,0 +1,54 @@
+diff --git a/chrome/browser/sessions/session_restore.cc b/chrome/browser/sessions/session_restore.cc
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -851,12 +851,30 @@
+     }
+ #endif  //  BUILDFLAG(IS_CHROMEOS)
+ 
++    // Alerse: a Space's window opened hidden ahead of its first switch
++    // (alerse::PreloadSpaces) stays hidden until the Space is shown.
++    // By its blank tab: Chromium takes another hidden window for one about to
++    // be deleted (ShouldRestoreToExistingBrowser()).
++    WebContents* const waiting_tab =
++        browser_ ? browser_->GetTabStripModel()->GetActiveWebContents()
++                 : nullptr;
++    const bool restores_hidden_space =
++        waiting_tab && !browser_->GetWindow()->IsVisible() &&
++        waiting_tab->GetVisibleURL().IsAboutBlank() &&
++        waiting_tab->GetVisibleURL().ref() == "arcomium-space";
+     for (const std::unique_ptr<sessions::SessionWindow>& window : *windows) {
+       ++(*window_count);
+       // 1. Choose between restoring tabs in an existing browser or in a newly
+       //    created browser.
+       BrowserWindowInterface* browser = nullptr;
+       const bool is_first_window = window.get() == windows->begin()->get();
++      // Alerse: it takes only the session's first window; the others would
++      // show beside it, outside the Space's stack.
++      if (restores_hidden_space &&
++          !(is_first_window &&
++            window->type == sessions::SessionWindow::TYPE_NORMAL)) {
++        continue;
++      }
+       const bool is_normal_window =
+           window->type == sessions::SessionWindow::TYPE_NORMAL;
+       const bool is_app_window =
+@@ -869,7 +887,7 @@
+       }
+ 
+       if (is_first_window && is_normal_window &&
+-          ShouldRestoreToExistingBrowser()) {
++          (ShouldRestoreToExistingBrowser() || restores_hidden_space)) {
+         // The first set of tabs is added to the existing browser.
+         browser = browser_;
+       } else {
+@@ -1013,7 +1031,9 @@
+     ash::BootTimesRecorder::Get()->AddLoginTimeMarker(
+         "SessionRestore-CreatingTabs-End", false);
+ #endif
+-    if (browser_to_activate) {
++    // Alerse: activating would show the hidden Space's window.
++    if (browser_to_activate &&
++        !(restores_hidden_space && browser_to_activate == browser_)) {
+       browser_to_activate->GetWindow()->Activate();
+     }
+ 

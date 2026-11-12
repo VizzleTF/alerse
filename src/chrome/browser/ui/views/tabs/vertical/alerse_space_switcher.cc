@@ -1433,6 +1433,18 @@ void AlerseSpaceSwitcher::AddedToWidget() {
   for (size_t i = 0; i < 9; ++i) {
     AddAccelerator(SpaceAccelerator(i));
   }
+  // The other Spaces' windows open hidden once this one is up, so that it
+  // shows first (alerse::PreloadSpaces).
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSpaceSwitcher> switcher) {
+            if (switcher) {
+              alerse::PreloadSpaces(switcher->browser_);
+            }
+          },
+          weak_factory_.GetWeakPtr()),
+      base::Seconds(1));
 }
 
 bool AlerseSpaceSwitcher::AcceleratorPressed(

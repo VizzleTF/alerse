@@ -82,8 +82,8 @@ closes them. Its rules:
   on the visible member is stored in the stack and applied to a member when it is shown.
 - Closing the visible member closes the stack: every member closes, each saving its own
   session. Minimize acts on the visible member only.
-- A member is created on first use of its Space in that stack, and the profile is
-  loaded then. A `ScopedProfileKeepAlive` holds each Space's profile while a stack has
+- A member is created hidden for every Space a second after the stack's first window
+  opens (since 2026-11-12), or on first use of a Space added later. A `ScopedProfileKeepAlive` holds each Space's profile while a stack has
   a member for it.
 - New Window opens a second stack that starts in the Space of the first. An incognito
   window is outside the stacks and belongs to the Space it was opened from.
@@ -139,11 +139,13 @@ whole browser.
 ### Startup and sessions
 
 Each profile keeps its own session, with Chromium's session service unchanged. At
-startup Alerse opens the stack with the Space that was visible last and loads no other
-profile. The other members are created when they are first shown or routed to
-(decided on 2026-11-11), so a messenger in another Space starts only once that Space
-is opened. A Space shown for the first time since startup opens on a blank tab, and
-its session takes that tab's place when it has been read. Chromium's profile picker
+startup Alerse opens the stack with the Space that was visible last. Decided on
+2026-11-11 that the other members are created only when first shown or routed to;
+reversed on 2026-11-12, because a member built on its first switch draws itself on
+screen. Now the other members are created hidden a second after startup
+(`alerse::PreloadSpaces`), each restoring its session, so a messenger in another Space
+starts at startup too. A member opens on a blank tab, and its session takes that
+tab's place when it has been read. Chromium's profile picker
 never shows at startup (`spaces/start-in-last-space.patch`). The patches that carried
 a Space through session restore, tab restore and tab discarding are deleted.
 
