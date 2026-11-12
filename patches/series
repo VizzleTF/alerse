@@ -96,3 +96,5 @@ look/command-bar-globe.patch
 look/focus-location-command-bar.patch
 look/split-chooser-one-tab.patch
 look/top-bar-placeholder.patch
+look/top-bar-placeholder.patch
+look/top-bar-no-pinned-actions.patch

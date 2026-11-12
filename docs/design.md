@@ -1093,7 +1093,10 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 - **Windows**: a 32 px top bar in the frame color, as in Arc for Windows 1.129: back,
   forward and reload, the site centered in a pill between Copy Link and the site
-  controls, Split View and the window buttons. The page is an inset card with Arc's rim,
+  controls, Split View and the window buttons. Chromium's pinned toolbar actions are not
+  there (`look/top-bar-no-pinned-actions.patch`): a download showed Chromium's Downloads
+  button in the top bar beside the Space bar's, which the download bubble hangs from.
+  The page is an inset card with Arc's rim,
   corners and shadow, and Arc's thin icons (`components/vector_icons/alerse_*.icon`).
   Overlay scrollbars follow the Windows setting.
 - **macOS**: no toolbar while the sidebar shows; the sidebar's header is one row after
