@@ -72,6 +72,14 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/view_tracker.h"
 #include "ui/views/widget/widget.h"
+#include "base/strings/string_number_conversions.h"
+#include "chrome/browser/ui/content_settings/content_setting_bubble_model.h"
+#include "chrome/browser/ui/content_settings/content_setting_image_model.h"
+#include "chrome/browser/ui/views/content_setting_bubble_contents.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/location_bar/location_bar_view.h"
+#include "components/zoom/zoom_controller.h"
+#include "ui/views/bubble/bubble_anchor.h"
 
 namespace alerse_site_controls {
 
@@ -225,6 +233,7 @@ class SiteControlsView : public views::View,
       url_ = contents->GetLastCommittedURL();
     }
 
+    AddPageStates(contents);
     AddActions();
     AddExtensions();
     settings_heading_ = AddChildView(
@@ -422,6 +431,100 @@ class SiteControlsView : public views::View,
   }
 
  private:
+  // What the page did that the toolbar's icons would tell, first in the
+  // panel: the compact address field hides those icons, and a blocked
+  // pop-up or a zoomed page would otherwise leave no trace. One row for the
+  // zoom, while it is not the default, and one for each content setting
+  // icon Chromium would show now (pop-ups blocked, a download blocked, the
+  // clipboard read...). A click on the zoom's row sets it back; a click on
+  // another opens Chromium's own bubble for it under the address field.
+  void AddPageStates(content::WebContents* contents) {
+    if (!contents) {
+      return;
+    }
+    views::View* states = AddChildView(std::make_unique<views::View>());
+    states->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 6));
+    const auto add_row = [&](const ui::ImageModel& icon,
+                             const std::u16string& text,
+                             views::Button::PressedCallback callback) {
+      auto* row = states->AddChildView(std::make_unique<views::LabelButton>(
+          std::move(callback), text));
+      row->SetImageModel(views::Button::STATE_NORMAL, icon);
+      row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+      row->SetImageLabelSpacing(8);
+      row->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(7, 10)));
+      row->SetBackground(
+          views::CreateRoundedRectBackground(ui::kColorSysNeutralContainer, 8));
+      row->SetTooltipText(text);
+    };
+    const zoom::ZoomController* zoom =
+        zoom::ZoomController::FromWebContents(contents);
+    if (zoom && !zoom->IsAtDefaultZoom()) {
+      add_row(ui::ImageModel::FromVectorIcon(kZoomInIcon,
+                                             ui::kColorSysOnSurface, 16),
+              l10n_util::GetStringFUTF16(
+                  IDS_ALERSE_SITE_ZOOM,
+                  base::NumberToString16(zoom->GetZoomPercent())),
+              base::BindRepeating(&SiteControlsView::RunCommand,
+                                  base::Unretained(this), IDC_ZOOM_NORMAL));
+    }
+    const std::vector<std::unique_ptr<ContentSettingImageModel>> models =
+        ContentSettingImageModel::GenerateContentSettingImageModels();
+    for (size_t i = 0; i < models.size(); ++i) {
+      models[i]->Update(contents);
+      if (!models[i]->is_visible() || models[i]->get_tooltip().empty()) {
+        continue;
+      }
+      const gfx::VectorIcon* glyph = models[i]->icon();
+      add_row(glyph ? ui::ImageModel::FromVectorIcon(
+                          *glyph, ui::kColorSysOnSurface, 16)
+                    : ui::ImageModel(),
+              models[i]->get_tooltip(),
+              base::BindRepeating(&SiteControlsView::ShowContentSetting,
+                                  base::Unretained(this), i));
+    }
+    if (states->children().empty()) {
+      RemoveChildViewT(states);
+    }
+  }
+
+  // Opens Chromium's bubble of the `index`th content setting icon, under
+  // the address field, once this panel has gone.
+  void ShowContentSetting(size_t index) {
+    CloseThen(base::BindOnce(
+        [](base::WeakPtr<BrowserWindowInterface> browser, size_t index) {
+          BrowserView* browser_view =
+              browser ? BrowserView::GetBrowserViewForBrowser(browser.get())
+                      : nullptr;
+          LocationBarView* location_bar =
+              browser_view ? browser_view->GetLocationBarView() : nullptr;
+          content::WebContents* contents =
+              browser ? browser->GetTabStripModel()->GetActiveWebContents()
+                      : nullptr;
+          if (!location_bar || !location_bar->GetWidget() || !contents) {
+            return;
+          }
+          std::vector<std::unique_ptr<ContentSettingImageModel>> models =
+              ContentSettingImageModel::GenerateContentSettingImageModels();
+          if (index >= models.size()) {
+            return;
+          }
+          models[index]->Update(contents);
+          if (!models[index]->is_visible()) {
+            return;
+          }
+          auto* bubble = new ContentSettingBubbleContents(
+              models[index]->CreateBubbleModel(
+                  location_bar->GetContentSettingBubbleModelDelegate(),
+                  contents),
+              contents, views::BubbleAnchor(location_bar),
+              views::BubbleBorder::TOP_LEFT);
+          views::BubbleDialogDelegateView::CreateBubble(bubble)->Show();
+        },
+        browser_, index));
+  }
+
   void AddActions() {
     struct Action {
       int command;
