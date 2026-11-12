@@ -485,8 +485,16 @@ Windows' numbers for those:
   the sidebar, with 6 pt corners, no rim and a faint shadow; its blank color is
   #2B2B2B, and in a Space with a theme color the frame's tint a shade lighter, as Arc's
   (9% white over the frame: #324240 on #1E2F2D, Arc's #394B4D on #273A3E;
-  `look/blank-page-tint.patch`). The find bar's place is the card's top right corner,
-  inside the card (`BrowserView::GetFindBarBoundingBox`). A split's two panes share the same rectangle. The insets are set on every
+  `look/blank-page-tint.patch`). The find bar is Arc's pill
+  (`alerse_find_bar.h`, `look/find-bar-pill.patch`): 300x33 pt with 6 pt corners,
+  10 pt inside the card's top and right edges (`BrowserView::GetFindBarBoundingBox`),
+  #151C30 under a dark frame and #F4F5F9 under a light one (Chromium's
+  `kColorFindBar*` ids, set in `alerse_color_mixer.cc`), a magnifier and
+  "Find in page..." in #9599A2, 13 pt text. The match counter and the two arrows
+  show only while the field has text; there is no divider. Every function is
+  Chromium's (Enter, Shift+Enter, Esc, the counter, the find pasteboard on macOS,
+  which may prefill the field). It fades in from 4 pt above its place and out
+  where it is, on its layer, over the quick token; Chromium's slide by layout is off. A split's two panes share the same rectangle. The insets are set on every
   layout (`look/page-card-insets.patch`): Chromium set its own 8 px ones for a split and
   never took them back, so after the first split a single page sat 8 pt off the sidebar
   with no top margin until restart. Full screen without the sidebar (a page's own full
@@ -1133,7 +1141,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   arrow on a 24 pt square (#252525 with a light arrow, white with a dark one when
   selected). Elsewhere rows are 48 px, regular weight; searches show only their words, history rows
   a remove ×, bookmarks the site's icon (a plain page, never Chromium's star, in either
-  of its icon sets). A row with no second text (a sidebar item) shows no dash after its
+  of its icon sets). A page without an icon of its own shows the sidebar's outlined globe, not Chromium's filled one (`page_cr23.svg`, `look/command-bar-globe.patch`). A row with no second text (a sidebar item) shows no dash after its
   title (`searchbox_match.ts`). On Windows and Linux (aura) the suggestions are a
   child of the browser window, not of the command bar's panel
   (`omnibox_popup_presenter_base.cc`): parented to the panel, they were no transient

@@ -30,6 +30,18 @@ ui::ColorTransform Ink(SkColor dark) {
       dark));
 }
 
+// `dark` on a dark frame, `light` on a light one.
+ui::ColorTransform Paired(SkColor dark, SkColor light) {
+  return ui::ColorTransform(base::BindRepeating(
+      [](SkColor dark, SkColor light, SkColor input,
+         const ui::ColorMixer& mixer) {
+        return color_utils::IsDark(mixer.GetResultColor(ui::kColorFrameActive))
+                   ? dark
+                   : light;
+      },
+      dark, light));
+}
+
 }  // namespace
 
 void AddAlerseColorMixer(ui::ColorProvider* provider,
@@ -95,4 +107,15 @@ void AddAlerseColorMixer(ui::ColorProvider* provider,
   mixer[kColorAlerseSidebarPlaceholderHovered] =
       Ink(SkColorSetRGB(0x75, 0x75, 0x76));
   mixer[kColorAlerseSidebarPlaceholderInactive] = {kColorOmniboxTextDimmed};
+  // The find bar is Arc's pill (alerse_find_bar.h): a dark blue plate under
+  // a dark frame, a near white one under a light frame.
+  mixer[kColorFindBarBackground] = Paired(SkColorSetRGB(0x15, 0x1C, 0x30),
+                                          SkColorSetRGB(0xF4, 0xF5, 0xF9));
+  mixer[kColorFindBarForeground] = Paired(SkColorSetRGB(0xE3, 0xE5, 0xEA),
+                                          SkColorSetRGB(0x1D, 0x1F, 0x26));
+  mixer[kColorFindBarMatchCount] = Paired(SkColorSetRGB(0x95, 0x99, 0xA2),
+                                          SkColorSetRGB(0x6E, 0x72, 0x7C));
+  mixer[kColorFindBarButtonIcon] = {kColorFindBarForeground};
+  mixer[kColorFindBarButtonIconHovered] = {kColorFindBarForeground};
+  mixer[kColorFindBarButtonIconDisabled] = {kColorFindBarMatchCount};
 }

@@ -90,3 +90,5 @@ look/floating-sidebar-slide.patch
 look/page-card-insets.patch
 look/command-bar-on-page.patch
 look/blank-page-tint.patch
+look/find-bar-pill.patch
+look/command-bar-globe.patch

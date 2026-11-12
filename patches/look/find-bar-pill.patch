@@ -1,0 +1,134 @@
+diff --git a/chrome/browser/ui/views/find_bar_host.cc b/chrome/browser/ui/views/find_bar_host.cc
+index e20e096..41600b6 100644
+--- a/chrome/browser/ui/views/find_bar_host.cc
++++ b/chrome/browser/ui/views/find_bar_host.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/views/find_bar_host.h"
+ 
++#include "chrome/browser/ui/views/alerse_find_bar.h"
++
+ #include <algorithm>
+ 
+ #include "base/check_is_test.h"
+@@ -191,6 +193,9 @@ FindBarHost::FindBarHost(FindBarOwner* find_bar_owner)
+   focus_manager_observation_.Observe(focus_manager_.get());
+ 
+   animation_ = std::make_unique<gfx::SlideAnimation>(this);
++  // Alerse: the bar fades in its place (AnimationProgressed); this
++  // animation only times the hide.
++  animation_->SetSlideDuration(alerse::FindPillFadeDuration());
+   if (!gfx::Animation::ShouldRenderRichAnimation()) {
+     animation_->SetSlideDuration(base::TimeDelta());
+   }
+@@ -297,10 +302,14 @@ void FindBarHost::Show(bool animate, bool focus) {
+   if (!animate || g_disable_animation_for_test_) {
+     animation_->Reset(1);
+     AnimationProgressed(animation_.get());
++    // Alerse: no fade left over from a hide.
++    alerse::FadeFindPill(view_->parent(), true, false);
+   } else if (!was_visible) {
+     // Don't re-start the animation.
+     animation_->Reset();
+     animation_->Show();
++    // Alerse: a compositor fade, not a slide by layout.
++    alerse::FadeFindPill(view_->parent(), true, true);
+   }
+ 
+   if (!was_visible) {
+@@ -320,6 +329,8 @@ void FindBarHost::Hide(bool animate) {
+ 
+   if (animate && !g_disable_animation_for_test_ && !animation_->IsClosing()) {
+     animation_->Hide();
++    // Alerse: fades out where it is.
++    alerse::FadeFindPill(view_->parent(), false, true);
+   } else {
+     if (animation_->IsClosing()) {
+       // If we're in the middle of a close animation, skip immediately to the
+@@ -724,6 +735,8 @@ void FindBarHost::AnimationProgressed(const gfx::Animation* animation) {
+ 
+   // This call makes sure |view_| appears in the right location, the size and
+   // shape is correct and that it slides in the right direction.
++  // Alerse: the bar stays in its place and fades (alerse::FadeFindPill).
++  view_offset = 0;
+   view_->SetPosition(gfx::Point(0, view_offset));
+ }
+ 
+diff --git a/chrome/browser/ui/views/find_bar_view.cc b/chrome/browser/ui/views/find_bar_view.cc
+index 76387a0..d169443 100644
+--- a/chrome/browser/ui/views/find_bar_view.cc
++++ b/chrome/browser/ui/views/find_bar_view.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/ui/find_bar/find_bar_state.h"
+ #include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/alerse_find_bar.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+ #include "chrome/browser/ui/views/find_bar_host.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -358,6 +359,11 @@ FindBarView::FindBarView(FindBarHost* host) {
+   SetCommonButtonAttributes(find_previous_button_);
+   SetCommonButtonAttributes(find_next_button_);
+   SetCommonButtonAttributes(close_button_);
++  // Alerse: Arc's pill in place of Chromium's toast.
++  alerse::StyleFindPill(
++      this, static_cast<views::BoxLayoutView*>(find_text_->parent()),
++      find_text_, match_count_text_, separator_, find_previous_button_,
++      find_next_button_, close_button_);
+ }
+ 
+ FindBarView::~FindBarView() = default;
+@@ -374,6 +380,9 @@ void FindBarView::SetFindTextAndSelectedRange(
+   find_text_->SetText(find_text);
+   find_text_->SetSelectedRange(selected_range);
+   last_searched_text_ = find_text;
++  // Alerse: the counter and the arrows come with the text.
++  alerse::UpdateFindPill(find_text_, match_count_text_, find_previous_button_,
++                         find_next_button_);
+ }
+ 
+ std::u16string_view FindBarView::GetFindText() const {
+@@ -475,6 +484,8 @@ gfx::Size FindBarView::CalculatePreferredSize(
+   // up part of the space for the input textfield. This prevents the overall
+   // width from changing every time the match count text changes.
+   size.set_width(size.width() - match_count_text_->GetPreferredSize().width());
++  // Alerse: the pill keeps one size, with or without the counter.
++  size = alerse::FindPillSize();
+   return size;
+ }
+ 
+@@ -541,6 +552,9 @@ bool FindBarView::HandleMouseEvent(views::Textfield* sender,
+ }
+ 
+ void FindBarView::OnAfterUserAction(views::Textfield* sender) {
++  // Alerse: with the first character, not when its result arrives.
++  alerse::UpdateFindPill(find_text_, match_count_text_, find_previous_button_,
++                         find_next_button_);
+   // The composition text wouldn't be what the user is really looking for.
+   // We delay the search until the user commits the composition text.
+   if (!sender->IsIMEComposing() && sender->GetText() != last_searched_text_) {
+@@ -646,6 +660,9 @@ void FindBarView::UpdateMatchCountAppearance(bool no_match) {
+   bool enable_buttons = !find_text_->GetText().empty() && !no_match;
+   find_previous_button_->SetEnabled(enable_buttons);
+   find_next_button_->SetEnabled(enable_buttons);
++  // Alerse: a result may bring the text (the find pasteboard on macOS).
++  alerse::UpdateFindPill(find_text_, match_count_text_, find_previous_button_,
++                         find_next_button_);
+ }
+ 
+ BEGIN_METADATA(FindBarView)
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+index 0360e80..ea53d7e 100644
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1262,7 +1262,9 @@ gfx::Rect BrowserView::GetFindBarBoundingBox() const {
+   // Alerse: inside the page card: the find bar started above the card's top
+   // edge, over the frame around it.
+   contents_bounds.Inset(multi_contents_view_->alerse_page_insets());
+-  contents_bounds.Inset(gfx::Insets::TLBR(0, 0, 0, gfx::scrollbar_size()));
++  // Alerse: Arc's find pill keeps 10 pt from the card's top and right edges;
++  // the scrollbar is an overlay and needs no room.
++  contents_bounds.Inset(gfx::Insets::TLBR(10, 0, 0, 10));
+   return multi_contents_view_->GetMirroredRect(contents_bounds);
+ }
+ 
