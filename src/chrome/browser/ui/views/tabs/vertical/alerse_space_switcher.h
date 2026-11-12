@@ -54,7 +54,6 @@ class PointF;
 }  // namespace gfx
 
 namespace alerse {
-class SpaceColorTransition;
 
 // The icon a Space's folder records, "sunny" for Home and "dot" for others
 // without one; `folder` may be null.
@@ -282,8 +281,6 @@ class AlerseSpaceSwitcher : public views::View,
   std::unique_ptr<views::MenuRunner> menu_runner_;
   // The plus button at the row's end.
   raw_ptr<views::View> add_button_ = nullptr;
-  // Blends the window's color into the shown Space's.
-  std::unique_ptr<alerse::SpaceColorTransition> color_transition_;
   // Never invalidated: the delete dialog and the popover hold these.
   base::WeakPtrFactory<AlerseSpaceSwitcher> weak_factory_{this};
   // Only for the pending rebuild, which ScheduleRebuild() replaces.

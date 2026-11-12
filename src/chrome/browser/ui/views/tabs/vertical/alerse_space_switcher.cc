@@ -1385,12 +1385,9 @@ void AlerseSpaceSwitcher::ApplyActiveSpaceColor() {
       folder && folder->GetMetaInfo(alerse::kSpaceColorMetaKey, &value)) {
     color = alerse::ParseSpaceColor(value);
   }
-  if (!color_transition_) {
-    color_transition_ = std::make_unique<alerse::SpaceColorTransition>();
-  }
-  // At once: the blend re-themed the whole window six times in 200 ms, each
-  // step a repaint of every view, and showed as bands.
-  color_transition_->AnimateTo(GetWidget(), color, /*animate=*/false);
+  // At once: a blend re-themed the whole window on every step, each a
+  // repaint of every view, and showed as bands.
+  alerse::ApplySpaceColor(GetWidget(), color);
 }
 
 void AlerseSpaceSwitcher::ShowContextMenuForViewImpl(

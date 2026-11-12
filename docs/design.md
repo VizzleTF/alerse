@@ -997,9 +997,18 @@ What animates:
 - **Alerse's pages** (sync, import, links): controls change state over 90 ms and a part
   that appears fades in over 160 ms (`alerse_page_style.inc`).
 
-Not animated, on purpose: the Space's tint (each Space's window has its own; a
-cross-fade needs a cover layer whose order in the window is not verified), row hover,
-closing popovers.
+Not animated, on purpose: row hover, closing popovers, and the Space's tint. Each
+Space's window has its own tint, so a switch cuts from one color to the next with the
+windows. A fade would cover the new window's frame-colored surfaces with the old color
+and fade that out, but in Chromium 157 (Windows) those surfaces share their layers
+with content: the frame color behind the top bar is painted into the window's root
+layer together with the top bar's back, forward and reload buttons; the sidebar's is
+painted into `VerticalTabStripRegionView`'s own layer together with its header
+buttons and the Space bar; the caption buttons paint it behind themselves on their
+own layer. A cover under the root layer's children would hide the top bar's buttons
+and fade them in, and it would sit under the sidebar's and the caption buttons'
+layers, whose color would cut while the rest faded. Both are seams; the cut is clean. The picker's old six-step blend
+(`SpaceColorTransition`) is gone too: a picked color applies at once.
 
 ## Icon pickers
 

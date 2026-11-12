@@ -41,8 +41,6 @@ inline constexpr base::TimeDelta kStandard = base::Milliseconds(160);
 // include this header's users, so tab_strip_animations.cc repeats the
 // numbers (patches/look/sidebar-motion.patch).
 inline constexpr base::TimeDelta kEmphasized = base::Milliseconds(240);
-// The Space tint's fade.
-inline constexpr base::TimeDelta kTint = base::Milliseconds(200);
 
 // Arriving or answering a click (fastest in its first frame), leaving, and
 // a large surface (the sidebar itself, sidebar-motion.patch).
