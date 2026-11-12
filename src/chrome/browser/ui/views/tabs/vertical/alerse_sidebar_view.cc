@@ -84,6 +84,8 @@
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/vector_icons/vector_icons.h"
 #include "chrome/common/webui_url_constants.h"
+#include "ui/gfx/image/image_skia_operations.h"
+#include "url/url_constants.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
@@ -2884,37 +2886,48 @@ bool AlerseSidebarView::HasOwnIcon(const bookmarks::BookmarkNode* node) {
 }
 
 ui::ImageModel AlerseSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
-  TabUIHelper* helper = TabUIHelper::From(tab);
-  // A crashed tab shows the sad tab, as in the tab strip: its page's icon
-  // would say it is alive.
-  if (helper->IsCrashed()) {
-    return ui::ImageModel::FromImageSkia(
-        *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
-            IDR_CRASH_SAD_FAVICON));
-  }
-  // A page without a favicon of its own shows Arc's globe, as a pinned item
-  // does. Asked of the favicon's source: what Chromium hands out for "none"
-  // is an image on one version and an image generator on the next.
-  content::WebContents* contents = tab->GetContents();
-  const favicon::ContentFaviconDriver* driver =
-      contents ? favicon::ContentFaviconDriver::FromWebContents(contents)
-               : nullptr;
-  if (!driver || !driver->FaviconIsValid()) {
-    return DefaultPageIcon(this);
-  }
-  ui::ImageModel icon = helper->GetFavicon();
-  if (icon.IsEmpty()) {
-    return DefaultPageIcon(this);
-  }
-  // The one-color icons of the browser's own pages (Settings, History,
-  // Extensions, Downloads) are drawn for a tab's background: recolored where
-  // they would not read on the sidebar's frame, as the tab strip does on its
-  // own.
-  if (helper->ShouldThemifyFavicon() && GetColorProvider()) {
-    const SkColor frame = alerse::FrameColor(this);
-    icon = ui::ImageModel::FromImageSkia(favicon::ThemeFavicon(
-        icon.Rasterize(GetColorProvider()),
-        alerse::SidebarInk(this, kItemColor), frame, frame));
+  ui::ImageModel icon = [&]() -> ui::ImageModel {
+    TabUIHelper* helper = TabUIHelper::From(tab);
+    // A crashed tab shows the sad tab, as in the tab strip: its page's icon
+    // would say it is alive.
+    if (helper->IsCrashed()) {
+      return ui::ImageModel::FromImageSkia(
+          *ui::ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+              IDR_CRASH_SAD_FAVICON));
+    }
+    // A page without a favicon of its own shows Arc's globe, as a pinned item
+    // does. Asked of the favicon's source: what Chromium hands out for "none"
+    // is an image on one version and an image generator on the next.
+    content::WebContents* contents = tab->GetContents();
+    const favicon::ContentFaviconDriver* driver =
+        contents ? favicon::ContentFaviconDriver::FromWebContents(contents)
+                 : nullptr;
+    if (!driver || !driver->FaviconIsValid()) {
+      return DefaultPageIcon(this);
+    }
+    ui::ImageModel icon = helper->GetFavicon();
+    if (icon.IsEmpty()) {
+      return DefaultPageIcon(this);
+    }
+    // The one-color icons of the browser's own pages (Settings, History,
+    // Extensions, Downloads) are drawn for a tab's background: recolored where
+    // they would not read on the sidebar's frame, as the tab strip does on its
+    // own.
+    if (helper->ShouldThemifyFavicon() && GetColorProvider()) {
+      const SkColor frame = alerse::FrameColor(this);
+      icon = ui::ImageModel::FromImageSkia(favicon::ThemeFavicon(
+          icon.Rasterize(GetColorProvider()),
+          alerse::SidebarInk(this, kItemColor), frame, frame));
+    }
+    return icon;
+  }();
+  // A tab Memory Saver discarded shows its icon dimmed, as Chrome's strip
+  // does: its page reloads when it is shown.
+  if (TabUIHelper::From(tab)->IsDiscarded() && !icon.IsEmpty() &&
+      GetColorProvider()) {
+    icon = ui::ImageModel::FromImageSkia(
+        gfx::ImageSkiaOperations::CreateTransparentImage(
+            icon.Rasterize(GetColorProvider()), 0.5));
   }
   return icon;
 }
@@ -3640,9 +3653,14 @@ void AlerseSidebarView::BuildRows() {
 
   TabStripModel* tabs = browser_->GetTabStripModel();
   // An empty Space's hidden tab has no row, nor does a pinned item's tab.
-  auto has_row = [this](tabs::TabInterface* tab) {
+  // A restored pinned item's tab waits for the bookmarks to load: listed as
+  // a plain tab meanwhile, it would jump to its item a moment later.
+  const bool loading_items = !model_ || !model_->loaded();
+  auto has_row = [this, loading_items](tabs::TabInterface* tab) {
     return IsInActiveSpace(tab) && !IsBound(tab) &&
-           !TabStripModel::IsAlerseEmptySpace(tab->GetContents());
+           !TabStripModel::IsAlerseEmptySpace(tab->GetContents()) &&
+           !(loading_items &&
+             !alerse::GetPinnedTabUuid(tab->GetContents()).empty());
   };
   bool has_tabs = false;
   for (int i = 0; i < tabs->count() && !has_tabs; ++i) {
@@ -4292,6 +4310,15 @@ void AlerseSidebarView::OpenBookmark(const bookmarks::BookmarkNode* node) {
   }
   if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
     OnTabPressed(tab->GetHandle());
+    return;
+  }
+  // A bookmarklet runs on the shown page, as from the bookmark bar, and is
+  // never bound to a tab of its own.
+  if (node->url().SchemeIs(url::kJavaScriptScheme)) {
+    NavigateParams script(browser_, node->url(),
+                          ui::PAGE_TRANSITION_AUTO_BOOKMARK);
+    script.disposition = WindowOpenDisposition::CURRENT_TAB;
+    Navigate(&script);
     return;
   }
   NavigateParams params(browser_, node->url(),

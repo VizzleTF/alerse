@@ -244,6 +244,10 @@ Windows' measurements still set (see `AlerseSidebarView`):
   double-click time itself (views drops the double click on a new row).
   Bound tabs are not listed with the other tabs: they show on their item, and under a collapsed folder its bound tabs are listed
   as child rows. A bound tab that navigated away shows "/" before the item's name.
+  A `javascript:` item (an imported bookmarklet) runs on the shown page, as from the
+  bookmark bar, and is never bound. While the bookmarks load, a restored tab that carries
+  a pinned item's id gets no row (it would show as a plain tab and jump to its item).
+  A tab Memory Saver discarded shows its icon at half opacity until it is shown again.
   As in Arc, a tab stays on its item across restarts, crash restore and Ctrl+Shift+T,
   wherever it has navigated: the item's bookmark uuid is session tab extra data
   `arcomium.pinned` (`pinned-tab-binding.patch` writes it in full session rewrites and
