@@ -1258,12 +1258,26 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   than an `.icon` file, so it keeps the color logic the arch had (`kColorIcon` on
   macOS, `GetArcHeaderIconColor` elsewhere).
 - **Extensions** sit at the end of the address row, sized like its buttons. The sliders
-  button opens the site controls (`alerse_site_controls.cc`): Copy Link, Find,
-  Screenshot, Reading mode; every extension as a tile (click runs it, right click opens its menu with Pin and Unpin,
-  `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
-  runs only from a menu button and crashed on a tile); the site's permissions; the connection (opens page info); and a menu with site
-  settings, extension site access and extension management. They close when their tab
-  closes or leaves the page.
+  button opens the site controls (`alerse_site_controls.cc`), Arc's Site Control
+  Center: a 236 pt panel that paints itself (the bubble's own frame shows nothing),
+  its left edge 117 pt left of the sliders button's middle, an arrow 9 pt high whose
+  tip sits 3 pt under the button, 13 pt corners, 10 pt margins, Arc's rim, and on
+  macOS the icon pickers' vibrancy (half of #565656 over the window server's blur).
+  Its top row is four 48x32 pt near black tiles: Share (macOS' picker for the page's
+  link; Copy Link elsewhere), Find, Screenshot and Reading Mode (Arc's Boost and
+  Capture have no counterpart). Under "Extensions" every extension is a tile on a
+  faint veil, four a row (click runs it, right click opens its menu with Pin and
+  Unpin, `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
+  runs only from a menu button and crashed on a tile); a pinned one carries a pin on a
+  light disc over its lower right corner. "Settings" lists Arc's rows, a 32 pt disc
+  (white while on, grey while off) and a name over its state: what the page did that
+  the toolbar's icons would tell (the zoom while it is not 100%, a click resets it;
+  every content setting icon Chromium would show, a click opens its bubble under the
+  field; translate available; the password key), then the site's permissions (a
+  click turns one on or off; one set by a policy or an extension is not clickable).
+  The footer has the connection (opens page info) and a horizontal "..." on a darker
+  disc with site settings, extension site access and extension management. The panel
+  closes when its tab closes or leaves the page.
 
 Text the user sees is in `IDS_ARCOMIUM_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids
 (see [patching](patching.md)), set from the frame: Arc's greys on a dark frame, inverted
