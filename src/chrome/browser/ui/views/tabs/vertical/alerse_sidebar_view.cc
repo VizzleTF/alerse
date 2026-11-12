@@ -6,6 +6,7 @@
 
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_address_bar.h"
+#include "ui/base/models/tree_node_iterator.h"
 
 #include <algorithm>
 #include <numbers>
@@ -2377,6 +2378,7 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
   alerse::SpaceDrawnHook() = &AlerseSidebarView::OnSpaceDrawn;
   alerse::NewTabCommandBarHook() = &AlerseSidebarView::OpenNewTabCommandBar;
   alerse::CommandBarHook() = &AlerseSidebarView::OpenSplitCommandBar;
+  alerse::PinnedItemHook() = &AlerseSidebarView::OpenPinnedItemOf;
   alerse::SplitDraggedRowHook() = &AlerseSidebarView::SplitDraggedRow;
   Rebuild();
 }
@@ -2406,6 +2408,37 @@ bool AlerseSidebarView::OpenSplitCommandBar(BrowserWindowInterface* browser) {
   // (AlerseAddressBar::UpdateEditing); what is typed loads in the pane.
   sidebar->address_bar_->OpenCommandBar(/*new_tab=*/false);
   return true;
+}
+
+// static
+bool AlerseSidebarView::OpenPinnedItemOf(BrowserWindowInterface* browser,
+                                         const GURL& url) {
+  BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  AlerseSidebarView* sidebar =
+      browser_view ? FindSidebarIn(browser_view) : nullptr;
+  if (!sidebar || !sidebar->IsDrawn() || !sidebar->model_ ||
+      !sidebar->model_->loaded() || !url.is_valid()) {
+    return false;
+  }
+  const bookmarks::BookmarkNode* folder = sidebar->GetSpaceFolder(false);
+  if (!folder) {
+    return false;
+  }
+  ui::TreeNodeIterator<const bookmarks::BookmarkNode> it(folder);
+  while (it.has_next()) {
+    const bookmarks::BookmarkNode* node = it.Next();
+    if (node->is_url() && node->url() == url) {
+      sidebar->OpenBookmark(node);
+      // The page takes the keyboard, which closes the command bar even when
+      // the item's tab was the one shown.
+      if (content::WebContents* contents =
+              browser->GetTabStripModel()->GetActiveWebContents()) {
+        contents->Focus();
+      }
+      return true;
+    }
+  }
+  return false;
 }
 
 AlerseSidebarView::~AlerseSidebarView() {

@@ -98,3 +98,5 @@ look/split-chooser-one-tab.patch
 look/top-bar-placeholder.patch
 look/top-bar-no-pinned-actions.patch
 look/incognito-window-title.patch
+look/command-bar-pinned-items.patch
+look/arc-shortcuts-off-mac.patch

@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_UI_TABS_ALERSE_COMMAND_BAR_HOOK_H_
 
 class BrowserWindowInterface;
+class GURL;
 
 namespace alerse {
 
@@ -32,6 +33,22 @@ inline OpenNewTabCommandBarFunction& CommandBarHook() {
 
 inline bool OpenCommandBar(BrowserWindowInterface* browser) {
   return CommandBarHook() && CommandBarHook()(browser);
+}
+
+// Shows the sidebar's pinned item for `url` in `browser`'s shown Space, as a
+// click on it does: its tab if open, else a new tab bound to it. False when
+// the Space has no such item. Picking a sidebar item in the command bar uses
+// it, so the item is not opened a second time in an unbound tab.
+using OpenPinnedItemFunction = bool (*)(BrowserWindowInterface* browser,
+                                        const GURL& url);
+
+inline OpenPinnedItemFunction& PinnedItemHook() {
+  static OpenPinnedItemFunction hook = nullptr;
+  return hook;
+}
+
+inline bool OpenPinnedItem(BrowserWindowInterface* browser, const GURL& url) {
+  return PinnedItemHook() && PinnedItemHook()(browser, url);
 }
 
 }  // namespace alerse

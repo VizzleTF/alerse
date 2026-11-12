@@ -740,6 +740,10 @@ Windows' numbers for those:
   (`look/focus-location-command-bar.patch`): Chromium's own focus path lost the focus
   when the field moved into the panel on an empty Space, which left the panel showing
   the idle field and no rows.
+- A sidebar item picked in the command bar (a row of the empty list or a bookmark
+  match) shows its pinned tab, as a click on it does: its tab if it is open, else a new
+  tab bound to it, never a second, unbound tab (`look/command-bar-pinned-items.patch`,
+  `AlerseSidebarView::OpenPinnedItemOf`). Only the shown Space's items count.
 - On a page's address (the click above, or Cmd+L) the command bar shows the page's icon
   in the magnifier's place and lists the page itself first, by its title, the row
   selected, then up to four pages from history, the latest first, as "Title — site/path"
@@ -783,7 +787,11 @@ Windows' numbers for those:
   (`look/crash-bubble-in-window.patch`): with its top-right arrow it went under the
   window's bottom edge, outside it. Windows and Linux float the same panel since 0.1.8, Chromium's
   collapsed tab list no longer shows; their window controls and the address stay in
-  the top bar while it is hidden, and Ctrl+Shift+L (Chromium's own shortcut) toggles it.
+  the top bar while it is hidden, and Ctrl+S toggles it, as in Arc and as Cmd+S on
+  macOS (Ctrl+Shift+L, Chromium's own shortcut, still does; Save Page As moves to
+  Ctrl+Shift+S). Off macOS the menu bar's other Arc shortcuts are keys too:
+  Ctrl+Alt+Right and Ctrl+Alt+Left go to the next and previous Space, Ctrl+Shift+K
+  clears Today (`look/arc-shortcuts-off-mac.patch`).
 - Inactive window (another app in front): Arc for macOS lightens the whole window,
   its #161616 frame to #393939, and every shade off it follows. Alerse's
   `kColorFrameInactive` is the active frame blended 15% toward white (#393939, a
@@ -1418,7 +1426,7 @@ third page. The split row's look (line, dimmed pane) is drawn from memory of Arc
 not measured: Arc was not put in a split for a reference, since that would change the
 user's own browser. A tab of another Space or a favorite picked for the chooser is just shown
 (moving it into this Space would unbind it), as is a tab already in a split.
-Windows' "+" menu has no New Split (Arc for Windows' "+" was not measured). The chooser's
+Windows' "+" menu has New Split too (Arc for Windows' "+" was not measured). The chooser's
 command bar lists the split's other page among the open tabs; picking it just shows
 that pane. Dragging: a favorite dropped on a tab's row only moves among the tabs (its
 tab stays pinned outside the Spaces), and on the page's edge opens a new pane at its

@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
+--- a/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
++++ b/chrome/browser/ui/omnibox/chrome_omnibox_client.cc
+@@ -130,6 +130,9 @@
+ #include "ui/gfx/vector_icon_types.h"
+ #include "url/gurl.h"
+ 
++// Alerse.
++#include "chrome/browser/ui/tabs/alerse_command_bar_hook.h"
++
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+ #include "chrome/browser/ui/extensions/settings_api_bubble_helpers.h"
+ 
+@@ -970,6 +973,16 @@
+     disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+   }
+ 
++  // Alerse: a sidebar item picked in the command bar shows its pinned tab,
++  // as a click on it does, instead of a second, unbound tab.
++  if (browser_ && match_type == omnibox::AutocompleteMatchType::kBookmarkTitle &&
++      (disposition == WindowOpenDisposition::CURRENT_TAB ||
++       disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) &&
++      alerse::OpenPinnedItem(browser_, destination_url)) {
++    location_bar_->Revert();
++    return;
++  }
++
+   // Store the details necessary to open the omnibox match via browser commands.
+   location_bar_->set_navigation_params(LocationBar::NavigationParams(
+       destination_url, disposition, transition, match_selection_timestamp,

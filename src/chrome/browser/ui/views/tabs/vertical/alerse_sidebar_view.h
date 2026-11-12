@@ -144,6 +144,8 @@ class AlerseSidebarView : public views::View,
   // Add Split View (alerse_command_bar_hook.h): opens the command bar of
   // `browser`'s sidebar, if one is drawn, for the pane just added.
   static bool OpenSplitCommandBar(BrowserWindowInterface* browser);
+  static bool OpenPinnedItemOf(BrowserWindowInterface* browser,
+                               const GURL& url);
   // alerse::SplitDraggedRowHook: a row dropped on the page's split zone.
   static bool SplitDraggedRow(BrowserWindowInterface* browser,
                               bool start,
