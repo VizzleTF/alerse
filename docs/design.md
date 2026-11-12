@@ -561,6 +561,14 @@ Windows' numbers for those:
 - While the rows overflow, a 1 pt line, barely off the frame (#212121 on
   #161616), shows at the edge they scroll under, as Arc's; Chromium's scroll view would
   draw a bright separator.
+- The rows have an overlay scroll bar, drawn as Chrome's vertical tab strip draws its
+  own: a 5 pt pill 4 pt from the trailing edge, over the rows, in the frame's color
+  moved 35% toward black or white (`RowsScrollBar`). It shows only while the rows
+  overflow, and then while the pointer is over the rows or they scroll (wheel or
+  trackpad), and fades out a second after the pointer has left and the scrolling has
+  stopped (read from the cursor: a rebuild of the hovered row can leave its exit
+  unsent). The folder popup's longer lists have the same one, over the popup's color.
+  A rebuild does not show it, though it may move the rows.
 - While the command bar is open for a new tab, New Tab's "+" is #DADADA like its text.
   The Space name's chevron is 11 pt wide with a 1.9 pt stroke.
 - Context menus as Arc for macOS': a pinned tab's and a favorite's have Change Icon...
@@ -929,7 +937,7 @@ opacity), never through layout, a rebuild or a timer used as a frame clock.
 | Token | Duration | Curve (`gfx::Tween`) | Used for |
 |---|---|---|---|
 | instant | 0 ms | none | Hover and selection highlights, pressed states, closing anything that holds the keyboard, the drop indicator's place during a drag |
-| `kQuick` | 90 ms in, 63 ms out | in `LINEAR_OUT_SLOW_IN`, out `FAST_OUT_LINEAR_IN` | Things that appear in place, by opacity alone: the address field's hover buttons, popovers and pickers, Arc tooltips, site controls, the folder popup, the command bar, the copy check mark, the drop indicator |
+| `kQuick` | 90 ms in, 63 ms out | in `LINEAR_OUT_SLOW_IN`, out `FAST_OUT_LINEAR_IN` | Things that appear in place, by opacity alone: the address field's hover buttons, popovers and pickers, Arc tooltips, site controls, the folder popup, the command bar, the copy check mark, the drop indicator, the rows' scroll bar (in; out over 140 ms) |
 | `kStandard` | 160 ms, or by distance | `LINEAR_OUT_SLOW_IN` | Movement inside the sidebar: the folder curtain, the mini player rising in, a swipe settling |
 | `kEmphasized` | 240 ms in, 200 ms out (floating sidebar 200 / 160) | `LINEAR_OUT_SLOW_IN` for the rows, `ACCEL_20_DECEL_100` for the sidebar | A Space's rows entering, sidebar show and hide, the floating sidebar |
 

@@ -150,6 +150,8 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/scroll_view.h"
+#include "ui/views/controls/scrollbar/base_scroll_bar_thumb.h"
+#include "ui/views/controls/scrollbar/scroll_bar.h"
 #include "ui/views/animation/animation_builder.h"
 #include "base/functional/callback_helpers.h"
 #include "ui/compositor/layer_animator.h"
@@ -703,6 +705,147 @@ class OverflowLine : public views::View {
 };
 
 BEGIN_METADATA(OverflowLine)
+END_METADATA
+
+// The rows' scroll bar, drawn as Chrome's vertical tab strip draws its own
+// (tabs::RoundedScrollBar): a thin pill over the rows' trailing edge. It
+// shows while the pointer is over the rows or they scroll, and fades out a
+// moment after.
+class RowsScrollBar : public views::ScrollBar {
+  METADATA_HEADER(RowsScrollBar, views::ScrollBar)
+
+ public:
+  explicit RowsScrollBar(bool in_popup)
+      : views::ScrollBar(views::ScrollBar::Orientation::kVertical),
+        in_popup_(in_popup) {
+    SetLayoutManager(std::make_unique<views::FillLayout>());
+    auto* thumb = new Thumb(this);
+    SetThumb(thumb);
+    thumb_ = thumb;
+    thumb->SetPaintToLayer();
+    thumb->layer()->SetFillsBoundsOpaquely(false);
+    thumb->layer()->SetOpacity(0.0f);
+  }
+
+  // Shows the thumb; it fades once the pointer has left and nothing scrolls.
+  void Reveal() {
+    ui::Layer* layer = GetThumb()->layer();
+    if (layer->GetTargetOpacity() != 1.0f) {
+      views::AnimationBuilder()
+          .SetPreemptionStrategy(alerse::motion::kRetarget)
+          .Once()
+          .SetDuration(alerse::motion::Fade(alerse::motion::kQuick))
+          .SetOpacity(layer, 1.0f, alerse::motion::kEnter);
+    }
+    hide_timer_.Start(FROM_HERE, kHideDelay, this, &RowsScrollBar::MaybeHide);
+  }
+
+  // views::ScrollBar:
+  bool OverlapsContent() const override { return true; }
+  gfx::Rect GetTrackBounds() const override { return GetContentsBounds(); }
+  int GetThickness() const override { return kThickness + kTrailingPadding; }
+  bool OnMouseWheel(const ui::MouseWheelEvent& event) override {
+    if (event.y_offset()) {
+      Reveal();
+    }
+    return views::ScrollBar::OnMouseWheel(event);
+  }
+  void ObserveScrollEvent(const ui::ScrollEvent& event) override {
+    if (event.y_offset()) {
+      Reveal();
+    }
+    views::ScrollBar::ObserveScrollEvent(event);
+  }
+
+ private:
+  class Thumb : public views::BaseScrollBarThumb {
+   public:
+    explicit Thumb(RowsScrollBar* scroll_bar)
+        : views::BaseScrollBarThumb(scroll_bar), scroll_bar_(scroll_bar) {
+      SetFlipCanvasOnPaintForRTLUI(true);
+    }
+
+    bool IsPressed() const {
+      return GetState() == views::Button::STATE_PRESSED;
+    }
+
+    gfx::Size CalculatePreferredSize(
+        const views::SizeBounds& available_size) const override {
+      return gfx::Size(kThickness + kTrailingPadding,
+                       kThickness + kTrailingPadding);
+    }
+
+    void OnPaint(gfx::Canvas* canvas) override {
+      // Over a dark sidebar a light pill, over a light one a dark one.
+      const SkColor under =
+          scroll_bar_->in_popup_ ? alerse::SidebarInk(this, kPopupBackground)
+                                 : alerse::FrameColor(this);
+      cc::PaintFlags flags;
+      flags.setAntiAlias(true);
+      flags.setColor(color_utils::BlendTowardMaxContrast(under, kThumbShade));
+      gfx::RectF pill(GetLocalBounds());
+      pill.Inset(gfx::InsetsF::TLBR(0, 0, 0, kTrailingPadding));
+      canvas->DrawRoundRect(pill, pill.width() / 2, flags);
+    }
+
+   private:
+    raw_ptr<RowsScrollBar> scroll_bar_;
+  };
+
+  // Chromium's overlay scroll bars wait as long (overlay_scrollbar_constants.h).
+  static constexpr base::TimeDelta kHideDelay = base::Milliseconds(1000);
+  static constexpr int kThickness = 5;
+  static constexpr int kTrailingPadding = 4;
+  static constexpr SkAlpha kThumbShade = 0x59;
+
+  void MaybeHide() {
+    // The pointer still over the rows, or holding the thumb: later. Read from
+    // the cursor, not enter and exit events, which a rebuild of the hovered
+    // row can leave unsent.
+    if ((parent() && parent()->IsMouseHovered()) ||
+        thumb_->IsPressed()) {
+      hide_timer_.Start(FROM_HERE, kHideDelay, this, &RowsScrollBar::MaybeHide);
+      return;
+    }
+    views::AnimationBuilder()
+        .SetPreemptionStrategy(alerse::motion::kRetarget)
+        .Once()
+        .SetDuration(alerse::motion::Fade(alerse::motion::Exit(kHideFade)))
+        .SetOpacity(GetThumb()->layer(), 0.0f, alerse::motion::kExit);
+  }
+
+  // As long as Chromium's overlay scroll bars take to fade out.
+  static constexpr base::TimeDelta kHideFade = base::Milliseconds(200);
+
+  const bool in_popup_;
+  raw_ptr<Thumb> thumb_ = nullptr;
+  base::OneShotTimer hide_timer_;
+};
+
+BEGIN_METADATA(RowsScrollBar)
+END_METADATA
+
+// A scroll view whose scroll bar shows while the pointer is over it.
+class RowsScrollView : public views::ScrollView {
+  METADATA_HEADER(RowsScrollView, views::ScrollView)
+
+ public:
+  explicit RowsScrollView(bool in_popup) {
+    SetNotifyEnterExitOnChild(true);
+    bar_ = static_cast<RowsScrollBar*>(
+        SetVerticalScrollBar(std::make_unique<RowsScrollBar>(in_popup)));
+  }
+
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    views::ScrollView::OnMouseEntered(event);
+    bar_->Reveal();
+  }
+
+ private:
+  raw_ptr<RowsScrollBar> bar_;
+};
+
+BEGIN_METADATA(RowsScrollView)
 END_METADATA
 
 // Arc for macOS' Space name: a row with the Space's icon, in semibold grey.
@@ -2336,14 +2479,13 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
   layout->SetFlexForView(list, 1);
   title_host_ = list->AddChildView(std::make_unique<views::View>());
   title_host_->SetLayoutManager(std::make_unique<views::FillLayout>());
-  auto* scroll = list->AddChildView(std::make_unique<views::ScrollView>());
+  auto* scroll = list->AddChildView(
+      std::make_unique<RowsScrollView>(/*in_popup=*/false));
   scroll_ = scroll;
   list_layout->SetFlexForView(scroll, 1);
   scroll->SetBackgroundColor(std::nullopt);
   scroll->SetHorizontalScrollBarMode(
       views::ScrollView::ScrollBarMode::kDisabled);
-  scroll->SetVerticalScrollBarMode(
-      views::ScrollView::ScrollBarMode::kHiddenButEnabled);
   scroll->ClipHeightTo(0, 100000);
   for (const auto side : {views::OverflowIndicatorAlignment::kTop,
                           views::OverflowIndicatorAlignment::kBottom}) {
@@ -4491,13 +4633,12 @@ void AlerseSidebarView::BuildFolderPopup(views::View* contents) {
   field->SetPlaceholderTextColorId(kColorOmniboxForegroundDisabled);
   folder_popup_field_ = field.get();
   contents->AddChildView(std::make_unique<PopupSearchRow>(std::move(field)));
-  auto* scroll = contents->AddChildView(std::make_unique<views::ScrollView>());
+  auto* scroll = contents->AddChildView(
+      std::make_unique<RowsScrollView>(/*in_popup=*/true));
   scroll->SetBackgroundColor(std::nullopt);
   scroll->SetDrawOverflowIndicator(false);
   scroll->SetHorizontalScrollBarMode(
       views::ScrollView::ScrollBarMode::kDisabled);
-  scroll->SetVerticalScrollBarMode(
-      views::ScrollView::ScrollBarMode::kHiddenButEnabled);
   scroll->ClipHeightTo(0, kPopupMaxHeight - kPopupSearchHeight);
   auto rows = std::make_unique<views::View>();
   rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
