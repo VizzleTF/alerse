@@ -445,7 +445,13 @@ Windows' numbers for those:
 - The page card (every platform) keeps 10 pt from the window's top (on Windows and
   Linux it starts under the top bar), right and bottom edges and touches
   the sidebar, with 6 pt corners, no rim and a faint shadow; its blank color is
-  #2B2B2B.
+  #2B2B2B. A split's two panes share the same rectangle. The insets are set on every
+  layout (`look/page-card-insets.patch`): Chromium set its own 8 px ones for a split and
+  never took them back, so after the first split a single page sat 8 pt off the sidebar
+  with no top margin until restart. Full screen without the sidebar (a page's own full
+  screen: a video, a presentation; F11 on Windows and Linux) shows the bare page, with
+  no margins and square corners; macOS' window full screen keeps the sidebar and the
+  card.
 - Folders are Arc for macOS' outlined folder, 18.5 pt: one 1.5 pt outline whose tab
   slants down into the body, grey under the tab, a #F0F0F0 front edge, filled near
   black (#050505) below it. An open folder shows Arc's open folder, 22.5 pt wide: a

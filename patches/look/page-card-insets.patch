@@ -1,0 +1,142 @@
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index 53bd8f4..65fed15 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -1259,7 +1259,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+ 
+   // Updating the top, left and right insets for contents container view when
+   // in split view. This is dependent on a number of other browser states.
+-  if (horizontal_layout.is_split_view) {
++  // Alerse: not these; the card's own insets are set below for a split too.
++  if (false && horizontal_layout.is_split_view) {
+     const bool include_top_inset =
+         layout_data_->window_state == WindowState::kFullscreen ||
+         infobar_visible;
+@@ -1280,6 +1281,21 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+ 
+     views().multi_contents_view->SetSplitViewInsets(contents_insets);
+   }
++  // Alerse: the page is a card whether it is split or not, so its insets
++  // are Alerse's on every layout. Chromium's, set for a split, stayed after
++  // it: a single page then sat 8 px off the sidebar. Full screen without the sidebar (a video, a presentation)
++  // shows the bare page: no margins, square corners.
++  {
++    const bool bare_page = is_fullscreen(layout_data_->window_state) &&
++                           layout_data_->tab_strip_type == TabStripType::kNone;
++    views().multi_contents_view->SetAlerseBarePage(bare_page);
++    views().multi_contents_view->SetSplitViewInsets(
++        bare_page ? gfx::Insets()
++                  : gfx::Insets::TLBR(MultiContentsView::kAlersePageTopInset,
++                                      MultiContentsView::kAlersePageLeadingInset,
++                                      MultiContentsView::kAlersePageInset,
++                                      MultiContentsView::kAlersePageInset));
++  }
+ 
+   // Update the multi-contents view about if we will be animating content
+   // bounds. This is to make optimizations during animations e.g. avoid
+diff --git a/chrome/browser/ui/views/frame/multi_contents_background_view.cc b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
+index 516ace3..653fa2f 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_background_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_background_view.cc
+@@ -68,10 +68,14 @@ void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
+   }
+   // The single page card, where MultiContentsView insets it.
+   gfx::Rect card = GetLocalBounds();
+-  card.Inset(gfx::Insets::TLBR(MultiContentsView::kAlersePageTopInset,
+-                               MultiContentsView::kAlersePageLeadingInset,
+-                               MultiContentsView::kAlersePageInset,
+-                               MultiContentsView::kAlersePageInset));
++  // Alerse: the insets the page really has: none in full screen.
++  if (multi_contents) {
++    card.Inset(multi_contents->alerse_page_insets());
++  }
++  const float card_radius =
++      multi_contents && multi_contents->alerse_bare_page()
++          ? 0.f
++          : MultiContentsView::kAlersePageRoundedCorners.upper_left();
+   // Arc for macOS' card, on every platform: no rim and only a faint shadow
+   // at its edges.
+   const gfx::ShadowValues shadows = {
+@@ -84,9 +88,7 @@ void MultiContentsBackgroundView::OnPaint(gfx::Canvas* canvas) {
+   flags.setAntiAlias(true);
+   flags.setColor(card_color);
+   flags.setLooper(gfx::CreateShadowDrawLooper(shadows));
+-  canvas->DrawRoundRect(
+-      gfx::RectF(card),
+-      MultiContentsView::kAlersePageRoundedCorners.upper_left(), flags);
++  canvas->DrawRoundRect(gfx::RectF(card), card_radius, flags);
+   return;
+   ThemedBackground::PaintBackground(canvas, this, browser_view_);
+ }
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.cc b/chrome/browser/ui/views/frame/multi_contents_view.cc
+index ef217be..c15c295 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ b/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -230,7 +230,8 @@ void MultiContentsView::SetBackgroundRadii(const gfx::RoundedCornersF& radii) {
+ 
+   if (!IsInSplitView()) {
+     GetActiveContentsContainerView()->SetRoundedCorners(
+-        kAlersePageRoundedCorners);
++        // Alerse: square in full screen.
++        alerse_bare_page_ ? gfx::RoundedCornersF() : kAlersePageRoundedCorners);
+     GetInactiveContentsContainerView()->SetRoundedCorners(
+         gfx::RoundedCornersF());
+   }
+@@ -803,7 +804,7 @@ void MultiContentsView::UpdateContentsBorderAndOverlay() {
+     contents_container_view->SetRoundedCorners(
+         // Alerse: the single page is a card with all corners rounded.
+         is_in_split  ? kSplitViewContentRoundedCorners
+-        : is_active ? kAlersePageRoundedCorners
++        : is_active && !alerse_bare_page_ ? kAlersePageRoundedCorners
+                     : gfx::RoundedCornersF());
+     contents_container_view->UpdateBorderAndOverlay(
+         is_in_split, is_active, is_active && active_contents_view_highlighted_);
+@@ -859,11 +860,23 @@ void MultiContentsView::SetSplitViewInsets(const gfx::Insets& insets) {
+     return;
+   }
+   split_view_insets_ = insets;
++  // Alerse: the background view draws the card inside these insets.
++  background_view_->SchedulePaint();
+   // This can be called during BrowserView layout, so protect against creating a
+   // layout loop.
+   InvalidateLayout(/*avoid_propagate_during_layout=*/true);
+ }
+ 
++// Alerse: full screen shows the bare page.
++void MultiContentsView::SetAlerseBarePage(bool bare) {
++  if (alerse_bare_page_ == bare) {
++    return;
++  }
++  alerse_bare_page_ = bare;
++  UpdateContentsBorderAndOverlay();
++  background_view_->SchedulePaint();
++}
++
+ int MultiContentsView::GetResizeAxisComponent(const gfx::Size& size) const {
+   return (visual_data_.split_layout() ==
+           split_tabs::SplitTabLayout::kSideBySide)
+diff --git a/chrome/browser/ui/views/frame/multi_contents_view.h b/chrome/browser/ui/views/frame/multi_contents_view.h
+index a039c6f..20fcd64 100644
+--- a/chrome/browser/ui/views/frame/multi_contents_view.h
++++ b/chrome/browser/ui/views/frame/multi_contents_view.h
+@@ -202,6 +202,11 @@ class MultiContentsView
+ 
+   void SetShouldShowTopSeparator(bool should_show);
+   void SetSplitViewInsets(const gfx::Insets& insets);
++  // Alerse: full screen shows the bare page, without the card's margins and
++  // round corners. The background view draws the card from these.
++  void SetAlerseBarePage(bool bare);
++  bool alerse_bare_page() const { return alerse_bare_page_; }
++  const gfx::Insets& alerse_page_insets() const { return split_view_insets_; }
+   const gfx::Insets& split_view_insets_for_testing() const {
+     return split_view_insets_;
+   }
+@@ -353,6 +358,8 @@ class MultiContentsView
+ 
+   // Insets of the start and end contents view when in split view.
+   gfx::Insets split_view_insets_;
++  // Alerse: see SetAlerseBarePage().
++  bool alerse_bare_page_ = false;
+ 
+   bool active_contents_view_highlighted_ = false;
+ 
