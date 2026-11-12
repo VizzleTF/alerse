@@ -556,10 +556,12 @@ void AlerseAddressBar::Layout(PassKey) {
     const int size = kHoverButtonPitch;
     button->SetBounds(center_x - size / 2,
                       field.y() + (field.height() - size) / 2, size, size);
-    if (button->GetVisible()) {
+    // A place is taken only by a button that shows: a pinned extension
+    // shown alone, for its badge, stands at the field's end.
+    if (button == pinned_button_.get() ? pinned_shown_ : buttons_shown_) {
       leftmost = button->x();
+      center_x -= kHoverButtonPitch;
     }
-    center_x -= kHoverButtonPitch;
   }
   // The fade runs from before the leftmost button to the field's rounded end.
   text_fade_->SetBounds(leftmost - kTextFadeWidth, field.y() + 4,
@@ -1174,17 +1176,17 @@ void AlerseAddressBar::UpdateCopyButton() {
                     !TabStripModel::IsAlerseEmptySpace(contents);
   // They fade: popping in as the pointer crosses the sidebar's edge reads
   // as a flicker.
+  buttons_shown_ = show;
+  pinned_shown_ = pinned_ids_.size() == 1 && location_bar_ && !editing_ &&
+                  contents && !TabStripModel::IsAlerseEmptySpace(contents) &&
+                  (show || pinned_notice_);
   alerse::motion::SetShown(copy_button_, show);
   alerse::motion::SetShown(site_button_, show);
   // A single pinned extension stays in the field without the pointer while
   // it has something to say (a badge, or it was blocked on this page): shown
   // only on hover, an ad blocker's count would never be seen.
-  alerse::motion::SetShown(
-      pinned_button_,
-      pinned_ids_.size() == 1 && location_bar_ && !editing_ && contents &&
-          !TabStripModel::IsAlerseEmptySpace(contents) &&
-          (show || pinned_notice_));
-  alerse::motion::SetShown(text_fade_, show);
+  alerse::motion::SetShown(pinned_button_, pinned_shown_);
+  alerse::motion::SetShown(text_fade_, show || pinned_shown_);
   static_cast<TextFade*>(text_fade_.get())
       ->set_shade(hovered_ ? kTileHoverShade : kTileShade);
   InvalidateLayout();

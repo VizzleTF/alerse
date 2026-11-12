@@ -183,6 +183,10 @@ class AlerseAddressBar : public views::View,
   std::vector<std::string> pinned_ids_;
   // The single pinned extension shows a badge or was blocked on this page.
   bool pinned_notice_ = false;
+  // What takes a place at the field's end now: the hover buttons, and the
+  // single pinned extension.
+  bool buttons_shown_ = false;
+  bool pinned_shown_ = false;
   // Observed by hand, not with a ScopedObservation: the model can be gone
   // before this view learns it, and then it must not be told anything.
   raw_ptr<ExtensionsToolbarViewModel> extensions_model_ = nullptr;

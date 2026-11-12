@@ -441,8 +441,10 @@ Windows' numbers for those:
   (`LocationBarView::GetAlerseSidebarAddressColor`, `look/command-bar-on-page.patch`); in
   the command bar it is the bar's white again. A single pinned extension stays in the
   field without the pointer while its icon has something to say on this page (badge
-  text, or it was kept from running there): shown only on hover, a blocker's count
-  would never be seen. A release on a button runs it (the
+  text, or it was kept from running there), then alone at the field's end with the
+  address fading before it: shown only on hover, a blocker's count would never be
+  seen. Verified on 2026-11-12 with an unpacked extension that sets a badge on one
+  page. A release on a button runs it (the
   field takes the press). The sliders open the site controls under themselves. Copy
   Link shows it copied: its link turns into a check mark for 1.5 s.
 - Two or more pinned extensions are tiles under the field, always shown, as Arc for
