@@ -215,6 +215,12 @@ space; `SW_HIDE` and `SW_SHOWNA` on Windows; unmap and map on X11 and Wayland, w
 window cannot choose its position on Wayland and the compositor places the member that
 is shown. iOS has no Spaces and does not change.
 
+On Windows, Chromium gives each profile its own taskbar app id, a badged icon and a
+desktop shortcut renamed to "<profile> - Alerse". A Space would then be a second app on
+the taskbar. `spaces/one-taskbar-app-win.patch` gives every browser window the app id
+without a profile and turns off per-profile shortcuts, so all Spaces are one taskbar
+button.
+
 ### Code that goes
 
 Deleted in step 3: `spaces/space-storage-partitions.patch`,

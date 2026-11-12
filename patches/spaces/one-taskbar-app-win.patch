@@ -1,0 +1,54 @@
+diff --git a/chrome/browser/shell_integration_win.cc b/chrome/browser/shell_integration_win.cc
+--- a/chrome/browser/shell_integration_win.cc
++++ b/chrome/browser/shell_integration_win.cc
+@@ -154,6 +154,8 @@
+     prefix = install_static::GetBaseAppId();
+   } else {
+     app_name = ShellUtil::GetBrowserModelId(is_per_user_install);
++    // Alerse: every Space is a profile of one app (see below).
++    profile_path.clear();
+   }
+   DCHECK(!app_name.empty());
+ 
+@@ -893,10 +895,12 @@
+ }
+ 
+ std::wstring GetAppUserModelIdForBrowser(const base::FilePath& profile_path) {
++  // Alerse: each Space is a profile, and all of them are one app on the
++  // taskbar, so the id carries no profile.
+   return GetAppUserModelIdImpl(
+       std::wstring(),
+       ShellUtil::GetBrowserModelId(InstallUtil::IsPerUserInstall()),
+-      profile_path);
++      base::FilePath());
+ }
+ 
+ void UnpinShortcuts(const std::vector<base::FilePath>& shortcuts,
+diff --git a/chrome/browser/profiles/profile_shortcut_manager_win.cc b/chrome/browser/profiles/profile_shortcut_manager_win.cc
+--- a/chrome/browser/profiles/profile_shortcut_manager_win.cc
++++ b/chrome/browser/profiles/profile_shortcut_manager_win.cc
+@@ -873,21 +873,9 @@
+ 
+ // static
+ bool ProfileShortcutManager::IsFeatureEnabled() {
+-  if (disabled_for_unit_tests)
+-    return false;
+-
+-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+-  if (command_line->HasSwitch(switches::kEnableProfileShortcutManager))
+-    return true;
+-
+-  base::FilePath policy_user_data_dir;
+-  policy::path_parser::CheckUserDataDirPolicy(&policy_user_data_dir);
+-
+-  base::FilePath user_data_dir;
+-  bool success = base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+-  DCHECK(success);
+-  return user_data_dir == policy_user_data_dir ||
+-         chrome::IsUsingDefaultDataDirectory().value_or(false);
++  // Alerse: a Space is a profile, not a second browser; it gets no shortcut,
++  // badged icon or renamed "<profile> - Alerse" shortcut of its own.
++  return false;
+ }
+ 
+ // static

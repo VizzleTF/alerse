@@ -74,6 +74,7 @@ look/space-rename-title.patch
 look/windows-mac-command-bar.patch
 spaces/space-profiles.patch
 spaces/start-in-last-space.patch
+spaces/one-taskbar-app-win.patch
 sync/space-sync-chains.patch
 spaces/shared-sidebar-width.patch
 spaces/empty-space-address.patch
