@@ -291,15 +291,16 @@ diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/v
 index 928a723e2e2..e8c70df7d3c 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
-@@ -168,6 +168,7 @@
+@@ -168,6 +168,8 @@
  #include "chrome/browser/ui/views/frame/contents_web_view.h"
  #include "chrome/browser/ui/views/frame/custom_floating_corner.h"
  #include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_space_switcher.h"
 +#include "chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h"
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout.h"
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout_delegate_impl.h"
  #include "chrome/browser/ui/views/frame/main_background_region_view.h"
-@@ -1471,6 +1472,28 @@ bool BrowserView::ShouldDrawWebAppFrameToolbar() const {
+@@ -1471,6 +1473,33 @@ bool BrowserView::ShouldDrawWebAppFrameToolbar() const {
           GetFrameView()->ShouldShowWebAppFrameToolbar();
  }
  
@@ -317,6 +318,11 @@ index 928a723e2e2..e8c70df7d3c 100644
 +}
 +
 +views::View* BrowserView::GetAlerseDownloadsAnchor() {
++  // The Space bar's button, as Arc's popover hangs from it; the header's
++  // where a layout still has one.
++  if (views::View* bar = AlerseSpaceSwitcher::FindDownloadsButton(this)) {
++    return bar;
++  }
 +  VerticalTabStripTopContainer* header =
 +      vertical_tab_strip_region_view_
 +          ? vertical_tab_strip_region_view_->GetTopContainer()
@@ -328,7 +334,7 @@ index 928a723e2e2..e8c70df7d3c 100644
  bool BrowserView::IsVerticalTabStripCollapsed() const {
    if (auto* const controller =
            tabs::VerticalTabStripStateController::From(browser_)) {
-@@ -3076,6 +3099,10 @@ bool BrowserView::IsToolbarVisible() const {
+@@ -3076,6 +3105,10 @@ bool BrowserView::IsToolbarVisible() const {
    }
  #endif
  
@@ -339,7 +345,7 @@ index 928a723e2e2..e8c70df7d3c 100644
    // It's possible to reach here before we've been notified of being added to a
    // widget, so |toolbar_| is still null.  Return false in this case so callers
    // don't assume they can access the toolbar yet.
-@@ -4888,7 +4915,9 @@ void BrowserView::Layout(PassKey) {
+@@ -4888,7 +4921,9 @@ void BrowserView::Layout(PassKey) {
    LayoutSuperclass<views::View>(this);
  
    // TODO(jamescook): Why was this in the middle of layout code?

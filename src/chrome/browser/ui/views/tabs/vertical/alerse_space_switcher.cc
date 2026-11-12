@@ -43,6 +43,7 @@
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "ui/events/event.h"
+#include "ui/views/controls/button/button_controller.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
 #include "chrome/browser/ui/chrome_pages.h"
@@ -56,6 +57,7 @@
 #include "components/tabs/public/tab_alert.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
+#include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_action_view_model.h"
@@ -498,6 +500,10 @@ class DownloadsButton : public views::Button {
     alerse::SetArcTooltipBelowPointer(this);
     GetViewAccessibility().SetName(name);
     SetPreferredSize(kSideButtonBox);
+    // On press, while the open popover is still up, so a second click closes
+    // it instead of reopening it after the click deactivated it.
+    button_controller()->set_notify_action(
+        views::ButtonController::NotifyAction::kOnPress);
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
@@ -537,6 +543,18 @@ class DownloadsButton : public views::Button {
 
 BEGIN_METADATA(DownloadsButton)
 END_METADATA
+
+views::View* FindDrawnDownloadsButton(views::View* view) {
+  if (views::IsViewClass<DownloadsButton>(view)) {
+    return view->IsDrawn() ? view : nullptr;
+  }
+  for (views::View* child : view->children()) {
+    if (views::View* found = FindDrawnDownloadsButton(child)) {
+      return found;
+    }
+  }
+  return nullptr;
+}
 
 // Arc for macOS' "+": a 13.5 pt cross 1.7 pt thick in Downloads' grey,
 // on the Space bar's hover plate.
@@ -857,6 +875,11 @@ base::FilePath AlerseSpaceSwitcher::PathOfSpace(
 AlerseSpaceSwitcher::~AlerseSpaceSwitcher() = default;
 
 // static
+// static
+views::View* AlerseSpaceSwitcher::FindDownloadsButton(views::View* root) {
+  return root ? FindDrawnDownloadsButton(root) : nullptr;
+}
+
 bool AlerseSpaceSwitcher::RunSpaceCommand(BrowserWindowInterface* browser,
                                             int command_id) {
   if (command_id == IDC_ALERSE_NEW_SPACE) {
@@ -1217,7 +1240,20 @@ void AlerseSpaceSwitcher::Rebuild() {
   RemoveAllChildViews();
 
   AddChildView(std::make_unique<DownloadsButton>(base::BindRepeating(
-      [](BrowserWindowInterface* browser) { chrome::ShowDownloads(browser); },
+      [](BrowserWindowInterface* browser) {
+        // Arc shows recent downloads in a popover; the page opens only when
+        // there is nothing recent to list.
+        auto* downloads = DownloadToolbarUIController::From(browser);
+        if (!downloads) {
+          chrome::ShowDownloads(browser);
+        } else if (downloads->bubble_contents_for_testing()) {
+          // Open, or closing because this click deactivated it: either way
+          // the click closes it (InvokeUI would open the page instead).
+          downloads->HideDetails();
+        } else {
+          downloads->InvokeUI();
+        }
+      },
       base::Unretained(browser_.get()))));
   views::View* icons = AddChildView(std::make_unique<SpaceIconRow>());
   layout_->SetFlexForView(icons, 1);

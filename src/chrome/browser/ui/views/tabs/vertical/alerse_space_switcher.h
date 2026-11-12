@@ -111,6 +111,10 @@ class AlerseSpaceSwitcher : public views::View,
   // Runs IDC_ALERSE_NEW_SPACE, _NEXT_SPACE or _PREVIOUS_SPACE in `browser`'s
   // Space bar (alerse_space_command_hook.h); false without one.
   static bool RunSpaceCommand(BrowserWindowInterface* browser, int command_id);
+
+  // The Space bar's downloads button under `root` while it is drawn, for the
+  // downloads popover to hang from; null otherwise.
+  static views::View* FindDownloadsButton(views::View* root);
   // Whether such a command can run in `browser` now, and which way a toggle
   // goes (alerse_space_command_hook.h).
   static alerse::SpaceCommandState GetSpaceCommandState(
