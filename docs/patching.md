@@ -17,17 +17,18 @@ cd ..\src
 git init -q && git add -A && git commit -qm base
 ```
 
-Then apply the patches listed in `alerse\patches\series`, in order:
+Then apply the patches listed in `alerse\patches\series`, in order, copy Alerse's own
+files over the tree, and commit the result, so that `git diff` shows only what you
+change next:
 
 ```cmd
-git apply ..\alerse\patches\spaces\space-sidebar.patch
-```
-
-and copy Alerse's own files over the tree:
-
-```cmd
+for /f "eol=# delims=" %p in (..\alerse\patches\series) do git apply ..\alerse\patches\%p
 xcopy /e /y /q ..\alerse\src .
+git add -A && git commit -qm alerse
 ```
+
+The `base` commit is ungoogled-chromium's tree, the `alerse` commit the series on top
+of it.
 
 ## Alerse's own files
 
@@ -39,7 +40,7 @@ change only Chromium's own files, including the `BUILD.gn` lines that build Aler
 Edit these files in the working tree, then copy them back into `alerse\src\`. A new
 file goes there too, never into a patch.
 
-Text the user sees goes in `src/chrome/app/alerse_strings.grdp` as an `IDS_ARCOMIUM_*`
+Text the user sees goes in `src/chrome/app/alerse_strings.grdp` as an `IDS_ALERSE_*`
 message, read with `l10n_util::GetStringUTF16()`; a `$1` in a message goes inside
 `<ph>`, or grit fails. A new message rebuilds every resource, so batch them. Colors are `kColorAlerse*` ids, set in
 `src/chrome/browser/ui/color/alerse_color_mixer.cc` for dark, light and high-contrast
@@ -47,22 +48,27 @@ frames; a view reads them from its color provider instead of holding an `SkColor
 
 ## Add a patch
 
-Each hunk carries a `// Alerse: ...` comment that says why. Keep logic in Alerse's own files and only the hook in
+Each patch carries a `// Alerse: ...` comment that says why (a hunk that only adds an
+`#include` or a build file's line may go without). Keep logic in Alerse's own files and only the hook in
 the patch: a large hunk in a Chromium file is what conflicts on the next Chromium.
 
 Never export a patch from the tree after ungoogled-chromium's domain substitution: its
 rewritten names (`9oo91e`, `qjz9zk`, `m1cr050ft`, `ch40m1um`) must not appear in a patch.
 Check every new patch for them.
 
-1. Make the change in `src/`.
+1. Make the change in the working tree (`src\`, on top of the `alerse` commit).
 2. Export it into the submodule:
 
    ```cmd
    git -C src diff --relative > alerse\patches\<area>\<name>.patch
    ```
 
-3. Add `<area>/<name>.patch` to `alerse\patches\series`.
-4. Check that the whole series still applies to a clean tree. In
+3. Add `<area>/<name>.patch` to `alerse\patches\series`, then commit the change in the
+   working tree, so the next patch's diff starts from it.
+4. Run `python alerse\tools\check_patches.py <area>/<name>.patch`: it checks the series
+   without a Chromium tree (every patch listed once, no substituted names, no new files,
+   the `Alerse:` comment) and CI runs it on every push.
+5. Check that the whole series still applies to a clean tree. In
    [alerse-linux](https://github.com/VizzleTF/alerse-linux), `./check-patches.sh`
    applies it to the Chromium release source in a few minutes, Alerse's patches with
    no fuzz; CI runs it on every push. In the working tree:
@@ -78,10 +84,13 @@ Check every new patch for them.
 
 Let git replay the series with three-way merges:
 
-1. Set up the working tree on the new tag as above, without Alerse's patches, and
-   commit it (the new base).
-2. Fetch the old base (the previous working tree's base commit) into the same
-   repository.
+OLD and NEW below are commit ids: the `base` commit of the previous working tree and
+the one of the new tree.
+
+1. Set up the working tree on the new tag as above, up to the `base` commit, without
+   Alerse's patches (NEW).
+2. Fetch the old base into the same repository:
+   `git -C src fetch <path-to-old-tree> base` (it lands as `FETCH_HEAD`; that is OLD).
 3. Run:
 
    ```cmd
@@ -107,10 +116,9 @@ API changed, adapt the hunk to it, not Chromium back to the old API.
 
 Alerse follows ungoogled-chromium, so a new Chromium is possible only once
 ungoogled-chromium and the platform's port have released it. A port that is behind
-can build from the core's branch for its version (`chromium-156`). Today only
-alerse-ios pins that branch; alerse-linux and alerse-mac pin `main` (0.1.4, the
-157 series) while their ports are still on 156, so they do not build until those ports
-release 157. Their releases so far were built from the 156 series.
+builds from an older core: alerse-ios pins core 1c092e0 (0.1.1, 156) and
+alerse-linux at a core from before Space profiles, since the 157 series does not apply
+to 156. macOS pre-releases are built from a 156 tree kept by hand on the build Mac.
 
 ## iOS patches
 

@@ -24,8 +24,8 @@ and a fallback Arc import script. Builds come from the platform repositories.
 | Linux (x86_64, arm64) | AppImage or tarball from [alerse-linux releases](https://github.com/VizzleTF/alerse-linux/releases) | `chmod +x` the AppImage |
 | iPhone | build from source: [alerse-ios](https://github.com/VizzleTF/alerse-ios) | |
 
-Alerse tells you about a newer release in the logo menu (on macOS the app menu); you
-install it yourself.
+Alerse tells you about a newer release in the Alerse menu (the logo at the top of the
+sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 
 ## Features
 
@@ -39,14 +39,16 @@ install it yourself.
  
   As in Arc, a hovered pinned item's "−" closes its tab and keeps the item, and with no
   tab open its "×" removes the item.
-- **Spaces in one window**: each Space keeps its own cookies and site data, so you can be
-  logged into different accounts side by side. Spaces survive restarts.
+- **Spaces**: each Space is a profile of its own, with its own cookies, logins, history
+  and extensions, so you can be logged into different accounts side by side. The
+  Spaces' windows sit in one place and switching shows the next one, so they look like
+  one window. Spaces survive restarts.
 
   ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
   [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, end-to-end
   encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
-  in the app menu. A free public server is planned.
+  in the Alerse menu. A free public server is planned.
 - **Command bar actions**: type a command's name in the command bar to run it, as in
   Arc: Copy URL, Copy URL as Markdown or as Quote, Pin or Unpin Tab, New Space, Rename
   Space, Edit Theme, New Folder, Collapse Pinned Tabs, Reveal Tab in Sidebar, View
@@ -62,7 +64,7 @@ install it yourself.
   shown pane, Ctrl+Shift+1 and 2 switch panes. Drag a tab onto another tab in the
   sidebar, or onto the page's edge, to split the two; the sidebar shows a split as
   one row, and dragging a pane out of it separates it. Also Open in Split View in the
-  sidebar's menus and the split items of the View menu (macOS) or the logo menu.
+  sidebar's menus and the split items of the View menu (macOS) or the Alerse menu.
 
   ![GitHub and Wikipedia side by side in Split View](docs/images/split-view.png)
 - **Arc's menu bar on macOS**: File, Edit, View, Spaces, Tabs, Archive, Extensions,
@@ -95,7 +97,7 @@ install it yourself.
 
 ## Move from Arc
 
-Open the Alerse menu (the logo at the top of the sidebar; on macOS the app menu) and
+Open the Alerse menu (the logo at the top of the sidebar; on macOS the menu bar's) and
 pick **Import from Another Browser...**, or go to `chrome://alerse-import`. The page
 lists what it finds on this computer, with an **Import** button for each:
 
@@ -111,11 +113,11 @@ again replaces what it brought in before. For Firefox, Safari or an HTML bookmar
 the page links to the standard importer.
 
 Fallback, for a profile Alerse is not running on: close Alerse and run
-`python tools\arc_import.py --profile "%LOCALAPPDATA%\Alerse\User Data\Default"`
-(Python 3, Windows; without `--profile` it writes to Chromium's profile directory). It writes the same Arc bookmarks
+`python tools\arc_import.py` (Python 3, Windows). It writes to home's profile,
+`%LOCALAPPDATA%\Alerse\User Data\Default`, or to the one `--profile` names. It writes the same Arc bookmarks
 straight into the profile's `Bookmarks` file, replacing what it or the import page
-imported before; each new Space you then create with "+" takes the next imported Arc
-Space.
+imported before. Arc's first Space goes to home; when Alerse starts, each other Arc Space
+becomes a Space of its own with its pinned items.
 
 ## Repositories
 
@@ -132,15 +134,15 @@ Space.
 
 | Area | State |
 |---|---|
-| Spaces with separate logins | done; recently closed tabs reopen without their Space's logins |
+| Spaces with separate logins | done: each Space is a profile (0.1.12+) |
 | Sidebar, drag and drop, command bar | done |
-| Import from Arc and Chromium-based browsers | done; Windows only (0.1.3+) until Linux and macOS move to 157 |
+| Import from Arc and Chromium-based browsers | done on Windows (0.1.3+) and macOS (0.1.12+); Linux after it moves to 157 |
 | Sync | done with your own server: Windows, Linux, macOS and iOS in one chain; only Windows 0.1.2+ holds data back until it is end-to-end encrypted, so start a chain there; public server to do |
 | Windows | releases on Chromium 157 |
 | Linux | releases on Chromium 156, built in CI |
-| macOS | on Chromium 156, built locally without PGO, until ungoogled-chromium-macos ships 157; Arc's menu bar instead of the top bar and logo menu |
+| macOS | pre-releases on Chromium 156, built locally (official build with PGO), until ungoogled-chromium-macos ships 157; Arc's menu bar instead of the top bar and logo menu |
 | iPhone | builds and syncs in the simulator; Spaces and the sidebar not on iOS |
-| Link routing to Spaces | done: routes by site at Link routing in the app menu |
+| Link routing to Spaces | done: routes by site at Link routing in the Alerse menu |
 | Media mini player, auto picture-in-picture | done |
 | Updates | the browser tells about a newer release; you install it yourself |
 | Code signing | none yet: Windows SmartScreen warns, macOS needs the quarantine flag removed |
@@ -151,17 +153,17 @@ Alerse keeps ungoogled-chromium's privacy defaults, with these exceptions:
 
 | Exception | What reaches Google | Off by |
 |---|---|---|
-| Google is the default search engine | Your searches, only when you search | Picking another engine in the menu of the sidebar's logo, Search Engine |
+| Google is the default search engine | Your searches, only when you search | Picking another engine in the Alerse menu, Search Engine |
 | Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
 | The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
 
 Alerse has no updater. A few minutes after it starts, and then once a day, it
 asks GitHub's API for the platform's latest release: a plain GET of
 `api.github.com/repos/VizzleTF/alerse-<platform>/releases/latest`, without
-cookies. When the release is newer, the menu of the sidebar's logo (on macOS, the
-app menu) shows "Update to Alerse X.Y.Z", which opens the release's page; nothing
+cookies. When the release is newer, the Alerse menu shows "Update to Alerse X.Y.Z", which opens the release's page; nothing
 is downloaded by itself. To turn the check off, quit Alerse and set
-`"arcomium": {"update_check": {"enabled": false}}` in the `Local State` file of
+`"arcomium": {"update_check": {"enabled": false}}` (`arcomium` is Alerse's earlier
+name, kept in stored settings) in the `Local State` file of
 Alerse's user data folder (`%LOCALAPPDATA%\Alerse\User Data` on Windows).
 Headless mode and `--disable-background-networking` turn it off too.
 

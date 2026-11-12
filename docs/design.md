@@ -14,7 +14,9 @@ and texts, and none of Arc's code or artwork.
 
 The product is **Alerse** from 0.1.8 on, a free spelling of alerce, the Chilean tree
 (the user's decision, 2026-11-09). Releases 0.1.0 to 0.1.7 went out under an earlier
-name, Arcomium; this section is the one place that still names it. The icon is
+name, Arcomium. Names that profiles, sync or the wire format already store keep
+`arcomium` (prefs `arcomium.*`, bookmark meta info, the sync protocol's labels); new
+code says Alerse. The icon is
 Alerse's own: an "A" whose left stroke is a brown trunk with a cut branch and whose
 right stroke is green, on a white rounded tile (`artwork/`, see
 [patching](patching.md#branding-and-the-product-name)).
@@ -147,9 +149,10 @@ feature does on it. In short:
 - Tabs of the Spaces not shown are background tabs of hidden windows and keep
   running, so music or a messenger in another Space goes on. Memory Saver, on by
   default, unloads idle tabs.
-- A release before the profiles (0.1) kept every Space in one profile, each in a
-  storage partition. Nothing is migrated: such a profile opens as home, and its other
-  Spaces' folders stay in Other Bookmarks as ordinary folders.
+- A release before the profiles (0.1.11 and earlier) kept every Space in one profile,
+  each in a storage partition. Such a profile opens as home, and each other Space's
+  folder becomes a Space of its own with its pinned items (below); its tabs, cookies and
+  logins are not carried over.
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; shows recent downloads in a popover above
   it and closes it on a second click, as Arc does, without a tab; with nothing from
@@ -197,6 +200,9 @@ the folder to is recorded so that a later import fills this Space instead of mak
 second one, and the folder goes from home. The window stays on the Space it shows. Only
 pinned items move: the Space's tabs and its sites' cookies and logins stayed in 0.1's
 storage partition and are not carried over.
+An Arc Space that `tools/arc_import.py` left in home's bookmarks (a folder marked
+`arc:<id>`) becomes a Space the same way, in home's first pass after start; the import
+page makes its Spaces itself, so later in the session such a folder is left to it.
 
 Known gaps:
 
@@ -210,7 +216,8 @@ Known gaps:
 - favorites are a set for each Space;
 - a Space's folder, made with its first pinned item or theme color, was named "home"
   whatever the Space (fixed 2026-11-12: it takes the Space's name);
-- Windows and Linux were not built with the profiles yet.
+- Linux is not built with the profiles yet: the series targets Chromium 157, and
+  Linux waits for ungoogled-chromium-portablelinux 157 (Windows has them from 0.1.12).
 
 ## Sidebar look
 
@@ -221,9 +228,10 @@ like the Mac everywhere but the top of the window. The list below is what Arc fo
 Windows' measurements still set (see `AlerseSidebarView`):
 
 - Header row, 32 px: Alerse menu, sidebar toggle, downloads at x = 23, 58, 93.
-- Favorites: Arc's tiles above the Space's name, the same in every Space. They are
-  the bookmarks of a folder beside the Spaces' (meta info `arcomium.favorites = 1`,
-  created by the first Add to Favorites), so they sync like pinned tabs. Tiles are 47
+- Favorites: Arc's tiles above the Space's name. Each Space has its own, as each Space
+  is a profile (ADR-0001). They are the bookmarks of a folder beside the Space's folder
+  (meta info `arcomium.favorites = 1`, created by the first Add to Favorites), so they
+  sync like pinned tabs. Tiles are 47
   high, 8 apart, up to four in a row filling the sidebar's width (two are 70 pt wide on
   macOS, as in Arc), a shade off the frame (#2F2F2F on #161616), lighter on hover
   (#383839); the site's icon sits in the middle. The tile whose tab is shown is Arc's
@@ -236,12 +244,11 @@ Windows' measurements still set (see `AlerseSidebarView`):
   alert (camera, microphone, screen...) at the top right, a "/" at the top left once
   its tab left the favorite's page, and the attention dot on its icon. What Arc draws
   there was not measured (it needs a favorite that plays sound in the user's Arc). A favorite
-  opens as a Chromium pinned tab outside the Spaces, in their default storage, bound to
-  it like a pinned item; the binding survives restarts as a pinned item's does. Add to
+  opens as a Chromium pinned tab of the Space's window, bound to it like a pinned item;
+  the binding survives restarts as a pinned item's does. Add to
   Favorites (tab and pinned-item menus) and dragging a row onto the tiles, or onto the
-  strip under the address field while there are none, make one; a Space's tab opens
-  anew outside its Space for it, as its storage stays in the Space. Tiles reorder by
-  dragging; Remove Favorite leaves the tab open as an ordinary tab of home. Measured on
+  strip under the address field while there are none, make one; the tab becomes the favorite's in place. Tiles reorder by
+  dragging; Remove Favorite leaves the tab open as an ordinary tab of the Space. Measured on
   Arc for macOS only; on Windows they use the same numbers.
 - Pinned tree: the Space's bookmark folder (meta info `arcomium.space = <Space id>`,
   `default` outside of Spaces, `arc:<id>` for an imported Space not yet adopted by an
@@ -641,7 +648,7 @@ Windows' numbers for those:
   - **Spaces**: New Space..., Edit Theme... and Rename Space (Arc's ellipses: none
     on Rename Space, which edits the name in place) for the shown Space (Edit
     Theme's picker opens over the Space bar, as there is no menu to open it at), the
-    next and previous Space (Option+Cmd+Right and Left, `IDC_ARCOMIUM_*_SPACE`, run by
+    next and previous Space (Option+Cmd+Right and Left, `IDC_ALERSE_*_SPACE`, run by
     the Space bar through `alerse_space_command_hook.h`), then, as in Arc, every
     Space of the Space bar in its order with its icon, about 12.5 pt as Arc's (a
     glyph drawn as a template image, so the menu tints it, or for a Space with a
@@ -1348,7 +1355,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   disc with site settings, extension site access and extension management. The panel
   closes when its tab closes or leaves the page.
 
-Text the user sees is in `IDS_ARCOMIUM_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids
+Text the user sees is in `IDS_ALERSE_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids
 (see [patching](patching.md)), set from the frame: Arc's greys on a dark frame, inverted
 on a light one, system colors in high contrast. The command bar's rows are a web
 page: their light set is in `look/command-bar-light.patch`, under
@@ -1434,7 +1441,7 @@ The user asked for it back on 2026-11-08 after it had been taken out; Peek stays
   window (Chromium keeps the other at its minimum), again evens them.
   **Switch to Split View 1 / 2** (Control+Shift+1 and 2, in no menu, as in Arc; on
   macOS keys outside the menu, `global_keyboard_shortcuts_mac.mm`): shows the left or
-  right pane (mirrored in right-to-left layouts). These are `IDC_ARCOMIUM_*_SPLIT*`
+  right pane (mirrored in right-to-left layouts). These are `IDC_ALERSE_*_SPLIT*`
   commands, enabled only while the shown tab is in a split (`OnSplitTabChanged`).
 - Both platforms behave the same; only where the items sit differs (macOS' menu bar
   and "+" popover, the logo menu and the top bar's button elsewhere).
@@ -1561,8 +1568,8 @@ The import's unit tests are in `alerse_import_data_unittest.cc` and
 
 Known gaps:
 
-- import on macOS and Linux was never built or run there; the paths follow the
-  browsers' documentation;
+- import on Linux was never built; on macOS it is built (0.1.12 and later), but other
+  browsers' paths there were not tried; the paths follow the browsers' documentation;
 - icons come only from Arc; other browsers' bookmarks get their icons on the first
   visit;
 - an imported Arc item the user moved out of its folder is added again by the next
@@ -1761,15 +1768,14 @@ makes every section a grid, and an author `display` beats the user agent's
 have that rule, so a fresh profile showed the left banner and the status block,
 hidden but drawn, above the setup forms.
 
-### Server: alerse-sync (alerse-sync)
+### Server: alerse-sync
 
 Written for Alerse in Go: [alerse-sync](https://github.com/VizzleTF/alerse-sync). The
-repository is alerse-sync now; the binary, image and Go module keep the name
-alerse-sync for now, and the protocol's
+Go module keeps the earlier name, `github.com/VizzleTF/arcomium-sync`. The protocol's
 identifiers never change with the product's name: the key derivation contexts
-(`alerse-sync-login-id-v1`, `alerse-sync-login-v1`, `alerse-sync-token-v1`, ...),
-the `pw-v1` and `pair-v1` schemes and the switches `--alerse-sync-url` and
-`--alerse-sync-secret` are part of the wire format or of setups people have.
+(`arcomium-sync-token-v1`, `arcomium-sync-login-id-v1`, `arcomium-sync-login-auth`,
+`arcomium-sync-login-enc`, `arcomium-pair-*`) and the `pw-v1` and `pair-v1` schemes are
+part of the wire format. The switches are `--alerse-sync-url` and `--alerse-sync-secret`.
 It speaks the Chromium sync protocol (`POST /v2/command/`), with the protocol buffers of
 the Chromium tree we build, so every data type Chromium syncs works without server
 changes.
@@ -1848,10 +1854,10 @@ Releases:
 
 Alerse follows ungoogled-chromium's releases, so it runs about one Chromium major
 version behind Chrome stable. The series on `main` is for Chromium 157; the branch
-`chromium-156` keeps the 156 series. Windows is on 157. Linux (release 0.1.1) and macOS
-(pre-release 0.1.0) were released from the 156 series and move to 157 when
-ungoogled-chromium-portablelinux and ungoogled-chromium-macos release it; their
-repositories already pin the core's `main`, so they do not build until then. iOS pins
+`chromium-156` keeps the 156 series. Windows is on 157. macOS (pre-releases up to 0.1.13) is built from a 156 tree
+kept by hand on the build Mac, and Linux (release 0.1.1) from the 156 series; both
+move to 157 when ungoogled-chromium-macos and ungoogled-chromium-portablelinux release
+it. alerse-linux pins an older core until then, as the series does not apply to 156. iOS pins
 the core at 0.1.1 (156). What came in 0.1.2 to 0.1.4 (own install identity,
 end-to-end-only sync, import, the update notice) is on Windows only until then.
 
@@ -1919,9 +1925,9 @@ is not read.
   session that last took audio focus in the Space shown, in any of its windows, while its
   tab is not the one you are looking at. It shows the artwork (or the site's icon), the
   title and the artist, pauses and resumes, and a click goes to the tab and its Space.
-  Only media of the window's own profile shows: media playing in another Space does
-  not, and an incognito tab's media never shows in a regular window, nor the other
-  way round. It is push-based (Chromium's media
+  It lists the media of every Space of the window (see Spaces), and a click shows that
+  Space with the tab; an incognito tab's media never shows in a regular window, nor the
+  other way round. It is push-based (Chromium's media
   session controller), with no polling.
 - **Automatic picture-in-picture** when you leave a playing video's tab or Space, on any
   site: Chromium's browser-initiated automatic picture-in-picture
@@ -1970,7 +1976,7 @@ these changes:
   Accept-Language header; the Topics API off. Ctrl+Tab goes in most-recently-used
   order (the `kCtrlTabMru` pref on; the feature of that name is Chromium's default since
   157).
-- Alerse's own browser commands (`IDC_ARCOMIUM_*`: Pin Tab and Ctrl+D, Copy URL as
+- Alerse's own browser commands (`IDC_ALERSE_*`: Pin Tab and Ctrl+D, Copy URL as
   Markdown, the Space commands, Link routing, Import, the update) run on Chromium 157,
   whose browser commands go through actions (`kUseActionsForBrowserCommands`, on by
   default since 157; 156 has it off): there `CommandActionUpdater` knows only the

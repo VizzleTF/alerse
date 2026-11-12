@@ -1,12 +1,14 @@
 # Versions
 
 Alerse has its own version, `MAJOR.MINOR.PATCH`, the same on every platform
-(0.1.0 to 0.1.7 were released under the project's earlier name). A
+(0.1.0 to 0.1.7 were released under the project's earlier name, Arcomium, which
+stored settings still use: `arcomium.*`). A
 release is tagged `vMAJOR.MINOR.PATCH` in each platform repository; its packages
 carry that version in their names.
 
-The version in `VERSION` is the next release's. Development is on the 0.1 line:
-each release raises the patch number. The minor number goes up only when the
+`VERSION` holds the newest release's version: a release raises it in its
+`chore(release): X.Y.Z` commit, and that commit gets the tag. Development is on the 0.1
+line: each release raises the patch number. The minor number goes up only when the
 project decides on it.
 
 ## Releases
@@ -34,10 +36,13 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.6 | Windows | 157.0.8103.3806 | Command bar actions and shortcuts, Split View (keys, menus, drag a tab onto a tab or the page edge), Arc's icon pickers for Spaces, pinned items, folders and favorites; macOS look and menus matched to Arc |
 | 0.1.7 | macOS (pre-release) | 156.0.8078.7907 | Last release under the earlier name. First official macOS build (ThinLTO, PGO) since 0.1.0, with the changes of 0.1.1 to 0.1.6 that apply to it; Rename Space titled "Edit Space name", the Space bar's Downloads button in place of the archive |
 | 0.1.8 | Windows, macOS (pre-release) | 157.0.8103.3808 (Windows), 156.0.8078.7908 (macOS) | First release named Alerse, with its icon and install identity; takes over the earlier name's profile. Windows looks like Arc for macOS but for the top bar (sidebar, Space bar and popovers, page card, floating hidden sidebar, command bar); the logo menu lists the Spaces and has Copy URL as Quote, Reveal Tab and Collapse Pinned Tabs; the window is named after its Space. Sync sign-in with a login and password, pairing by code, recovery sheet |
+| 0.1.9 | macOS (pre-release) | 156.0.8078.7909 | The address field's buttons and site controls as in Arc, pinned extensions in the field. Crashed when a window closed |
+| 0.1.10 | macOS (pre-release) | 156.0.8078.7910 | Fixes 0.1.9's crash on window close; sync sign-in with a login and password on macOS; Arc's picture-in-picture window |
+| 0.1.11 | Windows (x64 only), macOS (pre-release) | 157.0.8103.3811 (Windows), 156.0.8078.7911 (macOS) | Alerse instead of Chromium or Chrome everywhere in the app; no ungoogled-chromium welcome page; `chrome://alerse-*` pages on macOS |
 | 0.1.12 | Windows, macOS (pre-release) | 157.0.8103.5012 (Windows, on 157.0.8103.50), 156.0.8078.7912 (macOS) | Each Space is its own Chromium profile with its own window (ADR-0001): own cookies, logins and history; a 0.1 Space left in home becomes a Space of its own with its pinned items. Motion system; Arc's find pill, site controls, command bar on the page's address; downloads popover on the Space bar |
 | 0.1.13 | Windows, macOS (pre-release) | 157.0.8103.5013 (Windows, on 157.0.8103.50), 156.0.8078.7913 (macOS) | Windows fixes after the first day on 0.1.12: one taskbar button for all Spaces, no profile avatar or per-Space shortcut; the Web Store installs again; Ctrl+L on an empty Space; Split View on a one-tab Space; "Search or Enter URL..." placeholder; no Chromium Downloads button in the top bar; incognito window title; a sidebar item picked in the command bar shows its pinned tab; Ctrl+S, Ctrl+Alt+Left/Right and Ctrl+Shift+K as in Arc. macOS gets the fixes that are not Windows-only, and site controls tiles that follow an extension's icon |
 
-Linux and macOS get the changes of 0.1.2 to 0.1.4 with their first release on Chromium 157.
+Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
 ## The Chromium version inside the browser
 

@@ -1,7 +1,9 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
-Status: accepted, 2026-11-11. Steps 1 to 4 and 6 to 8 of the [order of work](#order-of-work) are
-built on the branch `space-profiles`; [design.md](../design.md) describes release 0.1.
+Status: accepted, 2026-11-11; shipped in 0.1.12 on Windows and macOS (2026-11-12).
+Linux waits for Chromium 157 (step 9). [design.md](../design.md) describes the
+behaviour as built. "0.1" below means the releases before Space profiles (0.1.11 and
+earlier).
 
 ## Context
 
@@ -200,12 +202,15 @@ entry of a Space made by the import records Arc's id of the Space
 import brought. Other browsers: each source profile is imported
 into the Space that is visible, as today.
 
-### No migration from 0.1
+### Migration from 0.1
 
-Decided on 2026-11-11: 0.1 had no users besides the owner, so nothing is migrated. A
-profile of 0.1 opens as home with home's pinned items, logins and tabs. The folders of
-its other Spaces stay in Other Bookmarks as ordinary folders, and Chromium deletes
-those Spaces' storage partitions, with their logins, when the profile loads.
+Decided on 2026-11-11 that nothing is migrated; reversed on 2026-11-12, before 0.1.12
+shipped, so that the owner's Spaces of 0.1 survive the update. A profile of 0.1 opens as
+home with home's pinned items, logins and tabs. Each other Space's folder becomes a
+Space of its own with its name, icon, color and pinned items
+(`AlerseSidebarView::AdoptLegacySpace()`, docs/design.md, Spaces). Its tabs and its
+storage partition, with its logins, are not carried over: Chromium deletes the
+partitions when the profile loads.
 
 ### Platforms
 
@@ -386,9 +391,10 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    and hidden state follow the stack since 2026-11-11 (`shared-sidebar-width.patch`).
    The member shown next takes the shown one's full screen state before it shows.
    On macOS each full screen member is a desktop of its own, so a switch in full
-   screen slides between desktops. Not built: the dot for a prompt in a hidden
-   member.
-5. Migration from 0.1. Dropped on 2026-11-11 (No migration from 0.1).
+   screen slides between desktops. The dot for a prompt in a hidden member came on
+   2026-11-12.
+5. Migration from 0.1. Dropped on 2026-11-11, then done on 2026-11-12 for each
+   Space's pinned items (Migration from 0.1).
 6. Link routing, import, the command bar and menu bar.
    Done on 2026-11-11 for link routing (in step 3), the Spaces menu of the menu bar
    and the import from Arc. Not tested: the command bar's Space commands.
@@ -399,10 +405,14 @@ devices after the change. The other Spaces of a 0.1 profile lose their logins.
    sign-in with a login and pairing, which now carry the browser's secret; iOS,
    which has no Spaces and keeps the setup in its profile.
 9. Windows and Linux.
+   Windows done on 2026-11-12 (0.1.12 on Chromium 157.0.8103.50), with one taskbar
+   button for all members (`spaces/one-taskbar-app-win.patch`). Linux waits for
+   ungoogled-chromium-portablelinux 157: the series does not apply to 156.
 
 ## Open questions
 
-- Is the switch free of a visible flash on macOS with a full-screen member, and on
-  Wayland? Step 1 answers the first, step 9 the second.
+- Is the switch free of a visible flash with a full-screen member on macOS, and on
+  Wayland? Neither is measured yet: step 1 measured windowed members only, and
+  Linux (step 9) is not built.
 - An "Install in every Space" action for extensions is likely to be asked for. It is
   not part of this decision.
