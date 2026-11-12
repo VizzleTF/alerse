@@ -1126,7 +1126,8 @@ void AlerseSpaceSwitcher::ShowActiveSpaceMenuIn(
 // static
 void AlerseSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser,
                                         const std::u16string& name,
-                                        SpaceCreatedCallback created) {
+                                        SpaceCreatedCallback created,
+                                        bool show) {
   if (browser->GetProfile()->IsOffTheRecord()) {
     return;
   }
@@ -1140,12 +1141,15 @@ void AlerseSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser,
       profiles::GetPlaceholderAvatarIndex(), /*is_hidden=*/false,
       base::BindOnce(
           [](int stack, base::FilePath from_path, SpaceCreatedCallback created,
-             Profile* profile) {
+             bool show, Profile* profile) {
             if (!profile) {
               return;
             }
             if (created) {
               std::move(created).Run(profile);
+            }
+            if (!show) {
+              return;
             }
             alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
             Profile* from_profile =
@@ -1157,7 +1161,7 @@ void AlerseSpaceSwitcher::CreateSpace(BrowserWindowInterface* browser,
               stacks.ShowSpace(from, profile);
             }
           },
-          stack, browser->GetProfile()->GetPath(), std::move(created)));
+          stack, browser->GetProfile()->GetPath(), std::move(created), show));
 }
 
 void AlerseSpaceSwitcher::BookmarkModelChanged() {

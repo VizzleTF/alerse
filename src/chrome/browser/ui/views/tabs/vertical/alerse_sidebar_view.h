@@ -46,6 +46,7 @@
 
 class AlerseAddressBar;
 class BrowserWindowInterface;
+class Profile;
 
 namespace bookmarks {
 class BookmarkModel;
@@ -392,6 +393,20 @@ class AlerseSidebarView : public views::View,
   // Makes a new Space of `folder`, its items the Space's pinned ones, and
   // shows it, as Arc's Turn into Space.
   void TurnIntoSpace(const bookmarks::BookmarkNode* folder);
+  // Makes a Space of the first folder home's bookmarks still hold for a
+  // Space of 0.1 (a tab group of one profile then), with its name, icon,
+  // color and pinned items, and goes on with the next once it is done.
+  void AdoptLegacySpace();
+  // What AdoptLegacySpace() carries into the new Space.
+  struct LegacySpace {
+    int64_t id = 0;
+    std::string icon;
+    std::string color;
+    std::string arc_space;
+  };
+  static void FillAdoptedSpace(base::WeakPtr<AlerseSidebarView> sidebar,
+                               LegacySpace legacy,
+                               Profile* profile);
   // Edits the name (and address) of a pinned item or folder.
   void RenameNode(int64_t id);
   // Arc's Change Icon...: its glyph picker under the item's row.
@@ -604,6 +619,8 @@ class AlerseSidebarView : public views::View,
 
   base::WeakPtrFactory<AlerseSidebarView> weak_factory_{this};
   // Not invalidated by rebuilds, unlike `weak_factory_`.
+  // A legacy Space is being made into a profile (AdoptLegacySpace()).
+  bool adopting_legacy_space_ = false;
   base::WeakPtrFactory<AlerseSidebarView> drop_weak_factory_{this};
   base::WeakPtrFactory<AlerseSidebarView> split_weak_factory_{this};
 };

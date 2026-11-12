@@ -184,6 +184,10 @@ namespace {
 constexpr char16_t kRowDragData[] = u"alerse-sidebar-row";
 
 constexpr char kSpaceMetaKey[] = "arcomium.space";
+// A Space's icon on its home folder (alerse_space_switcher.cc reads it).
+constexpr char kLegacySpaceIconMetaKey[] = "arcomium.space_icon";
+// The Space of Arc an import bound a folder to (alerse_import_data.h).
+constexpr char kLegacyArcSpaceMetaKey[] = "arcomium.arc_space";
 constexpr char kOpenMetaKey[] = "arcomium.open";
 constexpr char kIconMetaKey[] = "arcomium.icon";
 constexpr char kFolderIconMetaKey[] = "arcomium.folder_icon";
@@ -3339,6 +3343,12 @@ void AlerseSidebarView::OnSpaceDrawn(BrowserWindowInterface* to) {
 void AlerseSidebarView::Rebuild() {
   absl::Cleanup slide = [this] { DropSwipePreview(); };
   rebuild_pending_ = false;
+  // Once home's bookmarks have loaded, its Spaces of 0.1 become profiles.
+  if (!adopting_legacy_space_ && model_ && model_->loaded()) {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&AlerseSidebarView::AdoptLegacySpace,
+                                  drop_weak_factory_.GetWeakPtr()));
+  }
   const std::vector<tabs::TabInterface::Handle> tabs_before = PlainTabRows();
   hover_timer_.Stop();
   FinishFolderAnimation();
@@ -6206,6 +6216,90 @@ void AlerseSidebarView::TurnIntoSpace(
                     sidebar, id));
           },
           drop_weak_factory_.GetWeakPtr(), folder->id()));
+}
+
+void AlerseSidebarView::AdoptLegacySpace() {
+  if (adopting_legacy_space_ || !model_ || !model_->loaded() ||
+      browser_->GetProfile()->IsOffTheRecord() ||
+      !alerse::GetSpaceOfProfile(browser_->GetProfile()).home) {
+    return;
+  }
+  for (const auto& child : model_->other_node()->children()) {
+    std::string space;
+    // A Space of 0.1 is a folder marked with its id; home's own folder is
+    // "default" and a Space of Arc not taken over yet "arc:<id>".
+    if (!child->is_folder() || !child->GetMetaInfo(kSpaceMetaKey, &space) ||
+        space.empty() || space == "default" || space.starts_with("arc:")) {
+      continue;
+    }
+    adopting_legacy_space_ = true;
+    LegacySpace legacy;
+    legacy.id = child->id();
+    child->GetMetaInfo(kLegacySpaceIconMetaKey, &legacy.icon);
+    child->GetMetaInfo(alerse::kSpaceColorMetaKey, &legacy.color);
+    // The Space of Arc an import filled this folder from: a later import
+    // fills the new Space instead of making a second one
+    // (alerse_import_handler.cc, FindSpaceOfArcSpace()).
+    if (std::string arc; child->GetMetaInfo(kLegacyArcSpaceMetaKey, &arc) &&
+                         !arc.empty()) {
+      legacy.arc_space = "arc:" + arc;
+    }
+    AlerseSpaceSwitcher::CreateSpace(
+        browser_, child->GetTitle(),
+        base::BindOnce(&AlerseSidebarView::FillAdoptedSpace,
+                       drop_weak_factory_.GetWeakPtr(), std::move(legacy)),
+        /*show=*/false);
+    return;
+  }
+}
+
+// static
+void AlerseSidebarView::FillAdoptedSpace(base::WeakPtr<AlerseSidebarView> sidebar,
+                                         LegacySpace legacy,
+                                         Profile* profile) {
+  alerse::WithBookmarksOf(
+      profile,
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSidebarView> sidebar, LegacySpace legacy,
+             Profile* profile, bookmarks::BookmarkModel* to) {
+            if (!sidebar) {
+              return;
+            }
+            sidebar->adopting_legacy_space_ = false;
+            const bookmarks::BookmarkNode* folder =
+                sidebar->GetNode(legacy.id);
+            if (!folder) {
+              return;
+            }
+            const bookmarks::BookmarkNode* space =
+                alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
+            if (!legacy.icon.empty()) {
+              to->SetNodeMetaInfo(space, kLegacySpaceIconMetaKey, legacy.icon);
+            }
+            if (!legacy.color.empty()) {
+              to->SetNodeMetaInfo(space, alerse::kSpaceColorMetaKey,
+                                  legacy.color);
+            }
+            for (const auto& item : folder->children()) {
+              alerse::CopyNodeTo(item.get(), to, space);
+            }
+            alerse::UpdateSpaceCopy(profile->GetPath(), folder->GetTitle(),
+                                    legacy.icon, legacy.color);
+            if (!legacy.arc_space.empty()) {
+              if (ProfileAttributesEntry* entry =
+                      g_browser_process->profile_manager()
+                          ->GetProfileAttributesStorage()
+                          .GetProfileAttributesWithPath(profile->GetPath())) {
+                entry->SetAlerseValue(alerse::kSpaceEntryArcKey,
+                                      legacy.arc_space);
+              }
+            }
+            sidebar->RemoveMovedNode(folder);
+            base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+                FROM_HERE,
+                base::BindOnce(&AlerseSidebarView::AdoptLegacySpace, sidebar));
+          },
+          sidebar, std::move(legacy)));
 }
 
 std::vector<GURL> AlerseSidebarView::GetFolderLinks(

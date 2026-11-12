@@ -103,9 +103,11 @@ class AlerseSpaceSwitcher : public views::View,
   // Creates a Space named `name` ("Space N" if empty) and shows it in
   // `browser`'s place. `created` runs with its profile before it shows.
   using SpaceCreatedCallback = base::OnceCallback<void(Profile*)>;
+  // `show`: the window switches to the new Space once it has loaded.
   static void CreateSpace(BrowserWindowInterface* browser,
                           const std::u16string& name = std::u16string(),
-                          SpaceCreatedCallback created = {});
+                          SpaceCreatedCallback created = {},
+                          bool show = true);
   // Runs IDC_ALERSE_NEW_SPACE, _NEXT_SPACE or _PREVIOUS_SPACE in `browser`'s
   // Space bar (alerse_space_command_hook.h); false without one.
   static bool RunSpaceCommand(BrowserWindowInterface* browser, int command_id);

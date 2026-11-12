@@ -186,6 +186,15 @@ the reverse), and a click on it shows that Space with the tab. Verified on macOS
 2026-11-12 with sound, a microphone request and a video-less audio page in a second
 Space; geolocation cannot test it, since Blink holds a hidden page's request back.
 
+A Space of 0.1 (a tab group, whose pinned items are a folder of home's bookmarks
+marked with its id) becomes a Space of its own the first time home's sidebar sees its
+folder (`AlerseSidebarView::AdoptLegacySpace()`): a profile is made with the folder's
+name, the folder's items, icon and color move into it, the Space of Arc an import bound
+the folder to is recorded so that a later import fills this Space instead of making a
+second one, and the folder goes from home. The window stays on the Space it shows. Only
+pinned items move: the Space's tabs and its sites' cookies and logins stayed in 0.1's
+storage partition and are not carried over.
+
 Known gaps:
 
 - on macOS in full screen, each Space's window is a full screen desktop of its own,
