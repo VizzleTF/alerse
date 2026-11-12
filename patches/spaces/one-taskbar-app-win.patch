@@ -52,3 +52,47 @@ diff --git a/chrome/browser/profiles/profile_shortcut_manager_win.cc b/chrome/br
  }
  
  // static
+diff --git a/chrome/browser/taskbar/taskbar_decorator_win.cc b/chrome/browser/taskbar/taskbar_decorator_win.cc
+--- a/chrome/browser/taskbar/taskbar_decorator_win.cc
++++ b/chrome/browser/taskbar/taskbar_decorator_win.cc
+@@ -193,37 +193,9 @@
+ }
+ 
+ void UpdateTaskbarDecoration(Profile* profile, gfx::NativeWindow window) {
+-  if (profile->IsGuestSession() ||
+-      // Browser process and profile manager may be null in tests.
+-      (g_browser_process && g_browser_process->profile_manager() &&
+-       g_browser_process->profile_manager()
+-               ->GetProfileAttributesStorage()
+-               .GetNumberOfProfiles() <= 1)) {
+-    taskbar::DrawTaskbarDecoration(window, nullptr);
+-    return;
+-  }
+-
+-  // We need to draw the taskbar decoration. Even though we have an icon on the
+-  // window's relaunch details, we draw over it because the user may have
+-  // pinned the badge-less Chrome shortcut which will cause Windows to ignore
+-  // the relaunch details.
+-  // TODO(calamity): ideally this should not be necessary but due to issues
+-  // with the default shortcut being pinned, we add the runtime badge for
+-  // safety. See crbug.com/41070028.
+-  gfx::Image decoration;
+-  AvatarMenu::ImageLoadStatus status = AvatarMenu::GetImageForMenuButton(
+-      profile->GetPath(), &decoration, kOverlayIconSize);
+-
+-  // If the user is using a Gaia picture and the picture is still being loaded,
+-  // wait until the load finishes. This taskbar decoration will be triggered
+-  // again upon the finish of the picture load.
+-  if (status == AvatarMenu::ImageLoadStatus::LOADING ||
+-      status == AvatarMenu::ImageLoadStatus::PROFILE_DELETED ||
+-      status == AvatarMenu::ImageLoadStatus::BROWSER_SHUTTING_DOWN) {
+-    return;
+-  }
+-
+-  taskbar::DrawTaskbarDecoration(window, &decoration);
++  // Alerse: each Space is a profile of one app, so the taskbar button never
++  // carries a profile's avatar; only a web app's badge draws over it.
++  taskbar::DrawTaskbarDecoration(window, nullptr);
+ }
+ 
+ }  // namespace taskbar
