@@ -1,0 +1,17 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -1117,6 +1117,13 @@
+ }
+ 
+ std::optional<std::u16string> LocationBarView::GetAlersePlaceholder() const {
++  // Alerse: the top bar's pill (Windows, Linux) and the command bar it opens
++  // say "Search or Enter URL...", whatever the search engine: Chromium's
++  // "Search Google or type a URL" came back on every focus and once the
++  // search engines loaded.
++  if (alerse_compact_ && alerse_centered_) {
++    return l10n_util::GetStringUTF16(IDS_ALERSE_ADDRESS_PLACEHOLDER);
++  }
+   if (!alerse_compact_ || alerse_centered_) {
+     return std::nullopt;
+   }

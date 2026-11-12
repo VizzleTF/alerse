@@ -1195,7 +1195,11 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   compact command bar, where "Search or Enter URL..." is 13 pt, and the
   magnifier, the input and the (i) sit 2, 2 and 3 pt lower in its row than
   centred, with no line under the input, as Arc's). The centred panel is 764 pt
-  wide, its dark outer ring making Arc's 765.
+  wide, its dark outer ring making Arc's 765. On Windows and Linux the top bar's pill
+  and the command bar it opens say "Search or Enter URL..." whatever the search engine
+  (`look/top-bar-placeholder.patch`): Chromium put back "Search Google or type a URL"
+  each time the field took the focus, and in a new Space's pill once its search engines
+  loaded.
 - **Command bar actions** (`look/command-bar-actions.patch`,
   `alerse_command_provider.cc`): as in Arc, typing an action's name lists it as a
   row of its own with its icon and keyboard shortcut, and picking it runs it in the
