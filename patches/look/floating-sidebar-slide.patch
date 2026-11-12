@@ -1,0 +1,184 @@
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+index b4e6edf..53bd8f4 100644
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -917,10 +917,16 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+             horizontal_layout.vertical_tab_strip_width;
+       }
+ 
++      // Alerse: the floating sidebar has its full size from the first frame
++      // to the last and slides on its layer (VerticalTabStripRegionView), so
++      // that its rows are laid out once, not squeezed anew on every frame.
++      const bool alerse_floating =
++          views().vertical_tab_strip_region_view->IsAlerseFloating();
+       const int vertical_tab_strip_hover_width =
+           std::max(0, tabs::kVerticalTabStripDefaultUncollapsedWidth -
+                           horizontal_layout.vertical_tab_strip_width) *
+-          vertical_tab_strip_animation.expand_on_hover_width;
++          (alerse_floating ? 1.0
++                           : vertical_tab_strip_animation.expand_on_hover_width);
+ 
+       int vertical_tab_strip_width =
+           horizontal_layout.vertical_tab_strip_width +
+@@ -953,11 +959,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+                         vertical_tab_strip_animation.top_offset);
+       // Alerse: Arc for macOS' hidden sidebar floats 5 pt in from the
+       // window's edges.
+-      if (horizontal_layout.vertical_tab_strip_collapsed_state ==
+-              VerticalTabStripCollapsedState::kCollapsed &&
+-          vertical_tab_strip_animation.expand_on_hover_width > 0.0) {
+-        const int inset = base::ClampRound(
+-            5 * vertical_tab_strip_animation.expand_on_hover_width);
++      if (alerse_floating) {
++        const int inset = 5;
+         vertical_tab_strip_bounds.Offset(inset, inset);
+         vertical_tab_strip_bounds.set_height(
+             std::max(0, vertical_tab_strip_bounds.height() - 2 * inset));
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+index 40248d8..31717a3 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -270,6 +270,7 @@ bool VerticalTabStripRegionView::IsAnimatingSize() const {
+ void VerticalTabStripRegionView::OnAnimationProgressed(
+     const BrowserAnimationController* controller,
+     BrowserAnimationUpdate status) {
++  UpdateAlerseFloatSlide(controller, status);
+   switch (status) {
+     case BrowserAnimationUpdate::kStarted: {
+       const auto motion =
+@@ -960,6 +961,8 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+   if (tab_strip_view()) {
+     tab_strip_view()->SetCollapsedState(collapsed);
+   }
++  // Alerse: shown or hidden for good, the sidebar is not sliding away.
++  alerse_float_leaving_ = false;
+   UpdateAlerseFloating();
+ 
+   if ((state == tabs::VerticalTabStripCollapseState::kCollapsing) ||
+@@ -1068,10 +1071,32 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+     return;
+   }
+ 
++  // Alerse: the floating panel stands 5 pt in from the window's edges, and
++  // the pointer that opened it is often in that margin: at the edge of the
++  // screen it cannot be anywhere else. There it is still on the panel, which
++  // otherwise opened and closed in turns. No event tells of its leaving the
++  // margin, so that is asked again.
++  bool alerse_in_margin = false;
++  if (is_expanded_on_hover_ && IsAlerseFloating() && parent()) {
++    gfx::Point point = display::Screen::Get()->GetCursorScreenPoint();
++    views::View::ConvertPointFromScreen(parent(), &point);
++    gfx::Rect reach = bounds();
++    reach.Outset(5);
++    alerse_in_margin = reach.Contains(point) && !bounds().Contains(point);
++  }
++  if (alerse_in_margin) {
++    alerse_float_margin_timer_.Start(
++        FROM_HERE, base::Milliseconds(100),
++        base::BindOnce(&VerticalTabStripRegionView::UpdateExpandOnHoverState,
++                       base::Unretained(this), std::nullopt));
++  } else {
++    alerse_float_margin_timer_.Stop();
++  }
++
+   const bool should_expand =
+       !suppress_expand_on_hover_ &&
+       state_controller_->IsExpandOnHoverEnabled() &&
+-      (hovered.value_or(IsMouseHovered()) ||
++      (hovered.value_or(IsMouseHovered()) || alerse_in_margin ||
+        (GetFocusManager() && Contains(GetFocusManager()->GetFocusedView())));
+ 
+   if (!should_expand) {
+@@ -1174,6 +1199,8 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
+ }
+ 
+ void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
++  // Alerse: the floating sidebar stays whole while it slides away.
++  alerse_float_leaving_ = !expand && IsAlerseFloating();
+   is_expanded_on_hover_ = expand;
+   UpdateAlerseFloating();
+   ResetExpandOnHoverTimers();
+@@ -1294,7 +1321,41 @@ BEGIN_METADATA(VerticalTabStripRegionView)
+ END_METADATA
+ 
+ bool VerticalTabStripRegionView::IsAlerseFloating() const {
+-  return state_controller_->IsCollapsed() && is_expanded_on_hover_;
++  return state_controller_->IsCollapsed() &&
++         (is_expanded_on_hover_ || alerse_float_leaving_);
++}
++
++void VerticalTabStripRegionView::UpdateAlerseFloatSlide(
++    const BrowserAnimationController* controller,
++    BrowserAnimationUpdate status) {
++  // Leaving lasts as long as the motion that hides the panel. A motion
++  // canceled as that one starts is the reveal's, which it replaces.
++  const bool was_leaving = alerse_float_leaving_;
++  if (status == BrowserAnimationUpdate::kEnded ||
++      (status != BrowserAnimationUpdate::kCanceled &&
++       controller->GetCurrentMotion(TabStripAnimations::kVerticalTabStrip) !=
++           TabStripAnimations::kCollapseOnHover)) {
++    alerse_float_leaving_ = false;
++  }
++  if (was_leaving != alerse_float_leaving_) {
++    UpdateAlerseFloating();
++  }
++  // The panel is laid out at its place and moves on its layer: none of its
++  // rows is laid out or painted again while it slides. Hidden, its trailing
++  // 5 pt stay under the pointer at the window's edge, which keeps it open.
++  const double shown =
++      controller
++          ->GetCurrentValue(TabStripAnimations::kVerticalTabStrip,
++                            TabStripAnimations::kTabStripHoverWidth)
++          .value_or(0.0);
++  gfx::Transform transform;
++  if (IsAlerseFloating() && shown < 1.0) {
++    const float hidden = (1.0 - shown) * std::max(0, width() - 5);
++    transform.Translate(base::i18n::IsRTL() ? hidden : -hidden, 0);
++  }
++  if (layer()->GetTargetTransform() != transform) {
++    layer()->SetTransform(transform);
++  }
+ }
+ 
+ void VerticalTabStripRegionView::UpdateAlerseFloating() {
+@@ -1309,8 +1370,11 @@ void VerticalTabStripRegionView::UpdateAlerseFloating() {
+   if (GetWidget()) {
+ #if BUILDFLAG(IS_MAC)
+     // Elsewhere the window controls stay in the top bar.
+-    alerse::SetWindowControlsHidden(GetWidget(), hidden && !floating,
+-                                      floating);
++    // Alerse: the system draws them, so they cannot slide with the panel:
++    // they go as it starts to leave.
++    const bool controls = hidden && is_expanded_on_hover_;
++    alerse::SetWindowControlsHidden(GetWidget(), hidden && !controls,
++                                      controls);
+ #endif
+     // What the sidebar shades off the frame then follows the floating
+     // panel's darker #0D0D0D (alerse_frame_color.h), as Arc's glyphs do.
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+index 47f1a60..af08437 100644
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
+@@ -218,6 +218,10 @@ class VerticalTabStripRegionView final
+   // Alerse: shows the Arc sidebar, its header and the window controls only
+   // while it is not hidden, or floats.
+   void UpdateAlerseFloating();
++  // Alerse: moves the floating sidebar's layer as far as the animation
++  // shows it, and keeps it whole until it has slid away.
++  void UpdateAlerseFloatSlide(const BrowserAnimationController* controller,
++                              BrowserAnimationUpdate status);
+ 
+   void RegisterExpandOnHoverLock(VerticalTabStripExpandOnHoverLock* lock);
+   void UnregisterExpandOnHoverLock(VerticalTabStripExpandOnHoverLock* lock);
+@@ -288,6 +292,11 @@ class VerticalTabStripRegionView final
+   // Alerse: held while the active tab shows no page, when Arc for macOS
+   // keeps its hidden sidebar floating.
+   std::unique_ptr<ExpandOnHoverLock> alerse_blank_page_lock_;
++  // Alerse: the floating sidebar is sliding away.
++  bool alerse_float_leaving_ = false;
++  // Alerse: asks where the pointer is while it is in the floating
++  // sidebar's margin.
++  base::OneShotTimer alerse_float_margin_timer_;
+   base::flat_set<raw_ptr<VerticalTabStripExpandOnHoverLock>> hover_locks_;
+ 
+   std::unique_ptr<TabHoverCardController::ScopedHideHoverCardLock>

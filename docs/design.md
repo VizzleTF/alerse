@@ -851,9 +851,18 @@ What animates:
 - **Folder curtain**: rows clipped and the rows below shifted on layers, driven on the
   compositor's vsync (`views::AnimationDelegateViews`), with layers only for rows the
   scroll view can show.
-- **Sidebar show / hide and the floating sidebar** keep Chromium's animation, at the
-  emphasized token (`look/sidebar-motion.patch`). They still lay the sidebar out on each
+- **Sidebar show / hide** keeps Chromium's animation, at the emphasized token
+  (`look/sidebar-motion.patch`). It still lays the sidebar and the page out on each
   frame.
+- **Floating sidebar** (`look/floating-sidebar-slide.patch`). The panel has its full
+  size from the first frame to the last and slides on its layer; Chromium grew its
+  width, which squeezed the rows anew on every frame, and emptied it before it shrank
+  away. It stays whole until it has slid out (`alerse_float_leaving_`). The window
+  controls are the system's and cannot slide: they show and go at once. Hidden, the
+  panel's last 5 pt stay under the pointer at the window's edge, which is what keeps
+  it open. The pointer in the 5 pt margin round the open panel counts as on it: at the
+  screen's edge it cannot be anywhere else, and the panel used to open, close 170 ms
+  later and stay closed (seen in a recording).
 - **Caption buttons' dim** (Windows): the quick fade (`look/caption-buttons-dim.patch`).
 - **Alerse's pages** (sync, import, links): controls change state over 90 ms and a part
   that appears fades in over 160 ms (`alerse_page_style.inc`).
