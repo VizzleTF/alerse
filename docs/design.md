@@ -227,7 +227,11 @@ popovers and tooltips follow Arc for macOS' measurements on every platform (see
 like the Mac everywhere but the top of the window. The list below is what Arc for
 Windows' measurements still set (see `AlerseSidebarView`):
 
+### Header row
+
 - Header row, 32 px: Alerse menu, sidebar toggle, downloads at x = 23, 58, 93.
+### Favorites
+
 - Favorites: Arc's tiles above the Space's name. Each Space has its own, as each Space
   is a profile (ADR-0001). They are the bookmarks of a folder beside the Space's folder
   (meta info `arcomium.favorites = 1`, created by the first Add to Favorites), so they
@@ -250,6 +254,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   strip under the address field while there are none, make one; the tab becomes the favorite's in place. Tiles reorder by
   dragging; Remove Favorite leaves the tab open as an ordinary tab of the Space. Measured on
   Arc for macOS only; on Windows they use the same numbers.
+### Pinned tree
+
 - Pinned tree: the Space's bookmark folder (meta info `arcomium.space = <Space id>`,
   `default` outside of Spaces, `arc:<id>` for an imported Space not yet adopted by an
   Alerse Space of the same name). Rows and the Space's name row use Arc for macOS'
@@ -257,6 +263,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   Text on Windows (Segoe UI before Windows 11), regular items and semibold folders.
   Folder glyphs follow Arc: a folder holding open tabs shows two dashes, otherwise its
   Arc icon (`arcomium.folder_icon`). Open state is the `arcomium.open` meta info.
+### Pinned items and their tabs
+
 - A pinned item opens as a tab bound to it; a double click renames it, as in Arc,
   also on an item whose tab is not open yet: its first click opens the tab and rebuilds
   the rows, so the sidebar counts the second press on the same item within the system's
@@ -277,6 +285,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   the same page an ordinary tab. A click on the icon or the "/" of an item whose tab
   navigated away loads the item's saved page again and shows the tab, as Reset Tab to
   Original URL in the item's menu does.
+### Sound indicator
+
 - A tab that plays sound shows a speaker between its icon (and "/") and its title, as in
   Arc: while the tab strip's audio alert is on (it outlasts the gaps between tracks) or
   while the tab is muted. Clicking it mutes or unmutes the tab
@@ -284,6 +294,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   activates or drags the row; a right click opens the row's menu, whose Mute item follows
   the same rule. Rows in a folder popup show it too; the popup is refilled only when one
   of its speakers changes.
+### Folder popup
+
 - Hovering a collapsed folder pops up its links (subfolders open in place); picking
   one opens it as a bound tab without expanding the folder. The popup is a non-modal
   bubble, not a menu, so the mouse stays with the sidebar: it opens after 400 ms, fades in over 90 ms,
@@ -291,8 +303,12 @@ Windows' measurements still set (see `AlerseSidebarView`):
   for 300 ms. It opens inactive; on Windows it may activate on a click, which Windows
   would otherwise drop. On macOS an inactive popup gets no mouse moves, so its rows take
   hover from the popup's pointer polls.
+### New Tab and other tabs
+
 - Divider, "+ New Tab", then the Space's other tabs. A tab's close button shows only
   while its row is hovered.
+### Row buttons
+
 - Hovered rows' buttons follow Arc's, the same on every platform: a tab shows "×",
   which closes it; a pinned item with its tab open shows "−", which closes the tab and
   keeps the item; a pinned item with no tab open shows "×", which removes the item
@@ -301,10 +317,14 @@ Windows' measurements still set (see `AlerseSidebarView`):
   and plate. Their tooltips are "Close Tab" and "Remove": Arc's pill on macOS
   (a row's own pill gives way to a child with a pill of its own,
   `alerse_tooltip.cc`), the native tooltip elsewhere.
+### Folders opening and closing
+
 - Folders open and close in 140 to 260 ms by their height (see Motion), animated on
   layers (rows clipped like a curtain, rows below shifted by transforms): resizing the rows relaid out the whole browser view
   every frame and stuttered. A folder's open state is meta info, which
   `BaseBookmarkModelObserver` does not forward, so the sidebar redraws on it itself.
+### Drag and drop
+
 - Drag and drop: rows move within the pinned tree and into folders; a tab dropped among
   the pinned items becomes pinned; a pinned item dropped among the tabs is unpinned and
   keeps its tab; tabs reorder within their Space; a tab or a pinned item dropped onto
@@ -315,6 +335,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   other apps take it as a link and Chromium's split zone on the page's edges takes it;
   the page itself takes no drop from a sidebar row (`alerse_sidebar_drag.h`), which
   would load that address in it or paste it.
+### Context menus
+
 - Context menus follow Arc's, in its order and words (Share only on macOS, see On
   macOS). Pinned
   items, favorites and folders get Change Icon... (Arc's picker, see
@@ -335,6 +357,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   addresses and icons, not the tabs bound to them), Move to, Pin current tab here (not
   on macOS, whose Arc has no such item) and Delete. A favorite gets Copy Link, Rename, Mute, Duplicate and
   Remove Favorite.
+### Space menu
+
 - Arc's Space menu opens wherever Arc has it: on the Space's name, New Tab, the
   address field (on Windows and Linux only around its text, which keeps the text
   field's menu), the empty space below the rows, a Space's button and "+" in the Space
@@ -354,6 +378,8 @@ Windows' measurements still set (see `AlerseSidebarView`):
   Manage Spaces are left out: each Space is already a profile, and the rest
   needs Arc's account and services. The "+"
   button's click offers a new Space, folder or tab.
+### Clear
+
 - Clear: while the Space has tabs that are not pinned, a line with "↓ Clear" at its
   right end sits between the pinned items and New Tab, as in Arc. A click on Clear
   closes those tabs (the menu bar's Clear Today, Shift+Cmd+K, does the same); a tab
@@ -362,21 +388,31 @@ Windows' measurements still set (see `AlerseSidebarView`):
   (Shift+Cmd+T) brings them back one at a time. A tab closed with a row's "x" goes
   there too. An empty Space's hidden blank tab is never recorded there
   (`spaces/empty-space-not-in-history.patch`).
+### Scrolling to the active tab
+
 - The rows scroll to the tab that becomes active, so a tab opened by a link from
   another app, the command bar or Ctrl+Tab is never below the visible rows. The
   scroll repeats after the next frame: the compositor limits it to the height it
   last drew the rows at, a row short of a tab just added (crbug.com/40772386).
+### Rebuilds
+
 - Rebuilds: a window has the rows of its own Space only. Theme changes rebuild once
   they settle (250 ms), and the Space bar rebuilds when a profile is added or removed
   or a Space's folder changes, not on every navigation.
+### Hidden sidebar
+
 - When the sidebar is hidden it floats back over the page from the window's left edge,
   as on macOS (Hidden sidebar, under On macOS); on Windows and Linux the address moves
   to the top bar meanwhile and Ctrl+Shift+L brings the sidebar back.
+### Page and Space bar
+
 - The page is Arc for macOS' card (On macOS) on every platform; on Windows and Linux
   it starts under the top bar. The frame is #161616 everywhere. The Space bar sits at
   the bottom. Its left button is Downloads (tooltip "Downloads (Ctrl+J)"): an arrow down
   into a tray, 14 px wide in 2 px strokes, grey and brighter under the pointer, as the
   Space icons; it replaced the archive box that opened the history.
+### Hover state of rebuilt rows
+
 - A row rebuilt under the pointer (rows are rebuilt on every tab change) takes the hover
   state without its fade-in, so it draws its highlight at once rather than none, and
   checks every 100 ms whether the pointer has left, since the root view, which saw the
@@ -399,9 +435,13 @@ vibrancy, the window controls). The Chromium side of the header row, address fie
 command bar panel is in `look/mac-arc-look.patch`. Windows and Linux keep Arc for
 Windows' numbers for those:
 
+#### Sidebar width
+
 - Sidebar 164 pt wide (198 px elsewhere) on a #161616 frame, without the edge line
   Chromium draws along it. A window saved at 198, the width macOS builds had before,
   opens at 164 (`vertical_tab_strip_state_controller_impl.cc`); other widths stay.
+#### Header
+
 - Header: one row centred 24 pt down: the window controls (the title bar is 48 pt high
   for that), then back, forward and "..." centred at x = 88, 116, 144. "..." opens
   Arc's popover with Reload (Cmd+R, dimmed on an empty Space) and Toggle Sidebar
@@ -411,6 +451,8 @@ Windows' numbers for those:
   past the header's bottom. Site Controls are reached from the address field's
   button and Downloads from the Window menu (Shift+Cmd+J). Pinned extensions do not
   show in the header.
+#### Popovers
+
 - Popovers (`alerse_popover.cc`), Arc for macOS' own menus rather than the system's:
   a #010101 panel with 12 pt corners and a 13 pt arrow 6 pt out of it, its tip 10 pt
   off the button and centred on it, kept 6 pt inside the window. Rows are 40 pt (8 pt
@@ -442,8 +484,12 @@ Windows' numbers for those:
   cross meanwhile, on its plate only while the pointer is on it. Arc's New Easel and New Boost rows are left out with those features. The same
   popover on every platform; off macOS its shortcuts read "Ctrl+Shift+=" and it is
   250 pt wide for them.
+#### Icon picker measurements
+
 - Icon picker (Change Space Icon..., Change Icon...): see [Icon pickers](#icon-pickers);
   its measurements are Arc for macOS'.
+#### Address field
+
 - Address field 148x36 pt at x = 8, y = 46, with 12 pt corners, a shade lighter than
   the frame (#2F2F2F on #161616); "Search..." is a point smaller than the address, in
   #6F6F6F, after a magnifier at x = 20. While the command bar has the location bar,
@@ -451,6 +497,8 @@ Windows' numbers for those:
   no mouse events until edited: a click opens the command bar and a right click Arc's
   Space menu, not the text field's menu. Windows and Linux keep the location bar's own
   events: its site icon and "Not secure" chip, shown on hover, stay clickable there.
+#### Address field buttons
+
 - The field's address starts 13 pt in, left-aligned, as Arc for macOS'. While the
   pointer is anywhere on the sidebar (polled every 80 ms, `AlerseAddressBar`), the
   field shows Arc's buttons from its end: the site controls (sliders, centred 20 pt
@@ -470,12 +518,16 @@ Windows' numbers for those:
   page. A release on a button runs it (the
   field takes the press). The sliders open the site controls under themselves. Copy
   Link shows it copied: its link turns into a check mark for 1.5 s.
+#### Pinned extensions
+
 - Two or more pinned extensions are tiles under the field, always shown, as Arc for
   macOS draws them: 27 pt high in the field's shade, 8 pt apart and 9 pt below the
   field, up to four in a row with the rows evened out (five are three and two). A
   click runs the extension, a right click opens its menu (Pin/Unpin, Options,
   Remove...). Measured on Arc for macOS on 2026-11-10 with one to five pinned
   extensions.
+#### Rows
+
 - Rows 41 pt apart; the highlight is 148x36 with 12 pt corners, 10% white on hover and
   20% for the active row; favicons at x = 18, folders 19 pt, nested rows 16 pt in, their
   highlight too (it starts where the row does, as Arc's). Tab
@@ -486,6 +538,8 @@ Windows' numbers for those:
   or its "−" while its tab is open (see the
   hover buttons above). No divider line before New Tab (the view stays for drag and drop). While the
   command bar is open for a new tab, New Tab is the active row, as in Arc.
+#### Space name row
+
 - The Space's name stays put above the rows, which scroll under it, as Arc's (measured
   2026-11-12); once they are scrolled a hairline shows under the name (the scroll view's
   top overflow line). The name and the rows are one list (`list_` in
@@ -503,6 +557,8 @@ Windows' numbers for those:
   pointer stays on it (where the menu's item was chosen), as Arc's; macOS sends the
   window no mouse moves while the picker has the keyboard, so the name polls the
   pointer meanwhile (every 50 ms).
+#### Page card and find bar
+
 - The page card (every platform) keeps 10 pt from the window's top (on Windows and
   Linux it starts under the top bar), right and bottom edges and touches
   the sidebar, with 6 pt corners, no rim and a faint shadow; its blank color is
@@ -524,10 +580,14 @@ Windows' numbers for those:
   screen: a video, a presentation; F11 on Windows and Linux) shows the bare page, with
   no margins and square corners; macOS' window full screen keeps the sidebar and the
   card.
+#### Folder glyphs
+
 - Folders are Arc for macOS' outlined folder, 18.5 pt: one 1.5 pt outline whose tab
   slants down into the body, grey under the tab, a #F0F0F0 front edge, filled near
   black (#050505) below it. An open folder shows Arc's open folder, 22.5 pt wide: a
   grey back leaning left behind a slanted front. The folder's row shows no tooltip.
+#### Folder popup measurements
+
 - Folder popup, as Arc for macOS' on every platform: it opens
   after 400 ms of hover (Arc's shows between 0.3 and 0.6 s), 240 pt wide, 4 pt right of the sidebar and centred on the
   folder's row, #1A1A19 with 12 pt corners and a two-pixel rim (#3D3D3D outside
@@ -549,6 +609,8 @@ Windows' numbers for those:
   Chromium's filled one. Longer lists
   scroll within 320 pt. The popup takes the keyboard when it opens, as Arc's search
   field has the caret, so it gets mouse moves itself.
+#### Space bar
+
 - Space bar: Space buttons 34x32 pt side by side and centred, a faint plate as wide on
   hover (34x32 pt from 859 pt down in a 900 pt window, as Arc's, measured at the
   plate's middle). A button's plate goes once its context menu closes: the
@@ -565,9 +627,13 @@ Windows' numbers for those:
   In a sidebar too narrow for all the Spaces, the buttons first move closer (down to
   24 pt apart), then only the run that fits around the shown Space's stays
   (`SpaceIconRow`); the menu bar's Spaces menu and Control-1 to 9 reach the others.
+#### Overflow line
+
 - While the rows overflow, a 1 pt line, barely off the frame (#212121 on
   #161616), shows at the edge they scroll under, as Arc's; Chromium's scroll view would
   draw a bright separator.
+#### Scroll bar
+
 - The rows have an overlay scroll bar, drawn as Chrome's vertical tab strip draws its
   own: a 5 pt pill 4 pt from the trailing edge, over the rows, in the frame's color
   moved 35% toward black or white (`RowsScrollBar`). It shows only while the rows
@@ -576,8 +642,12 @@ Windows' numbers for those:
   stopped (read from the cursor: a rebuild of the hovered row can leave its exit
   unsent). The folder popup's longer lists have the same one, over the popup's color.
   A rebuild does not show it, though it may move the rows.
+#### New Tab and chevron details
+
 - While the command bar is open for a new tab, New Tab's "+" is #DADADA like its text.
   The Space name's chevron is 11 pt wide with a 1.9 pt stroke.
+#### Context menus on macOS
+
 - Context menus as Arc for macOS': a pinned tab's and a favorite's have Change Icon...
   before Rename, the favorite's also Edit Pinned Page and Move to; a folder's has
   Change Icon... before Rename. Tabs, pinned items and favorites have Arc's Share
@@ -592,8 +662,12 @@ Windows' numbers for those:
   Folders | Delete Space, Arc's grouping without its Set Profile, Live
   Folders, Share, Export and Manage Spaces (account and services). Delete Space stays
   dimmed for home, which cannot be deleted.
+#### Hover colors of the name and New Tab
+
 - Hovered, the Space's name brightens to #8D8D8D, and New Tab's "+" to #959595 and its
   text to #8B8B8B, as Arc's; "..." on the name is 18 pt from the plate's end.
+#### Back and forward arrows
+
 - Back and forward show no plate while dimmed, as Arc's; their arrows are Arc for
   macOS' own (`alerse_mac_back.icon`, `alerse_mac_forward.icon`): 13 pt long with
   a 10.5 pt head in 1.5 pt strokes (the tip half a point in, as the round join
@@ -601,8 +675,12 @@ Windows' numbers for those:
   #6A6A6A in an inactive window), and "..."'s dots at 60% (#A1A1A1, #B0B0B0), as Arc's
   (Chromium's arrows were 13 pt high with 2 pt strokes, in its brighter disabled grey; `look/mac-arc-arrows.patch`). The address field lightens to #39393A under the pointer; "Search..." is medium
   weight.
+#### Top edge
+
 - No line along the window's top edge: the top container's separator, which Windows
   already drops, would draw a light line over the card there.
+#### Menu bar
+
 - Menu bar (`look/mac-menu-bar.patch`, `look/mac-menu-bar-arc.patch`): Arc for macOS'
   menus in its order, with its items and keys wherever Alerse has the feature:
   - **App menu**: About, Settings... (Cmd+,; Arc's reads Preferences..., but macOS
@@ -707,6 +785,8 @@ Windows' numbers for those:
   stays hidden as well: its controller needs the menu (without it, rebuilding the
   menu never ends and startup hangs), so it is filled for the Dock menu and never
   shown (`profile_menu_controller.mm`); Arc has no Profiles menu.
+#### Tooltips
+
 - Tooltips are Arc's black pills (`alerse_tooltip.cc`), not the system's: 29 pt
   high with round ends (the corner at the pointer 9.5 pt, as Arc's), #020202 inside a
   #1B1B1B and a #3B3B3C hairline, the name in 12 pt medium #DADADA 11 pt in, the
@@ -729,20 +809,28 @@ Windows' numbers for those:
   window, as Arc's Library button's does. Favorites, folders, New Tab
   and "+" have none, as in Arc. The rows' cross is 11 pt (a 24 pt icon), centred 18 pt
   from the highlight's end.
+#### Hover colors of Space buttons and the field
+
 - A hovered Space button other than the shown one takes a light shade of its Space's
   theme color (hue kept, 45% of its saturation, 66% lightness), as Arc's book turns
   #96B6BC; a Space without a theme stays grey.
 - The Space name's chevron and "..." are #ABABAB on hover, as Arc's.
 - The sidebar field's magnifier brightens under the pointer, #828282 to #898888,
   as Arc's.
+#### New window position
+
 - A new window opens 29 pt right of and below the last one, as Arc's
   (`window_sizer_mac.mm`; Chromium's 22).
+#### Cocoa arguments
+
 - Started with a Cocoa argument such as `-AppleLanguages (de)` (how a Mac app is
   run in another language), Chromium took the value for a URL and opened
   http://(de)/, whose host a debug build's DCHECK rejects
   (`IsCanonicalizedHostCompliant`, from the bounce tracking cleanup); on macOS
   the value after a `-Apple...` or `-NS...` key in the process' own argv is
   not a tab (`startup_tab_provider.cc`).
+#### Compact command bar
+
 - Compact command bar: a click on the sidebar's field opens Arc for macOS' compact
   command bar over it, 348 pt wide from a point right of the field's left edge and two
   points above it (its dark outer ring 8 pt in and 44 pt down, as Arc's),
@@ -755,10 +843,14 @@ Windows' numbers for those:
   (`look/focus-location-command-bar.patch`): Chromium's own focus path lost the focus
   when the field moved into the panel on an empty Space, which left the panel showing
   the idle field and no rows.
+#### Pinned items in the command bar
+
 - A sidebar item picked in the command bar (a row of the empty list or a bookmark
   match) shows its pinned tab, as a click on it does: its tab if it is open, else a new
   tab bound to it, never a second, unbound tab (`look/command-bar-pinned-items.patch`,
   `AlerseSidebarView::OpenPinnedItemOf`). Only the shown Space's items count.
+#### Command bar on a page's address
+
 - On a page's address (the click above, or Cmd+L) the command bar shows the page's icon
   in the magnifier's place and lists the page itself first, by its title, the row
   selected, then up to four pages from history, the latest first, as "Title — site/path"
@@ -779,6 +871,8 @@ Windows' numbers for those:
   after the title is #656565, #989898 on the selected row, and the selected row's
   magnifier white (the icon's own rule tints it with
   `--color-searchbox-results-dim-selected`, so that is what is set white).
+#### Hidden sidebar on macOS
+
 - Hidden sidebar (View > Hide Sidebar, Cmd+S; the menu then says Show Sidebar; every
   platform, see below for Windows and Linux): as in Arc for macOS the page takes the whole window but its 10 pt margin, with no toolbar
   and no window controls, and the sidebar floats back over the page while the pointer
@@ -807,6 +901,8 @@ Windows' numbers for those:
   Ctrl+Shift+S). Off macOS the menu bar's other Arc shortcuts are keys too:
   Ctrl+Alt+Right and Ctrl+Alt+Left go to the next and previous Space, Ctrl+Shift+K
   clears Today (`look/arc-shortcuts-off-mac.patch`).
+#### Inactive window
+
 - Inactive window (another app in front): Arc for macOS lightens the whole window,
   its #161616 frame to #393939, and every shade off it follows. Alerse's
   `kColorFrameInactive` is the active frame blended 15% toward white (#393939, a
@@ -827,6 +923,8 @@ Windows' numbers for those:
   are grey (below) (`look/mac-inactive-window.patch`). Windows
   and Linux keep one frame color whatever the window's state, as Arc for Windows:
   there `alerse::FrameColor()` is always the active frame.
+#### Window controls
+
 - Window controls: the zoom button sits 21.5 pt after the minimize button, 1.5 pt
   closer than AppKit's spacing, where Arc's is. Arc shows them in an active window as
   #60605D discs in a 1 pt ring of their color (#592F2A, #5F4E0F, #2A4D10), in an
@@ -838,8 +936,12 @@ Windows' numbers for those:
   area tells it when the pointer is over them. In the floating sidebar the frame moves
   them 5 pt right and down with the panel's inset (`_closeButtonOrigin`,
   which the other two follow, and `_zoomButtonOrigin`).
+#### Hover highlight
+
 - Hover: the highlight follows the pointer at once, without Chromium's fade: the
   button's hover animation did not advance on macOS.
+
+#### Text width
 
 - Text width: SF Pro carries an AAT tracking table that tightens text as the size
   grows. HarfBuzz applies it for the font's `ptem`, and Chromium's views text
@@ -864,6 +966,8 @@ Windows' numbers for those:
   were semibold where Arc's are medium ("Toggle Sidebar" 93.5 against 92.5 pt), the
   compact command bar's placeholder 15 pt where Arc's is 13 (149.5 against 135.5).
 
+#### Known gaps on macOS
+
 Known gaps on macOS: the command bar's caret is 22 pt high where Arc's is 21 (the
 text field's line height); Arc's Edit menu ends with Format (Font: Bold, Italic,
 Underline), which Alerse leaves out, as Chromium has no rich-text commands for
@@ -882,6 +986,8 @@ once in two runs; not reproduced here), and the Space bar's and "More options"
 tooltips are up to 1.5 pt wider or narrower than Arc's (the text is measured, the
 keycaps are fixed). The folder popup's dates read in the browser's language, which
 the test kit sets to English: Arc's follow the system's ("1 неделю назад").
+#### Menu bar gaps
+
 Menu bar gaps:
 Arc's Show Toolbar (Shift+Cmd+D; Alerse for macOS has no toolbar to show), View >
 Appearance (Arc's light or dark web pages), Blank Window, Stay On Top, Find and
@@ -908,6 +1014,8 @@ tag). The Space bar's left button, Arc's Library (archive and media), is
 Downloads since 0.1.7: tooltip "Downloads" Shift+Cmd+J, it opens `chrome://downloads`,
 and it has no menu (Arc's "Show media from" is left out).
 
+### What a tab is doing
+
 What a tab is doing shows on its row (and in a favorite's tile, see Favorites):
 
 - while its page loads, Chromium's throbber (`views::Throbber`, in the sidebar's subtle
@@ -928,6 +1036,8 @@ What a tab is doing shows on its row (and in a favorite's tile, see Favorites):
   split's halves one after the other). Rows keep the platform's focus rule: on Windows
   and Linux Tab reaches them; on macOS only with the system's keyboard navigation on,
   as for every button.
+
+### Known gaps
 
 Known gaps: the focus ring and the arrow keys were not seen on screen (the Mac used for
 testing has keyboard navigation off, and it is a system setting); rows have no
@@ -1125,6 +1235,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 ## Window, address bar and command bar
 
+### Top bar on Windows
+
 - **Windows**: a 32 px top bar in the frame color, as in Arc for Windows 1.129: back,
   forward and reload, the site centered in a pill between Copy Link and the site
   controls, Split View and the window buttons. Chromium's pinned toolbar actions are not
@@ -1133,11 +1245,15 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   The page is an inset card with Arc's rim,
   corners and shadow, and Arc's thin icons (`components/vector_icons/alerse_*.icon`).
   Overlay scrollbars follow the Windows setting.
+### Window on macOS
+
 - **macOS**: no toolbar while the sidebar shows; the sidebar's header is one row after
   the window buttons, as in Arc for macOS: back, forward and "..." (see Sidebar look,
   On macOS). Header buttons are 28 pt targets and take clicks instead of dragging the
   window. The sidebar and mini player use the system font, as Arc does on macOS (on
   Windows, Segoe UI Variable).
+### Compact address
+
 - The compact address shows only the site, centered, with no page actions; Copy Link
   and the site controls show on hover (Copy Link not while the command bar has the
   field, nor on an empty Space's blank page, as in Arc). It hides the site's icon, but
@@ -1155,6 +1271,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   password key are page actions of their own and still have no row. Clicking it opens the
   command bar. The address field's placeholder is Arc's "Search..." whatever the
   search engine (`look/sidebar-search-placeholder.patch`).
+### Command bar
+
 - **Command bar**: Chromium's omnibox in a 722 px panel centered in the window, opened
   by clicking the address or New Tab (which then opens a new tab), closed by a click
   outside. The browser's New Tab command (Ctrl+T, Cmd+T, File > New Tab) opens it the
@@ -1239,6 +1357,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   (`look/top-bar-placeholder.patch`): Chromium put back "Search Google or type a URL"
   each time the field took the focus, and in a new Space's pill once its search engines
   loaded.
+### Command bar actions
+
 - **Command bar actions** (`look/command-bar-actions.patch`,
   `alerse_command_provider.cc`): as in Arc, typing an action's name lists it as a
   row of its own with its icon and keyboard shortcut, and picking it runs it in the
@@ -1290,6 +1410,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   as Arc for macOS'; Windows and Linux show the same, Arc for Windows' not having
   been measured. Pin Tab in the menu bar (Cmd+D) now also unpins a pinned tab, as
   Arc's Pin/Unpin Tab.
+### Command bar input
+
 - **Command bar input**: the magnifier gives way to the icon of what the input
   completes to, as in Arc: the site's favicon for an address or a page, the action's
   icon for an action (Chromium's `OmniboxView::GetIcon`); searches keep the
@@ -1310,6 +1432,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   compact address and, once they closed, no rows. Known gaps: the (i), the action tiles, the key chips and their
   colors come from Arc for macOS and show the same on Windows and Linux, Arc for
   Windows' command bar not having been compared; the selected keyword row ends in Chromium's small keyword button.
+### Logo menu
+
 - **Logo menu** (Windows, Linux; `alerse_app_menu.cc`): Check for Updates (or
   "Update to Alerse X.Y.Z"), Import from Another Browser..., new tab, window and
   incognito window, Spaces, Tabs, Extensions and Developer submenus, Downloads,
@@ -1333,6 +1457,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   leg and curling up into the right leg, as the icon's bowl does. Strokes rather
   than an `.icon` file, so it keeps the color logic the arch had (`kColorIcon` on
   macOS, `GetArcHeaderIconColor` elsewhere).
+### Extensions and site controls
+
 - **Extensions** sit at the end of the address row, sized like its buttons. The sliders
   button opens the site controls (`alerse_site_controls.cc`), Arc's Site Control
   Center: a 236 pt panel that paints itself (the bubble's own frame shows nothing),
@@ -1354,6 +1480,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   The footer has the connection (opens page info) and a horizontal "..." on a darker
   disc with site settings, extension site access and extension management. The panel
   closes when its tab closes or leaves the page.
+
+### Strings and colors
 
 Text the user sees is in `IDS_ALERSE_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids
 (see [patching](patching.md)), set from the frame: Arc's greys on a dark frame, inverted
