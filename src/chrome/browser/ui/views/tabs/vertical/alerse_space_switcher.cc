@@ -50,6 +50,10 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tab_ui_helper.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
+#include "components/permissions/permission_request_manager.h"
+#include "components/tabs/public/tab_alert.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -351,8 +355,20 @@ class SpaceIcon : public views::Button {
   // Arc for macOS tints a hovered Space's icon with a light shade of the
   // Space's theme color.
   void SetHoverTint(SkColor tint) { hover_tint_ = tint; }
-  // Marks the icon with a dot: a dialog waits in that Space.
-  void SetAttention(bool attention) { attention_ = attention; }
+  // What the Space, not shown, has to tell (AlerseSpaceSwitcher::
+  // SpaceNotice): a dot when a tab waits for the user, the alert's glyph
+  // when one records or shares, a small speaker when one plays sound.
+  void SetNotice(int notice, std::optional<tabs::TabAlert> alert) {
+    notice_ = notice;
+    alert_ = alert;
+    GetViewAccessibility().SetDescription(
+        notice == 0 ? std::u16string()
+        : notice == 1
+            ? l10n_util::GetStringUTF16(IDS_ALERSE_SPACE_PLAYS_SOUND)
+        : alert ? tabs::TabAlertController::GetTabAlertStateText(*alert)
+                : l10n_util::GetStringUTF16(IDS_ALERSE_SPACE_NEEDS_YOU));
+    SchedulePaint();
+  }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
     const ui::ColorId color = active_            ? kActiveIconColor
@@ -370,11 +386,31 @@ class SpaceIcon : public views::Button {
     canvas->sk_canvas()->translate(center.x(), center.y());
     canvas->sk_canvas()->scale(kIconScale, kIconScale);
     alerse::PaintSpaceIcon(canvas, gfx::PointF(), icon_, ink, emoji_alpha);
-    if (attention_) {
+    // At the icon's upper right corner.
+    constexpr int kGlyphSize = 10;
+    const gfx::Point glyph_origin(9 - kGlyphSize / 2, -9 - kGlyphSize / 2);
+    if (notice_ == 3) {
       cc::PaintFlags flags;
       flags.setAntiAlias(true);
       flags.setColor(IconInk(this, kActiveIconColor));
       canvas->DrawCircle(gfx::PointF(9, -9), 3, flags);
+    } else if (notice_ == 2 && alert_) {
+      // In the alert's own color where it has one (a recording is red in
+      // the tab strip too).
+      const ui::ColorId alert_color = tabs::GetAlertIndicatorColor(
+          *alert_, /*is_tab_active=*/true, /*is_frame_active=*/true);
+      canvas->DrawImageInt(
+          gfx::CreateVectorIcon(
+              tabs::GetAlertIcon(*alert_), kGlyphSize,
+              alert_color != kColorTabAlertAudioPlayingActiveFrameActive
+                  ? GetColorProvider()->GetColor(alert_color)
+                  : IconInk(this, kActiveIconColor)),
+          glyph_origin.x(), glyph_origin.y());
+    } else if (notice_ == 1) {
+      canvas->DrawImageInt(
+          gfx::CreateVectorIcon(vector_icons::kVolumeUpIcon, kGlyphSize,
+                                IconInk(this, kActiveIconColor)),
+          glyph_origin.x(), glyph_origin.y());
     }
   }
 
@@ -382,7 +418,8 @@ class SpaceIcon : public views::Button {
 
  private:
   std::optional<SkColor> hover_tint_;
-  bool attention_ = false;
+  int notice_ = 0;
+  std::optional<tabs::TabAlert> alert_;
   const std::string icon_;
   const bool active_;
   const std::string space_;
@@ -630,6 +667,45 @@ std::vector<std::string> GetSpaceIconNames() {
 
 }  // namespace alerse
 
+// Tells the Space bars when a tab's permission request comes or goes: a
+// request alone changes nothing the tab strip reports.
+class AlerseSpaceSwitcher::PermissionWatch
+    : public permissions::PermissionRequestManager::Observer {
+ public:
+  explicit PermissionWatch(content::WebContents* contents)
+      : manager_(
+            permissions::PermissionRequestManager::FromWebContents(contents)) {
+    if (manager_) {
+      manager_->AddObserver(this);
+    }
+  }
+  PermissionWatch(const PermissionWatch&) = delete;
+  PermissionWatch& operator=(const PermissionWatch&) = delete;
+  ~PermissionWatch() override {
+    if (manager_) {
+      manager_->RemoveObserver(this);
+    }
+  }
+
+  // permissions::PermissionRequestManager::Observer:
+  void OnPromptAdded() override { Tell(); }
+  void OnPromptRemoved() override { Tell(); }
+  void OnPromptCreationFailedHiddenTab() override { Tell(); }
+  void OnRequestsFinalized() override { Tell(); }
+  void OnPermissionRequestManagerDestructed() override { manager_ = nullptr; }
+
+ private:
+  // Posted: the manager is in the middle of its own bookkeeping.
+  void Tell() {
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce([] {
+          alerse::SpacesChangedCallbacks().Notify();
+        }));
+  }
+
+  raw_ptr<permissions::PermissionRequestManager> manager_;
+};
+
 AlerseSpaceSwitcher::AlerseSpaceSwitcher(BrowserWindowInterface* browser)
     : browser_(browser) {
   layout_ = SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -651,7 +727,40 @@ AlerseSpaceSwitcher::AlerseSpaceSwitcher(BrowserWindowInterface* browser)
   spaces_subscription_ = alerse::SpacesChangedCallbacks().Add(
       base::BindRepeating(&AlerseSpaceSwitcher::ScheduleRebuild,
                           base::Unretained(this)));
+  SyncPermissionWatches();
+  own_notice_ = NoticeOfTabs(browser_->GetTabStripModel());
   Rebuild();
+}
+
+void AlerseSpaceSwitcher::SyncPermissionWatches() {
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  std::map<content::WebContents*, std::unique_ptr<PermissionWatch>> watches;
+  for (int i = 0; i < tabs->count(); ++i) {
+    content::WebContents* contents = tabs->GetWebContentsAt(i);
+    auto it = permission_watches_.find(contents);
+    watches[contents] = it != permission_watches_.end()
+                            ? std::move(it->second)
+                            : std::make_unique<PermissionWatch>(contents);
+  }
+  permission_watches_ = std::move(watches);
+}
+
+void AlerseSpaceSwitcher::OnTabStripModelChanged(
+    TabStripModel* tab_strip_model,
+    const TabStripModelChange& change,
+    const TabStripSelectionChange& selection) {
+  if (change.type() != TabStripModelChange::kSelectionOnly) {
+    SyncPermissionWatches();
+  }
+  TellIfOwnNoticeChanged();
+}
+
+void AlerseSpaceSwitcher::TellIfOwnNoticeChanged() {
+  const SpaceNotice notice = NoticeOfTabs(browser_->GetTabStripModel());
+  if (notice != own_notice_) {
+    own_notice_ = notice;
+    alerse::SpacesChangedCallbacks().Notify();
+  }
 }
 
 void AlerseSpaceSwitcher::OnProfileAdded(const base::FilePath& profile_path) {
@@ -667,34 +776,64 @@ void AlerseSpaceSwitcher::OnProfileWasRemoved(
 void AlerseSpaceSwitcher::OnTabChangedAt(tabs::TabInterface* tab,
                                            TabChangeType change_type) {
   // A hidden window's tab does not show its alert: Chromium marks the tab
-  // instead and shows the alert when the user comes to it.
-  if (change_type == TabChangeType::kBlockedOnly ||
-      change_type == TabChangeType::kAttentionOnly) {
-    alerse::SpacesChangedCallbacks().Notify();
+  // instead and shows the alert when the user comes to it. Sound that
+  // starts or stops, a recording and a crash arrive here too; the other
+  // Spaces' bars are told only when what this window has to tell changed.
+  if (change_type != TabChangeType::kResourceUsageOnly) {
+    TellIfOwnNoticeChanged();
   }
 }
 
-bool AlerseSpaceSwitcher::SpaceNeedsAttention(const std::string& space) const {
+// static
+AlerseSpaceSwitcher::SpaceNotice AlerseSpaceSwitcher::NoticeOfTabs(
+    const TabStripModel* tabs) {
+  SpaceNotice notice;
+  for (int i = 0; i < tabs->count(); ++i) {
+    tabs::TabInterface* tab = tabs->GetTabAtIndex(i);
+    content::WebContents* contents = tab->GetContents();
+    const permissions::PermissionRequestManager* requests =
+        contents
+            ? permissions::PermissionRequestManager::FromWebContents(contents)
+            : nullptr;
+    // A dialog of the page, a page that asked for attention, a crashed
+    // page, or a permission request waiting for its answer.
+    if (tabs->IsTabBlocked(i) || TabUIHelper::From(tab)->needs_attention() ||
+        TabUIHelper::From(tab)->IsCrashed() ||
+        (requests && requests->IsRequestInProgress())) {
+      notice.kind = 3;
+      notice.alert.reset();
+      return notice;
+    }
+    const tabs::TabAlertController* alerts =
+        tabs::TabAlertController::From(tab);
+    const std::optional<tabs::TabAlert> alert =
+        alerts ? alerts->GetAlertToShow() : std::nullopt;
+    if (!alert || *alert == tabs::TabAlert::kAudioMuting) {
+      continue;
+    }
+    if (*alert == tabs::TabAlert::kAudioPlaying) {
+      notice.kind = std::max(notice.kind, 1);
+    } else if (notice.kind < 2) {
+      // The camera, the microphone, the screen, a device.
+      notice.kind = 2;
+      notice.alert = alert;
+    }
+  }
+  return notice;
+}
+
+AlerseSpaceSwitcher::SpaceNotice AlerseSpaceSwitcher::NoticeOfSpace(
+    const std::string& space) const {
   ProfileManager* manager = g_browser_process->profile_manager();
   Profile* profile =
       manager ? manager->GetProfileByPath(PathOfSpace(space)) : nullptr;
   if (space == kDefaultSpace || !profile) {
-    return false;
+    return SpaceNotice();
   }
   alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
   BrowserWindowInterface* member =
       stacks.FindMember(stacks.StackOf(browser_), profile);
-  if (!member) {
-    return false;
-  }
-  const TabStripModel* tabs = member->GetTabStripModel();
-  for (int i = 0; i < tabs->count(); ++i) {
-    if (tabs->IsTabBlocked(i) ||
-        TabUIHelper::From(tabs->GetTabAtIndex(i))->needs_attention()) {
-      return true;
-    }
-  }
-  return false;
+  return member ? NoticeOfTabs(member->GetTabStripModel()) : SpaceNotice();
 }
 
 void AlerseSpaceSwitcher::ShowSpaceOfPath(const base::FilePath& path) {
@@ -1098,7 +1237,8 @@ void AlerseSpaceSwitcher::Rebuild() {
         active, title, std::move(space)));
     // Arc for macOS' pill names the Space and its shortcut, "home" ^ 1.
     view->SetTooltipText(std::u16string());
-    view->SetAttention(SpaceNeedsAttention(view->space()));
+    const SpaceNotice notice = NoticeOfSpace(view->space());
+    view->SetNotice(notice.kind, notice.alert);
     std::optional<ui::Accelerator> shortcut;
     if (space_actions_.size() <= 9) {
       shortcut = SpaceAccelerator(space_actions_.size() - 1);

@@ -29,6 +29,7 @@
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
 #include "components/bookmarks/browser/base_bookmark_model_observer.h"
 #include "components/bookmarks/browser/bookmark_model.h"
+#include "components/tabs/public/tab_alert.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -38,6 +39,10 @@
 
 class BrowserWindowInterface;
 class Profile;
+
+namespace content {
+class WebContents;
+}  // namespace content
 
 namespace views {
 class MenuRunner;
@@ -129,10 +134,15 @@ class AlerseSpaceSwitcher : public views::View,
     alerse::RepaintTree(this);
   }
 
-  // TabStripModelObserver: a dialog of a tab opened or closed, which the
-  // other Spaces' bars of this window mark.
+  // TabStripModelObserver: a dialog of a tab opened or closed, its sound
+  // started or stopped, it crashed: what the other Spaces' bars of this
+  // window mark.
   void OnTabChangedAt(tabs::TabInterface* tab,
                       TabChangeType change_type) override;
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override;
 
   // bookmarks::BaseBookmarkModelObserver: the Space's folder records its
   // name, icon and color.
@@ -197,9 +207,22 @@ class AlerseSpaceSwitcher : public views::View,
   // The profile directory of the Space an icon names: kDefaultSpace is this
   // window's own, "profile:<directory>" another one.
   base::FilePath PathOfSpace(const std::string& space) const;
-  // Whether a tab of that Space, hidden behind this window, has a dialog
-  // for the user to answer.
-  bool SpaceNeedsAttention(const std::string& space) const;
+  // What a Space hidden behind this window has to tell, the most pressing
+  // first. `kind` 3: a tab waits for the user (a dialog, a permission
+  // request, a crashed page). 2: a tab records or shares (`alert` says
+  // what). 1: a tab plays sound. 0: nothing.
+  struct SpaceNotice {
+    int kind = 0;
+    std::optional<tabs::TabAlert> alert;
+    bool operator==(const SpaceNotice&) const = default;
+  };
+  static SpaceNotice NoticeOfTabs(const TabStripModel* tabs);
+  SpaceNotice NoticeOfSpace(const std::string& space) const;
+  // Tells every Space bar when this window's own notice changed.
+  void TellIfOwnNoticeChanged();
+  // One watch per tab of this window.
+  class PermissionWatch;
+  void SyncPermissionWatches();
   // The folder of this window's Space (alerse_space_folder.h), if it has one.
   const bookmarks::BookmarkNode* SpaceFolder() const;
   // The plus button's menu: a new Space, folder or tab.
@@ -236,6 +259,10 @@ class AlerseSpaceSwitcher : public views::View,
       profiles_observation_{this};
   // Another window changed what its Space shows (alerse_space_registry.h).
   base::CallbackListSubscription spaces_subscription_;
+  // What this window's tabs last had to tell the other Spaces' bars.
+  SpaceNotice own_notice_;
+  std::map<content::WebContents*, std::unique_ptr<PermissionWatch>>
+      permission_watches_;
   // The Space folder being renamed, and its Space.
   int64_t renaming_folder_ = 0;
   std::string renaming_space_;

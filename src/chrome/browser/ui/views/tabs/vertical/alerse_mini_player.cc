@@ -12,6 +12,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/tabs/alerse_window_stack.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/grit/generated_resources.h"
@@ -190,12 +191,24 @@ content::WebContents* AlerseMiniPlayer::GetMediaContents() const {
   }
   content::WebContents* contents =
       content::MediaSession::GetWebContentsFromRequestId(*request_id_);
-  // Only this window's own profile: an incognito tab's media never shows in
-  // a regular window, nor a regular tab's in an incognito one.
-  if (!contents || contents->GetBrowserContext() != browser_->GetProfile()) {
+  if (!contents) {
     return nullptr;
   }
-  return contents;
+  if (contents->GetBrowserContext() == browser_->GetProfile()) {
+    return contents;
+  }
+  // Another Space's media shows too, while that Space is one of this
+  // window's (a member of its stack): sound from a hidden Space has its
+  // source on screen. An incognito tab's media never shows in a regular
+  // window, nor a regular tab's in an incognito one.
+  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  if (!profile || profile->IsOffTheRecord() ||
+      browser_->GetProfile()->IsOffTheRecord()) {
+    return nullptr;
+  }
+  alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
+  return stacks.FindMember(stacks.StackOf(browser_), profile) ? contents
+                                                              : nullptr;
 }
 
 void AlerseMiniPlayer::UpdateVisibility() {
@@ -222,11 +235,15 @@ void AlerseMiniPlayer::UpdateVisibility() {
     PreferredSizeChanged();
     if (visible) {
       // It rises into its place. Leaving is one jump: the rows take its
-      // room at once.
-      SetPaintToLayer();
-      layer()->SetFillsBoundsOpaquely(false);
-      alerse::motion::Arrive(this, gfx::Vector2d(0, 12),
-                             alerse::motion::kStandard);
+      // room at once. Not in a hidden Space's window, which draws no
+      // frames: the card would wait at its start, unseen, and stay so when
+      // the Space shows.
+      if (GetWidget() && GetWidget()->IsVisible()) {
+        SetPaintToLayer();
+        layer()->SetFillsBoundsOpaquely(false);
+        alerse::motion::Arrive(this, gfx::Vector2d(0, 12),
+                               alerse::motion::kStandard);
+      }
     } else if (layer()) {
       DestroyLayer();
     }
@@ -263,15 +280,16 @@ void AlerseMiniPlayer::GoToMediaTab() {
   }
   BrowserWindowInterface* window = tab->GetBrowserWindowInterface();
   TabStripModel* model = window->GetTabStripModel();
-  // Show the tab's Space first; outside of Spaces, the default one.
-  if (std::optional<tab_groups::TabGroupId> group = tab->GetGroup()) {
-    model->EnterFocusMode(*group);
-  } else if (model->GetFocusedGroup()) {
-    model->ExitFocusMode(TabGroupFocusExitReason::kActiveTabGroupOperation);
-  }
   const int index = model->GetIndexOfTab(tab);
   if (index != TabStripModel::kNoTab) {
     model->ActivateTabAt(index);
+  }
+  // The tab's Space takes this window's place when it is one of its own
+  // (alerse_window_stack.h); another window comes forward.
+  alerse::WindowStacks& stacks = alerse::WindowStacks::Get();
+  if (window != browser_ && stacks.StackOf(window) == stacks.StackOf(browser_)) {
+    alerse::ShowSpaceInStack(browser_, window->GetProfile()->GetPath());
+    return;
   }
   window->GetWindow()->Activate();
 }
