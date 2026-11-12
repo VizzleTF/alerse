@@ -6401,9 +6401,12 @@ void AlerseSidebarView::AdoptLegacySpace() {
   for (const auto& child : model_->other_node()->children()) {
     std::string space;
     // A Space of 0.1 is a folder marked with its id; home's own folder is
-    // "default" and a Space of Arc not taken over yet "arc:<id>".
+    // "default". A Space of Arc not taken over yet, "arc:<id>", is one too
+    // in the first pass after start: tools/arc_import.py leaves them in
+    // home's bookmarks. Later the import page makes those Spaces itself.
     if (!child->is_folder() || !child->GetMetaInfo(kSpaceMetaKey, &space) ||
-        space.empty() || space == "default" || space.starts_with("arc:")) {
+        space.empty() || space == "default" ||
+        (space.starts_with("arc:") && !take_arc_folders_)) {
       continue;
     }
     adopting_legacy_space_ = true;
@@ -6417,6 +6420,8 @@ void AlerseSidebarView::AdoptLegacySpace() {
     if (std::string arc; child->GetMetaInfo(kLegacyArcSpaceMetaKey, &arc) &&
                          !arc.empty()) {
       legacy.arc_space = "arc:" + arc;
+    } else if (space.starts_with("arc:")) {
+      legacy.arc_space = space;
     }
     AlerseSpaceSwitcher::CreateSpace(
         browser_, child->GetTitle(),
@@ -6425,6 +6430,7 @@ void AlerseSidebarView::AdoptLegacySpace() {
         /*show=*/false);
     return;
   }
+  take_arc_folders_ = false;
 }
 
 // static

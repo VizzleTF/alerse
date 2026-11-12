@@ -623,6 +623,9 @@ class AlerseSidebarView : public views::View,
   // Not invalidated by rebuilds, unlike `weak_factory_`.
   // A legacy Space is being made into a profile (AdoptLegacySpace()).
   bool adopting_legacy_space_ = false;
+  // AdoptLegacySpace() also takes Arc's Spaces left by tools/arc_import.py
+  // until its first pass after start ends.
+  bool take_arc_folders_ = true;
   base::WeakPtrFactory<AlerseSidebarView> drop_weak_factory_{this};
   base::WeakPtrFactory<AlerseSidebarView> split_weak_factory_{this};
 };
