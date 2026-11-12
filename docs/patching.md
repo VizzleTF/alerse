@@ -5,6 +5,11 @@ platform patches. You edit them in a separate working tree, inside a platform ch
 (the examples use [alerse-win](https://github.com/VizzleTF/alerse-win)), and export
 them into this repository, which is that checkout's `alerse` submodule.
 
+To build a whole platform rather than change a patch, follow "Build from source" in that
+platform's repository: [alerse-win](https://github.com/VizzleTF/alerse-win#build-from-source),
+[alerse-mac](https://github.com/VizzleTF/alerse-mac#build-from-source),
+[alerse-linux](https://github.com/VizzleTF/alerse-linux#build-from-source).
+
 ## Set up a working tree
 
 Run from the root of an alerse-win checkout. `src/` is ignored by git.

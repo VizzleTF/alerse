@@ -137,7 +137,7 @@ becomes a Space of its own with its pinned items.
 | Spaces with separate logins | done: each Space is a profile (0.1.12+) |
 | Sidebar, drag and drop, command bar | done |
 | Import from Arc and Chromium-based browsers | done on Windows (0.1.3+) and macOS (0.1.12+); Linux after it moves to 157 |
-| Sync | done with your own server: Windows, Linux, macOS and iOS in one chain; only Windows 0.1.2+ holds data back until it is end-to-end encrypted, so start a chain there; public server to do |
+| Sync | done with your own server, between Windows, Linux, macOS and iOS. Start sync on Windows 0.1.2 or later: only it holds data back until end-to-end encryption is on. A public server is to do |
 | Windows | releases on Chromium 157 |
 | Linux | releases on Chromium 156, built in CI |
 | macOS | pre-releases on Chromium 156, built locally (official build with PGO), until ungoogled-chromium-macos ships 157; Arc's menu bar instead of the top bar and logo menu |
