@@ -33,6 +33,23 @@ TEST(AlerseUpdateCheckerTest, ParsesReleaseTags) {
   EXPECT_FALSE(ParseReleaseTag("v 0.1.5"));
 }
 
+TEST(AlerseUpdateCheckerTest, FindsTheNewestRelease) {
+  // /releases/latest answers one release.
+  EXPECT_EQ(NewestRelease(R"({"tag_name": "v0.1.9"})"), base::Version("0.1.9"));
+  // /releases answers a list, pre-releases included, in no promised order;
+  // drafts and other tags do not count.
+  EXPECT_EQ(NewestRelease(R"([
+      {"tag_name": "v0.1.10", "prerelease": true},
+      {"tag_name": "v0.1.9", "prerelease": true},
+      {"tag_name": "v0.1.12", "draft": true},
+      {"tag_name": "nightly"},
+      {"tag_name": "v0.1.11", "prerelease": true}])"),
+            base::Version("0.1.11"));
+  EXPECT_FALSE(NewestRelease("[]"));
+  EXPECT_FALSE(NewestRelease(R"({"message": "Not Found"})"));
+  EXPECT_FALSE(NewestRelease("not json"));
+}
+
 TEST(AlerseUpdateCheckerTest, ComparesVersionsByNumber) {
   EXPECT_TRUE(IsNewerRelease("0.1.5", "0.1.4"));
   EXPECT_TRUE(IsNewerRelease("0.1.10", "0.1.9"));
