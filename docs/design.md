@@ -1338,7 +1338,12 @@ The user asked for it back on 2026-11-08 after it had been taken out; Peek stays
   pane's place in the split and the chooser closes (`AlerseSidebarView::
   FillSplitChooser`, Chromium's `UpdateTabInSplit` with `kReplace`, done one task
   after the activation, since a split is updated from one of its panes); Chromium's
-  own list on the page picks too. Escape leaves the chooser pane open.
+  own list on the page picks too. Escape leaves the chooser pane open. The pane is the
+  chooser also when the window has no other tab to pick, then an empty pane with its
+  close button (`look/split-chooser-one-tab.patch`): Chromium loaded its
+  full new tab page then (in `NewSplitTab` and from the page itself), and a Space's
+  window often has one tab, so the pane showed the search engine's logo, Web Store and
+  Customize.
 - Where it is: Control+Shift+= on both platforms (Windows and Linux: Ctrl+Shift+=, which
   Chromium gives to zoom, as is Ctrl+Shift+-; Ctrl+= and Ctrl+- still zoom, and
   Chromium's Alt+Shift+N is dropped so menus show Arc's key); macOS' View menu (Add

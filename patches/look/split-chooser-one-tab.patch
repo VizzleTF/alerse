@@ -1,0 +1,32 @@
+diff --git a/chrome/browser/resources/tab_search/split_view/app.ts b/chrome/browser/resources/tab_search/split_view/app.ts
+--- a/chrome/browser/resources/tab_search/split_view/app.ts
++++ b/chrome/browser/resources/tab_search/split_view/app.ts
+@@ -225,10 +225,8 @@
+   }
+ 
+   private sortTabs_() {
+-    // If no tabs are eligible for selection, redirect to the regular NTP.
+-    if (this.allEligibleTabs_.length === 0) {
+-      this.redirectToNtp_();
+-    }
++    // Alerse: no tab to choose leaves the pane empty under the command bar,
++    // not the full new tab page, as a Space's window often has no other tab.
+     this.allEligibleTabs_.sort((a, b) => {
+       const tabA = a.tab as Tab;
+       const tabB = b.tab as Tab;
+diff --git a/chrome/browser/ui/browser_commands.cc b/chrome/browser/ui/browser_commands.cc
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -1834,9 +1834,10 @@
+   const int active_index = tab_strip_model->active_index();
+   // In Incognito or Enterprise Isolated modes, we can't show the regular Split
+   // View NTP so default to the regular NTP which renders special content.
++  // Alerse: the chooser also when the window has no other tab, as a Space's
++  // window often has one: the full new tab page showed in the pane instead.
+   const GURL new_tab_url =
+-      !browser->GetProfile()->IsPrimaryOTRProfileWithRegularParent() &&
+-              tab_strip_model->count() > 1
++      !browser->GetProfile()->IsPrimaryOTRProfileWithRegularParent()
+           ? GURL(chrome::kChromeUISplitViewNewTabPageURL)
+           : chrome::ChromeUINewTabURLAsGURL();
+   tab_strip_model->delegate()->AddTabAt(
