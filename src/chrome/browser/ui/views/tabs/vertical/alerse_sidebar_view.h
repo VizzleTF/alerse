@@ -370,6 +370,15 @@ class AlerseSidebarView : public views::View,
   // Updates the title and icon of `tab`'s rows in place. False when its rows
   // show more of the tab than that, or it has none: then they are rebuilt.
   bool UpdateTabRows(tabs::TabInterface* tab);
+  // Moves the shown tab's plate from one plain tab's row to another's, in
+  // place; false when the change needs a rebuild.
+  bool SwapActiveRows(const TabStripSelectionChange& selection);
+  // The plain tabs' rows, in their order.
+  std::vector<tabs::TabInterface::Handle> PlainTabRows() const;
+  // After a rebuild: a tab's row that came brings itself in and pushes the
+  // rows below down; one that went lets the rows below slide up.
+  void AnimateTabRowChanges(
+      const std::vector<tabs::TabInterface::Handle>& before);
   // `tab` as a pinned tab outside the Spaces (in their default storage), or
   // its replacement opened there.
   tabs::TabInterface* PinAsFavoriteTab(tabs::TabInterface* tab);
@@ -526,6 +535,8 @@ class AlerseSidebarView : public views::View,
   // The row being dragged; rows are not rebuilt meanwhile.
   std::optional<RowTarget> drag_source_;
   bool rebuild_after_drag_ = false;
+  // A rebuild is posted and has not run yet.
+  bool rebuild_pending_ = false;
   // The next rebuild scrolls the rows to the active tab's: it has changed,
   // or the sidebar is new.
   bool reveal_active_tab_ = true;

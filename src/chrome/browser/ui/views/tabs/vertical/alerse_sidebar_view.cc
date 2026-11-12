@@ -1773,6 +1773,17 @@ class AlerseSidebarView::Row : public views::Button {
   // half paints only its hover, and its insets stop at the row's middle.
   void SetSplitHalf(bool start) { split_half_ = start ? 1 : 2; }
 
+  // A plain tab's row as its tab is shown or leaves: the plate alone
+  // changes, in place.
+  void SetActive(bool active) {
+    if (active_ == active) {
+      return;
+    }
+    active_ = active;
+    GetViewAccessibility().SetIsSelected(active);
+    SchedulePaint();
+  }
+
   // A row of Arc for macOS' folder popup: smaller text, an optional second
   // line in grey, and only the selected row highlighted.
   void SetPopupStyle(const std::u16string& subtitle) {
@@ -2170,6 +2181,23 @@ class AlerseSidebarView::Row : public views::Button {
       UpdateLabelColor();
     }
     if (close_) {
+      // In with the quick fade, out at once: the title re-elides at once
+      // either way.
+      if (hovered && !close_->GetVisible()) {
+        if (!close_->layer()) {
+          close_->SetPaintToLayer();
+          close_->layer()->SetFillsBoundsOpaquely(false);
+        }
+        close_->layer()->SetOpacity(0.0f);
+        views::AnimationBuilder()
+            .SetPreemptionStrategy(alerse::motion::kRetarget)
+            .Once()
+            .SetDuration(alerse::motion::Fade(alerse::motion::kQuick))
+            .SetOpacity(close_->layer(), 1.0f, alerse::motion::kEnter);
+      } else if (!hovered && close_->layer()) {
+        close_->layer()->GetAnimator()->AbortAllAnimations();
+        close_->layer()->SetOpacity(1.0f);
+      }
       close_->SetVisible(hovered);
       InvalidateLayout();
     }
@@ -2180,7 +2208,7 @@ class AlerseSidebarView::Row : public views::Button {
   }
 
   const int depth_;
-  const bool active_;
+  bool active_;
   const ui::ColorId color_;
   int height_;
   // 1: a split row's start half, 2: its end half.
@@ -2456,8 +2484,57 @@ void AlerseSidebarView::OnTabStripModelChanged(
                        selection.old_contents->GetWeakPtr(),
                        selection.new_contents->GetWeakPtr()));
   }
+  // Only the shown tab changed, between two plain tabs' rows: their plates
+  // change in place and nothing is rebuilt.
+  if (change.type() == TabStripModelChange::kSelectionOnly &&
+      selection.active_tab_changed() && SwapActiveRows(selection)) {
+    return;
+  }
   reveal_active_tab_ |= selection.active_tab_changed();
   ScheduleRebuild();
+}
+
+bool AlerseSidebarView::SwapActiveRows(const TabStripSelectionChange& selection) {
+  // A rebuild on its way (or a folder's curtain, or a drag) builds the rows
+  // anew anyway; this would touch rows about to go.
+  if (rebuild_pending_ || folder_animation_.is_animating() ||
+      drag_source_ || preview_space_ || !selection.old_tab ||
+      !selection.new_tab) {
+    return false;
+  }
+  tabs::TabInterface* const old_tab = selection.old_tab;
+  tabs::TabInterface* const new_tab = selection.new_tab;
+  // A pinned item's row, a favorite's tile, a split's pair and an empty
+  // Space's hidden tab show the change in more than a plate.
+  for (tabs::TabInterface* tab : {old_tab, new_tab}) {
+    if (IsBound(tab) || tab->IsSplit() ||
+        TabStripModel::IsAlerseEmptySpace(tab->GetContents())) {
+      return false;
+    }
+  }
+  Row* old_row = nullptr;
+  Row* new_row = nullptr;
+  for (const auto& [view, target] : row_targets_) {
+    Row* row = views::AsViewClass<Row>(view);
+    if (!row || target.node || row->parent() != rows_) {
+      continue;
+    }
+    if (target.tab.Get() == old_tab) {
+      old_row = row;
+    } else if (target.tab.Get() == new_tab) {
+      new_row = row;
+    }
+  }
+  if (!old_row || !new_row) {
+    return false;
+  }
+  old_row->SetActive(false);
+  new_row->SetActive(true);
+  // A dot waits for the user only on a tab that is not shown.
+  old_row->SetAttention(TabNeedsUser(browser_, old_tab));
+  new_row->SetAttention(TabNeedsUser(browser_, new_tab));
+  RevealActiveTab();
+  return true;
 }
 
 void AlerseSidebarView::FillSplitChooser(
@@ -2879,6 +2956,7 @@ void AlerseSidebarView::ScheduleRebuild() {
     rebuild_after_drag_ = false;
   }
   weak_factory_.InvalidateWeakPtrs();
+  rebuild_pending_ = true;
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&AlerseSidebarView::Rebuild,
                                 weak_factory_.GetWeakPtr()));
@@ -3247,6 +3325,8 @@ void AlerseSidebarView::OnSpaceDrawn(BrowserWindowInterface* to) {
 
 void AlerseSidebarView::Rebuild() {
   absl::Cleanup slide = [this] { DropSwipePreview(); };
+  rebuild_pending_ = false;
+  const std::vector<tabs::TabInterface::Handle> tabs_before = PlainTabRows();
   hover_timer_.Stop();
   FinishFolderAnimation();
   folder_anim_.reset();
@@ -3347,6 +3427,7 @@ void AlerseSidebarView::Rebuild() {
     }
   }
 
+  AnimateTabRowChanges(tabs_before);
   PreferredSizeChanged();
   if (std::exchange(reveal_active_tab_, false) && GetWidget()) {
     // The new rows have no place before the layout asked for above.
@@ -3364,6 +3445,143 @@ void AlerseSidebarView::Rebuild() {
             }
           },
           drop_weak_factory_.GetWeakPtr()));
+    }
+  }
+}
+
+std::vector<tabs::TabInterface::Handle> AlerseSidebarView::PlainTabRows()
+    const {
+  std::vector<tabs::TabInterface::Handle> handles;
+  for (views::View* child : rows_->children()) {
+    const auto it = row_targets_.find(child);
+    // A closed tab's handle counts: its row is what went.
+    if (it != row_targets_.end() && !it->second.node &&
+        !(it->second.tab == tabs::TabInterface::Handle())) {
+      handles.push_back(it->second.tab);
+    }
+  }
+  return handles;
+}
+
+namespace {
+
+// Gives `view` a layer for one animation and drops it when the animation
+// ends, so that rows do not keep a layer each.
+ui::Layer* MotionLayer(views::View* view) {
+  if (!view->layer()) {
+    view->SetPaintToLayer();
+    view->layer()->SetFillsBoundsOpaquely(false);
+  }
+  return view->layer();
+}
+
+base::OnceClosure DropMotionLayer(views::View* view) {
+  return base::BindOnce(
+      [](std::unique_ptr<views::ViewTracker> tracker) {
+        if (views::View* view = tracker->view(); view && view->layer()) {
+          view->DestroyLayer();
+        }
+      },
+      std::make_unique<views::ViewTracker>(view));
+}
+
+// Slides `views` from `dy` above (negative) or below their place to it.
+void SlideIntoPlace(const std::vector<views::View*>& views, int dy) {
+  const base::TimeDelta duration = alerse::motion::ForDistance(dy);
+  if (duration.is_zero()) {
+    return;
+  }
+  for (views::View* view : views) {
+    ui::Layer* layer = MotionLayer(view);
+    layer->SetTransform(gfx::Transform::MakeTranslation(0, dy));
+    auto [ended, aborted] = base::SplitOnceCallback(DropMotionLayer(view));
+    views::AnimationBuilder()
+        .SetPreemptionStrategy(alerse::motion::kRetarget)
+        .OnEnded(std::move(ended))
+        .OnAborted(std::move(aborted))
+        .Once()
+        .SetDuration(duration)
+        .SetTransform(layer, gfx::Transform(), alerse::motion::kEnter);
+  }
+}
+
+}  // namespace
+
+void AlerseSidebarView::AnimateTabRowChanges(
+    const std::vector<tabs::TabInterface::Handle>& before) {
+  // Not on the first build, a swipe's preview or a folder's curtain, which
+  // moves the rows itself.
+  if (before.empty() || preview_space_ || folder_anim_ ||
+      folder_animation_.is_animating() || !GetWidget()) {
+    return;
+  }
+  const std::vector<tabs::TabInterface::Handle> after = PlainTabRows();
+  std::vector<tabs::TabInterface::Handle> added;
+  std::vector<tabs::TabInterface::Handle> removed;
+  for (const auto& handle : after) {
+    if (!std::ranges::contains(before, handle)) {
+      added.push_back(handle);
+    }
+  }
+  for (const auto& handle : before) {
+    if (!std::ranges::contains(after, handle)) {
+      removed.push_back(handle);
+    }
+  }
+  const auto view_of = [this](const tabs::TabInterface::Handle& handle) {
+    for (views::View* child : rows_->children()) {
+      const auto it = row_targets_.find(child);
+      if (it != row_targets_.end() && !it->second.node &&
+          it->second.tab == handle) {
+        return child;
+      }
+    }
+    return static_cast<views::View*>(nullptr);
+  };
+  const auto rows_from = [this](views::View* first) {
+    std::vector<views::View*> views;
+    const auto& children = rows_->children();
+    for (auto it = std::ranges::find(children, first); it != children.end();
+         ++it) {
+      views.push_back(*it);
+    }
+    return views;
+  };
+  const int pitch = static_cast<int>(std::lround(kRowPitch));
+  if (added.size() == 1 && removed.empty()) {
+    views::View* row = view_of(added[0]);
+    if (!row) {
+      return;
+    }
+    std::vector<views::View*> below = rows_from(row);
+    below.erase(below.begin());
+    SlideIntoPlace(below, -pitch);
+    // The row itself fades in from half a row up.
+    ui::Layer* layer = MotionLayer(row);
+    layer->SetOpacity(0.0f);
+    const bool move = !alerse::motion::Move(alerse::motion::kStandard).is_zero();
+    if (move) {
+      layer->SetTransform(gfx::Transform::MakeTranslation(0, -pitch / 2));
+    }
+    auto [ended, aborted] = base::SplitOnceCallback(DropMotionLayer(row));
+    views::AnimationBuilder()
+        .SetPreemptionStrategy(alerse::motion::kRetarget)
+        .OnEnded(std::move(ended))
+        .OnAborted(std::move(aborted))
+        .Once()
+        .SetDuration(alerse::motion::Fade(alerse::motion::kStandard))
+        .SetOpacity(layer, 1.0f, alerse::motion::kEnter)
+        .SetTransform(layer, gfx::Transform(), alerse::motion::kEnter);
+    return;
+  }
+  if (removed.size() == 1 && added.empty()) {
+    // The rows that followed the one that went close the gap it left.
+    auto it = std::ranges::find(before, removed[0]);
+    for (++it; it != before.end(); ++it) {
+      if (views::View* next = view_of(*it)) {
+        SlideIntoPlace(rows_from(next), pitch);
+        return;
+      }
     }
   }
 }

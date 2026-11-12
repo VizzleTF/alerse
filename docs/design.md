@@ -938,6 +938,19 @@ What animates:
 - **Folder curtain**: rows clipped and the rows below shifted on layers, driven on the
   compositor's vsync (`views::AnimationDelegateViews`), with layers only for rows the
   scroll view can show.
+- **Tab rows coming and going**. The rows are still rebuilt on most changes; a rebuild
+  compares the plain tabs' rows before and after it (`AnimateTabRowChanges`). One
+  row that came fades in from half a row up over the standard token while the rows
+  below it slide down by a row; one that went lets the rows that followed it slide up
+  by a row (`ForDistance`, `kEnter`). Anything else (two rows at once, a split, a
+  pinned item's or a favorite's tab, a swipe's preview, a folder's curtain) changes at
+  once. Each moving row gets a layer for its move only.
+- **The shown tab changing** between two plain tabs' rows rebuilds nothing: the old
+  row's plate goes and the new row's comes in place (`SwapActiveRows`), so the rows
+  under the pointer and their hover stay. A pinned item's, a favorite's, a split's or
+  an empty Space's tab, a pending rebuild, a drag or a curtain still rebuild.
+- **A row's close button** fades in over the quick token as the pointer enters the
+  row and goes at once as it leaves; the title re-elides at once either way.
 - **Sidebar show / hide** keeps Chromium's animation, at the emphasized token
   (`look/sidebar-motion.patch`). It still lays the sidebar and the page out on each
   frame.
@@ -956,7 +969,7 @@ What animates:
 
 Not animated, on purpose: the Space's tint (each Space's window has its own; a
 cross-fade needs a cover layer whose order in the window is not verified), row hover,
-tab rows added or removed (the rows are rebuilt on every change), closing popovers.
+closing popovers.
 
 ## Icon pickers
 
