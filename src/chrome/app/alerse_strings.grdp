@@ -470,6 +470,12 @@
     <message name="IDS_ALERSE_DOWNLOADS" desc="Tooltip of the sidebar button that shows downloads.">
       Downloads
     </message>
+    <message name="IDS_ALERSE_NO_RECENT_DOWNLOADS" desc="Dimmed line of the sidebar's downloads popover when nothing was downloaded in the last 24 hours.">
+      No recent downloads
+    </message>
+    <message name="IDS_ALERSE_ALL_DOWNLOADS" desc="Row of the sidebar's downloads popover that opens the downloads page.">
+      All Downloads
+    </message>
     <message name="IDS_ALERSE_TOGGLE_SIDEBAR" desc="macOS: item of the sidebar header's More popover that hides or shows the sidebar.">
       Toggle Sidebar
     </message>

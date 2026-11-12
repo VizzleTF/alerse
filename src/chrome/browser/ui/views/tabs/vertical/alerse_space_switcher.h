@@ -231,6 +231,9 @@ class AlerseSpaceSwitcher : public views::View,
   void SyncPermissionWatches();
   // The folder of this window's Space (alerse_space_folder.h), if it has one.
   const bookmarks::BookmarkNode* SpaceFolder() const;
+  // The downloads button's popover: recent downloads, or a line saying
+  // there are none and a row to the downloads page.
+  void ShowDownloads(const ui::Event& event);
   // The plus button's menu: a new Space, folder or tab.
   void ShowAddMenu(const ui::Event& event);
   void ShowSpaceMenu(const std::string& space,

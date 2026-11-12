@@ -57,6 +57,7 @@
 #include "components/tabs/public/tab_alert.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/alerse_frame_color.h"
+#include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
 #include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/extensions/extensions_toolbar_view_model.h"
@@ -477,8 +478,8 @@ END_METADATA
 
 // The Space bar's left button: Downloads (where Arc has its archive, which
 // Alerse does not keep). An arrow down into a tray, in the stroke, size
-// and grey of the "+" beside it; opens chrome://downloads as
-// IDC_SHOW_DOWNLOADS does.
+// and grey of the "+" beside it; shows the downloads popover
+// (AlerseSpaceSwitcher::ShowDownloads).
 class DownloadsButton : public views::Button {
   METADATA_HEADER(DownloadsButton, views::Button)
 
@@ -1240,21 +1241,7 @@ void AlerseSpaceSwitcher::Rebuild() {
   RemoveAllChildViews();
 
   AddChildView(std::make_unique<DownloadsButton>(base::BindRepeating(
-      [](BrowserWindowInterface* browser) {
-        // Arc shows recent downloads in a popover; the page opens only when
-        // there is nothing recent to list.
-        auto* downloads = DownloadToolbarUIController::From(browser);
-        if (!downloads) {
-          chrome::ShowDownloads(browser);
-        } else if (downloads->bubble_contents_for_testing()) {
-          // Open, or closing because this click deactivated it: either way
-          // the click closes it (InvokeUI would open the page instead).
-          downloads->HideDetails();
-        } else {
-          downloads->InvokeUI();
-        }
-      },
-      base::Unretained(browser_.get()))));
+      &AlerseSpaceSwitcher::ShowDownloads, base::Unretained(this))));
   views::View* icons = AddChildView(std::make_unique<SpaceIconRow>());
   layout_->SetFlexForView(icons, 1);
 
@@ -1490,6 +1477,61 @@ void AlerseSpaceSwitcher::ShowSpaceMenu(
   menu_runner_->RunMenuAt(GetWidget(), nullptr, gfx::Rect(point, gfx::Size()),
                           views::MenuAnchorPosition::kBubbleTopRight,
                           source_type);
+}
+
+void AlerseSpaceSwitcher::ShowDownloads(const ui::Event& event) {
+  // Arc lists downloads in a popover over the button and never opens a tab
+  // for it: Chromium's recent downloads popover, or with nothing recent (it
+  // lists the last 24 hours) a popover that says so and leads to the page.
+  auto* downloads = DownloadToolbarUIController::From(browser_);
+  if (!downloads) {
+    chrome::ShowDownloads(browser_);
+    return;
+  }
+  if (downloads->bubble_contents_for_testing()) {
+    // Open, or closing because this press deactivated it: the press closes
+    // it either way (InvokeUI would open the page instead).
+    downloads->HideDetails();
+    return;
+  }
+  if (!downloads->bubble_controller()->GetMainView().empty()) {
+    downloads->InvokeUI();
+    return;
+  }
+  views::View* button = nullptr;
+  for (views::View* child : children()) {
+    if (views::IsViewClass<DownloadsButton>(child)) {
+      button = child;
+    }
+  }
+  if (!button || !button->GetWidget() ||
+      alerse::ArcPopoverJustClosed(button)) {
+    return;
+  }
+  std::optional<ui::Accelerator> shortcut;
+  ui::Accelerator accelerator;
+  if (BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser_);
+      view && view->GetAccelerator(IDC_SHOW_DOWNLOADS, &accelerator)) {
+    shortcut = accelerator;
+  }
+  std::vector<alerse::PopoverItem> items;
+  items.emplace_back(
+      alerse::PopoverIcon::kNone,
+      l10n_util::GetStringUTF16(IDS_ALERSE_NO_RECENT_DOWNLOADS), std::nullopt,
+      /*enabled=*/false, base::DoNothing());
+  items.emplace_back(
+      alerse::PopoverIcon::kNone,
+      l10n_util::GetStringUTF16(IDS_ALERSE_ALL_DOWNLOADS), shortcut,
+      /*enabled=*/true,
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSpaceSwitcher> switcher) {
+            if (switcher) {
+              chrome::ShowDownloads(switcher->browser_);
+            }
+          },
+          weak_factory_.GetWeakPtr()));
+  alerse::ShowArcPopover(button, std::move(items), /*above=*/true,
+                         kAddPopoverWidth, base::DoNothing());
 }
 
 void AlerseSpaceSwitcher::ShowAddMenu(const ui::Event& event) {

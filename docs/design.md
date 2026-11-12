@@ -152,8 +152,10 @@ feature does on it. In short:
   Spaces' folders stay in Other Bookmarks as ordinary folders.
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; shows recent downloads in a popover above
-  it and closes it on a second click, as Arc does, without a tab; `chrome://downloads`
-  opens only when nothing is recent, and from Ctrl+J and Shift+Cmd+J), an icon per Space (the active one bright), "+" at the
+  it and closes it on a second click, as Arc does, without a tab; with nothing from
+  the last 24 hours the popover says "No recent downloads" and offers "All
+  Downloads", the only way from it to `chrome://downloads` besides Ctrl+J and
+  Shift+Cmd+J), an icon per Space (the active one bright), "+" at the
   right. A Space's icon is picked from its menu and stored in its bookmark folder as
   `arcomium.space_icon`, so it syncs; Home is a sun until another is picked. The same
   menu has Edit Theme Color and Delete Space (after a question; it deletes the
