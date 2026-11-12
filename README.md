@@ -21,7 +21,7 @@ and a fallback Arc import script. Builds come from the platform repositories.
 |---|---|---|
 | Windows 10 and 11 (x64, arm64) | installer or zip from [alerse-win releases](https://github.com/VizzleTF/alerse-win/releases) | SmartScreen warns about an unsigned app: More info, Run anyway |
 | macOS (Apple Silicon) | `.dmg` from [alerse-mac releases](https://github.com/VizzleTF/alerse-mac/releases) | drag Alerse to Applications, then run `xattr -dr com.apple.quarantine /Applications/Alerse.app` |
-| Linux (x86_64, arm64) | AppImage or tarball from [alerse-linux releases](https://github.com/VizzleTF/alerse-linux/releases) | `chmod +x` the AppImage |
+| Linux (x86_64, arm64) | AppImage or tarball from [alerse-linux releases](https://github.com/VizzleTF/alerse-linux/releases): 0.1.1 only, before Space profiles; the next waits for ungoogled-chromium 157 on Linux | `chmod +x` the AppImage |
 | iPhone | build from source: [alerse-ios](https://github.com/VizzleTF/alerse-ios) | |
 
 Alerse tells you about a newer release in the Alerse menu (the logo at the top of the
@@ -137,9 +137,9 @@ becomes a Space of its own with its pinned items.
 | Spaces with separate logins | done: each Space is a profile (0.1.12+) |
 | Sidebar, drag and drop, command bar | done |
 | Import from Arc and Chromium-based browsers | done on Windows (0.1.3+) and macOS (0.1.12+); Linux after it moves to 157 |
-| Sync | done with your own server, between Windows, Linux, macOS and iOS. Start sync on Windows 0.1.2 or later: only it holds data back until end-to-end encryption is on. A public server is to do |
+| Sync | done with your own server, between Windows, macOS, iOS and Linux 0.1.1. Start sync on Windows 0.1.2 or later: only it holds data back until end-to-end encryption is on. A public server is to do |
 | Windows | releases on Chromium 157 |
-| Linux | releases on Chromium 156, built in CI |
+| Linux | 0.1.1 on Chromium 156, built in CI; newer releases wait for ungoogled-chromium-portablelinux 157 |
 | macOS | pre-releases on Chromium 156, built locally (official build with PGO), until ungoogled-chromium-macos ships 157; Arc's menu bar instead of the top bar and logo menu |
 | iPhone | builds and syncs in the simulator; Spaces and the sidebar not on iOS |
 | Link routing to Spaces | done: routes by site at Link routing in the Alerse menu |
@@ -191,7 +191,8 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 - [How Alerse works](docs/design.md): Spaces, the sidebar, sync, platforms.
 - [Writing and refreshing patches](docs/patching.md).
-- [Versions and releases](docs/versioning.md).
+- [Versions and releases](docs/versioning.md); [making a release](docs/releasing.md).
+- [Why each Space is a profile](docs/adr/0001-space-profiles.md) (ADR-0001).
 
 ## License
 

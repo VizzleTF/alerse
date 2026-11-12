@@ -1,7 +1,7 @@
 # ADR-0001: A Chromium profile and a window for each Space
 
 Status: accepted, 2026-11-11; shipped in 0.1.12 on Windows and macOS (2026-11-12).
-Linux waits for Chromium 157 (step 9). [design.md](../design.md) describes the
+Linux waits for Chromium 157 ([Order of work](#order-of-work), step 9). [design.md](../design.md) describes the
 behaviour as built. "0.1" below means the releases before Space profiles (0.1.11 and
 earlier).
 
@@ -91,7 +91,7 @@ closes them. Its rules:
 Switching (the Space bar, Control+1 to 9, the Spaces menu, a swipe, a routed link)
 shows the next member at the stack's bounds, with the sidebar as wide and as hidden
 as in the previous one, then hides the previous one once the next has presented a frame, so that no frame
-shows the desktop (docs/design.md, "Motion"). Each member has its own tint: there is
+shows the desktop ([design.md, Motion](../design.md#motion)). Each member has its own tint: there is
 no color blend between Spaces.
 
 ### Swipe preview

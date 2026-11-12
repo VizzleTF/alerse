@@ -62,10 +62,12 @@ rewritten names (`9oo91e`, `qjz9zk`, `m1cr050ft`, `ch40m1um`) must not appear in
 Check every new patch for them.
 
 1. Make the change in the working tree (`src\`, on top of the `alerse` commit).
-2. Export it into the submodule:
+2. Export the change to Chromium's files into the submodule, naming them, so that
+   edits to Alerse's own files (which go back to `alerse\src\`, above) stay out of
+   the patch:
 
    ```cmd
-   git -C src diff --relative > alerse\patches\<area>\<name>.patch
+   git -C src diff --relative -- <chromium files> > alerse\patches\<area>\<name>.patch
    ```
 
 3. Add `<area>/<name>.patch` to `alerse\patches\series`, then commit the change in the
@@ -81,7 +83,7 @@ Check every new patch for them.
    ```cmd
    cd src
    set GIT_INDEX_FILE=%TEMP%\alerse-check.index
-   git read-tree HEAD
+   git read-tree base
    for /f "eol=# delims=" %p in (..\alerse\patches\series) do git apply --cached ..\alerse\patches\%p
    ```
 
