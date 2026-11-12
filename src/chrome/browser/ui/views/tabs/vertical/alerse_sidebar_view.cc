@@ -8,6 +8,7 @@
 #include "chrome/browser/ui/views/tabs/vertical/alerse_address_bar.h"
 
 #include <algorithm>
+#include <numbers>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -108,6 +109,10 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "ui/views/paint_info.h"
+#include "components/tabs/public/tab_network_state.h"
+#include "ui/compositor/paint_recorder.h"
+#include "ui/events/keycodes/keyboard_codes.h"
+#include "ui/views/controls/throbber.h"
 #include "ui/base/models/image_model.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "components/viz/common/frame_timing_details.h"
@@ -152,6 +157,10 @@
 #include "ui/views/metrics.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
+#include "cc/paint/paint_shader.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "third_party/skia/include/core/SkTileMode.h"
+#include "ui/views/animation/ink_drop.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 #include "base/i18n/case_conversion.h"
@@ -198,7 +207,13 @@ constexpr float kFavoriteRadius = 12;
 // Shades off the frame: #2F2F2F, hovered #383839 on Arc's #161616.
 constexpr SkAlpha kFavoriteShade = 0x1B;
 constexpr SkAlpha kFavoriteHoverShade = 0x25;
-constexpr SkAlpha kFavoriteActiveShade = 0x40;
+// The shown favorite's tile (FavoriteTile::OnPaintBackground).
+constexpr SkAlpha kFavoriteShownShade = 0x71;
+constexpr float kFavoriteShownTint = 0.23f;
+constexpr float kFavoriteRimWidth = 2;
+// What is drawn in the sidebar's grey elsewhere (the globe of a page without
+// an icon, the tile's marks) is dark on the shown tile's light fill.
+constexpr SkColor kFavoriteShownInk = SkColorSetRGB(0x2B, 0x2B, 0x2B);
 
 // Measured on Arc for macOS (in pt), used on every platform (a point is a
 // DIP on Windows and Linux): rows 41 apart with a 148x36 highlight
@@ -541,6 +556,36 @@ SkColor FrameShade(const views::View* view, SkAlpha alpha) {
                                               alpha);
 }
 
+// The mark of a tab that waits for the user, at its icon's corner: a 6 pt
+// dot in the glyphs' ink with a ring of the frame around it, so it reads on
+// any icon.
+void PaintAttentionDot(gfx::Canvas* canvas,
+                       const views::View* view,
+                       const gfx::Rect& icon) {
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  const gfx::PointF center(icon.right() - 1, icon.y() + 1);
+  flags.setColor(alerse::FrameColor(view));
+  canvas->DrawCircle(center, 4.5f, flags);
+  flags.setColor(alerse::SidebarInk(view, kGlyphColor));
+  canvas->DrawCircle(center, 3, flags);
+}
+
+// Keyboard focus on a row or a tile: a 2 pt ring in the Space's item ink
+// just inside its plate.
+void PaintFocusRing(gfx::Canvas* canvas,
+                    const views::View* view,
+                    gfx::RectF plate,
+                    float radius) {
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  flags.setStyle(cc::PaintFlags::kStroke_Style);
+  flags.setStrokeWidth(2);
+  flags.setColor(alerse::SidebarInk(view, kItemColor));
+  plate.Inset(1);
+  canvas->DrawRoundRect(plate, radius - 1, flags);
+}
+
 // The end of the pinned items, for drag and drop. While the Space has tabs
 // below, it is Arc's line with Clear at its right end, which closes them.
 class Divider : public views::View {
@@ -759,9 +804,7 @@ class SpaceTitle : public views::View {
       return l10n_util::GetStringUTF16(collapsed_ ? IDS_ALERSE_EXPAND_PINNED
                                                   : IDS_ALERSE_COLLAPSE_PINNED);
     }
-    if (p.x() >= MoreButtonX() - 12) {
-      return l10n_util::GetStringUTF16(IDS_ALERSE_SPACE_OPTIONS);
-    }
+    // None on "...", as in Arc: its plate and the menu say what it is.
     return std::u16string();
   }
 
@@ -896,8 +939,79 @@ class FavoriteTile : public views::Button {
     GetViewAccessibility().SetName(title);
     // A tile has no label: its name is in Arc's pill, as a row's is.
     alerse::SetArcTooltip(this, title);
+    // Its own ring (OnPaintBackground), in the Space's ink.
     SetInstallFocusRingOnFocus(false);
     SetTriggerableEventFlags(ui::EF_LEFT_MOUSE_BUTTON);
+  }
+
+  // What the tile's tab is doing, as a row shows it: a 10 pt glyph in the
+  // tile's top right corner (sound, muted, the camera...), `color` the
+  // alert's own or the sidebar's subtle ink.
+  void SetAlertGlyph(const gfx::VectorIcon& glyph,
+                     std::optional<ui::ColorId> color) {
+    alert_glyph_ = &glyph;
+    alert_color_ = color;
+    SchedulePaint();
+  }
+  // The tab left the favorite's page: a "/" in the top left corner, as
+  // before a pinned item's name.
+  void SetLeftPage(bool left) {
+    left_page_ = left;
+    SchedulePaint();
+  }
+  // The tab waits for the user: a dot on the icon.
+  void SetAttention(bool attention) {
+    attention_ = attention;
+    SchedulePaint();
+  }
+
+  void OnFocus() override {
+    views::Button::OnFocus();
+    SchedulePaint();
+  }
+
+  void OnBlur() override {
+    views::Button::OnBlur();
+    SchedulePaint();
+  }
+
+  void PaintChildren(const views::PaintInfo& paint_info) override {
+    views::Button::PaintChildren(paint_info);
+    if (!alert_glyph_ && !left_page_ && !attention_) {
+      return;
+    }
+    // Over the icon.
+    ui::PaintRecorder recorder(paint_info.context(),
+                               paint_info.paint_recording_size(),
+                               paint_info.paint_recording_scale_x(),
+                               paint_info.paint_recording_scale_y(), nullptr);
+    gfx::Canvas* canvas = recorder.canvas();
+    constexpr int kMarkSize = 10;
+    constexpr int kMarkInset = 5;
+    // On the shown tile's light fill, the marks are dark.
+    const SkColor subtle = active_ ? kFavoriteShownInk
+                                   : alerse::SidebarInk(this, kSubtleColor);
+    if (alert_glyph_) {
+      const SkColor color = alert_color_ && GetColorProvider()
+                                ? GetColorProvider()->GetColor(*alert_color_)
+                                : subtle;
+      canvas->DrawImageInt(
+          gfx::CreateVectorIcon(*alert_glyph_, kMarkSize, color),
+          width() - kMarkInset - kMarkSize, kMarkInset);
+    }
+    if (left_page_) {
+      cc::PaintFlags flags;
+      flags.setAntiAlias(true);
+      flags.setStyle(cc::PaintFlags::kStroke_Style);
+      flags.setStrokeWidth(1.5f);
+      flags.setStrokeCap(cc::PaintFlags::kRound_Cap);
+      flags.setColor(subtle);
+      canvas->DrawLine(gfx::PointF(kMarkInset + 2, kMarkInset + kMarkSize),
+                       gfx::PointF(kMarkInset + 6.5f, kMarkInset), flags);
+    }
+    if (attention_) {
+      PaintAttentionDot(canvas, this, icon_->bounds());
+    }
   }
 
   void Layout(PassKey) override {
@@ -929,17 +1043,78 @@ class FavoriteTile : public views::Button {
   void OnPaintBackground(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
-    flags.setColor(FrameShade(this, active_ ? kFavoriteActiveShade
-                                    : IsMouseHovered()
-                                        ? kFavoriteHoverShade
-                                        : kFavoriteShade));
-    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kFavoriteRadius,
+    const gfx::RectF bounds(GetLocalBounds());
+    if (!active_) {
+      flags.setColor(FrameShade(
+          this, IsMouseHovered() ? kFavoriteHoverShade : kFavoriteShade));
+      canvas->DrawRoundRect(bounds, kFavoriteRadius, flags);
+      if (HasFocus()) {
+        PaintFocusRing(canvas, this, bounds, kFavoriteRadius);
+      }
+      return;
+    }
+    // The tile whose tab is shown, as Arc for macOS draws it (measured on a
+    // 70x47 pt tile): a light fill, about #92 grey, tinted a little by the
+    // rim's colours, inside a 2 pt rim whose pastel changes round the tile:
+    // blue at the right, green at the bottom, yellow at the left, pink at
+    // the top.
+    if (HasFocus()) {
+      PaintFocusRing(canvas, this, bounds, kFavoriteRadius);
+    }
+    flags.setColor(FrameShade(this, kFavoriteShownShade));
+    canvas->DrawRoundRect(bounds, kFavoriteRadius, flags);
+    const sk_sp<cc::PaintShader> rim = RimShader(bounds);
+    flags.setShader(rim);
+    flags.setAlphaf(kFavoriteShownTint);
+    canvas->DrawRoundRect(bounds, kFavoriteRadius, flags);
+    flags.setAlphaf(1.0f);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(kFavoriteRimWidth);
+    gfx::RectF ring = bounds;
+    ring.Inset(kFavoriteRimWidth / 2);
+    canvas->DrawRoundRect(ring, kFavoriteRadius - kFavoriteRimWidth / 2,
                           flags);
   }
 
  private:
+  // Arc's rim: a sweep round the tile's middle through the colours measured
+  // at the middle of each side and at each corner.
+  static sk_sp<cc::PaintShader> RimShader(const gfx::RectF& bounds) {
+    const float corner =
+        std::atan2(bounds.height() / 2, bounds.width() / 2) * 180 /
+        std::numbers::pi_v<float>;
+    const auto rgb = [](SkColor color) { return SkColor4f::FromColor(color); };
+    const SkColor4f colors[] = {
+        rgb(SkColorSetRGB(0xC5, 0xCF, 0xEF)),  // right
+        rgb(SkColorSetRGB(0xB5, 0xC8, 0xDB)),  // bottom right
+        rgb(SkColorSetRGB(0xBB, 0xD7, 0xCA)),  // bottom
+        rgb(SkColorSetRGB(0xC7, 0xD1, 0xB2)),  // bottom left
+        rgb(SkColorSetRGB(0xE9, 0xD8, 0xB3)),  // left
+        rgb(SkColorSetRGB(0xDE, 0xC4, 0xB2)),  // top left
+        rgb(SkColorSetRGB(0xEA, 0xC4, 0xC4)),  // top
+        rgb(SkColorSetRGB(0xDC, 0xCB, 0xD6)),  // top right
+        rgb(SkColorSetRGB(0xC5, 0xCF, 0xEF)),  // right again
+    };
+    const SkScalar positions[] = {0,
+                                  corner / 360,
+                                  0.25f,
+                                  (180 - corner) / 360,
+                                  0.5f,
+                                  (180 + corner) / 360,
+                                  0.75f,
+                                  (360 - corner) / 360,
+                                  1};
+    return cc::PaintShader::MakeSweepGradient(
+        bounds.CenterPoint().x(), bounds.CenterPoint().y(), colors, positions,
+        std::size(colors), SkTileMode::kClamp, 0, 360);
+  }
+
   const bool active_;
   raw_ptr<views::ImageView> icon_ = nullptr;
+  raw_ptr<const gfx::VectorIcon> alert_glyph_ = nullptr;
+  std::optional<ui::ColorId> alert_color_;
+  bool left_page_ = false;
+  bool attention_ = false;
   base::RepeatingClosure drag_done_callback_;
 };
 
@@ -1136,6 +1311,33 @@ int RowAlertState(tabs::TabInterface* tab) {
     return 0;
   }
   return tab->GetContents()->IsAudioMuted() ? 2 : 1;
+}
+
+// A background tab waits for the user: a dialog of its page blocks it (an
+// alert, a question before leaving), or the page asked for attention. The
+// shown tab needs no mark: what waits is on the screen.
+bool TabNeedsUser(BrowserWindowInterface* browser, tabs::TabInterface* tab) {
+  if (!tab->GetContents() || tab->IsActivated()) {
+    return false;
+  }
+  const TabStripModel* tabs = browser->GetTabStripModel();
+  const int index = tabs->GetIndexOfTab(tab);
+  return index != TabStripModel::kNoTab &&
+         (tabs->IsTabBlocked(index) ||
+          TabUIHelper::From(tab)->needs_attention());
+}
+
+// A tab's page is on its way: the row shows a throbber in the icon's place,
+// as the tab strip does, except for the tabs it hides it for (restored in
+// the background).
+bool TabIsLoading(tabs::TabInterface* tab) {
+  TabUIHelper* helper = TabUIHelper::From(tab);
+  if (!tab->GetContents() || helper->ShouldHideThrobber()) {
+    return false;
+  }
+  const tabs::TabNetworkState state = helper->GetTabNetworkState();
+  return state == tabs::TabNetworkState::kWaiting ||
+         state == tabs::TabNetworkState::kLoading;
 }
 
 AlerseSidebarView* FindSidebarIn(views::View* view) {
@@ -1346,6 +1548,41 @@ void HideSplitDropZones() {
 
 // One line of the sidebar: icon, optional "/", for a tab with sound its
 // speaker, title and, for tabs, a close button shown on hover.
+namespace {
+
+// A row's close button. Under the pointer it has Arc for macOS' plate: 24 pt
+// with 6 pt corners, a veil over the hovered row (#454545 on #353535), the
+// cross #ADADAD.
+class RowCloseButton : public views::ImageButton {
+  METADATA_HEADER(RowCloseButton, views::ImageButton)
+
+ public:
+  using views::ImageButton::ImageButton;
+
+  void OnPaintBackground(gfx::Canvas* canvas) override {
+    if (GetState() != STATE_HOVERED && GetState() != STATE_PRESSED) {
+      return;
+    }
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setColor(SkColorSetA(
+        color_utils::GetColorWithMaxContrast(alerse::FrameColor(this)), 0x14));
+    gfx::RectF plate(GetLocalBounds());
+    plate.ClampToCenteredSize(gfx::SizeF(24, 24));
+    canvas->DrawRoundRect(plate, 6, flags);
+  }
+
+  void StateChanged(ButtonState old_state) override {
+    views::ImageButton::StateChanged(old_state);
+    SchedulePaint();
+  }
+};
+
+BEGIN_METADATA(RowCloseButton)
+END_METADATA
+
+}  // namespace
+
 class AlerseSidebarView::Row : public views::Button {
   METADATA_HEADER(Row, views::Button)
 
@@ -1395,8 +1632,12 @@ class AlerseSidebarView::Row : public views::Button {
     // button would replace.
     constexpr int kButtonIconSize = 24;
     const int icon_size = minus ? 21 : kButtonIconSize;
-    auto close = std::make_unique<views::ImageButton>(std::move(callback));
+    auto close = std::make_unique<RowCloseButton>(std::move(callback));
     views::ConfigureVectorImageButton(close.get());
+    // Its own plate (RowCloseButton), not the toolbar buttons' ink drop,
+    // which showed 32 pt square and reddish.
+    views::InkDrop::Get(close.get())
+        ->SetMode(views::InkDropHost::InkDropMode::OFF);
     close->SetImageModel(
         views::Button::STATE_NORMAL,
         ui::ImageModel::FromVectorIcon(icon, SkColorSetRGB(0xA9, 0xA9, 0xA9),
@@ -1405,7 +1646,7 @@ class AlerseSidebarView::Row : public views::Button {
          {views::Button::STATE_HOVERED, views::Button::STATE_PRESSED}) {
       close->SetImageModel(
           state, ui::ImageModel::FromVectorIcon(
-                     icon, SkColorSetRGB(0xDA, 0xDA, 0xDA), icon_size));
+                     icon, SkColorSetRGB(0xAD, 0xAD, 0xAD), icon_size));
     }
     // The "-" takes the cross's place and plate.
     close->SetMinimumImageSize(gfx::Size(kButtonIconSize, kButtonIconSize));
@@ -1574,6 +1815,85 @@ class AlerseSidebarView::Row : public views::Button {
   // What the row's indicator shows, as RowAlertState() counts it.
   int alert_state() const { return alert_state_; }
 
+  // The tab's page is loading: Chromium's throbber stands where the icon
+  // is, in the sidebar's subtle ink, until it has loaded.
+  void SetLoading(bool loading) {
+    if (loading == loading_) {
+      return;
+    }
+    loading_ = loading;
+    if (loading && !throbber_) {
+      auto throbber = std::make_unique<views::Throbber>(kIconSize);
+      throbber->SetColorId(kSubtleColor);
+      throbber->SetCanProcessEventsWithinSubtree(false);
+      throbber_ = AddChildView(std::move(throbber));
+    }
+    if (throbber_) {
+      throbber_->SetVisible(loading);
+      if (loading) {
+        throbber_->Start();
+      } else {
+        throbber_->Stop();
+      }
+    }
+    icon_->SetVisible(!loading);
+    InvalidateLayout();
+  }
+
+  // The tab waits for the user (TabNeedsUser()): a dot on its icon.
+  void SetAttention(bool attention) {
+    if (attention_ == attention) {
+      return;
+    }
+    attention_ = attention;
+    // A screen reader hears it with the row's name.
+    GetViewAccessibility().SetDescription(
+        attention ? l10n_util::GetStringUTF16(IDS_ALERSE_TAB_NEEDS_YOU)
+                  : std::u16string());
+    SchedulePaint();
+  }
+
+  // Up and Down move the keyboard focus to the row above or below.
+  void SetArrowCallback(base::RepeatingCallback<void(bool)> callback) {
+    arrow_callback_ = std::move(callback);
+  }
+
+  bool OnKeyPressed(const ui::KeyEvent& event) override {
+    if (arrow_callback_ && !event.IsAltDown() && !event.IsCommandDown() &&
+        !event.IsControlDown() &&
+        (event.key_code() == ui::VKEY_UP ||
+         event.key_code() == ui::VKEY_DOWN)) {
+      arrow_callback_.Run(event.key_code() == ui::VKEY_DOWN);
+      return true;
+    }
+    return views::Button::OnKeyPressed(event);
+  }
+
+  void OnFocus() override {
+    views::Button::OnFocus();
+    // The row the keyboard is on is in view.
+    ScrollViewToVisible();
+    SchedulePaint();
+  }
+
+  void OnBlur() override {
+    views::Button::OnBlur();
+    SchedulePaint();
+  }
+
+  void PaintChildren(const views::PaintInfo& paint_info) override {
+    views::Button::PaintChildren(paint_info);
+    if (!attention_ || popup_) {
+      return;
+    }
+    // Over the icon.
+    ui::PaintRecorder recorder(paint_info.context(),
+                               paint_info.paint_recording_size(),
+                               paint_info.paint_recording_scale_x(),
+                               paint_info.paint_recording_scale_y(), nullptr);
+    PaintAttentionDot(recorder.canvas(), this, icon_->bounds());
+  }
+
   void SetDragDoneCallback(base::RepeatingClosure callback) {
     drag_done_callback_ = std::move(callback);
   }
@@ -1641,6 +1961,10 @@ class AlerseSidebarView::Row : public views::Button {
     icon_->SetBounds(kIconX + shift - (icon_size.width() - kIconSize) / 2,
                      center_y - icon_size.height() / 2, icon_size.width(),
                      icon_size.height());
+    if (throbber_) {
+      throbber_->SetBounds(kIconX + shift, center_y - kIconSize / 2, kIconSize,
+                           kIconSize);
+    }
     // A split row's half is narrow: its title sits closer to the icon and
     // runs to the half's end.
     int x = split_half_ ? kIconX + shift + kIconSize + kSplitHalfGap + 2
@@ -1713,7 +2037,7 @@ class AlerseSidebarView::Row : public views::Button {
       }
       return;
     }
-    if (!active_ && hover <= 0) {
+    if (!active_ && hover <= 0 && !HasFocus()) {
       return;
     }
     cc::PaintFlags flags;
@@ -1725,6 +2049,12 @@ class AlerseSidebarView::Row : public views::Button {
                                              SkColorGetA(hover_color) *
                                              hover))));
     gfx::RectF bounds(0, 0, width(), height_);
+    // The keyboard's row has a ring where its plate is.
+    absl::Cleanup focus_ring = [&] {
+      if (HasFocus()) {
+        PaintFocusRing(canvas, this, bounds, kRowBackgroundRadius);
+      }
+    };
     // A split row's halves meet at its middle.
     const float start_inset = split_half_ == 2 ? 1 : kRowBackgroundInsetX;
     const float end_inset = split_half_ == 1 ? 1 : kRowBackgroundInsetX;
@@ -1796,6 +2126,10 @@ class AlerseSidebarView::Row : public views::Button {
     icon_->SetBounds(kPopupIconCenterX + shift - icon_size.width() / 2,
                      center_y - icon_size.height() / 2, icon_size.width(),
                      icon_size.height());
+    if (throbber_) {
+      throbber_->SetBounds(kPopupIconCenterX + shift - kIconSize / 2,
+                           center_y - kIconSize / 2, kIconSize, kIconSize);
+    }
     int x = kPopupTextX + shift;
     if (speaker_) {
       speaker_->SetBounds(x, center_y - kSpeakerSize / 2, kSpeakerSize,
@@ -1857,6 +2191,10 @@ class AlerseSidebarView::Row : public views::Button {
   raw_ptr<views::ImageButton> close_ = nullptr;
   raw_ptr<views::ImageButton> speaker_ = nullptr;
   raw_ptr<views::Label> subtitle_ = nullptr;
+  raw_ptr<views::Throbber> throbber_ = nullptr;
+  bool loading_ = false;
+  bool attention_ = false;
+  base::RepeatingCallback<void(bool)> arrow_callback_;
   bool popup_ = false;
   bool selected_ = false;
   std::optional<SkColor> color_override_;
@@ -1952,12 +2290,20 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
   SetPaintToLayer();
   layer()->SetFillsBoundsOpaquely(false);
   layer()->SetMasksToBounds(true);
-  auto* scroll = AddChildView(std::make_unique<views::ScrollView>());
+  // The Space's name stays put above the rows, which scroll under it, as
+  // Arc's; the two slide together between Spaces, on the list's layer.
+  auto* list = AddChildView(std::make_unique<views::View>());
+  list_ = list;
+  auto* list_layout = list->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical));
+  list->SetPaintToLayer();
+  list->layer()->SetFillsBoundsOpaquely(false);
+  layout->SetFlexForView(list, 1);
+  title_host_ = list->AddChildView(std::make_unique<views::View>());
+  title_host_->SetLayoutManager(std::make_unique<views::FillLayout>());
+  auto* scroll = list->AddChildView(std::make_unique<views::ScrollView>());
   scroll_ = scroll;
-  // A layer for the Space slide.
-  scroll->SetPaintToLayer();
-  scroll->layer()->SetFillsBoundsOpaquely(false);
-  layout->SetFlexForView(scroll, 1);
+  list_layout->SetFlexForView(scroll, 1);
   scroll->SetBackgroundColor(std::nullopt);
   scroll->SetHorizontalScrollBarMode(
       views::ScrollView::ScrollBarMode::kDisabled);
@@ -2147,6 +2493,28 @@ void AlerseSidebarView::FillSplitChooser(
 
 void AlerseSidebarView::OnTabChangedAt(tabs::TabInterface* tab,
                                          TabChangeType change_type) {
+  // Memory and CPU counts change nothing a row shows.
+  if (change_type == TabChangeType::kResourceUsageOnly) {
+    return;
+  }
+  // The start and the end of a load move only the throbber, on a pinned
+  // item's row too: what else a load changes (the title, the icon, "/")
+  // comes with a change of its own.
+  if (tab && change_type == TabChangeType::kLoadingOnly) {
+    const tabs::TabInterface::Handle handle = tab->GetHandle();
+    const bool loading = TabIsLoading(tab);
+    bool found = false;
+    for (const auto& [view, target] : row_targets_) {
+      Row* row = views::AsViewClass<Row>(view);
+      if (row && target.tab == handle) {
+        row->SetLoading(loading);
+        found = true;
+      }
+    }
+    if (found) {
+      return;
+    }
+  }
   // A page that ticks in its title would otherwise rebuild every row several
   // times a second.
   if (tab && UpdateTabRows(tab)) {
@@ -2181,8 +2549,12 @@ bool AlerseSidebarView::UpdateTabRows(tabs::TabInterface* tab) {
   }
   const std::u16string title = GetTabTitle(tab);
   const ui::ImageModel icon = GetTabIcon(tab);
+  const bool loading = TabIsLoading(tab);
+  const bool needs_user = TabNeedsUser(browser_, tab);
   for (Row* row : rows) {
     row->UpdateTab(title, icon);
+    row->SetLoading(loading);
+    row->SetAttention(needs_user);
   }
   return true;
 }
@@ -2230,9 +2602,13 @@ const bookmarks::BookmarkNode* AlerseSidebarView::GetSpaceFolderFor(
   if (!folder && create) {
     bookmarks::BookmarkNode::MetaInfoMap meta;
     meta[kSpaceMetaKey] = space;
+    // Named as the Space is: a Space other than home got "home" here, with
+    // its first pinned item or theme color.
     folder = model_->AddFolder(
         model_->other_node(), model_->other_node()->children().size(),
-        title.empty() ? std::u16string(u"home") : title, &meta);
+        title.empty() ? alerse::GetSpaceOfProfile(browser_->GetProfile()).name
+                      : title,
+        &meta);
   }
   return folder;
 }
@@ -2450,7 +2826,20 @@ ui::ImageModel AlerseSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
     return DefaultPageIcon(this);
   }
   ui::ImageModel icon = helper->GetFavicon();
-  return icon.IsEmpty() ? DefaultPageIcon(this) : icon;
+  if (icon.IsEmpty()) {
+    return DefaultPageIcon(this);
+  }
+  // The one-color icons of the browser's own pages (Settings, History,
+  // Extensions, Downloads) are drawn for a tab's background: recolored where
+  // they would not read on the sidebar's frame, as the tab strip does on its
+  // own.
+  if (helper->ShouldThemifyFavicon() && GetColorProvider()) {
+    const SkColor frame = alerse::FrameColor(this);
+    icon = ui::ImageModel::FromImageSkia(favicon::ThemeFavicon(
+        icon.Rasterize(GetColorProvider()),
+        alerse::SidebarInk(this, kItemColor), frame, frame));
+  }
+  return icon;
 }
 
 std::u16string AlerseSidebarView::GetTabTitle(tabs::TabInterface* tab) const {
@@ -2516,8 +2905,8 @@ std::unique_ptr<views::View> AlerseSidebarView::BuildSpaceSnapshot(
 
 std::unique_ptr<views::View> AlerseSidebarView::SnapshotRowsOf(
     AlerseSidebarView* other) {
-  if (!other->rows_ || !other->scroll_ || !other->GetWidget() ||
-      !GetWidget() || !scroll_) {
+  if (!other->rows_ || !other->scroll_ || !other->list_ ||
+      !other->GetWidget() || !GetWidget() || !scroll_ || !list_) {
     return nullptr;
   }
   // A hidden window lays out late.
@@ -2534,22 +2923,41 @@ std::unique_ptr<views::View> AlerseSidebarView::SnapshotRowsOf(
   }
   const ui::Compositor* compositor = GetWidget()->GetCompositor();
   const float scale = compositor->device_scale_factor();
-  SkBitmap bitmap;
-  {
-    ui::CanvasPainter painter(&bitmap, size, scale, SK_ColorTRANSPARENT,
-                              compositor->is_pixel_canvas());
-    other->rows_->Paint(
-        views::PaintInfo::CreateRootPaintInfo(painter.context(), size));
-  }
-  auto image = std::make_unique<views::ImageView>(ui::ImageModel::FromImageSkia(
-      gfx::ImageSkia::CreateFromBitmap(bitmap, scale)));
-  image->SetHorizontalAlignment(views::ImageView::Alignment::kLeading);
-  image->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
-  // Where the other window shows them: its rows may start higher or lower
+  const auto picture_of = [&](views::View* view, const gfx::Size& view_size) {
+    SkBitmap bitmap;
+    {
+      ui::CanvasPainter painter(&bitmap, view_size, scale, SK_ColorTRANSPARENT,
+                                compositor->is_pixel_canvas());
+      view->Paint(
+          views::PaintInfo::CreateRootPaintInfo(painter.context(), view_size));
+    }
+    auto image =
+        std::make_unique<views::ImageView>(ui::ImageModel::FromImageSkia(
+            gfx::ImageSkia::CreateFromBitmap(bitmap, scale)));
+    image->SetHorizontalAlignment(views::ImageView::Alignment::kLeading);
+    image->SetVerticalAlignment(views::ImageView::Alignment::kLeading);
+    return image;
+  };
+  // The other window's list as it shows it: the Space's name, and under it
+  // the rows as far as they are scrolled. Its list may start higher or lower
   // than this one's (favorites, extension tiles).
-  image->SetBounds(0, other->scroll_->y() - scroll_->y() - scrolled,
-                   size.width(), size.height());
-  return image;
+  auto snapshot = std::make_unique<views::View>();
+  snapshot->SetBounds(0, other->list_->y() - list_->y(),
+                      other->list_->width(),
+                      std::max(other->list_->height(), list_->height()));
+  if (other->space_title_ && !other->space_title_->size().IsEmpty()) {
+    auto name = picture_of(other->space_title_, other->space_title_->size());
+    name->SetBoundsRect(other->title_host_->bounds());
+    snapshot->AddChildView(std::move(name));
+  }
+  auto viewport = std::make_unique<views::View>();
+  viewport->SetBounds(0, other->scroll_->y(), size.width(),
+                      std::max(0, snapshot->height() - other->scroll_->y()));
+  auto rows = picture_of(other->rows_, size);
+  rows->SetBounds(0, -scrolled, size.width(), size.height());
+  viewport->AddChildView(std::move(rows));
+  snapshot->AddChildView(std::move(viewport));
+  return snapshot;
 }
 
 views::View* AlerseSidebarView::AddSlideFrame(
@@ -2561,7 +2969,7 @@ views::View* AlerseSidebarView::AddSlideFrame(
   frame->layer()->SetFillsBoundsOpaquely(false);
   frame->layer()->SetMasksToBounds(true);
   frame->AddChildView(std::move(rows));
-  frame->SetBoundsRect(scroll_->bounds());
+  frame->SetBoundsRect(list_->bounds());
   return AddChildView(std::move(frame));
 }
 
@@ -2610,10 +3018,10 @@ void AlerseSidebarView::HideSpacePreview() {
     space_preview_ = nullptr;
     RemoveChildViewT(preview);
   }
-  if (scroll_ && scroll_->layer()) {
-    scroll_->layer()->GetAnimator()->StopAnimating();
-    scroll_->layer()->SetTransform(gfx::Transform());
-    scroll_->layer()->SetOpacity(1.0f);
+  if (list_ && list_->layer()) {
+    list_->layer()->GetAnimator()->StopAnimating();
+    list_->layer()->SetTransform(gfx::Transform());
+    list_->layer()->SetOpacity(1.0f);
   }
 }
 
@@ -2621,10 +3029,10 @@ void AlerseSidebarView::TrackSpaceSwipe(
     float dx,
     bool forward,
     const std::optional<AlerseSpaceRef>& neighbor) {
-  if (!scroll_ || !scroll_->layer()) {
+  if (!scroll_ || !list_ || !list_->layer()) {
     return;
   }
-  ui::Layer* layer = scroll_->layer();
+  ui::Layer* layer = list_->layer();
   layer->GetAnimator()->StopAnimating();
   if (space_preview_ && space_preview_->layer()) {
     space_preview_->layer()->GetAnimator()->StopAnimating();
@@ -2660,7 +3068,7 @@ void AlerseSidebarView::TrackSpaceSwipe(
 void AlerseSidebarView::EndSpaceSwipe(bool commit,
                                         bool forward,
                                         base::OnceClosure switch_space) {
-  if (!scroll_ || !scroll_->layer()) {
+  if (!scroll_ || !list_ || !list_->layer()) {
     return;
   }
   commit = commit && space_preview_;
@@ -2668,7 +3076,7 @@ void AlerseSidebarView::EndSpaceSwipe(bool commit,
   const int side = space_preview_side_;
   // Quick, and quicker the less of the way is left.
   const float done =
-      std::abs(scroll_->layer()->transform().To2dTranslation().x()) / width;
+      std::abs(list_->layer()->transform().To2dTranslation().x()) / width;
   const float left = commit ? 1.0f - done : done;
   const base::TimeDelta duration = alerse::motion::Move(
       base::Milliseconds(std::clamp(260.0f * left, 70.0f, 220.0f)));
@@ -2707,7 +3115,7 @@ void AlerseSidebarView::EndSpaceSwipe(bool commit,
       .OnAborted(std::move(on_aborted))
       .SetPreemptionStrategy(alerse::motion::kRetarget);
   auto& step = builder.Once().SetDuration(duration).SetTransform(
-      scroll_.get(), rows_to, alerse::motion::kEnter);
+      list_.get(), rows_to, alerse::motion::kEnter);
   if (space_preview_) {
     step.SetTransform(space_preview_.get(), preview_to,
                       alerse::motion::kEnter);
@@ -2730,7 +3138,7 @@ void AlerseSidebarView::DropSwipePreview() {
 
 void AlerseSidebarView::PrepareSpaceEnter(bool forward,
                                             AlerseSidebarView* source) {
-  if (!scroll_ || !scroll_->layer() || !GetWidget()) {
+  if (!scroll_ || !list_ || !list_->layer() || !GetWidget()) {
     return;
   }
   HideSpacePreview();
@@ -2745,7 +3153,7 @@ void AlerseSidebarView::PrepareSpaceEnter(bool forward,
       alerse::motion::Move(alerse::motion::kEmphasized);
   if (duration.is_zero()) {
     // Reduced motion: the rows fade in where they stand.
-    alerse::motion::Arrive(scroll_, gfx::Vector2d(), alerse::motion::kQuick);
+    alerse::motion::Arrive(list_, gfx::Vector2d(), alerse::motion::kQuick);
     return;
   }
   // As Arc: the Space left slides out to the side it lies on while this
@@ -2759,14 +3167,14 @@ void AlerseSidebarView::PrepareSpaceEnter(bool forward,
     space_preview_side_ = 2;
   }
   // The first frame the window shows: the Space left, as it stood.
-  scroll_->layer()->SetTransform(
+  list_->layer()->SetTransform(
       gfx::Transform::MakeTranslation(side * width, 0));
   enter_side_ = side;
 }
 
 void AlerseSidebarView::PlaySpaceEnter() {
   const int side = std::exchange(enter_side_, 0);
-  if (!side || !scroll_ || !scroll_->layer()) {
+  if (!side || !scroll_ || !list_ || !list_->layer()) {
     return;
   }
   auto [on_ended, on_aborted] = base::SplitOnceCallback(base::BindOnce(
@@ -2778,7 +3186,7 @@ void AlerseSidebarView::PlaySpaceEnter() {
   auto& step = builder.Once()
                    .SetDuration(
                        alerse::motion::Move(alerse::motion::kEmphasized))
-                   .SetTransform(scroll_->layer(), gfx::Transform(),
+                   .SetTransform(list_->layer(), gfx::Transform(),
                                  alerse::motion::kEnter);
   if (space_preview_ && space_preview_side_ == 2) {
     step.SetTransform(
@@ -2855,6 +3263,7 @@ void AlerseSidebarView::Rebuild() {
     }
   }
   space_title_ = nullptr;
+  title_host_->RemoveAllChildViews();
   rows_->RemoveAllChildViews();
   row_targets_.clear();
   row_pitch_offset_ = 0;
@@ -2982,7 +3391,11 @@ void AlerseSidebarView::BuildRows() {
     title = l10n_util::GetStringUTF16(IDS_INCOGNITO_PROFILE_MENU_TITLE);
   }
   const bool collapsed = IsPinnedCollapsed(folder);
-  auto* space_title = rows_->AddChildView(std::make_unique<SpaceTitle>(
+  // Above the rows, where it stays while they scroll; a swipe's preview of
+  // another Space is one strip, its name first.
+  views::View* const title_parent =
+      preview_space_ ? rows_.get() : title_host_.get();
+  auto* space_title = title_parent->AddChildView(std::make_unique<SpaceTitle>(
       title,
       alerse::GetSpaceIconName(
           folder, space_info.home ? GetActiveSpace() : std::string()),
@@ -3088,6 +3501,8 @@ void AlerseSidebarView::RegisterRow(Row* row,
                                       tabs::TabInterface::Handle tab) {
   row->set_context_menu_controller(this);
   row_targets_[row] = RowTarget{node, tab};
+  row->SetArrowCallback(base::BindRepeating(
+      &AlerseSidebarView::FocusNeighborRow, base::Unretained(this), row));
   if (node || tab.Get()) {
     row->set_drag_controller(this);
     row->SetDragDoneCallback(base::BindRepeating(
@@ -3259,7 +3674,34 @@ void AlerseSidebarView::AddSplitRow(tabs::TabInterface* start,
   }
 }
 
+void AlerseSidebarView::FocusNeighborRow(views::View* from, bool down) {
+  // The rows as they stand, a split's two halves one after the other.
+  std::vector<views::View*> rows;
+  for (views::View* child : rows_->children()) {
+    if (views::IsViewClass<Row>(child)) {
+      rows.push_back(child);
+      continue;
+    }
+    for (views::View* half : child->children()) {
+      if (views::IsViewClass<Row>(half)) {
+        rows.push_back(half);
+      }
+    }
+  }
+  const auto it = std::ranges::find(rows, from);
+  if (it == rows.end()) {
+    return;
+  }
+  if (down ? it + 1 != rows.end() : it != rows.begin()) {
+    (*(down ? it + 1 : it - 1))->RequestFocus();
+  }
+}
+
 void AlerseSidebarView::AddSpeaker(Row* row, tabs::TabInterface* tab) {
+  // With the tab's other marks: a throbber while it loads, a dot while it
+  // waits for the user. Both change in place afterwards (OnTabChangedAt).
+  row->SetLoading(TabIsLoading(tab));
+  row->SetAttention(TabNeedsUser(browser_, tab));
   // Rows are rebuilt when a tab's sound starts, stops or is muted (the tab
   // strip reports it through OnTabChangedAt), so the state is read once here.
   if (const std::optional<tabs::TabAlert> alert = OtherAlert(tab)) {
@@ -5319,10 +5761,42 @@ void AlerseSidebarView::BuildFavorites() {
       if (tab && !HasOwnIcon(child.get())) {
         icon = GetTabIcon(tab);
       }
+      const bool shown = tab && tab == tabs->GetActiveTab();
+      // Arc's globe for a page without an icon is the sidebar's grey, which
+      // the shown tile's light fill would swallow: dark there.
+      if (shown && !HasOwnIcon(child.get())) {
+        const favicon::ContentFaviconDriver* driver =
+            favicon::ContentFaviconDriver::FromWebContents(tab->GetContents());
+        if (!TabUIHelper::From(tab)->IsCrashed() &&
+            (!driver || !driver->FaviconIsValid())) {
+          icon = ui::ImageModel::FromImageSkia(
+              gfx::CanvasImageSource::MakeImageSkia<BlankPageImageSource>(
+                  kFavoriteShownInk));
+        }
+      }
       auto* tile = favorites_->AddChildView(std::make_unique<FavoriteTile>(
           base::BindRepeating(&AlerseSidebarView::OnBookmarkPressed,
                               base::Unretained(this), child->id()),
-          icon, child->GetTitle(), tab && tab == tabs->GetActiveTab()));
+          icon, child->GetTitle(), shown));
+      // What a row shows beside its name, a tile shows in its corners.
+      if (tab) {
+        if (const std::optional<tabs::TabAlert> alert = OtherAlert(tab)) {
+          const ui::ColorId color = tabs::GetAlertIndicatorColor(
+              *alert, /*is_tab_active=*/true, /*is_frame_active=*/true);
+          tile->SetAlertGlyph(
+              tabs::GetAlertIcon(*alert),
+              color != kColorTabAlertAudioPlayingActiveFrameActive
+                  ? std::optional<ui::ColorId>(color)
+                  : std::nullopt);
+        } else if (ShowsSpeaker(tab)) {
+          tile->SetAlertGlyph(tab->GetContents()->IsAudioMuted()
+                                  ? vector_icons::kVolumeOffIcon
+                                  : vector_icons::kVolumeUpIcon,
+                              std::nullopt);
+        }
+        tile->SetLeftPage(LeftItsPage(tab, child.get()));
+        tile->SetAttention(TabNeedsUser(browser_, tab));
+      }
       tile->set_context_menu_controller(this);
       tile->set_drag_controller(this);
       tile->SetDragDoneCallback(base::BindRepeating(

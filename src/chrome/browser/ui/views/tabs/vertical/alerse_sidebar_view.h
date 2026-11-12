@@ -314,6 +314,8 @@ class AlerseSidebarView : public views::View,
   void AddSplitRow(tabs::TabInterface* start, tabs::TabInterface* end);
   // The speaker of `tab` on its row, if it plays or is muted.
   void AddSpeaker(Row* row, tabs::TabInterface* tab);
+  // Moves the keyboard focus from the row `from` to the one below or above.
+  void FocusNeighborRow(views::View* from, bool down);
   Row* AddRow(std::unique_ptr<Row> row,
               int64_t node = 0,
               tabs::TabInterface::Handle tab = tabs::TabInterface::Handle());
@@ -429,6 +431,10 @@ class AlerseSidebarView : public views::View,
   raw_ptr<bookmarks::BookmarkModel> model_;
   raw_ptr<views::View> rows_ = nullptr;
   raw_ptr<views::ScrollView> scroll_ = nullptr;
+  // The Space's name (in `title_host_`) and under it the rows that scroll:
+  // what slides between Spaces.
+  raw_ptr<views::View> list_ = nullptr;
+  raw_ptr<views::View> title_host_ = nullptr;
   // The neighbor Space's rows beside these during a swipe.
   raw_ptr<views::View> space_preview_ = nullptr;
   std::optional<AlerseSpaceRef> preview_space_;
