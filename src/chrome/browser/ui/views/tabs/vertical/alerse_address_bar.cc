@@ -70,6 +70,15 @@
 #include "ui/views/event_monitor.h"
 #include "ui/views/widget/widget.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+#include "extensions/browser/permissions/site_permissions_helper.h"
+#include "chrome/browser/profiles/profile.h"
+#include "components/sessions/content/session_tab_helper.h"
+#include "extensions/browser/extension_action.h"
+#include "extensions/browser/extension_action_manager.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
+#include "ui/base/accelerators/accelerator.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 
 namespace {
 
@@ -83,14 +92,16 @@ constexpr int kHorizontalInset = 4;
 #endif
 constexpr int kVerticalInset = 4;
 constexpr int kCopyIconSize = 16;
-constexpr int kCopyButtonSize = 24;
 // Arc for macOS' hover buttons in the sidebar's field, measured: site
-// controls centred 20 pt from the field's end, Copy Link and a single pinned
+// controls centred 20 pt from the field's end, Copy URL and a single pinned
 // extension 28 pt apart before it, glyphs #ACACAC; the address fades out
-// before them.
+// before them. The button under the pointer has a 28 pt plate with 8 pt
+// corners, #4D4D4F on the hovered field's #3F3F40.
 constexpr int kHoverButtonPitch = 28;
 constexpr int kHoverButtonEndCenter = 20;
 constexpr SkColor kHoverIconColor = SkColorSetRGB(0xAC, 0xAC, 0xAC);
+constexpr float kHoverPlateRadius = 8;
+constexpr SkAlpha kHoverPlateShade = 0x13;
 constexpr int kTextFadeWidth = 16;
 // Two or more pinned extensions are tiles under the field, as in Arc for
 // macOS: 27 pt high, 8 apart and 9 below the field, up to four in a row,
@@ -323,11 +334,41 @@ class HoverGlyphSource : public gfx::CanvasImageSource {
   const SkColor color_;
 };
 
+// A button of the field: Arc's plate under the pointer, no ink drop.
+class HoverButton : public views::ImageButton {
+  METADATA_HEADER(HoverButton, views::ImageButton)
+
+ public:
+  using views::ImageButton::ImageButton;
+
+  void OnPaintBackground(gfx::Canvas* canvas) override {
+    if (GetState() != STATE_HOVERED && GetState() != STATE_PRESSED) {
+      return;
+    }
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setColor(SkColorSetA(
+        color_utils::GetColorWithMaxContrast(alerse::FrameColor(this)),
+        kHoverPlateShade));
+    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kHoverPlateRadius,
+                          flags);
+  }
+
+  void StateChanged(ButtonState old_state) override {
+    views::ImageButton::StateChanged(old_state);
+    SchedulePaint();
+  }
+};
+
+BEGIN_METADATA(HoverButton)
+END_METADATA
+
 std::unique_ptr<views::ImageButton> MakeHoverButton(
     views::Button::PressedCallback callback,
     const gfx::VectorIcon& icon,
-    int name_id) {
-  auto button = std::make_unique<views::ImageButton>(std::move(callback));
+    int name_id,
+    std::optional<ui::Accelerator> shortcut = std::nullopt) {
+  auto button = std::make_unique<HoverButton>(std::move(callback));
   views::ConfigureVectorImageButton(button.get());
   ui::ImageModel glyph =
       ui::ImageModel::FromVectorIcon(icon, kHoverIconColor, kCopyIconSize);
@@ -344,14 +385,36 @@ std::unique_ptr<views::ImageButton> MakeHoverButton(
                            views::Button::STATE_PRESSED}) {
     button->SetImageModel(state, glyph);
   }
-  // No plate under the pointer, and Arc's pill for the name, as Arc's.
+  // Its own plate under the pointer, and Arc's pill for the name with the
+  // shortcut's keycaps, as Arc's.
   views::InkDrop::Get(button.get())
       ->SetMode(views::InkDropHost::InkDropMode::OFF);
   const std::u16string name = l10n_util::GetStringUTF16(name_id);
-  alerse::SetArcTooltip(button.get(), name);
+  alerse::SetArcTooltip(button.get(), name, std::u16string(), shortcut);
   button->GetViewAccessibility().SetName(name);
   button->SetVisible(false);
   return button;
+}
+
+// Whether the extension's icon says something on this page: badge text, or
+// the mark of an extension that was kept from running here.
+bool HasNotice(Profile* profile,
+               const std::string& id,
+               content::WebContents* contents) {
+  const extensions::Extension* extension =
+      extensions::ExtensionRegistry::Get(profile)
+          ->enabled_extensions()
+          .GetByID(id);
+  if (!extension || !contents) {
+    return false;
+  }
+  const extensions::ExtensionAction* action =
+      extensions::ExtensionActionManager::Get(profile)->GetExtensionAction(
+          *extension);
+  const int tab_id = sessions::SessionTabHelper::IdForTab(contents).id();
+  return (action && !action->GetDisplayBadgeText(tab_id).empty()) ||
+         extensions::SitePermissionsHelper(profile).HasBeenBlocked(*extension,
+                                                                   contents);
 }
 
 }  // namespace
@@ -409,11 +472,19 @@ AlerseAddressBar::AlerseAddressBar(BrowserWindowInterface* browser)
   copy_button_ = AddChildView(MakeHoverButton(
       base::BindRepeating(&AlerseAddressBar::CopyAddress,
                           base::Unretained(this)),
-      vector_icons::kAlerseLinkIcon, IDS_ALERSE_COPY_LINK));
+      // Arc's name and keys: "Copy URL", Shift-Command-C.
+      vector_icons::kAlerseLinkIcon, IDS_ALERSE_MENU_COPY_URL,
+      ui::Accelerator(ui::VKEY_C,
+#if BUILDFLAG(IS_MAC)
+                      ui::EF_COMMAND_DOWN | ui::EF_SHIFT_DOWN
+#else
+                      ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN
+#endif
+                      )));
   site_button_ = AddChildView(MakeHoverButton(
       base::BindRepeating(&AlerseAddressBar::ShowSiteControls,
                           base::Unretained(this)),
-      vector_icons::kAlerseTuneIcon, IDS_ALERSE_SITE_CONTROLS));
+      vector_icons::kAlerseTuneIcon, IDS_ALERSE_SITE_CONTROL_CENTER));
   for (views::ImageButton* button :
        {pinned_button_.get(), copy_button_.get(), site_button_.get()}) {
     button->SetPaintToLayer();
@@ -481,9 +552,8 @@ void AlerseAddressBar::Layout(PassKey) {
   int leftmost = field.right();
   for (views::ImageButton* button :
        {site_button_.get(), copy_button_.get(), pinned_button_.get()}) {
-    // The pinned extension's button holds the whole 28 pt image.
-    const int size = button == pinned_button_.get() ? kExtensionImageSize
-                                                    : kCopyButtonSize;
+    // As large as the plate; the pinned extension's holds its 28 pt image.
+    const int size = kHoverButtonPitch;
     button->SetBounds(center_x - size / 2,
                       field.y() + (field.height() - size) / 2, size, size);
     if (button->GetVisible()) {
@@ -943,10 +1013,12 @@ void AlerseAddressBar::StartEditing(LocationBarView* location_bar) {
   location_bar->FocusLocation(/*is_user_initiated=*/true,
                               /*clear_focus_if_failed=*/false);
   // An empty field (a new tab, an empty Space) asks for rows itself: focus
-  // moved with the field to the panel drops the on-focus suggestions. Arc for
-  // macOS' compact command bar opens empty too, listing the open tabs.
-  // So does a new split's pane on "Choose a tab" (alerse_split.h).
-  if (compact || location_bar->AlerseOpensNewTab() ||
+  // moved with the field to the panel drops the on-focus suggestions. So
+  // does a new split's pane on "Choose a tab" (alerse_split.h). On a page,
+  // the compact command bar (a click on the field) and the wide one
+  // (Command-L) both open on the page's address, selected, as Arc's: typing
+  // replaces it and Command-C copies it.
+  if (location_bar->AlerseOpensNewTab() ||
       location_bar->omnibox_view()->GetText().empty() ||
       alerse::IsSplitChooser(
           browser_->GetTabStripModel()->GetActiveWebContents())) {
@@ -1104,7 +1176,14 @@ void AlerseAddressBar::UpdateCopyButton() {
   // as a flicker.
   alerse::motion::SetShown(copy_button_, show);
   alerse::motion::SetShown(site_button_, show);
-  alerse::motion::SetShown(pinned_button_, show && pinned_ids_.size() == 1);
+  // A single pinned extension stays in the field without the pointer while
+  // it has something to say (a badge, or it was blocked on this page): shown
+  // only on hover, an ad blocker's count would never be seen.
+  alerse::motion::SetShown(
+      pinned_button_,
+      pinned_ids_.size() == 1 && location_bar_ && !editing_ && contents &&
+          !TabStripModel::IsAlerseEmptySpace(contents) &&
+          (show || pinned_notice_));
   alerse::motion::SetShown(text_fade_, show);
   static_cast<TextFade*>(text_fade_.get())
       ->set_shade(hovered_ ? kTileHoverShade : kTileShade);
@@ -1171,6 +1250,7 @@ void AlerseAddressBar::UpdateExtensions() {
   }
   pinned_button_->set_context_menu_controller(nullptr);
   extension_menus_.clear();
+  pinned_notice_ = false;
   if (ids.size() == 1) {
     ToolbarActionViewModel* action =
         extensions_model_->GetActionModelForId(ids[0]);
@@ -1185,6 +1265,7 @@ void AlerseAddressBar::UpdateExtensions() {
         base::BindRepeating(&AlerseAddressBar::RunExtension,
                             base::Unretained(this), ids[0]));
     alerse::SetArcTooltip(pinned_button_, action->GetActionName());
+    pinned_notice_ = HasNotice(browser_->GetProfile(), ids[0], contents);
     // Its menu on a right click (Unpin, Options, Remove...), as Arc's.
     extension_menus_.push_back(
         alerse_site_controls::CreateExtensionMenu(action, base::DoNothing()));

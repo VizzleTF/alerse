@@ -181,6 +181,8 @@ class AlerseAddressBar : public views::View,
   std::vector<std::unique_ptr<alerse_site_controls::ExtensionMenu>>
       extension_menus_;
   std::vector<std::string> pinned_ids_;
+  // The single pinned extension shows a badge or was blocked on this page.
+  bool pinned_notice_ = false;
   // Observed by hand, not with a ScopedObservation: the model can be gone
   // before this view learns it, and then it must not be told anything.
   raw_ptr<ExtensionsToolbarViewModel> extensions_model_ = nullptr;

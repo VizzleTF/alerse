@@ -382,6 +382,24 @@
     <message name="IDS_ALERSE_SITE_CONTROLS" desc="Name of the panel of a site's actions, extensions and permissions, and of the button that opens it.">
       Site Controls
     </message>
+    <message name="IDS_ALERSE_SITE_CONTROL_CENTER" desc="Tooltip of the sliders button in the sidebar's address field, as Arc's: opens the site controls.">
+      Site Control Center
+    </message>
+    <message name="IDS_ALERSE_FIND_PLACEHOLDER" desc="Placeholder of the find bar's field, as Arc's.">
+      Find in page...
+    </message>
+    <message name="IDS_ALERSE_SPACE_PLAYS_SOUND" desc="Accessible description of a Space's icon in the Space bar while a tab of that Space, which is not shown, plays sound.">
+      Playing sound
+    </message>
+    <message name="IDS_ALERSE_SPACE_NEEDS_YOU" desc="Accessible description of a Space's icon in the Space bar while a tab of that Space, which is not shown, waits for the user: a dialog, a permission request, a crashed page.">
+      Needs attention
+    </message>
+    <message name="IDS_ALERSE_TAB_NEEDS_YOU" desc="Accessible description of a tab's row in the sidebar while the tab, which is not shown, waits for the user: a dialog of the page, a question before leaving it.">
+      Needs attention
+    </message>
+    <message name="IDS_ALERSE_SITE_ZOOM" desc="Site controls row shown while the page is zoomed: the zoom level in percent. A click resets it.">
+      Zoom: <ph name="PERCENT">$1<ex>125</ex></ph>%
+    </message>
     <message name="IDS_ALERSE_FIND_IN_PAGE" desc="Site controls button: find text in the page.">
       Find in Page
     </message>
