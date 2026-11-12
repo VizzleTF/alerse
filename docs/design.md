@@ -1432,7 +1432,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   compact address and, once they closed, no rows. Known gaps: the (i), the action tiles, the key chips and their
   colors come from Arc for macOS and show the same on Windows and Linux, Arc for
   Windows' command bar not having been compared; the selected keyword row ends in Chromium's small keyword button.
-### Logo menu
+### Alerse menu (the logo at the top of the sidebar)
 
 - **Logo menu** (Windows, Linux; `alerse_app_menu.cc`): Check for Updates (or
   "Update to Alerse X.Y.Z"), Import from Another Browser..., new tab, window and
