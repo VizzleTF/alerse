@@ -5142,8 +5142,33 @@ AlerseSidebarView::GetOtherSpaces() const {
 }
 
 void AlerseSidebarView::MoveToSpace(const SpaceTarget& target) {
-  const bookmarks::BookmarkNode* node = GetNode(menu_node_);
-  tabs::TabInterface* tab = menu_tab_.Get();
+  MoveRowToSpace(menu_node_, menu_tab_, target);
+}
+
+bool AlerseSidebarView::CanMoveDraggedRowToSpace() const {
+  return drag_source_ && !browser_->GetProfile()->IsOffTheRecord() &&
+         (GetNode(drag_source_->node) || drag_source_->tab.Get());
+}
+
+void AlerseSidebarView::MoveDraggedRowToSpace(const base::FilePath& path,
+                                              const std::u16string& title) {
+  if (!CanMoveDraggedRowToSpace() || path == browser_->GetProfile()->GetPath()) {
+    return;
+  }
+  // After the drag's loop: the move closes the dragged tab and shows the
+  // other Space's window.
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&AlerseSidebarView::MoveRowToSpace,
+                     drop_weak_factory_.GetWeakPtr(), drag_source_->node,
+                     drag_source_->tab, SpaceTarget{path, title}));
+}
+
+void AlerseSidebarView::MoveRowToSpace(int64_t node_id,
+                                       tabs::TabInterface::Handle tab_handle,
+                                       const SpaceTarget& target) {
+  const bookmarks::BookmarkNode* node = GetNode(node_id);
+  tabs::TabInterface* tab = tab_handle.Get();
   if (!node) {
     if (tab) {
       MoveTabToSpace(tab, target);

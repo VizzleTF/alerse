@@ -42,7 +42,8 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 - **Spaces**: each Space is a profile of its own, with its own cookies, logins, history
   and extensions, so you can be logged into different accounts side by side. The
   Spaces' windows sit in one place and switching shows the next one, so they look like
-  one window. Spaces survive restarts.
+  one window. Spaces survive restarts. To move a tab or a pinned item to another Space,
+  drag it onto that Space's icon in the Space bar, or use Move to in its menu.
 
   ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, passwords and settings through your own

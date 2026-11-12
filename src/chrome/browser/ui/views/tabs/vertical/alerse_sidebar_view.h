@@ -150,6 +150,12 @@ class AlerseSidebarView : public views::View,
   static bool SplitDraggedRow(BrowserWindowInterface* browser,
                               bool start,
                               bool stacked);
+  // A row of this sidebar is being dragged and can go to another Space.
+  bool CanMoveDraggedRowToSpace() const;
+  // The dragged row, dropped on another Space's icon in the Space bar, moves
+  // there as Move To does.
+  void MoveDraggedRowToSpace(const base::FilePath& path,
+                             const std::u16string& title);
 
   // bookmarks::BaseBookmarkModelObserver:
   void BookmarkModelChanged() override;
@@ -245,6 +251,9 @@ class AlerseSidebarView : public views::View,
   // Moves the context menu's item: a pinned item or folder into the target's
   // folder, a tab into the target's window, opened anew in its storage.
   void MoveToSpace(const SpaceTarget& target);
+  void MoveRowToSpace(int64_t node_id,
+                      tabs::TabInterface::Handle tab_handle,
+                      const SpaceTarget& target);
   void MoveTabToSpace(tabs::TabInterface* tab, const SpaceTarget& target);
   // Removes `node`, copied to another Space, and closes the tabs bound to
   // it and to what it holds.

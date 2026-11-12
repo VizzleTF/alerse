@@ -344,6 +344,11 @@ Windows' measurements still set (see `AlerseSidebarView`):
   other apps take it as a link and Chromium's split zone on the page's edges takes it;
   the page itself takes no drop from a sidebar row (`alerse_sidebar_drag.h`), which
   would load that address in it or paste it.
+- A row dropped on another Space's icon in the Space bar moves to that Space, as Move
+  to does (see Context menus): the icon lights while the row is over it, and the
+  window shows that Space after the drop (`AlerseSidebarView::MoveDraggedRowToSpace`).
+  Unlike Arc, hovering the icon does not switch Spaces during the drag: each Space is
+  a window of its own, and the dragged row's window would be hidden under the pointer.
 
 ### Context menus
 

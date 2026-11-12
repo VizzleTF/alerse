@@ -43,6 +43,14 @@
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "ui/events/event.h"
+#include "base/files/file_path.h"
+#include "base/memory/weak_ptr.h"
+#include "ui/base/clipboard/clipboard_format_type.h"
+#include "ui/base/dragdrop/drag_drop_types.h"
+#include "ui/base/dragdrop/drop_target_event.h"
+#include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
+#include "ui/base/dragdrop/os_exchange_data.h"
+#include "ui/compositor/layer_tree_owner.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
@@ -344,7 +352,8 @@ class SpaceIcon : public views::Button {
       : views::Button(std::move(callback)),
         icon_(std::move(icon)),
         active_(active),
-        space_(std::move(space)) {
+        space_(std::move(space)),
+        title_(title) {
     SetTooltipText(title);
     GetViewAccessibility().SetName(title);
     SetPreferredSize(kButtonBox);
@@ -354,6 +363,48 @@ class SpaceIcon : public views::Button {
   // another one.
   const std::string& space() const { return space_; }
   bool active() const { return active_; }
+  // The Space's profile directory, where a dragged sidebar row dropped on
+  // the icon goes (AlerseSidebarView::MoveDraggedRowToSpace).
+  void SetDropPath(const base::FilePath& path) { drop_path_ = path; }
+
+  // views::View: a row dragged from this window's sidebar onto another
+  // Space's icon moves to that Space.
+  bool GetDropFormats(
+      int* formats,
+      std::set<ui::ClipboardFormatType>* format_types) override {
+    *formats = ui::OSExchangeData::STRING | ui::OSExchangeData::URL;
+    return true;
+  }
+  bool CanDrop(const ui::OSExchangeData& data) override {
+    AlerseSidebarView* sidebar = FindSidebar(GetWidget());
+    return !active_ && !drop_path_.empty() && sidebar &&
+           sidebar->CanMoveDraggedRowToSpace();
+  }
+  void OnDragEntered(const ui::DropTargetEvent& event) override {
+    SetDropHovered(true);
+  }
+  int OnDragUpdated(const ui::DropTargetEvent& event) override {
+    return ui::DragDropTypes::DRAG_MOVE;
+  }
+  void OnDragExited() override { SetDropHovered(false); }
+  DropCallback GetDropCallback(const ui::DropTargetEvent& event) override {
+    SetDropHovered(false);
+    return base::BindOnce(
+        [](base::WeakPtr<SpaceIcon> icon, base::FilePath path,
+           std::u16string title, const ui::DropTargetEvent& event,
+           ui::mojom::DragOperation& output_drag_op,
+           std::unique_ptr<ui::LayerTreeOwner> drag_image_layer_owner) {
+          output_drag_op = ui::mojom::DragOperation::kNone;
+          AlerseSidebarView* sidebar =
+              icon ? FindSidebar(icon->GetWidget()) : nullptr;
+          if (!sidebar || !sidebar->CanMoveDraggedRowToSpace()) {
+            return;
+          }
+          sidebar->MoveDraggedRowToSpace(path, title);
+          output_drag_op = ui::mojom::DragOperation::kMove;
+        },
+        weak_factory_.GetWeakPtr(), drop_path_, title_);
+  }
 
   // Arc for macOS tints a hovered Space's icon with a light shade of the
   // Space's theme color.
@@ -374,16 +425,26 @@ class SpaceIcon : public views::Button {
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
-    const ui::ColorId color = active_            ? kActiveIconColor
-                              : IsMouseHovered() ? kHoveredIconColor
-                                                 : kIconColor;
-    const SkColor ink = !active_ && IsMouseHovered() && hover_tint_
+    // A row dragged over the icon lights it as the pointer does.
+    const bool hovered = IsMouseHovered() || drop_hovered_;
+    const ui::ColorId color = active_   ? kActiveIconColor
+                              : hovered ? kHoveredIconColor
+                                        : kIconColor;
+    const SkColor ink = !active_ && hovered && hover_tint_
                             ? *hover_tint_
                             : IconInk(this, color);
     const gfx::PointF center = gfx::RectF(GetContentsBounds()).CenterPoint();
     // An emoji fades like the glyphs do on the dark theme, on every theme.
-    const uint8_t emoji_alpha = active_ ? 255 : IsMouseHovered() ? 150 : 90;
-    PaintHoverPlate(this, canvas);
+    const uint8_t emoji_alpha = active_ ? 255 : hovered ? 150 : 90;
+    if (drop_hovered_) {
+      cc::PaintFlags flags;
+      flags.setAntiAlias(true);
+      flags.setColor(alerse::SidebarInk(this, kHoverPlate));
+      canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), kHoverPlateRadius,
+                            flags);
+    } else {
+      PaintHoverPlate(this, canvas);
+    }
     // Arc for macOS' Space icons are 13 pt, smaller than the sidebar's.
     gfx::ScopedCanvas scoped_canvas(canvas);
     canvas->sk_canvas()->translate(center.x(), center.y());
@@ -420,12 +481,23 @@ class SpaceIcon : public views::Button {
   void StateChanged(ButtonState old_state) override { SchedulePaint(); }
 
  private:
+  void SetDropHovered(bool hovered) {
+    if (drop_hovered_ != hovered) {
+      drop_hovered_ = hovered;
+      SchedulePaint();
+    }
+  }
+
+  base::FilePath drop_path_;
+  bool drop_hovered_ = false;
   std::optional<SkColor> hover_tint_;
   int notice_ = 0;
   std::optional<tabs::TabAlert> alert_;
   const std::string icon_;
   const bool active_;
   const std::string space_;
+  const std::u16string title_;
+  base::WeakPtrFactory<SpaceIcon> weak_factory_{this};
 };
 
 BEGIN_METADATA(SpaceIcon)
@@ -1284,6 +1356,7 @@ void AlerseSpaceSwitcher::Rebuild() {
     }
     view->GetViewAccessibility().SetName(title);
     view->set_context_menu_controller(this);
+    return view;
   };
 
   // A Space is a profile (alerse_space_registry.h). This window shows one;
@@ -1319,13 +1392,16 @@ void AlerseSpaceSwitcher::Rebuild() {
                                 : alerse::ListSpaces();
   for (const alerse::SpaceInfo& space : spaces) {
     const bool active = space.path == own;
-    add_icon(base::BindRepeating(&AlerseSpaceSwitcher::ShowSpaceOfPath,
+    SpaceIcon* icon = add_icon(base::BindRepeating(&AlerseSpaceSwitcher::ShowSpaceOfPath,
                                  base::Unretained(this), space.path),
              alerse::ValidSpaceIcon(space.icon, space.home), active,
              space.name,
              active ? std::string(kDefaultSpace)
                     : "profile:" + space.path.BaseName().AsUTF8Unsafe(),
              space.color);
+    if (!active) {
+      icon->SetDropPath(space.path);
+    }
   }
   ApplyActiveSpaceColor();
 
