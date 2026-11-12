@@ -10,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/scoped_observation.h"
 #include "base/containers/flat_map.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -561,6 +562,7 @@ SiteControlsView* g_shown = nullptr;
 class SiteControlsView : public views::View,
                          public PageInfoUI,
                          public content::WebContentsObserver,
+                         public ExtensionsToolbarViewModel::Observer,
                          public ui::SimpleMenuModel::Delegate {
   METADATA_HEADER(SiteControlsView, views::View)
 
@@ -602,6 +604,10 @@ class SiteControlsView : public views::View,
     badges_->SetProperty(views::kViewIgnoredByLayoutKey, true);
     badges_->SetCanProcessEventsWithinSubtree(false);
     UpdatePins();
+    if (ExtensionsToolbarViewModel* model =
+            extensions_ ? extensions_->GetToolbarViewModel() : nullptr) {
+      extensions_observation_.Observe(model);
+    }
 
     // Closed when the tab goes or leaves the page: the page info presenter
     // holds the tab and would change another site's permissions.
@@ -617,6 +623,34 @@ class SiteControlsView : public views::View,
 
   // Where the arrow's tip is, from the view's left edge.
   void set_arrow_x(int arrow_x) { arrow_x_ = arrow_x; }
+
+  // ExtensionsToolbarViewModel::Observer: a tile follows its extension's
+  // icon, badge and pin while the panel is open. An extension added or
+  // removed only shows the next time it opens.
+  void OnActionsInitialized() override {}
+  void OnActionAdded(const ToolbarActionsModel::ActionId& id) override {}
+  void OnActionRemoved(const ToolbarActionsModel::ActionId& id) override {}
+  void OnActionUpdated(const ToolbarActionsModel::ActionId& id) override {
+    ExtensionsToolbarViewModel* model =
+        extensions_ ? extensions_->GetToolbarViewModel() : nullptr;
+    ToolbarActionViewModel* action =
+        model ? model->GetActionModelForId(id) : nullptr;
+    if (!action || !browser_) {
+      return;
+    }
+    content::WebContents* contents =
+        browser_->GetTabStripModel()->GetActiveWebContents();
+    for (auto& [tile_id, tile] : extension_tiles_) {
+      if (tile_id == id) {
+        tile->SetImageModel(views::Button::STATE_NORMAL,
+                            action->GetIcon(contents, gfx::Size(20, 20)));
+      }
+    }
+  }
+  void OnPinnedActionsChanged() override { UpdatePins(); }
+  void OnActiveWebContentsChanged(bool is_same_document,
+                                  content::WebContents* web_contents) override {
+  }
 
   // content::WebContentsObserver:
   void WebContentsDestroyed() override {
@@ -1208,6 +1242,9 @@ class SiteControlsView : public views::View,
   std::vector<std::pair<ToolbarActionsModel::ActionId, raw_ptr<Tile>>>
       extension_tiles_;
   std::vector<std::unique_ptr<ExtensionMenu>> context_menus_;
+  base::ScopedObservation<ExtensionsToolbarViewModel,
+                          ExtensionsToolbarViewModel::Observer>
+      extensions_observation_{this};
   std::unique_ptr<ui::SimpleMenuModel> menu_model_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
 };

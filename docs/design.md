@@ -1125,7 +1125,9 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   page's zoom while it is not the default (a click sets it back) and one row for each
   content-setting icon Chromium would show now ("Pop-ups were blocked on this page.",
   a blocked download, the clipboard...), whose click opens Chromium's own bubble for
-  it under the address field (`SiteControlsView::AddPageStates`). Translate and the
+  it under the address field (`SiteControlsView::AddPageStates`). Its extension tiles
+  follow an icon, badge or pin that changes while it is open; an extension added or
+  removed meanwhile shows the next time it opens. Translate and the
   password key are page actions of their own and still have no row. Clicking it opens the
   command bar. The address field's placeholder is Arc's "Search..." whatever the
   search engine (`look/sidebar-search-placeholder.patch`).
