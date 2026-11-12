@@ -11,6 +11,8 @@ carry that version in their names.
 line: each release raises the patch number. The minor number goes up only when the
 project decides on it.
 
+To make a release, follow [releasing.md](releasing.md).
+
 ## Releases
 
 A release is titled "Alerse X.Y.Z for <platform>" and its notes name the
