@@ -665,7 +665,9 @@ Windows' numbers for those:
     after the Space it shows ("home"), as Arc's, in this list, Mission Control
     and the Dock, not after its page (`BrowserView::GetWindowTitle`, from the
     Space bar through `alerse_menu_bar_hook.h`; it is renamed on every Space
-    switch or rename). An incognito window keeps the page's title, and so does
+    switch or rename). An incognito window keeps the page's title (on its empty
+    page, which has none, "Incognito" as its sidebar says:
+    `look/incognito-window-title.patch`; it read "about:blank#arcomium-space"), and so does
     the window's accessible name (VoiceOver), which Chromium takes from the page
     (`GetAccessibleWindowTitle`; Arc's reads "home" there too).
   - The items AppKit adds to an Edit menu (Start Dictation..., Emoji &

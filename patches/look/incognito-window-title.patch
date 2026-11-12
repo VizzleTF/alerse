@@ -1,0 +1,18 @@
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -3745,6 +3745,14 @@
+       !space.empty()) {
+     return space;
+   }
++  // Alerse: an incognito window on its empty page, which has no title, is
++  // named as its sidebar is; it read "about:blank#arcomium-space - Alerse"
++  // on the taskbar and in Alt+Tab.
++  if (browser_->GetProfile()->IsOffTheRecord() &&
++      TabStripModel::IsAlerseEmptySpace(
++          browser_->GetTabStripModel()->GetActiveWebContents())) {
++    return l10n_util::GetStringUTF16(IDS_INCOGNITO_PROFILE_MENU_TITLE);
++  }
+   std::u16string title =
+       WindowMetadataController::From(browser_.get())
+           ->GetWindowTitleForCurrentTab(true /* include_app_name */);
