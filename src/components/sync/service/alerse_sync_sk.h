@@ -33,9 +33,12 @@ namespace syncer {
 // normalizes it.
 inline constexpr char kSyncAccountScheme[] = "sk-v1";
 
-// NIST SP 800-63B-4: length is what makes a password strong; no rules on
-// which characters it has.
-inline constexpr size_t kMinSyncPasswordLength = 15;
+// The owner's choice (2026-11-13): 6 characters of any kind, digits alone
+// too. The password is the second of two secrets: only whoever holds the 24
+// words can name the account and try a password, online at the server's
+// rate, and a copy of the server's database without the words allows no
+// guessing at all.
+inline constexpr size_t kMinSyncPasswordLength = 6;
 inline constexpr size_t kMaxSyncPasswordLength = 256;
 
 // scrypt parameters. The default costs 128 MiB and about half a second.
@@ -56,11 +59,6 @@ enum class SyncPasswordProblem {
   kNone,
   kTooShort,
   kTooLong,
-  // On the list of common passwords, or one character or a run of
-  // neighbouring ones repeated.
-  kCommon,
-  // Contains "alerse" or "arcomium" (the product's names).
-  kContainsName,
 };
 
 // The server's name of the account the words open: 64 lowercase hex digits.

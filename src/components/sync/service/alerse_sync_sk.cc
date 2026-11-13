@@ -5,7 +5,6 @@
 #include "components/sync/service/alerse_sync_sk.h"
 
 #include <algorithm>
-#include <set>
 
 #include "base/containers/span.h"
 #include "base/rand_util.h"
@@ -34,49 +33,9 @@ constexpr size_t kSaltSize = 32;
 // when the default rises, so that older accounts still open.
 constexpr SyncKdf kMinKdf{.n = 1u << 17, .r = 8, .p = 1};
 
-// Long passwords people pick often, from public breach lists. Shorter ones
-// are refused for their length.
-constexpr std::string_view kCommonPasswords[] = {
-    "123456789012345",     "1234567890123456",    "12345678901234567890",
-    "qwertyuiopasdfg",     "qwertyuiopasdfgh",    "qwertyuiopasdfghjkl",
-    "qwertyuiopasdfghjklzxcvbnm", "1q2w3e4r5t6y7u8i9o0p",
-    "1qaz2wsx3edc4rfv",    "1qaz2wsx3edc4rfv5tgb", "zaq12wsxcde34rfv",
-    "passwordpassword",    "password123456789",   "password1234567",
-    "passwordpassword1",   "iloveyouiloveyou",    "qwertyqwertyqwerty",
-    "abcdefghijklmnop",    "abcdefghijklmnopqrstuvwxyz",
-    "abc123abc123abc123",  "letmeinletmein1",     "welcome123456789",
-    "administrator123",    "correcthorsebatterystaple",
-    "correct horse battery staple", "thequickbrownfox",
-    "thequickbrownfoxjumpsoverthelazydog", "trustno1trustno1",
-    "football123456789",   "baseball123456789",   "superman123456789",
-    "princess123456789",   "dragon1234567890",    "monkey1234567890",
-    "sunshine123456789",   "changemechangeme",    "changeme123456789",
-    "mypasswordismypassword", "thisismypassword",  "thisisapassword",
-    "this is my password", "123qweasdzxc123",     "q1w2e3r4t5y6u7i8",
-    "asdfghjklqwertyuiop", "zxcvbnmasdfghjkl",    "0987654321098765",
-    "987654321987654321",  "111111111111111",     "000000000000000",
-};
-
 size_t CountCharacters(std::string_view text) {
   return std::ranges::count_if(
       text, [](char c) { return (static_cast<uint8_t>(c) & 0xC0) != 0x80; });
-}
-
-// "abcabcabc", "aaaa", "12341234", "qweqwe": a short pattern repeated.
-bool IsRepetitive(std::string_view text) {
-  const std::set<char> distinct(text.begin(), text.end());
-  if (distinct.size() < 5) {
-    return true;
-  }
-  // Each character one more or one less than the one before it.
-  int steps = 0;
-  for (size_t i = 1; i < text.size(); ++i) {
-    const int step = text[i] - text[i - 1];
-    if (step == 1 || step == -1) {
-      ++steps;
-    }
-  }
-  return steps + 1 >= static_cast<int>(text.size()) * 3 / 4;
 }
 
 std::array<uint8_t, 32> Hkdf(base::span<const uint8_t> secret,
@@ -117,17 +76,6 @@ SyncPasswordProblem CheckSyncPassword(std::string_view password) {
   }
   if (length > kMaxSyncPasswordLength) {
     return SyncPasswordProblem::kTooLong;
-  }
-  const std::string lower = base::ToLowerASCII(password);
-  if (std::ranges::find(kCommonPasswords, lower) !=
-          std::end(kCommonPasswords) ||
-      IsRepetitive(lower)) {
-    return SyncPasswordProblem::kCommon;
-  }
-  if (lower.find("alerse") != std::string::npos ||
-      // The product's earlier name (kept literal on purpose).
-      lower.find("arcomium") != std::string::npos) {
-    return SyncPasswordProblem::kContainsName;
   }
   return SyncPasswordProblem::kNone;
 }

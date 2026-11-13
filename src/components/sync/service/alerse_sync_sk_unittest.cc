@@ -90,21 +90,15 @@ TEST(AlerseSyncSkTest, RefusesWeakParameters) {
 }
 
 TEST(AlerseSyncSkTest, ChecksPasswords) {
-  EXPECT_EQ(CheckSyncPassword("short"), SyncPasswordProblem::kTooShort);
+  EXPECT_EQ(CheckSyncPassword("12345"), SyncPasswordProblem::kTooShort);
+  // Six digits are enough: the words are the other secret.
+  EXPECT_EQ(CheckSyncPassword("123456"), SyncPasswordProblem::kNone);
   EXPECT_EQ(CheckSyncPassword(std::string(257, 'x')),
             SyncPasswordProblem::kTooLong);
-  EXPECT_EQ(CheckSyncPassword("passwordpassword"),
-            SyncPasswordProblem::kCommon);
-  EXPECT_EQ(CheckSyncPassword("aaaaaaaaaaaaaaaaaaa"),
-            SyncPasswordProblem::kCommon);
-  EXPECT_EQ(CheckSyncPassword("my alerse sync password"),
-            SyncPasswordProblem::kContainsName);
   EXPECT_EQ(CheckSyncPassword(kPassword), SyncPasswordProblem::kNone);
-  // Characters, not bytes: 15 two-byte letters pass.
-  EXPECT_EQ(CheckSyncPassword("\xD1\x8F\xD0\xB1\xD0\xBB\xD0\xBE\xD0\xBA\xD0\xBE"
-                              "\xD0\xBF\xD1\x80\xD0\xB8\xD0\xBC\xD0\xB5\xD1\x80"
-                              "\xD0\xB4\xD0\xB2\xD0\xB0"),
-            SyncPasswordProblem::kNone);
+  // Characters, not bytes: five two-byte letters are too short.
+  EXPECT_EQ(CheckSyncPassword("\xD1\x8F\xD0\xB1\xD0\xBB\xD0\xBE\xD0\xBA"),
+            SyncPasswordProblem::kTooShort);
 }
 
 }  // namespace

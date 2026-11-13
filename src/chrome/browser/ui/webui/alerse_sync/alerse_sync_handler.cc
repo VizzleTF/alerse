@@ -96,14 +96,9 @@ std::string PasswordProblem(const std::string& password) {
     case syncer::SyncPasswordProblem::kNone:
       return std::string();
     case syncer::SyncPasswordProblem::kTooShort:
-      return "Use at least 15 characters. A few unrelated words make a good "
-             "password.";
+      return "Use at least 6 characters.";
     case syncer::SyncPasswordProblem::kTooLong:
       return "Use at most 256 characters.";
-    case syncer::SyncPasswordProblem::kCommon:
-      return "This password is too easy to guess. Pick another one.";
-    case syncer::SyncPasswordProblem::kContainsName:
-      return "Do not use the browser's name in the password.";
   }
 }
 

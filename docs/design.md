@@ -1817,12 +1817,15 @@ sign-in. Alerse signs in to an account of the alerse-sync server instead (scheme
   `os_crypt_async`; if that fails nothing is kept and sync does not start. The words
   are kept so that the page can show them again and remove devices with the password
   alone; the account key opens the data anyway.
-- The password policy follows NIST SP 800-63B-4: at least 15 characters (counted as
-  characters, not bytes), up to 256, no rules about character classes; a short list of
-  common long passwords, a short pattern repeated, and the product's names are
-  refused. The password is normalized to Unicode NFC, so the same password typed on
-  another system opens the account. A device refuses scrypt parameters below the
-  default, so a server cannot make it send a key that is cheap to attack.
+- The password needs 6 characters, digits alone too (the owner's choice), up to 256,
+  counted as characters, not bytes. It is the second of two secrets: only whoever holds
+  the 24 words can name the account and try a password, online at the server's rate (10
+  an hour), and a copy of the server's database without the words allows no guessing at
+  all. Someone with both the words and a copy of the database can try a 6-digit password
+  offline in days, at one scrypt of 128 MiB a guess. The password is normalized to
+  Unicode NFC, so the same password typed on another system opens the account. A device
+  refuses scrypt parameters below the default, so a server cannot make it send a key
+  that is cheap to attack.
 - Nobody can reset the password or the words. With both lost and no device signed in,
   the synced data is gone; the page says so where the account is created.
 

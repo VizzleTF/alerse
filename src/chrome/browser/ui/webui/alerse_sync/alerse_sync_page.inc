@@ -131,8 +131,8 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
       <input id="create-password" type="password" autocomplete="new-password"
              aria-describedby="create-hint">
       <div class="meter"><span id="create-meter"></span></div>
-      <p id="create-hint" class="note">At least 15 characters. A few unrelated
-        words make a good password.</p>
+      <p id="create-hint" class="note">At least 6 characters. The 24 words are
+        the other half: without them nobody can try the password.</p>
       <label for="create-confirm">Password again</label>
       <input id="create-confirm" type="password" autocomplete="new-password">
       <p id="create-error" class="error" role="alert" hidden></p>
@@ -372,10 +372,10 @@ $('create-password').addEventListener('input', () => {
   const password = $('create-password').value;
   const meter = $('create-meter');
   const length = [...password].length;
-  meter.style.width = Math.min(100, length / 20 * 100) + '%';
+  meter.style.width = Math.min(100, length / 12 * 100) + '%';
   checkTimer = setTimeout(async () => {
     const {problem} = await sendWithPromise('checkPassword', password);
-    meter.className = problem ? '' : (length >= 20 ? 'good' : 'fair');
+    meter.className = problem ? '' : (length >= 12 ? 'good' : 'fair');
   }, 200);
 });
 
