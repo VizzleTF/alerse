@@ -139,7 +139,7 @@ becomes a Space of its own with its pinned items.
 | Spaces with separate logins | done: each Space is a profile (0.1.12+) |
 | Sidebar, drag and drop, command bar | done |
 | Import from Arc and Chromium-based browsers | done on Windows (0.1.3+) and macOS (0.1.12+); Linux after it moves to 157 |
-| Sync | done with your own server, between Windows, macOS, iOS and Linux 0.1.1. Start sync on Windows 0.1.2 or later: only it holds data back until end-to-end encryption is on. A public server is to do |
+| Sync | done, on the Alerse server (sync.alerse.app, a few accounts for now) or your own, between Windows, macOS, iOS and Linux 0.1.1. Start sync on Windows 0.1.2 or later: only it holds data back until end-to-end encryption is on |
 | Windows | releases on Chromium 157 |
 | Linux | 0.1.1 on Chromium 156, built in CI; newer releases wait for ungoogled-chromium-portablelinux 157 |
 | macOS | pre-releases on Chromium 156, built locally (official build with PGO), until ungoogled-chromium-macos ships 157; Arc's menu bar instead of the top bar and logo menu |
