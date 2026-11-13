@@ -1,0 +1,28 @@
+diff --git a/ui/views/widget/widget_hwnd_utils.cc b/ui/views/widget/widget_hwnd_utils.cc
+--- a/ui/views/widget/widget_hwnd_utils.cc
++++ b/ui/views/widget/widget_hwnd_utils.cc
+@@ -103,6 +103,11 @@
+       if (is_translucent) {
+         styles.style &= static_cast<DWORD>(~(WS_THICKFRAME | WS_CAPTION));
+       }
++      // Alerse: a window that asks to stay off the taskbar (Picture in
++      // Picture) gets no button of its own, as frameless popups do.
++      if (params.dont_show_in_taskbar) {
++        styles.ex_style |= WS_EX_TOOLWINDOW;
++      }
+       break;
+     }
+     case Widget::InitParams::TYPE_CONTROL:
+diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -361,6 +361,9 @@
+   params.visible_on_all_workspaces = true;
+   params.remove_standard_frame = true;
+   params.name = "PictureInPictureWindow";
++  // Alerse: the video floats over the browser and is no window of its own
++  // on the taskbar (ui/views/widget/widget_hwnd_utils.cc).
++  params.dont_show_in_taskbar = true;
+   params.layer_type = ui::LAYER_NOT_DRAWN;
+   params.delegate = new OverlayWindowWidgetDelegate();
+ 

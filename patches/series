@@ -101,3 +101,4 @@ look/incognito-window-title.patch
 look/command-bar-pinned-items.patch
 look/arc-shortcuts-off-mac.patch
 spaces/preload-spaces-session.patch
+look/pip-off-taskbar-win.patch

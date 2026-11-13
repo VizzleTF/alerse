@@ -2076,6 +2076,10 @@ is not read.
   opens its own window; Alerse opens the window only for a video you left, so the name
   is not needed to tell it from the page. The 10-second seek buttons are Chromium's;
   they do not show for a live stream.
+- **No taskbar button of its own on Windows** (`look/pip-off-taskbar-win.patch`): the
+  window floats over the browser, as in Arc, instead of showing next to it on the
+  taskbar as "Picture in picture". It asks to stay off the taskbar, and Windows windows
+  that do get `WS_EX_TOOLWINDOW`, so it is also not in Alt+Tab.
 
 ## Defaults
 
