@@ -80,10 +80,9 @@ const PrefService& SetupPrefs(const PrefService& prefs) {
 std::array<uint8_t, 32> Derive(base::span<const uint8_t> secret,
                                std::string_view info) {
   std::array<uint8_t, 32> out;
-  CHECK(HKDF(out.data(), out.size(), EVP_sha256(), secret.data(),
-             secret.size(), reinterpret_cast<const uint8_t*>(kKdfSalt.data()),
-             kKdfSalt.size(), reinterpret_cast<const uint8_t*>(info.data()),
-             info.size()));
+  CHECK(HKDF(out.data(), out.size(), EVP_sha256(), secret.data(), secret.size(),
+             reinterpret_cast<const uint8_t*>(kKdfSalt.data()), kKdfSalt.size(),
+             reinterpret_cast<const uint8_t*>(info.data()), info.size()));
   return out;
 }
 
@@ -113,8 +112,8 @@ void AlerseSyncAccount::RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
 
 // static
 void AlerseSyncAccount::PrepareProfile(PrefService* local_state,
-                                         PrefService* profile_prefs,
-                                         const std::string& profile_dir) {
+                                       PrefService* profile_prefs,
+                                       const std::string& profile_dir) {
   g_local_state = local_state;
   // The server no longer serves chains without an account: sync is set up
   // again, and the page says why.
@@ -148,15 +147,14 @@ void AlerseSyncAccount::PrepareProfile(PrefService* local_state,
 
 // static
 void AlerseSyncAccount::SetSpaceIdOfNewProfile(PrefService* local_state,
-                                                 const std::string& profile_dir,
-                                                 const std::string& space_id) {
-  ScopedDictPrefUpdate(local_state, kNewSpacesPref)
-      ->Set(profile_dir, space_id);
+                                               const std::string& profile_dir,
+                                               const std::string& space_id) {
+  ScopedDictPrefUpdate(local_state, kNewSpacesPref)->Set(profile_dir, space_id);
 }
 
 // static
 void AlerseSyncAccount::AddDeletedSpace(PrefService* local_state,
-                                          const std::string& space_id) {
+                                        const std::string& space_id) {
   ScopedListPrefUpdate(local_state, kDeletedSpacesPref)->Append(space_id);
 }
 
@@ -241,9 +239,9 @@ bool IsAccountId(const std::string& id) {
 
 // static
 bool AlerseSyncAccount::Save(PrefService* prefs,
-                               const os_crypt_async::Encryptor& encryptor,
-                               const GURL& server_url,
-                               const Setup& setup) {
+                             const os_crypt_async::Encryptor& encryptor,
+                             const GURL& server_url,
+                             const Setup& setup) {
   prefs = SetupPrefs(prefs);
   std::string account_key;
   std::string device_key;
@@ -269,10 +267,18 @@ bool AlerseSyncAccount::Save(PrefService* prefs,
 // static
 void AlerseSyncAccount::Clear(PrefService* prefs) {
   prefs = SetupPrefs(prefs);
-  for (const char* pref : {kServerPref, kAccountPref, kAccountKeyPref,
-                           kDeviceKeyPref, kWordsPref, kJoiningPref}) {
+  // The device key stays: one installation is one device of an account.
+  for (const char* pref :
+       {kServerPref, kAccountPref, kAccountKeyPref, kWordsPref, kJoiningPref}) {
     prefs->ClearPref(pref);
   }
+}
+
+// static
+std::optional<SyncChainSecret> AlerseSyncAccount::LoadDeviceSeed(
+    const PrefService& prefs,
+    const os_crypt_async::Encryptor& encryptor) {
+  return Decrypt(encryptor, SetupPrefs(prefs).GetString(kDeviceKeyPref));
 }
 
 // static
@@ -331,7 +337,7 @@ std::array<uint8_t, 32> AlerseSyncAccount::DevicePublicKey(
 
 // static
 std::string AlerseSyncAccount::MakeDeviceToken(const Setup& setup,
-                                                 base::Time now) {
+                                               base::Time now) {
   std::array<uint8_t, 32> public_key;
   std::array<uint8_t, 64> private_key;
   ED25519_keypair_from_seed(public_key.data(), private_key.data(),
@@ -377,8 +383,8 @@ std::optional<AlerseSyncAccount> AlerseSyncAccount::Load(
 }
 
 AlerseSyncAccount::AlerseSyncAccount(const Setup& setup,
-                                         const std::string& space_id,
-                                         const GURL& server_url)
+                                     const std::string& space_id,
+                                     const GURL& server_url)
     : setup_(setup) {
   // Home's chain derives from the account key, every other Space's from a
   // key derived from it and the Space's id.
@@ -403,8 +409,8 @@ AlerseSyncAccount::AlerseSyncAccount(const Setup& setup,
 }
 
 AlerseSyncAccount::AlerseSyncAccount(const AlerseSyncAccount&) = default;
-AlerseSyncAccount& AlerseSyncAccount::operator=(
-    const AlerseSyncAccount&) = default;
+AlerseSyncAccount& AlerseSyncAccount::operator=(const AlerseSyncAccount&) =
+    default;
 AlerseSyncAccount::~AlerseSyncAccount() = default;
 
 std::string AlerseSyncAccount::MakeToken(base::Time now) const {

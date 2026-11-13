@@ -1807,7 +1807,14 @@ sign-in. Alerse signs in to an account of the alerse-sync server instead (scheme
   Argon2id), the wrapped account key and the device's public key and name.
 - **Sign in** (another device): the 24 words and the password. The device fetches the
   salt and parameters for the id, derives the same keys, proves the authentication
-  key, gets the wrapped account key, opens it, and joins with a new device key.
+  key, gets the wrapped account key, opens it, and joins with this installation's
+  device key.
+- **One installation, one device key.** The Ed25519 key is made once and kept in Local
+  State, encrypted, across Stop syncing and account deletion, so signing in again does
+  not add a device: the server takes the same key as the same device. Only if the
+  account removed that key does the sign-in make a new one, once. The server limits
+  keys new to an account (5 a day by default, 3 on sync.alerse.app) and every new one
+  needs the words and the password.
 - A new device needs both: the words alone open nothing, and the server's database
   alone cannot be used to guess the password without the words. The exact
   derivations are in the server's
@@ -1850,8 +1857,11 @@ sign-in. Alerse signs in to an account of the alerse-sync server instead (scheme
   the token in the Authorization header, and the chain's URL. The server URL must be
   https; plain http only for a server on this computer.
 - `--alerse-sync-url` sets the server for tests; official builds ignore it.
-- **Stop syncing on this device** forgets the account and stops sync. The other
-  devices keep their data, and so does the server. **Delete account** (with the
+- **Stop syncing on this device** first signs the device out on the server (no
+  password needed: a device can only drop itself), then forgets the account and stops
+  sync. If that fails, offline or on the account's only device, the key stays the
+  account's and the next sign-in reuses it. The other devices keep their data, and so
+  does the server. **Delete account** (with the
   password) deletes the account and all its chains on the server; every device stops
   syncing, and each keeps its own data.
 
@@ -1864,6 +1874,23 @@ signs in anew with the words and the password if it comes back. The account's on
 device cannot be removed: deleting the account is the way. Chromium's local sync mode
 does not turn the server's 401 into an error, so the page asks the server for the
 device list and says so on a removed device.
+
+### How often devices sync
+
+Only changes are sent, in batches. The server tells every device how long to wait
+after a change before it sends everything changed since: 15 seconds for open tabs and
+windows (Chromium's own value), 60 seconds for bookmarks, Spaces, passwords, settings
+and the rest. A device with no changes sends nothing but an hourly check and keeps one
+event stream per Space open. The other devices fetch a change as soon as the server's
+event says there is one, so a tab shows on another device 15 to 20 seconds after it
+opened, a bookmark about a minute after.
+
+The waits are the server's request to a well-behaved browser. The server enforces its
+own limits whatever a client sends: requests per device key, commits per chain (one
+per 10 seconds on average), and it shuts out for 15 minutes an address that keeps
+sending refused requests. The server's
+[protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md#refusing-abuse)
+list the checks in order.
 
 ### Recovery sheet
 

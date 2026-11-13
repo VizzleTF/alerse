@@ -105,6 +105,12 @@ class AlerseSyncAccount {
   // Forgets the setup. Sync stops at the next browser start.
   static void Clear(PrefService* prefs);
 
+  // This installation's device key, kept across Clear() so that signing in
+  // again does not make the account another device.
+  static std::optional<SyncChainSecret> LoadDeviceSeed(
+      const PrefService& prefs,
+      const os_crypt_async::Encryptor& encryptor);
+
   // Reads the saved setup, or nullopt.
   static std::optional<Setup> LoadSetup(
       const PrefService& prefs,

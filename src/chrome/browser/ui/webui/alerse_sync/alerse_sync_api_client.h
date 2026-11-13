@@ -55,19 +55,25 @@ class AlerseSyncApiClient {
   AlerseSyncApiClient& operator=(const AlerseSyncApiClient&) = delete;
   ~AlerseSyncApiClient();
 
-  // Makes a new account with new words, a new account key and a key for this
-  // device, which joins it as `device_name`.
+  // Makes a new account with new words and a new account key, which this
+  // device joins as `device_name` with `device_seed`, or a new key if unset.
   void CreateAccount(const GURL& server,
                      const std::string& password,
                      const std::string& device_name,
+                     std::optional<syncer::SyncChainSecret> device_seed,
                      SignedIn done);
 
-  // Signs this device in to the account of `words` with a new device key.
+  // Signs this device in to the account of `words` with `device_seed`, or a
+  // new key if unset or if the account removed that key.
   void SignIn(const GURL& server,
               const syncer::SyncChainSecret& words,
               const std::string& password,
               const std::string& device_name,
+              std::optional<syncer::SyncChainSecret> device_seed,
               SignedIn done);
+
+  // Removes this device from its account; needs no password.
+  void SignOut(const GURL& server, const Setup& setup, Done done);
 
   void ListDevices(const GURL& server, const Setup& setup, Devices done);
 
@@ -115,9 +121,9 @@ class AlerseSyncApiClient {
               std::optional<std::string> body);
 
   // Fetches the account's parameters and derives its keys, then runs `next`.
-  using Keyed = base::OnceCallback<void(
-      std::optional<syncer::SyncAccountKeys> keys,
-      std::optional<std::string> error)>;
+  using Keyed =
+      base::OnceCallback<void(std::optional<syncer::SyncAccountKeys> keys,
+                              std::optional<std::string> error)>;
   void DeriveKeys(const GURL& server,
                   const syncer::SyncChainSecret& words,
                   const std::string& password,
@@ -126,6 +132,16 @@ class AlerseSyncApiClient {
                 const std::string& password,
                 Keyed next,
                 Response response);
+
+  // Sends the unlock that adds this device; `replaced` once a removed key
+  // was swapped for a new one.
+  void Unlock(const GURL& server,
+              const syncer::SyncAccountKeys& keys,
+              const syncer::SyncChainSecret& words,
+              const std::string& device_name,
+              std::optional<syncer::SyncChainSecret> device_seed,
+              bool replaced,
+              SignedIn done);
 
   // Sends DELETE `path` with the auth key of `password`.
   void DeleteWithAuth(const GURL& server,

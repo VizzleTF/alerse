@@ -13,6 +13,7 @@
 #include "base/json/json_writer.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
@@ -121,8 +122,9 @@ std::optional<std::vector<uint8_t>> Base64Bytes(const base::DictValue& dict,
 base::DictValue DeviceInfo(const syncer::SyncChainSecret& seed,
                            const std::string& name) {
   base::DictValue device;
-  device.Set("public_key", base::Base64Encode(
-                               syncer::AlerseSyncAccount::DevicePublicKey(seed)));
+  device.Set(
+      "public_key",
+      base::Base64Encode(syncer::AlerseSyncAccount::DevicePublicKey(seed)));
   device.Set("name", name.empty() ? std::string("Alerse") : name.substr(0, 64));
   return device;
 }
@@ -229,21 +231,23 @@ void AlerseSyncApiClient::OnSent(
   std::move(done).Run(std::move(response));
 }
 
-void AlerseSyncApiClient::CreateAccount(const GURL& server,
-                                        const std::string& password,
-                                        const std::string& device_name,
-                                        SignedIn done) {
+void AlerseSyncApiClient::CreateAccount(
+    const GURL& server,
+    const std::string& password,
+    const std::string& device_name,
+    std::optional<syncer::SyncChainSecret> device_seed,
+    SignedIn done) {
   Setup setup;
   setup.words = RandomSecret();
   setup.account_key = RandomSecret();
-  setup.device_seed = RandomSecret();
+  setup.device_seed = device_seed.value_or(RandomSecret());
   std::vector<uint8_t> salt = syncer::NewSyncSalt();
   PostDerive(
       setup.words, password, salt, syncer::SyncKdf(),
       base::BindOnce(
           [](base::WeakPtr<AlerseSyncApiClient> self, GURL server, Setup setup,
-             std::vector<uint8_t> salt, std::string device_name,
-             SignedIn done, Keys keys) {
+             std::vector<uint8_t> salt, std::string device_name, SignedIn done,
+             Keys keys) {
             if (!self) {
               return;
             }
@@ -259,9 +263,8 @@ void AlerseSyncApiClient::CreateAccount(const GURL& server,
             body.Set("salt", base::Base64Encode(salt));
             body.Set("kdf", KdfToDict(syncer::SyncKdf()));
             body.Set("auth", base::Base64Encode(keys->auth));
-            body.Set("wrapped",
-                     base::Base64Encode(
-                         syncer::WrapSyncAccountKey(*keys, setup.account_key)));
+            body.Set("wrapped", base::Base64Encode(syncer::WrapSyncAccountKey(
+                                    *keys, setup.account_key)));
             body.Set("device", DeviceInfo(setup.device_seed, device_name));
             self->Send(
                 server, "POST", "account", std::string(), std::move(body),
@@ -293,10 +296,10 @@ void AlerseSyncApiClient::DeriveKeys(const GURL& server,
                                      Keyed next) {
   base::DictValue body;
   body.Set("id", syncer::SyncAccountId(words));
-  Send(server, "POST", "unlock/params", std::string(), std::move(body),
-       base::BindOnce(&AlerseSyncApiClient::OnParams,
-                      weak_factory_.GetWeakPtr(), words, password,
-                      std::move(next)));
+  Send(
+      server, "POST", "unlock/params", std::string(), std::move(body),
+      base::BindOnce(&AlerseSyncApiClient::OnParams, weak_factory_.GetWeakPtr(),
+                     words, password, std::move(next)));
 }
 
 void AlerseSyncApiClient::OnParams(const syncer::SyncChainSecret& words,
@@ -308,7 +311,8 @@ void AlerseSyncApiClient::OnParams(const syncer::SyncChainSecret& words,
     return;
   }
   const std::string* scheme = response.json->FindString("scheme");
-  std::optional<std::vector<uint8_t>> salt = Base64Bytes(*response.json, "salt");
+  std::optional<std::vector<uint8_t>> salt =
+      Base64Bytes(*response.json, "salt");
   std::optional<syncer::SyncKdf> kdf =
       KdfFromDict(response.json->FindDict("kdf"));
   if (!scheme || *scheme != syncer::kSyncAccountScheme || !salt || !kdf) {
@@ -337,17 +341,20 @@ void AlerseSyncApiClient::OnParams(const syncer::SyncChainSecret& words,
                  std::move(next)));
 }
 
-void AlerseSyncApiClient::SignIn(const GURL& server,
-                                 const syncer::SyncChainSecret& words,
-                                 const std::string& password,
-                                 const std::string& device_name,
-                                 SignedIn done) {
+void AlerseSyncApiClient::SignIn(
+    const GURL& server,
+    const syncer::SyncChainSecret& words,
+    const std::string& password,
+    const std::string& device_name,
+    std::optional<syncer::SyncChainSecret> device_seed,
+    SignedIn done) {
   DeriveKeys(
       server, words, password,
       base::BindOnce(
           [](base::WeakPtr<AlerseSyncApiClient> self, GURL server,
              syncer::SyncChainSecret words, std::string device_name,
-             SignedIn done, Keys keys, std::optional<std::string> error) {
+             std::optional<syncer::SyncChainSecret> device_seed, SignedIn done,
+             Keys keys, std::optional<std::string> error) {
             if (!self) {
               return;
             }
@@ -355,51 +362,96 @@ void AlerseSyncApiClient::SignIn(const GURL& server,
               std::move(done).Run(std::nullopt, std::move(error));
               return;
             }
-            Setup setup;
-            setup.words = words;
-            setup.device_seed = RandomSecret();
-            base::DictValue body;
-            body.Set("id", keys->id);
-            body.Set("auth", base::Base64Encode(keys->auth));
-            body.Set("device", DeviceInfo(setup.device_seed, device_name));
-            self->Send(
-                server, "POST", "unlock", std::string(), std::move(body),
-                base::BindOnce(
-                    [](Setup setup, syncer::SyncAccountKeys keys,
-                       SignedIn done, Response response) {
-                      const std::string* account =
-                          response.json ? response.json->FindString("account")
-                                        : nullptr;
-                      std::optional<std::vector<uint8_t>> wrapped =
-                          response.json
-                              ? Base64Bytes(*response.json, "wrapped")
-                              : std::nullopt;
-                      if (response.status != net::HTTP_OK || !account ||
-                          !wrapped) {
-                        std::move(done).Run(
-                            std::nullopt,
-                            response.status == net::HTTP_CONFLICT
-                                ? "The account has too many devices. Remove "
-                                  "one on a device that syncs."
-                                : ErrorMessage(response));
-                        return;
-                      }
-                      std::optional<syncer::SyncChainSecret> account_key =
-                          syncer::UnwrapSyncAccountKey(keys, *wrapped);
-                      if (!account_key) {
-                        std::move(done).Run(std::nullopt,
-                                            "The server sent an account key "
-                                            "that does not open.");
-                        return;
-                      }
-                      setup.account_id = *account;
-                      setup.account_key = *account_key;
-                      std::move(done).Run(std::move(setup), std::nullopt);
-                    },
-                    std::move(setup), *keys, std::move(done)));
+            self->Unlock(server, *keys, words, device_name, device_seed,
+                         /*replaced=*/false, std::move(done));
           },
-          weak_factory_.GetWeakPtr(), server, words, device_name,
+          weak_factory_.GetWeakPtr(), server, words, device_name, device_seed,
           std::move(done)));
+}
+
+void AlerseSyncApiClient::Unlock(
+    const GURL& server,
+    const syncer::SyncAccountKeys& keys,
+    const syncer::SyncChainSecret& words,
+    const std::string& device_name,
+    std::optional<syncer::SyncChainSecret> device_seed,
+    bool replaced,
+    SignedIn done) {
+  Setup setup;
+  setup.words = words;
+  const bool kept_key = device_seed.has_value();
+  setup.device_seed = device_seed.value_or(RandomSecret());
+  base::DictValue body;
+  body.Set("id", keys.id);
+  body.Set("auth", base::Base64Encode(keys.auth));
+  body.Set("device", DeviceInfo(setup.device_seed, device_name));
+  Send(
+      server, "POST", "unlock", std::string(), std::move(body),
+      base::BindOnce(
+          [](base::WeakPtr<AlerseSyncApiClient> self, GURL server,
+             std::string device_name, bool kept_key, bool replaced, Setup setup,
+             syncer::SyncAccountKeys keys, SignedIn done, Response response) {
+            const std::string* message =
+                response.json ? response.json->FindString("error") : nullptr;
+            // The account removed this installation's key: sign in once more
+            // with a new one.
+            if (self && kept_key && !replaced &&
+                response.status == net::HTTP_CONFLICT && message &&
+                message->find("removed") != std::string::npos) {
+              self->Unlock(server, keys, setup.words, device_name, std::nullopt,
+                           /*replaced=*/true, std::move(done));
+              return;
+            }
+            const std::string* account =
+                response.json ? response.json->FindString("account") : nullptr;
+            std::optional<std::vector<uint8_t>> wrapped =
+                response.json ? Base64Bytes(*response.json, "wrapped")
+                              : std::nullopt;
+            if (response.status != net::HTTP_OK || !account || !wrapped) {
+              std::move(done).Run(
+                  std::nullopt,
+                  response.status == net::HTTP_CONFLICT
+                      ? "The account has too many devices. Remove one on a "
+                        "device that syncs."
+                      : ErrorMessage(response));
+              return;
+            }
+            std::optional<syncer::SyncChainSecret> account_key =
+                syncer::UnwrapSyncAccountKey(keys, *wrapped);
+            if (!account_key) {
+              std::move(done).Run(std::nullopt,
+                                  "The server sent an account key that does "
+                                  "not open.");
+              return;
+            }
+            setup.account_id = *account;
+            setup.account_key = *account_key;
+            std::move(done).Run(std::move(setup), std::nullopt);
+          },
+          weak_factory_.GetWeakPtr(), server, device_name, kept_key, replaced,
+          std::move(setup), keys, std::move(done)));
+}
+
+void AlerseSyncApiClient::SignOut(const GURL& server,
+                                  const Setup& setup,
+                                  Done done) {
+  const std::string id = base::ToLowerASCII(base::HexEncode(
+      syncer::AlerseSyncAccount::DevicePublicKey(setup.device_seed)));
+  Send(server, "DELETE", "devices/" + id,
+       syncer::AlerseSyncAccount::MakeDeviceToken(setup, base::Time::Now()),
+       std::nullopt,
+       base::BindOnce(
+           [](Done done, Response response) {
+             // Gone already counts as signed out.
+             if (response.status == net::HTTP_NO_CONTENT ||
+                 response.status == net::HTTP_NOT_FOUND ||
+                 response.status == net::HTTP_UNAUTHORIZED) {
+               std::move(done).Run(std::nullopt);
+               return;
+             }
+             std::move(done).Run(ErrorMessage(response));
+           },
+           std::move(done)));
 }
 
 void AlerseSyncApiClient::ListDevices(const GURL& server,
@@ -475,8 +527,7 @@ void AlerseSyncApiClient::DeleteWithAuth(const GURL& server,
                            [](Done done, Response response) {
                              if (response.status == net::HTTP_NO_CONTENT) {
                                std::move(done).Run(std::nullopt);
-                             } else if (response.status ==
-                                        net::HTTP_CONFLICT) {
+                             } else if (response.status == net::HTTP_CONFLICT) {
                                std::move(done).Run(
                                    "The account's only device cannot be "
                                    "removed. Delete the account instead.");

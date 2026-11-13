@@ -114,9 +114,8 @@ AlerseSyncHandler::AlerseSyncHandler(Profile* profile) : profile_(profile) {}
 AlerseSyncHandler::~AlerseSyncHandler() = default;
 
 void AlerseSyncHandler::RegisterMessages() {
-  const auto add = [this](const char* name,
-                          void (AlerseSyncHandler::*method)(
-                              const base::ListValue&)) {
+  const auto add = [this](const char* name, void (AlerseSyncHandler::*method)(
+                                                const base::ListValue&)) {
     web_ui()->RegisterMessageCallback(
         name, base::BindRepeating(method, base::Unretained(this)));
   };
@@ -252,15 +251,16 @@ void AlerseSyncHandler::HandleCreateAccount(const base::ListValue& args) {
             if (!self) {
               return;
             }
-            self->WithDeviceName(base::BindOnce(
+            self->WithDevice(base::BindOnce(
                 [](base::WeakPtr<AlerseSyncHandler> self,
                    std::string callback_id, GURL server, std::string password,
-                   const std::string& name) {
+                   const std::string& name,
+                   std::optional<syncer::SyncChainSecret> seed) {
                   if (!self) {
                     return;
                   }
                   self->api().CreateAccount(
-                      server, password, name,
+                      server, password, name, seed,
                       base::BindOnce(&AlerseSyncHandler::OnSignedIn, self,
                                      callback_id, server, base::DictValue()));
                 },
@@ -299,16 +299,17 @@ void AlerseSyncHandler::HandleSignIn(const base::ListValue& args) {
             if (!self) {
               return;
             }
-            self->WithDeviceName(base::BindOnce(
+            self->WithDevice(base::BindOnce(
                 [](base::WeakPtr<AlerseSyncHandler> self,
                    std::string callback_id, GURL server,
                    syncer::SyncChainSecret words, std::string password,
-                   const std::string& name) {
+                   const std::string& name,
+                   std::optional<syncer::SyncChainSecret> seed) {
                   if (!self) {
                     return;
                   }
                   self->api().SignIn(
-                      server, words, password, name,
+                      server, words, password, name, seed,
                       base::BindOnce(&AlerseSyncHandler::OnSignedIn, self,
                                      callback_id, server,
                                      base::DictValue().Set("joining", true)));
@@ -340,8 +341,8 @@ void AlerseSyncHandler::OnEncryptorForSave(
     Setup setup,
     base::DictValue result,
     scoped_refptr<os_crypt_async::Encryptor> encryptor) {
-  if (!syncer::AlerseSyncAccount::Save(profile_->GetPrefs(), *encryptor,
-                                       server, setup)) {
+  if (!syncer::AlerseSyncAccount::Save(profile_->GetPrefs(), *encryptor, server,
+                                       setup)) {
     RejectJavascriptCallback(
         callback_id,
         base::Value("Alerse could not keep the account's keys: the system's "
@@ -401,11 +402,34 @@ void AlerseSyncHandler::WithDeviceName(
       std::move(next));
 }
 
+void AlerseSyncHandler::WithDevice(WithDeviceCallback next) {
+  WithDeviceName(base::BindOnce(
+      [](base::WeakPtr<AlerseSyncHandler> self, WithDeviceCallback next,
+         const std::string& name) {
+        if (!self) {
+          return;
+        }
+        g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
+            [](base::WeakPtr<AlerseSyncHandler> self, WithDeviceCallback next,
+               std::string name,
+               scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+              if (!self) {
+                return;
+              }
+              std::move(next).Run(name,
+                                  syncer::AlerseSyncAccount::LoadDeviceSeed(
+                                      *self->profile_->GetPrefs(), *encryptor));
+            },
+            self, std::move(next), name));
+      },
+      weak_factory_.GetWeakPtr(), std::move(next)));
+}
+
 void AlerseSyncHandler::WithSetup(const std::string& callback_id,
                                   base::OnceCallback<void(const Setup&)> next) {
-  g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
-      &AlerseSyncHandler::OnEncryptorForSetup, weak_factory_.GetWeakPtr(),
-      callback_id, std::move(next)));
+  g_browser_process->os_crypt_async()->GetInstance(
+      base::BindOnce(&AlerseSyncHandler::OnEncryptorForSetup,
+                     weak_factory_.GetWeakPtr(), callback_id, std::move(next)));
 }
 
 void AlerseSyncHandler::OnEncryptorForSetup(
@@ -414,9 +438,8 @@ void AlerseSyncHandler::OnEncryptorForSetup(
     scoped_refptr<os_crypt_async::Encryptor> encryptor) {
   const std::optional<Setup> setup =
       syncer::AlerseSyncAccount::LoadSetup(*profile_->GetPrefs(), *encryptor);
-  if (!setup ||
-      !syncer::AlerseSyncAccount::GetServerURL(*profile_->GetPrefs())
-           .is_valid()) {
+  if (!setup || !syncer::AlerseSyncAccount::GetServerURL(*profile_->GetPrefs())
+                     .is_valid()) {
     RejectJavascriptCallback(callback_id, base::Value(kNoSetup));
     return;
   }
@@ -426,19 +449,19 @@ void AlerseSyncHandler::OnEncryptorForSetup(
 void AlerseSyncHandler::HandleShowWords(const base::ListValue& args) {
   AllowJavascript();
   const std::string callback_id = args[0].GetString();
-  WithSetup(callback_id,
-            base::BindOnce(
-                [](base::WeakPtr<AlerseSyncHandler> self,
-                   std::string callback_id, const Setup& setup) {
-                  if (!self) {
-                    return;
-                  }
-                  base::DictValue result;
-                  result.Set("words", syncer::EncodeSyncCode(setup.words));
-                  self->ResolveJavascriptCallback(base::Value(callback_id),
-                                                  result);
-                },
-                weak_factory_.GetWeakPtr(), callback_id));
+  WithSetup(callback_id, base::BindOnce(
+                             [](base::WeakPtr<AlerseSyncHandler> self,
+                                std::string callback_id, const Setup& setup) {
+                               if (!self) {
+                                 return;
+                               }
+                               base::DictValue result;
+                               result.Set("words",
+                                          syncer::EncodeSyncCode(setup.words));
+                               self->ResolveJavascriptCallback(
+                                   base::Value(callback_id), result);
+                             },
+                             weak_factory_.GetWeakPtr(), callback_id));
 }
 
 void AlerseSyncHandler::HandleGetDevices(const base::ListValue& args) {
@@ -548,9 +571,39 @@ void AlerseSyncHandler::ForgetSetup() {
 
 void AlerseSyncHandler::HandleLeave(const base::ListValue& args) {
   AllowJavascript();
-  ForgetSetup();
-  ResolveJavascriptCallback(args[0], base::DictValue());
-  FireWebUIListener("state-changed", BuildState());
+  const std::string callback_id = args[0].GetString();
+  g_browser_process->os_crypt_async()->GetInstance(base::BindOnce(
+      [](base::WeakPtr<AlerseSyncHandler> self, std::string callback_id,
+         scoped_refptr<os_crypt_async::Encryptor> encryptor) {
+        if (!self) {
+          return;
+        }
+        auto forget = base::BindOnce(
+            [](base::WeakPtr<AlerseSyncHandler> self, std::string callback_id,
+               std::optional<std::string> error) {
+              if (!self) {
+                return;
+              }
+              // Signing out on the server fails for the account's only
+              // device and without a connection; the key then stays the
+              // account's, and signing in again reuses it.
+              self->ForgetSetup();
+              self->ResolveJavascriptCallback(base::Value(callback_id),
+                                              base::DictValue());
+              self->FireWebUIListener("state-changed", self->BuildState());
+            },
+            self, callback_id);
+        const std::optional<Setup> setup = syncer::AlerseSyncAccount::LoadSetup(
+            *self->profile_->GetPrefs(), *encryptor);
+        const GURL server = syncer::AlerseSyncAccount::GetServerURL(
+            *self->profile_->GetPrefs());
+        if (!setup || !server.is_valid()) {
+          std::move(forget).Run(std::nullopt);
+          return;
+        }
+        self->api().SignOut(server, *setup, std::move(forget));
+      },
+      weak_factory_.GetWeakPtr(), callback_id));
 }
 
 void AlerseSyncHandler::HandleDeleteAccount(const base::ListValue& args) {

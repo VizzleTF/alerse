@@ -96,6 +96,13 @@ class AlerseSyncHandler : public content::WebUIMessageHandler,
   // Runs `next` with this device's name.
   void WithDeviceName(base::OnceCallback<void(const std::string&)> next);
 
+  // Runs `next` with this device's name and the key this installation kept,
+  // if any.
+  using WithDeviceCallback =
+      base::OnceCallback<void(const std::string& name,
+                              std::optional<syncer::SyncChainSecret> seed)>;
+  void WithDevice(WithDeviceCallback next);
+
   // Ends a sign-in: saves `setup` and resolves `callback_id` with `result`.
   void OnSignedIn(const std::string& callback_id,
                   const GURL& server,
