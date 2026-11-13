@@ -1,6 +1,7 @@
 # Builds the alerse.app site (site/) into an nginx image, pushes it to
 # ghcr.io/vizzletf/alerse-site and signs it with cosign, keyless. Runs on a
-# push to main that changes the site. Actions are pinned by commit.
+# push to main that changes the site; the Russian site for ru.alerse.app
+# goes to ghcr.io/vizzletf/alerse-site-ru the same way. Actions are pinned by commit.
 name: site
 
 on:
@@ -23,7 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: build the pages
-        run: python3 site/build.py
+        run: |
+          python3 site/build.py
+          python3 site/build.py --lang ru
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -41,11 +44,28 @@ jobs:
           tags: |
             ghcr.io/vizzletf/alerse-site:latest
             ghcr.io/vizzletf/alerse-site:${{ github.sha }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: build-ru
+        with:
+          context: site
+          build-args: |
+            PAGES=public-ru
+            CONF=nginx-ru.conf
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: mode=max
+          sbom: true
+          tags: |
+            ghcr.io/vizzletf/alerse-site-ru:latest
+            ghcr.io/vizzletf/alerse-site-ru:${{ github.sha }}
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       # By digest, so the signature covers exactly what was pushed. Verify with:
       # cosign verify --certificate-identity-regexp
       # '^https://github.com/VizzleTF/alerse/.github/workflows/site.yml@refs/heads/main$'
       # --certificate-oidc-issuer https://token.actions.githubusercontent.com
-      - run: cosign sign --yes "ghcr.io/vizzletf/alerse-site@${DIGEST}"
+      - run: |
+          cosign sign --yes "ghcr.io/vizzletf/alerse-site@${DIGEST}"
+          cosign sign --yes "ghcr.io/vizzletf/alerse-site-ru@${DIGEST_RU}"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          DIGEST_RU: ${{ steps.build-ru.outputs.digest }}

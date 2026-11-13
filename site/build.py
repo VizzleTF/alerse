@@ -1,13 +1,21 @@
 """Builds the alerse.app site into site/public: five static pages sharing one
-header and footer. Run: python site/build.py"""
+header and footer. Run: python site/build.py
+
+--lang ru builds the Russian site for ru.alerse.app into site/public-ru: the
+phrases of ru.py replace the English ones in this file's source before it runs."""
 import html
 import pathlib
 import shutil
+import sys
 
 HERE = pathlib.Path(__file__).parent
 OUT = HERE / 'public'
 SYNC_DOCS = 'https://github.com/VizzleTF/alerse-sync/blob/main/docs'
 VERSION = 'Alerse 0.1.13 · Chromium 157'
+LANG = 'en'
+# The same page on the other language's site, for the switch in the header.
+OTHER = {'en': ('https://ru.alerse.app', 'Русский', 'ru'), 'ru': ('https://alerse.app', 'English', 'en')}
+PATHS = {'index': '/', 'download': '/download', 'sync': '/sync', 'privacy': '/privacy', 'terms': '/terms'}
 
 MOON = ('<svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>')
@@ -24,14 +32,17 @@ def page(name, title, description, body):
         f'<a href="{href}"{" aria-current=\"page\"" if key == name else ""}>{label}</a>'
         for key, href, label in (('features', '/#features', 'Features'), ('sync', '/sync', 'Sync'),
                                  ('github', 'https://github.com/VizzleTF/alerse', 'GitHub')))
+    other_site, other_name, other_lang = OTHER[LANG]
+    other = other_site + PATHS.get(name, '/')
     return f'''<!doctype html>
-<html lang="en">
+<html lang="{LANG}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{html.escape(title)}</title>
 <meta name="description" content="{html.escape(description)}">
 <meta name="color-scheme" content="light dark">
+<link rel="alternate" hreflang="{other_lang}" href="{other}">
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="/style.css">
 <script src="/site.js"></script>
@@ -41,7 +52,7 @@ def page(name, title, description, body):
 <header class="header">
   <a class="brand" href="/"><img src="/images/logo.png" alt="" width="32" height="32">Alerse</a>
   <div class="header-right">
-    <nav class="nav" aria-label="Main">{nav}</nav>
+    <nav class="nav" aria-label="Main">{nav}<a href="{other}" hreflang="{other_lang}" lang="{other_lang}">{other_name}</a></nav>
     <button class="toggle" type="button" aria-label="Switch theme">{MOON}{SUN}</button>
     <a class="button button-secondary button-small" href="/download">Download</a>
   </div>
@@ -208,7 +219,7 @@ def privacy():
   <h1>Privacy</h1>
   <p class="muted">What this site and the Alerse sync server keep about you.</p>
   <h2>This site</h2>
-  <ul><li>No cookies, no analytics, no advertising, no fonts, scripts or images from other companies.</li><li>Your theme choice stays in your browser (local storage) and is never sent.</li><li>The web server logs each request's IP address, time, page and status to keep the site running and to stop abuse, and deletes them after 7 days.</li></ul>
+  <ul><li>No cookies, no analytics, no advertising, no fonts, scripts or images from other companies.</li><li>Your theme choice stays in your browser (local storage) and is never sent.</li><li>The site's web server keeps no request logs. The proxy in front of it, in Finland, keeps each request's IP address, approximate location, time, page and status for 1 day, to keep the site running and stop abuse.</li></ul>
   <h2>The browser</h2>
   <p>What Alerse sends on its own, such as a daily check for updates on GitHub, is listed in the <a href="https://github.com/VizzleTF/alerse#privacy">README</a>.</p>
   <h2>The sync server</h2>
@@ -227,7 +238,9 @@ def terms():
     return page('terms', 'Terms — Alerse', 'Licence and terms of Alerse and its sync server.', body)
 
 
-def main():
+def main(out=OUT):
+    global OUT
+    OUT = out
     if OUT.exists():
         shutil.rmtree(OUT)
     (OUT / 'images').mkdir(parents=True)
@@ -242,4 +255,19 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:] == ['--lang', 'ru']:
+        sys.path.insert(0, str(HERE))
+        from ru import PAIRS
+        original = (HERE / 'build.py').read_text(encoding='utf-8')
+        missing = [en for en, _ in PAIRS if en not in original]
+        if missing:
+            sys.exit('build.py has none of these; update ru.py: ' + ' | '.join(m[:70] for m in missing))
+        source = original
+        for en, ru in PAIRS:
+            source = source.replace(en, ru)
+        source = source.replace("LANG = 'en'", "LANG = 'ru'", 1)
+        namespace = {'__name__': 'alerse_site_ru', '__file__': str(HERE / 'build.py')}
+        exec(compile(source, 'build.py (ru)', 'exec'), namespace)
+        namespace['main'](HERE / 'public-ru')
+    else:
+        main()
