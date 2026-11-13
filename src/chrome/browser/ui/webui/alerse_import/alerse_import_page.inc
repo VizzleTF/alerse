@@ -70,6 +70,10 @@ inline constexpr char kAlerseImportCss[] = R"CSS(
 .summary { font-variant-numeric: tabular-nums; }
 .source > .result { color: var(--ok); }
 .source > .error { color: var(--bad); }
+.source .extensions { display: flex; align-items: center; gap: 12px; }
+.source .extensions .note { flex: 1; }
+.source .extensions .result { color: var(--ok); }
+.source .extensions .error { color: var(--bad); }
 .other { color: var(--accent); font-weight: 500; text-decoration: none; justify-self: start; }
 .other:hover { text-decoration: underline; }
 .other:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
@@ -143,7 +147,57 @@ function renderSource(source) {
       button.disabled = false;
     }
   });
+  offerExtensions(source, item, EXTENSION_TEXT);
   return item;
+}
+
+const EXTENSION_TEXT = {
+  summary: (n, names) => t('extensionsSummary', n, names),
+  add: (n) => t('extensionsAdd', n),
+  working: t('working'),
+  done: (added, failed) => failed ? t('extensionsPartly', added, failed) :
+                                    t('extensionsDone', added),
+  failed: t('errorRead'),
+};
+
+// The source's Chrome Web Store extensions that this Space does not have,
+// with a button that adds them from the source's copies.
+async function offerExtensions(source, parent, text) {
+  let found = [];
+  try {
+    found = await sendWithPromise('getExtensions', source.id);
+  } catch (e) {
+    return;
+  }
+  const missing = found.filter((e) => !e.installed);
+  if (missing.length === 0) return;
+  const row = document.createElement('div');
+  row.className = 'extensions';
+  const note = document.createElement('p');
+  note.className = 'note';
+  const names = missing.slice(0, 4).map((e) => e.name).join(', ') +
+      (missing.length > 4 ? ', …' : '');
+  note.textContent = text.summary(missing.length, names);
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = text.add(missing.length);
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = text.working;
+    try {
+      const r = await sendWithPromise('importExtensions', source.id);
+      note.className = r.failed ? 'note error' : 'note result';
+      note.textContent = text.done(r.added, r.failed);
+      button.remove();
+    } catch (code) {
+      note.className = 'note error';
+      note.textContent = text.failed;
+      button.disabled = false;
+      button.textContent = text.add(missing.length);
+    }
+  });
+  row.append(note, button);
+  parent.append(row);
 }
 
 async function load() {

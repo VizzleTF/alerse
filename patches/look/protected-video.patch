@@ -1,0 +1,50 @@
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -45,6 +45,7 @@
+     "//chrome/browser/ui/webui/alerse_import",
+     "//chrome/browser/ui/webui/alerse_links",
+     "//chrome/browser/ui/webui/alerse_sync",
++    "//chrome/browser/ui/webui/alerse_webkit",
+     "//chrome/browser/ui/webui/alerse_welcome",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+ #include "chrome/browser/ui/webui/alerse_import/alerse_import_ui.h"
++#include "chrome/browser/ui/webui/alerse_webkit/alerse_webkit_ui.h"
+ #include "chrome/browser/ui/webui/alerse_welcome/alerse_welcome_ui.h"
+ #include "chrome/browser/ui/webui/alerse_links/alerse_links_ui.h"
+ #include "chrome/browser/ui/webui/alerse_sync/alerse_sync_ui.h"
+@@ -345,6 +346,8 @@
+   map.AddWebUIConfig(std::make_unique<AlerseImportUIConfig>());
+   // Alerse: the first start's page.
+   map.AddWebUIConfig(std::make_unique<AlerseWelcomeUIConfig>());
++  // Alerse: streaming sites with protected video (alerse_protected_video.h).
++  map.AddWebUIConfig(std::make_unique<AlerseWebKitUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/ui/passwords/password_manager_navigation_throttle.h"
+ #include "chrome/browser/ui/passwords/well_known_change_password_navigation_throttle.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_redirection_throttle.h"
++#include "chrome/browser/ui/webui/alerse_webkit/alerse_protected_video.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/pref_names.h"
+@@ -299,6 +300,10 @@
+     // NavigationThrottleRegistry::AddThrottle().
+     page_load_metrics::MetricsNavigationThrottle::CreateAndAdd(registry);
+ 
++    // Alerse: a streaming site with protected video opens in
++    // chrome://alerse-webkit, which plays it in WebKit on macOS.
++    alerse::MaybeAddProtectedVideoThrottle(registry);
++
+     // Appends the X-Geo header to the navigation request if needed.
+     if (auto throttle =
+             GeolocationNavigationThrottle::MaybeCreateThrottleFor(registry)) {

@@ -21,9 +21,13 @@ class Profile;
 //
 //   getSources()          -> [{id, kind, browser, profile, links, spaces}]
 //   importSource(id)      -> {links, folders, spaces, createdSpaces, folder}
+//   getExtensions(id)     -> [{id, name, installed}]
+//   importExtensions(id)  -> {added, failed}
 //
-// importSource() takes only an id that the last getSources() returned. It
+// Each takes only an id that the last getSources() returned. importSource()
 // rejects with "busy", "notReady" (bookmarks still loading) or "readFailed".
+// importExtensions() installs the source's Web Store extensions that this
+// profile does not have, from the source's copies (alerse_import_data.h).
 class AlerseImportHandler : public content::WebUIMessageHandler {
  public:
   explicit AlerseImportHandler(Profile* profile);
@@ -38,6 +42,16 @@ class AlerseImportHandler : public content::WebUIMessageHandler {
  private:
   void HandleGetSources(const base::ListValue& args);
   void HandleImportSource(const base::ListValue& args);
+  void HandleGetExtensions(const base::ListValue& args);
+  void HandleImportExtensions(const base::ListValue& args);
+
+  // The source that `args` names, from the last getSources().
+  const alerse_import::Source* FindSource(const base::ListValue& args);
+  void OnExtensionsFound(const std::string& callback_id,
+                         std::vector<alerse_import::SourceExtension> found);
+  void OnExtensionsCopied(
+      const std::string& callback_id,
+      std::vector<alerse_import::SourceExtension> copies);
 
   void OnSourcesFound(const std::string& callback_id,
                       std::vector<alerse_import::Source> sources);

@@ -22,6 +22,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/version.h"
 #include "build/build_config.h"
 #include "third_party/boringssl/src/include/openssl/md5.h"
 #include "url/url_constants.h"
@@ -719,6 +720,156 @@ std::optional<Node> ReadChromiumBookmarks(const base::FilePath& dir,
     return std::nullopt;
   }
   return ParseChromiumBookmarks(*bookmarks, other_title, mobile_title);
+}
+
+namespace {
+
+// The address the Chrome Web Store updates its extensions from, split so
+// that domain substitution leaves it as it is.
+constexpr char kWebStoreUpdateUrl[] =
+    "https://clients2.goo" "gle.com/service/update2/crx";
+
+// "__MSG_name__" names a string of the extension's default locale.
+std::string LocalizedName(const base::FilePath& dir,
+                          const base::DictValue& manifest,
+                          const std::string& name) {
+  if (!name.starts_with("__MSG_") || !name.ends_with("__") ||
+      name.size() <= 8) {
+    return name;
+  }
+  const std::string key =
+      base::ToLowerASCII(name.substr(6, name.size() - 8));
+  const std::string* locale = manifest.FindString("default_locale");
+  if (!locale || locale->find_first_of("/\.") != std::string::npos) {
+    return std::string();
+  }
+  std::string text;
+  if (!base::ReadFileToStringWithMaxSize(
+          dir.Append(FILE_PATH_LITERAL("_locales"))
+              .AppendASCII(*locale)
+              .Append(FILE_PATH_LITERAL("messages.json")),
+          &text, 4 * 1024 * 1024)) {
+    return std::string();
+  }
+  std::optional<base::Value> messages = base::JSONReader::Read(
+      text, base::JSON_ALLOW_TRAILING_COMMAS | base::JSON_ALLOW_COMMENTS);
+  if (!messages || !messages->is_dict()) {
+    return std::string();
+  }
+  for (const auto [message_key, value] : messages->GetDict()) {
+    if (base::ToLowerASCII(message_key) == key && value.is_dict()) {
+      if (const std::string* message = value.GetDict().FindString("message")) {
+        return *message;
+      }
+    }
+  }
+  return std::string();
+}
+
+// A version directory is named "<version>_<n>"; a name that is no version
+// sorts first.
+base::Version VersionOfDir(const base::FilePath& dir) {
+  const std::string name = dir.BaseName().AsUTF8Unsafe();
+  base::Version version(name.substr(0, name.rfind('_')));
+  return version.IsValid() ? version : base::Version("0");
+}
+
+// Reads the extension in `id_dir` (Extensions/<id>), or nothing if it is not
+// a Web Store extension.
+std::optional<SourceExtension> ReadExtension(const base::FilePath& id_dir) {
+  const std::string id = id_dir.BaseName().AsUTF8Unsafe();
+  if (id.size() != 32 ||
+      !std::ranges::all_of(id, [](char c) { return c >= 'a' && c <= 'p'; })) {
+    return std::nullopt;
+  }
+  // The newest version that is whole: one being updated has no manifest yet.
+  std::vector<base::FilePath> versions;
+  base::FileEnumerator dirs(id_dir, /*recursive=*/false,
+                            base::FileEnumerator::DIRECTORIES);
+  for (base::FilePath dir = dirs.Next(); !dir.empty(); dir = dirs.Next()) {
+    if (base::PathExists(dir.Append(FILE_PATH_LITERAL("manifest.json")))) {
+      versions.push_back(dir);
+    }
+  }
+  std::ranges::sort(versions, {}, VersionOfDir);
+  if (versions.empty()) {
+    return std::nullopt;
+  }
+  const base::FilePath& dir = versions.back();
+  if (!base::PathExists(dir.Append(FILE_PATH_LITERAL("_metadata"))
+                            .Append(FILE_PATH_LITERAL("verified_contents.json")))) {
+    return std::nullopt;
+  }
+  std::string text;
+  if (!base::ReadFileToStringWithMaxSize(
+          dir.Append(FILE_PATH_LITERAL("manifest.json")), &text,
+          4 * 1024 * 1024)) {
+    return std::nullopt;
+  }
+  // A manifest may start with a byte order mark.
+  std::string_view json = text;
+  if (json.starts_with("\xEF\xBB\xBF")) {
+    json.remove_prefix(3);
+  }
+  std::optional<base::Value> manifest = base::JSONReader::Read(
+      json, base::JSON_ALLOW_TRAILING_COMMAS | base::JSON_ALLOW_COMMENTS);
+  if (!manifest || !manifest->is_dict()) {
+    return std::nullopt;
+  }
+  const base::DictValue& dict = manifest->GetDict();
+  const std::string* key = dict.FindString("key");
+  const std::string* update_url = dict.FindString("update_url");
+  const std::string* name = dict.FindString("name");
+  // Hosted and packaged apps are gone from Chromium.
+  if (!key || !update_url || !name || *update_url != kWebStoreUpdateUrl ||
+      dict.Find("app")) {
+    return std::nullopt;
+  }
+  SourceExtension extension;
+  extension.id = id;
+  extension.name = LocalizedName(dir, dict, *name);
+  if (extension.name.empty()) {
+    extension.name = id;
+  }
+  extension.public_key = *key;
+  extension.dir = dir;
+  return extension;
+}
+
+}  // namespace
+
+std::vector<SourceExtension> FindExtensions(const Source& source) {
+  std::vector<base::FilePath> roots;
+  if (source.kind == SourceKind::kArc) {
+    base::FileEnumerator profiles(
+        source.path.Append(FILE_PATH_LITERAL("User Data")),
+        /*recursive=*/false, base::FileEnumerator::DIRECTORIES);
+    for (base::FilePath profile = profiles.Next(); !profile.empty();
+         profile = profiles.Next()) {
+      roots.push_back(profile.Append(FILE_PATH_LITERAL("Extensions")));
+    }
+    std::ranges::sort(roots);
+  } else {
+    roots.push_back(source.path.Append(FILE_PATH_LITERAL("Extensions")));
+  }
+  std::vector<SourceExtension> found;
+  std::set<std::string> ids;
+  for (const base::FilePath& root : roots) {
+    base::FileEnumerator id_dirs(root, /*recursive=*/false,
+                                 base::FileEnumerator::DIRECTORIES);
+    for (base::FilePath id_dir = id_dirs.Next(); !id_dir.empty();
+         id_dir = id_dirs.Next()) {
+      if (found.size() >= kMaxExtensions) {
+        return found;
+      }
+      if (std::optional<SourceExtension> extension = ReadExtension(id_dir);
+          extension && ids.insert(extension->id).second) {
+        found.push_back(std::move(*extension));
+      }
+    }
+  }
+  std::ranges::sort(found, {}, &SourceExtension::name);
+  return found;
 }
 
 }  // namespace alerse_import

@@ -170,6 +170,26 @@ std::optional<Node> ReadChromiumBookmarks(const base::FilePath& dir,
                                           const std::u16string& other_title,
                                           const std::u16string& mobile_title);
 
+// An extension a source installed from the Chrome Web Store, as it lies in
+// the source's profile: installed again from that copy, it keeps its id, so
+// the Web Store updates it and its data in sync finds it.
+struct SourceExtension {
+  std::string id;
+  std::string name;
+  // The manifest's "key": the store's public key of the extension, base64.
+  std::string public_key;
+  // Its newest version's directory.
+  base::FilePath dir;
+};
+
+// More extensions than this in one source are left out.
+inline constexpr size_t kMaxExtensions = 200;
+
+// The Web Store extensions of `source`: of every Arc profile, or of the
+// Chromium profile. Only the store's (with its update address and its signed
+// list of files, which the install checks) are listed. Blocks.
+std::vector<SourceExtension> FindExtensions(const Source& source);
+
 }  // namespace alerse_import
 
 #endif  // CHROME_BROWSER_UI_WEBUI_ALERSE_IMPORT_ALERSE_IMPORT_DATA_H_

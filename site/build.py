@@ -146,7 +146,7 @@ def landing():
 </div></section>
 <section class="split">
   <div><h2>What is not there</h2><p class="muted">Said plainly, so you can decide before you download.</p></div>
-  <ul class="gaps"><li>Not built: Easels, Boosts, Little Arc, Peek and the tab archive.</li><li>No Netflix and other DRM video yet: Google licenses Widevine only to browsers it has signed.</li><li>Builds are not code-signed by Apple or Microsoft yet: Windows SmartScreen asks once, macOS needs one terminal command.</li><li>Alerse tells you about updates; you install them yourself.</li><li>Linux waits for the next ungoogled-chromium release; iPhone is source only.</li></ul>
+  <ul class="gaps"><li>Not built: Easels, Boosts, Little Arc, Peek and the tab archive.</li><li>Netflix and other DRM video play on macOS in a WebKit view, with Apple’s FairPlay; on Windows Alerse offers Microsoft Edge for them, since Google licenses Widevine only to browsers it has signed.</li><li>Builds are not code-signed by Apple or Microsoft yet: Windows SmartScreen asks once, macOS needs one terminal command.</li><li>Alerse tells you about updates; you install them yourself.</li><li>Linux waits for the next ungoogled-chromium release; iPhone is source only.</li></ul>
 </section>
 <section class="band"><div class="downloads">
   <h2>Download</h2>

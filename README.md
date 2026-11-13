@@ -82,7 +82,9 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
   tab, and picture-in-picture when you leave a playing video.
 - **Import from Arc and other browsers**: Arc's Spaces, pinned tabs, nested folders and
   icons, and the bookmarks of Chrome, Edge, Brave, Vivaldi, Opera, Yandex Browser and
-  Chromium, built in.
+  Chromium, built in, with their Chrome Web Store extensions.
+- **Netflix on macOS**: streaming sites with DRM open in a WebKit view inside the tab,
+  which plays them with Apple's FairPlay.
 
 ## Differences from Arc
 
@@ -150,7 +152,7 @@ becomes a Space of its own with its pinned items.
 | Media mini player, auto picture-in-picture | done |
 | Updates | the browser tells about a newer release; you install it yourself |
 | Code signing | none yet: Windows SmartScreen warns, macOS needs the quarantine flag removed |
-| DRM video (Netflix and other paid streaming) | does not play: Google licenses its Widevine module only to browsers it has signed ([legal notes](docs/legal.md#widevine)) |
+| DRM video (Netflix and other paid streaming) | macOS: plays in a WebKit view with Apple's FairPlay; Windows: offers Microsoft Edge; Linux: does not play. Google licenses Widevine only to browsers it has signed ([legal notes](docs/legal.md#widevine)) |
 
 ## Privacy
 

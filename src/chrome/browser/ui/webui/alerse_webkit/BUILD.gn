@@ -1,0 +1,29 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("alerse_webkit") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_protected_video.cc",
+    "alerse_protected_video.h",
+    "alerse_webkit_page.inc",
+    "alerse_webkit_ui.cc",
+    "alerse_webkit_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//net",
+    "//url",
+  ]
+  if (is_mac) {
+    sources += [
+      "alerse_webkit_host_mac.h",
+      "alerse_webkit_host_mac.mm",
+    ]
+    deps += [ "//crypto" ]
+    frameworks = [ "WebKit.framework" ]
+  }
+}

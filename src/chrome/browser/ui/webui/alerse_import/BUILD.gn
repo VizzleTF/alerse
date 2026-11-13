@@ -55,6 +55,8 @@ source_set("alerse_import") {
     "//components/strings:components_strings",
     "//components/tab_groups",
     "//components/tabs:public",
+    "//extensions/browser",
+    "//extensions/common",
     "//ui/base",
     "//url",
   ]

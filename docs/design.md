@@ -1324,7 +1324,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 ### Compact address
 
-- The compact address shows only the site, centered, with no page actions; Copy Link
+- The compact address shows only the site, centered, with no page actions (Always Show
+  Full URLs, in the field's right-click menu, shows the whole address); Copy Link
   and the site controls show on hover (Copy Link not while the command bar has the
   field, nor on an empty Space's blank page, as in Arc). It hides the site's icon, but
   never the
@@ -1786,6 +1787,24 @@ bookmarks in an imported folder are kept: each largest unmarked subtree is moved
 before the imported nodes are removed (`alerse_import_bookmarks.cc`), to the root of
 the Space's or the import's folder when its subfolder goes.
 
+### Extensions
+
+Under each source the page lists the extensions it installed from the Chrome Web Store
+that this Space does not have, with Add (`getExtensions`, `importExtensions` in
+`alerse_import_handler.cc`). The welcome page's first step shows the same row. An
+extension counts as the store's when its newest version directory has a manifest with
+a `key`, the store's `update_url` and a signed `_metadata/verified_contents.json`;
+hosted apps and the browser's own are left out, and at most 200 are read. Arc's are
+read from every profile under `User Data`, a Chromium browser's from the profile.
+
+Add copies each one to a temporary directory and installs the copy
+(`CrxInstaller::InstallUnpackedCrx`) with the manifest's key, so it keeps its id: the
+Web Store updates it, sync finds its data, and the content verifier checks its files
+against the store's signed list. It is installed silently with its permissions
+granted, as the user granted them in the source, and marked as the store's
+(`FROM_WEBSTORE`). The source's files are never written. Settings and data an
+extension kept in the source's profile do not come with it.
+
 The import's unit tests are in `alerse_import_data_unittest.cc` and
 `alerse_import_bookmarks_unittest.cc`, built into `unit_tests` by
 `look/import-from-browsers.patch`.
@@ -2154,6 +2173,36 @@ Routes are the `Local State` pref `alerse.link_routes`, shared by every Space an
 synced: a route names its Space by the profile's directory (`Profile 1`; empty for
 Home), which differs between devices. The profile pref `arcomium.link_routes` of 0.1
 is not read.
+
+## Protected video
+
+Streaming services that play only DRM video in a browser (`alerse_protected_video.cc`:
+Netflix, Disney+, Prime Video, Max, Hulu, Peacock, Paramount+, Apple TV, Crunchyroll,
+Spotify's and Tidal's web players, Kinopoisk HD, ivi, Okko, START, Wink, PREMIER) open
+in `chrome://alerse-webkit/?u=<site>` (`look/protected-video.patch`). A navigation
+throttle of the primary main frame catches the site on start and on a redirect, cancels
+the navigation and loads the page in the same tab. Their players need Widevine, which
+Google licenses only to browsers it has signed (see `docs/legal.md`).
+
+- **macOS**: the page is a 40 pt bar (back, reload, the site, Open in Safari, Open in
+  Chromium) over a `WKWebView` (`alerse_webkit_host_mac.mm`), WebKit with Apple's
+  FairPlay, as in Safari and in Ardia. Its frame follows the tab's view; a link that
+  opens a window opens in it; it may go fullscreen. Each Space keeps its own WebKit
+  cookies and storage (`WKWebsiteDataStore` by an id made from the profile's path, on
+  macOS 14 and later; one store for all Spaces on macOS 13); incognito keeps none. The
+  user agent ends in Safari's, which these services look for. The bar's address and the
+  tab's title follow the WebKit page, and the tab's address stays
+  `chrome://alerse-webkit/?u=<the page>`, so it restores and syncs. Checked on 156:
+  Netflix loads with its title, and EME there answers yes for `com.apple.fps` and no
+  for `com.widevine.alpha`.
+- **Windows and Linux**: the page says why the video cannot play. On Windows it offers
+  Microsoft Edge (`microsoft-edge:<site>`), which has Microsoft's DRM.
+- **Open in Chromium** (and Open here anyway) loads the site in Chromium; the tab keeps
+  that choice for the site's host until it closes.
+
+Not there: the sidebar's mini player and sound indicator do not see WebKit's media, a
+WebKit page's history is its own (the toolbar's Back leaves the page), and extensions
+do not run in it.
 
 ## Media and picture-in-picture
 

@@ -291,6 +291,85 @@ constexpr char kBookmarks[] = R"({"version": 1, "roots": {
   "synced": {"type": "folder", "name": "Mobile bookmarks", "children": []}
 }})";
 
+// Writes an extension's version directory under `extensions`.
+void WriteExtension(const base::FilePath& extensions,
+                    std::string_view id,
+                    std::string_view version,
+                    std::string_view manifest,
+                    bool signed_list) {
+  const base::FilePath dir =
+      extensions.AppendASCII(id).AppendASCII(version);
+  ASSERT_TRUE(base::CreateDirectory(dir.AppendASCII("_metadata")));
+  ASSERT_TRUE(base::WriteFile(dir.AppendASCII("manifest.json"), manifest));
+  if (signed_list) {
+    ASSERT_TRUE(base::WriteFile(
+        dir.AppendASCII("_metadata").AppendASCII("verified_contents.json"),
+        "[]"));
+  }
+}
+
+TEST(AlerseImportDataTest, FindsWebStoreExtensionsOfArcProfiles) {
+  base::ScopedTempDir arc;
+  ASSERT_TRUE(arc.CreateUniqueTempDir());
+  const base::FilePath user_data = arc.GetPath().AppendASCII("User Data");
+  const base::FilePath first = user_data.AppendASCII("Default")
+                                   .AppendASCII("Extensions");
+  const base::FilePath second = user_data.AppendASCII("Profile 1")
+                                    .AppendASCII("Extensions");
+  // Split so that domain substitution leaves the address as it is.
+  const std::string store =
+      std::string(R"("update_url": "https://clients2.goo)") +
+      R"(gle.com/service/update2/crx")";
+  // The newest whole version wins; a localized name is looked up.
+  WriteExtension(first, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1.2.0_0",
+                 R"({"name": "Old", "key": "K1", )" + store + "}", true);
+  WriteExtension(first, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1.10.0_0",
+                 R"({"name": "__MSG_appName__", "default_locale": "en",
+                     "key": "K1", )" + store + "}",
+                 true);
+  ASSERT_TRUE(base::CreateDirectory(first.AppendASCII(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").AppendASCII("1.10.0_0")
+          .AppendASCII("_locales").AppendASCII("en")));
+  ASSERT_TRUE(base::WriteFile(
+      first.AppendASCII("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+          .AppendASCII("1.10.0_0").AppendASCII("_locales").AppendASCII("en")
+          .AppendASCII("messages.json"),
+      R"({"appname": {"message": "Reader"}})"));
+  // A version being updated has no manifest yet.
+  ASSERT_TRUE(base::CreateDirectory(first.AppendASCII(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").AppendASCII("2.0.0_0")));
+  // Not the store's: another update address, no signed list, no key, an id
+  // that is no extension id.
+  WriteExtension(first, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "1.0_0",
+                 R"({"name": "Elsewhere", "key": "K2",
+                     "update_url": "https://example.com/u"})",
+                 true);
+  WriteExtension(first, "cccccccccccccccccccccccccccccccc", "1.0_0",
+                 R"({"name": "Unsigned", "key": "K3", )" + store + "}", false);
+  WriteExtension(first, "dddddddddddddddddddddddddddddddd", "1.0_0",
+                 R"({"name": "No key", )" + store + "}", true);
+  WriteExtension(first, "Temp", "1.0_0",
+                 R"({"name": "Temp", "key": "K4", )" + store + "}", true);
+  // The same extension in a second profile is listed once.
+  WriteExtension(second, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "1.10.0_0",
+                 R"({"name": "Again", "key": "K1", )" + store + "}", true);
+  WriteExtension(second, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "3_0",
+                 "\xEF\xBB\xBF" R"({"name": "Lister", "key": "K5", )" + store +
+                     "}",
+                 true);
+
+  Source source;
+  source.kind = SourceKind::kArc;
+  source.path = arc.GetPath();
+  const std::vector<SourceExtension> found = FindExtensions(source);
+  ASSERT_EQ(found.size(), 2u);
+  EXPECT_EQ(found[0].name, "Lister");
+  EXPECT_EQ(found[0].id, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+  EXPECT_EQ(found[1].name, "Reader");
+  EXPECT_EQ(found[1].public_key, "K1");
+  EXPECT_EQ(found[1].dir.BaseName().AsUTF8Unsafe(), "1.10.0_0");
+}
+
 TEST(AlerseImportDataTest, ParsesChromiumBookmarks) {
   std::optional<Node> root =
       ParseChromiumBookmarks(Json(kBookmarks), u"Other", u"Mobile");

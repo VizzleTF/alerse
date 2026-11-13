@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <string_view>
 #include <utility>
 
@@ -13,6 +14,7 @@
 #include "base/location.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/files/file_util.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -31,6 +33,10 @@
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
+#include "extensions/browser/crx_installer.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
+#include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
@@ -266,6 +272,14 @@ void AlerseImportHandler::RegisterMessages() {
       "importSource",
       base::BindRepeating(&AlerseImportHandler::HandleImportSource,
                           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "getExtensions",
+      base::BindRepeating(&AlerseImportHandler::HandleGetExtensions,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "importExtensions",
+      base::BindRepeating(&AlerseImportHandler::HandleImportExtensions,
+                          base::Unretained(this)));
 }
 
 void AlerseImportHandler::OnJavascriptDisallowed() {
@@ -390,6 +404,170 @@ void AlerseImportHandler::OnBookmarksRead(const std::string& callback_id,
   ResolveJavascriptCallback(
       base::Value(callback_id),
       ApplyBookmarks(model, profile_, source, *root));
+}
+
+const alerse_import::Source* AlerseImportHandler::FindSource(
+    const base::ListValue& args) {
+  if (args.size() != 2 || !args[1].is_string() ||
+      args[1].GetString().size() > kMaxIdLength) {
+    return nullptr;
+  }
+  auto it = std::ranges::find(sources_, args[1].GetString(), &Source::id);
+  return it == sources_.end() ? nullptr : &*it;
+}
+
+void AlerseImportHandler::HandleGetExtensions(const base::ListValue& args) {
+  if (args.empty() || !args[0].is_string()) {
+    return;
+  }
+  AllowJavascript();
+  const std::string& callback_id = args[0].GetString();
+  const Source* source = FindSource(args);
+  if (!source) {
+    Reject(callback_id, "unknown");
+    return;
+  }
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN},
+      base::BindOnce(&alerse_import::FindExtensions, *source),
+      base::BindOnce(&AlerseImportHandler::OnExtensionsFound,
+                     weak_factory_.GetWeakPtr(), callback_id));
+}
+
+void AlerseImportHandler::OnExtensionsFound(
+    const std::string& callback_id,
+    std::vector<alerse_import::SourceExtension> found) {
+  extensions::ExtensionRegistry* registry =
+      extensions::ExtensionRegistry::Get(profile_);
+  base::ListValue list;
+  for (const alerse_import::SourceExtension& extension : found) {
+    list.Append(
+        base::DictValue()
+            .Set("id", extension.id)
+            .Set("name", extension.name)
+            .Set("installed",
+                 registry &&
+                     registry->GetInstalledExtension(extension.id) != nullptr));
+  }
+  ResolveJavascriptCallback(base::Value(callback_id), list);
+}
+
+void AlerseImportHandler::HandleImportExtensions(const base::ListValue& args) {
+  if (args.empty() || !args[0].is_string()) {
+    return;
+  }
+  AllowJavascript();
+  const std::string& callback_id = args[0].GetString();
+  const Source* source = FindSource(args);
+  extensions::ExtensionRegistry* registry =
+      extensions::ExtensionRegistry::Get(profile_);
+  if (!source || !registry) {
+    Reject(callback_id, "unknown");
+    return;
+  }
+  if (importing_) {
+    Reject(callback_id, "busy");
+    return;
+  }
+  importing_ = true;
+  std::set<std::string> installed;
+  for (const auto& extension : registry->GenerateInstalledExtensionsSet()) {
+    installed.insert(extension->id());
+  }
+  // The installer moves the files it installs, so it gets copies: the
+  // source's own stay as they are.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(
+          [](Source source, std::set<std::string> installed) {
+            std::vector<alerse_import::SourceExtension> copies;
+            for (alerse_import::SourceExtension& extension :
+                 alerse_import::FindExtensions(source)) {
+              base::FilePath temp;
+              if (installed.contains(extension.id) ||
+                  !base::CreateNewTempDirectory(
+                      FILE_PATH_LITERAL("alerse_extension"), &temp)) {
+                continue;
+              }
+              const base::FilePath copy =
+                  temp.Append(FILE_PATH_LITERAL("extension"));
+              if (!base::CopyDirectory(extension.dir, copy,
+                                       /*recursive=*/true)) {
+                base::DeletePathRecursively(temp);
+                continue;
+              }
+              extension.dir = copy;
+              copies.push_back(std::move(extension));
+            }
+            return copies;
+          },
+          *source, std::move(installed)),
+      base::BindOnce(&AlerseImportHandler::OnExtensionsCopied,
+                     weak_factory_.GetWeakPtr(), callback_id));
+}
+
+namespace {
+
+// How the installs of one importExtensions() call went.
+struct ExtensionTally {
+  int left = 0;
+  int added = 0;
+  int failed = 0;
+  base::OnceCallback<void(int added, int failed)> done;
+};
+
+}  // namespace
+
+void AlerseImportHandler::OnExtensionsCopied(
+    const std::string& callback_id,
+    std::vector<alerse_import::SourceExtension> copies) {
+  importing_ = false;
+  auto tally = std::make_shared<ExtensionTally>();
+  tally->left = static_cast<int>(copies.size());
+  tally->done = base::BindOnce(
+      [](base::WeakPtr<AlerseImportHandler> self, std::string callback_id,
+         int added, int failed) {
+        if (self) {
+          self->ResolveJavascriptCallback(
+              base::Value(callback_id),
+              base::DictValue().Set("added", added).Set("failed", failed));
+        }
+      },
+      weak_factory_.GetWeakPtr(), callback_id);
+  if (copies.empty()) {
+    std::move(tally->done).Run(0, 0);
+    return;
+  }
+  for (const alerse_import::SourceExtension& extension : copies) {
+    scoped_refptr<extensions::CrxInstaller> installer =
+        extensions::CrxInstaller::CreateSilent(profile_);
+    // The user installed it from the Web Store in the source and granted
+    // its permissions there; it stays the store's, which updates it.
+    installer->set_install_source(
+        extensions::mojom::ManifestLocation::kInternal);
+    installer->set_creation_flags(extensions::Extension::FROM_WEBSTORE);
+    installer->set_allow_silent_install(true);
+    installer->set_delete_source(true);
+    installer->AddInstallerCallback(base::BindOnce(
+        [](std::shared_ptr<ExtensionTally> tally, base::FilePath temp,
+           const std::optional<extensions::CrxInstallError>& error) {
+          (error ? tally->failed : tally->added)++;
+          // The copy's directory, which the installer leaves behind.
+          base::ThreadPool::PostTask(
+              FROM_HERE, {base::MayBlock()},
+              base::GetDeletePathRecursivelyCallback(temp));
+          if (--tally->left == 0) {
+            std::move(tally->done).Run(tally->added, tally->failed);
+          }
+        },
+        tally, extension.dir.DirName()));
+    installer->InstallUnpackedCrx(extension.id, extension.public_key,
+                                  extension.dir);
+  }
 }
 
 void AlerseImportHandler::Reject(const std::string& callback_id,

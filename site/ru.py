@@ -84,7 +84,7 @@ PAIRS = [
     ('>What is not there<', '>Чего нет<'),
     ('Said plainly, so you can decide before you download.', 'Говорим прямо, чтобы решить до скачивания.'),
     ('Not built: Easels, Boosts, Little Arc, Peek and the tab archive.', 'Нет Easels, Boosts, Little Arc, Peek и архива вкладок.'),
-    ('No Netflix and other DRM video yet: Google licenses Widevine only to browsers it has signed.', 'Пока не играет Netflix и другое видео с DRM: Google выдаёт Widevine только браузерам, которые сам подписал.'),
+    ('Netflix and other DRM video play on macOS in a WebKit view, with Apple’s FairPlay; on Windows Alerse offers Microsoft Edge for them, since Google licenses Widevine only to browsers it has signed.', 'Netflix и другое видео с DRM играют на macOS во встроенном WebKit с FairPlay от Apple; на Windows Alerse предлагает для них Microsoft Edge, потому что Google выдаёт Widevine только браузерам, которые сам подписал.'),
     ('Builds are not code-signed by Apple or Microsoft yet: Windows SmartScreen asks once, macOS needs one terminal command.', 'Сборки пока не подписаны Apple и Microsoft: Windows SmartScreen спросит один раз, на macOS нужна одна команда в терминале.'),
     ('Alerse tells you about updates; you install them yourself.', 'Alerse сообщает об обновлениях, ставите их вы сами.'),
     ('Linux waits for the next ungoogled-chromium release; iPhone is source only.', 'Linux ждёт следующего релиза ungoogled-chromium; для iPhone — только исходники.'),

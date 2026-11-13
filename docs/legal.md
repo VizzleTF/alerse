@@ -11,7 +11,7 @@ For maintainers; checked 2026-11-13. This is not legal advice.
 | Trademarks of others | disclaimer in NOTICE, README and the site; no Google or Arc logos | NOTICE |
 | Artwork | our own logo and glyphs; no Apple or Arc files | below |
 | Audio and video codecs | open risk: patent pools | below |
-| Widevine | not shipped | below |
+| Widevine | not shipped; WebKit plays DRM sites on macOS | below |
 | Encryption export rules | exempt as public open source | below |
 | Sync server data | privacy policy and terms published | alerse-sync `docs/privacy.md`, `docs/terms.md` |
 | The alerse.app site | no cookies, nothing from third parties, logs at most 7 days | `site/`, its privacy page |
@@ -84,10 +84,13 @@ service. The ways to it, each a decision of its own:
 
 - Apply to Google for a Widevine license, then sign every release with VMP and let the
   browser fetch the module from Google, on the user's request, as Brave does.
-- On macOS only: open DRM pages that fail in a WebKit view, which plays them with Apple's
-  FairPlay, as Ardia does. No license is needed; it is a second engine to maintain.
+- On macOS: play these sites in WebKit, Apple's engine, which has FairPlay. Alerse does
+  this (see Protected video in `docs/design.md`). WebKit is the system's
+  framework, linked and not shipped, so no license is needed.
 
-Until then the site and the README say plainly that DRM video does not play.
+Fetching Google's module without a license is not done: its terms are Google's, and
+Netflix would still refuse it without VMP. On Windows Alerse offers Microsoft Edge for
+these sites; on Linux the video does not play.
 
 ## Encryption export
 

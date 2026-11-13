@@ -78,6 +78,12 @@ AlerseImportUI::AlerseImportUI(content::WebUI* web_ui)
   content::WebUIDataSource* source = content::WebUIDataSource::CreateAndAdd(
       profile, kChromeUIAlerseImportHost);
   source->AddLocalizedStrings(kStrings);
+  source->AddString("extensionsSummary",
+                    u"$1 extensions from the Chrome Web Store: $2");
+  source->AddString("extensionsAdd", u"Add $1");
+  source->AddString("extensionsDone", u"Added $1 extensions.");
+  source->AddString("extensionsPartly",
+                    u"Added $1 extensions; $2 could not be added.");
   source->UseStringsJs();
   // The files are compiled in, so the page needs no resource bundle.
   source->SetRequestFilter(
