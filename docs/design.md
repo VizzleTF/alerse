@@ -1775,9 +1775,12 @@ Known gaps:
 
 Sync goes to an [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, set up
 at `chrome://alerse-sync` (Sync in the logo menu and the app menu; every link to
-Chromium's sync settings leads there). The page offers the Alerse server,
-`https://sync.alerse.app`, first, or the user's own server by its address. Either way
-the server only ever sees ciphertext. The design is
+Chromium's sync settings leads there). The page recommends the user's own server, by its
+address, with a link to the server's setup guide, and offers the Alerse server,
+`https://sync.alerse.app`, preselected for those who would rather not run one. A note
+under it says the maintainer offers it voluntarily, without any guarantee or
+responsibility for the data on it, and links its terms and privacy policy. Either way the
+server only ever sees ciphertext. The design is
 [ADR-0002](adr/0002-sync-accounts.md); this section is what is built (0.1.14).
 
 Each Space is a profile with its own sync service, so each Space syncs as its own

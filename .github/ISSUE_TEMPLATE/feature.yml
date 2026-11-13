@@ -1,0 +1,16 @@
+name: Feature
+description: Something Arc or another browser does that Alerse should do too.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What and why
+      description: What you want to do, and how you do it today (in Arc or elsewhere).
+    validations:
+      required: true
+  - type: textarea
+    id: arc
+    attributes:
+      label: How Arc does it
+      description: Optional. A shortcut, a menu, a screenshot.

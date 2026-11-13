@@ -48,7 +48,9 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
   ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
 - **Sync on your terms**: bookmarks, tabs, Spaces, passwords and settings through an
   [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, end-to-end
-  encrypted: the Alerse server or your own. A new device signs in with the 24 words and a
+  encrypted. Best on a server of your own, which runs in Docker or Kubernetes; the Alerse
+  server is there for those who would rather not run one, offered voluntarily and without
+  any responsibility for the data on it. A new device signs in with the 24 words and a
   password; neither alone opens the account, and a lost device can be removed. Set it up
   from **Sync** in the Alerse menu.
 - **Command bar actions**: type a command's name in the command bar to run it, as in
@@ -191,6 +193,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 ## Learn more
 
+- [Contributing](CONTRIBUTING.md): bugs, patches, where help matters most.
 - [How Alerse works](docs/design.md): Spaces, the sidebar, sync, platforms.
 - [Writing and refreshing patches](docs/patching.md).
 - [Versions and releases](docs/versioning.md); [making a release](docs/releasing.md).

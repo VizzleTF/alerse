@@ -49,7 +49,7 @@ takes hours, not minutes ([patching.md](patching.md#incremental-windows-builds))
 macOS is built on the build Mac from a Chromium 156 tree kept by hand
 (`ungoogled-chromium-macos/build/src` in an alerse-mac checkout) until
 ungoogled-chromium-macos releases 157; this section is for that tree. Releases are
-pre-releases (ad hoc signed).
+pre-releases (signed with the build Mac's own identity, see alerse-mac README).
 
 1. In the tree, set `PATCH` in `chrome/VERSION` to Chromium's patch × 100 + X.Y.Z's
    patch (Chromium 156.0.8078.79 and Alerse 0.1.13 give 7913) and

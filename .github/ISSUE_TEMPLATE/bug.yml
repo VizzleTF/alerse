@@ -1,0 +1,30 @@
+name: Bug
+description: Something in Alerse does not work, or does not look or behave like Arc.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      description: Alerse menu, About. For example "0.1.13, Windows 11 x64".
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you did, one step a line.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual
+      description: What you expected, and what happened instead. For a look-and-feel bug, what Arc does.
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or a recording
+      description: Optional, and most useful for anything visual.

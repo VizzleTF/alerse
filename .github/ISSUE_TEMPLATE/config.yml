@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://github.com/VizzleTF/alerse/security/advisories/new
+    about: Report vulnerabilities privately.
+  - name: Sync server
+    url: https://github.com/VizzleTF/alerse-sync/issues
+    about: Problems with the sync server or sync.alerse.app.
