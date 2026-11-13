@@ -150,6 +150,7 @@ becomes a Space of its own with its pinned items.
 | Media mini player, auto picture-in-picture | done |
 | Updates | the browser tells about a newer release; you install it yourself |
 | Code signing | none yet: Windows SmartScreen warns, macOS needs the quarantine flag removed |
+| DRM video (Netflix and other paid streaming) | does not play: Google licenses its Widevine module only to browsers it has signed ([legal notes](docs/legal.md#widevine)) |
 
 ## Privacy
 

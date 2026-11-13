@@ -14,6 +14,7 @@ For maintainers; checked 2026-11-13. This is not legal advice.
 | Widevine | not shipped | below |
 | Encryption export rules | exempt as public open source | below |
 | Sync server data | privacy policy and terms published | alerse-sync `docs/privacy.md`, `docs/terms.md` |
+| The alerse.app site | no cookies, nothing from third parties, logs at most 7 days | `site/`, its privacy page |
 | Vulnerability reports | private reporting on in every repository | SECURITY.md |
 | Donations | Buy Me a Coffee and Boosty, without promises in return | `.github/FUNDING.yml` |
 
@@ -76,6 +77,18 @@ Every Chromium fork that plays such video carries this; none has been asked to p
 download it: ungoogled-chromium removes the component updater. Widevine's license is
 Google's to grant, so it must not be bundled.
 
+Netflix and most paid streaming need it. On Windows and macOS the module also checks that
+the browser carries a Verified Media Path (VMP) signature, which Google issues to
+browsers it licenses (Brave, Vivaldi, Opera), directly or through castlabs' signing
+service. The ways to it, each a decision of its own:
+
+- Apply to Google for a Widevine license, then sign every release with VMP and let the
+  browser fetch the module from Google, on the user's request, as Brave does.
+- On macOS only: open DRM pages that fail in a WebKit view, which plays them with Apple's
+  FairPlay, as Ardia does. No license is needed; it is a second engine to maintain.
+
+Until then the site and the README say plainly that DRM video does not play.
+
 ## Encryption export
 
 Alerse uses standard cryptography (TLS, AES-GCM, Ed25519, scrypt). Its source is
@@ -90,6 +103,13 @@ Data is end-to-end encrypted, so the operator cannot read synced content. The se
 [privacy policy](https://github.com/VizzleTF/alerse-sync/blob/main/docs/privacy.md) and
 [terms](https://github.com/VizzleTF/alerse-sync/blob/main/docs/terms.md) cover it. Whoever
 runs their own server is the controller of that one.
+
+## The alerse.app site
+
+Static pages served from the operator's own server: no cookies, no analytics, no fonts,
+scripts or images from anyone else (its CSP allows only the site itself), so it needs no
+consent banner. The web server keeps request logs at most 7 days, as its privacy page
+says. It links the sync server's policy and terms.
 
 ## Open points
 
