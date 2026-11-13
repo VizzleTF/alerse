@@ -194,6 +194,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 - [Writing and refreshing patches](docs/patching.md).
 - [Versions and releases](docs/versioning.md); [making a release](docs/releasing.md).
 - [Why each Space is a profile](docs/adr/0001-space-profiles.md) (ADR-0001).
+- [Sync accounts, proposed](docs/adr/0002-sync-accounts.md) (ADR-0002).
 
 ## License
 

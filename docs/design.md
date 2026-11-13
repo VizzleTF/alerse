@@ -1779,6 +1779,9 @@ every link to Chromium's sync settings leads there). There is no default server:
 user runs one, at home or in their own cloud account, and the browser only needs its
 URL. A free public server is planned, not running. The server only ever sees ciphertext,
 so such a server would need no trust in its operator.
+[ADR-0002](adr/0002-sync-accounts.md) proposes what replaces this setup: accounts with
+an email or the 24 words and a password, removable devices, an official server next to
+your own, and tabs that reach other devices within seconds. Not built yet.
 
 Each Space is a profile with its own sync service, so each Space syncs as its own
 chain, and the server cannot tell that the chains belong to one user. The setup is
