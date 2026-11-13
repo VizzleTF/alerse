@@ -47,6 +47,10 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
       <dt>Server</dt><dd id="status-server"></dd>
       <dt>Last synced</dt><dd id="status-synced"></dd>
     </dl>
+    <div id="summary" class="summary" hidden>
+      <h3 id="summary-title"></h3>
+      <ul id="summary-list" class="space-list"></ul>
+    </div>
     <div class="actions">
       <button id="devices-open">Devices</button>
       <button id="words-open">Show the 24 words</button>
@@ -229,6 +233,16 @@ dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
 .confirm { display: grid; gap: 12px; border-top: 1px solid var(--line);
   padding-top: 12px; }
+.summary { display: grid; gap: 8px; border-top: 1px solid var(--line);
+  padding-top: 12px; margin-top: 12px; }
+.summary h3 { margin: 0; font-size: 15px; }
+.space-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.space-list li { display: grid; grid-template-columns: 8px 1fr auto; gap: 4px 10px;
+  align-items: baseline; }
+.space-list .dot { align-self: center; }
+.space-list .name { font-weight: 500; overflow-wrap: anywhere; }
+.space-list .tabs { color: var(--muted); font-size: 13px; text-align: right; }
+.space-list .others { grid-column: 2 / 4; color: var(--muted); font-size: 13px; }
 .device-list { list-style: none; margin: 0; padding: 0; display: grid;
   gap: 6px; }
 .pm { display: grid; gap: 8px; border-top: 1px solid var(--line);
@@ -605,7 +619,62 @@ $('delete-form').addEventListener('submit', async (e) => {
 });
 
 addWebUiListener('state-changed', render);
-sendWithPromise('getState').then(render);
+sendWithPromise('getState').then((state) => {
+  render(state);
+  refreshSummary();
+});
+
+// What syncs: every Space, whether it syncs, and its tabs here and on the
+// other devices, as this device last got them. Local data only, so it is
+// asked for often.
+function plural(n, one, many) {
+  return n + ' ' + (n === 1 ? one : many);
+}
+function renderSummary(spaces) {
+  const list = $('summary-list');
+  list.textContent = '';
+  let tabs = 0;
+  for (const space of spaces) {
+    const li = document.createElement('li');
+    const dot = document.createElement('span');
+    dot.className = 'dot ' + (space.syncing ? 'ok' : 'warn');
+    dot.title = space.syncing ? 'Syncing' : 'Not syncing yet';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = space.name;
+    const here = document.createElement('span');
+    here.className = 'tabs';
+    here.textContent = space.tabs === undefined ? '' :
+        plural(space.tabs, 'tab', 'tabs') + ' here';
+    li.append(dot, name, here);
+    if (space.devices.length) {
+      const others = document.createElement('span');
+      others.className = 'others';
+      others.textContent = space.devices.map(
+          (d) => d.name + ': ' + plural(d.tabs, 'tab', 'tabs')).join(' · ');
+      li.append(others);
+    }
+    list.append(li);
+    tabs += space.tabs || 0;
+  }
+  $('summary-title').textContent = 'Syncing ' +
+      plural(spaces.length, 'Space', 'Spaces') + ' with ' +
+      plural(tabs, 'tab', 'tabs') + ' from this device';
+  $('summary').hidden = spaces.length === 0;
+}
+async function refreshSummary() {
+  if ($('status').hidden || document.hidden) {
+    return;
+  }
+  try {
+    renderSummary(await sendWithPromise('getSummary'));
+  } catch (error) {
+    $('summary').hidden = true;
+  }
+}
+addWebUiListener('state-changed', () => refreshSummary());
+document.addEventListener('visibilitychange', refreshSummary);
+setInterval(refreshSummary, 5000);
 )JS";
 
 #endif  // CHROME_BROWSER_UI_WEBUI_ALERSE_SYNC_ALERSE_SYNC_PAGE_INC_

@@ -11,7 +11,14 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/sync/session_sync_service_factory.h"
 #include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+#include "components/sessions/core/session_types.h"
+#include "components/sync_sessions/open_tabs_ui_delegate.h"
+#include "components/sync_sessions/session_sync_service.h"
+#include "components/sync_sessions/synced_session.h"
 #include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/async/common/encryptor.h"
 #include "components/prefs/pref_service.h"
@@ -125,6 +132,7 @@ void AlerseSyncHandler::RegisterMessages() {
   add("signIn", &AlerseSyncHandler::HandleSignIn);
   add("showWords", &AlerseSyncHandler::HandleShowWords);
   add("getDevices", &AlerseSyncHandler::HandleGetDevices);
+  add("getSummary", &AlerseSyncHandler::HandleGetSummary);
   add("removeDevice", &AlerseSyncHandler::HandleRemoveDevice);
   add("leave", &AlerseSyncHandler::HandleLeave);
   add("deleteAccount", &AlerseSyncHandler::HandleDeleteAccount);
@@ -567,6 +575,75 @@ void AlerseSyncHandler::ForgetSetup() {
   profile_->GetPrefs()->CommitPendingWrite();
   g_browser_process->local_state()->CommitPendingWrite();
   restart_needed_ = true;
+}
+
+namespace {
+
+// A tab the Sync page counts: a page, not the empty tab that keeps a hidden
+// Space's window, nor a browser page, which does not sync.
+bool CountsAsTab(const sessions::SessionTab& tab) {
+  if (tab.navigations.empty()) {
+    return false;
+  }
+  const int index = std::clamp<int>(tab.current_navigation_index, 0,
+                                    tab.navigations.size() - 1);
+  const GURL& url = tab.navigations[index].virtual_url();
+  return url.SchemeIsHTTPOrHTTPS() || url.SchemeIsFile();
+}
+
+int CountTabs(const sync_sessions::SyncedSession& session) {
+  int tabs = 0;
+  for (const auto& [id, window] : session.windows) {
+    for (const auto& tab : window->wrapped_window.tabs) {
+      tabs += tab && CountsAsTab(*tab);
+    }
+  }
+  return tabs;
+}
+
+}  // namespace
+
+// Every Space with whether it syncs and how many tabs this device and each
+// of the others have in it: what the Space's chain holds, as the device
+// last got it.
+void AlerseSyncHandler::HandleGetSummary(const base::ListValue& args) {
+  AllowJavascript();
+  base::ListValue spaces;
+  for (const alerse::SpaceInfo& info : alerse::ListSpaces()) {
+    base::DictValue space;
+    space.Set("name", base::UTF16ToUTF8(info.name));
+    space.Set("home", info.home);
+    Profile* profile =
+        g_browser_process->profile_manager()->GetProfileByPath(info.path);
+    syncer::SyncService* sync =
+        profile ? SyncServiceFactory::GetForProfile(profile) : nullptr;
+    space.Set("syncing",
+              sync && sync->GetTransportState() ==
+                          syncer::SyncService::TransportState::ACTIVE);
+    sync_sessions::SessionSyncService* sessions =
+        profile ? SessionSyncServiceFactory::GetForProfile(profile) : nullptr;
+    sync_sessions::OpenTabsUIDelegate* tabs =
+        sessions ? sessions->GetOpenTabsUIDelegate() : nullptr;
+    const sync_sessions::SyncedSession* local = nullptr;
+    if (tabs && tabs->GetLocalSession(&local) && local) {
+      space.Set("tabs", CountTabs(*local));
+    }
+    base::ListValue devices;
+    std::vector<raw_ptr<const sync_sessions::SyncedSession, VectorExperimental>>
+        foreign;
+    if (tabs && tabs->GetAllForeignSessions(&foreign)) {
+      for (const sync_sessions::SyncedSession* session : foreign) {
+        devices.Append(base::DictValue()
+                           .Set("name", session->GetSessionName())
+                           .Set("tabs", CountTabs(*session))
+                           .Set("modified", session->GetModifiedTime()
+                                                .InMillisecondsFSinceUnixEpoch()));
+      }
+    }
+    space.Set("devices", std::move(devices));
+    spaces.Append(std::move(space));
+  }
+  ResolveJavascriptCallback(args[0], std::move(spaces));
 }
 
 void AlerseSyncHandler::HandleLeave(const base::ListValue& args) {

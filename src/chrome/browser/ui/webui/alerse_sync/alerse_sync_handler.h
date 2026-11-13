@@ -78,6 +78,7 @@ class AlerseSyncHandler : public content::WebUIMessageHandler,
   void HandleGetDevices(const base::ListValue& args);
   void HandleRemoveDevice(const base::ListValue& args);
   void HandleLeave(const base::ListValue& args);
+  void HandleGetSummary(const base::ListValue& args);
   void HandleDeleteAccount(const base::ListValue& args);
   void HandleDismissLegacy(const base::ListValue& args);
   void HandleRestart(const base::ListValue& args);

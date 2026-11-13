@@ -1,0 +1,26 @@
+--- a/chrome/browser/ui/webui/history/history_identity_state_watcher.cc
++++ b/chrome/browser/ui/webui/history/history_identity_state_watcher.cc
+@@ -37,6 +37,23 @@
+ HistoryIdentityState HistoryIdentityStateWatcher::GetHistoryIdentityState()
+     const {
+   HistoryIdentityState identity_state;
++  // Alerse syncs without a Google account, through Chromium's local sync
++  // mode: its account counts as signed in, so the history page shows the
++  // tabs of the other devices.
++  if (sync_service_ && sync_service_->IsLocalSyncEnabled()) {
++    const syncer::UserSelectableTypeSet selected =
++        sync_service_->GetUserSettings()->GetSelectedTypes();
++    identity_state.sign_in = HistoryIdentityState::SignIn::kSignedIn;
++    identity_state.tab_sync =
++        selected.Has(syncer::UserSelectableType::kTabs)
++            ? HistoryIdentityState::SyncState::kTurnedOn
++            : HistoryIdentityState::SyncState::kTurnedOff;
++    identity_state.history_sync =
++        selected.Has(syncer::UserSelectableType::kHistory)
++            ? HistoryIdentityState::SyncState::kTurnedOn
++            : HistoryIdentityState::SyncState::kTurnedOff;
++    return identity_state;
++  }
+   identity_state.sign_in = GetHistorySignInState();
+   identity_state.tab_sync =
+       GetSyncStateForType(syncer::UserSelectableType::kTabs);

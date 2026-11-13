@@ -24,6 +24,7 @@ source_set("alerse_sync") {
     "//components/os_crypt/async/common",
     "//components/sync/service",
     "//components/sync_device_info",
+    "//components/sync_sessions",
     "//net",
     "//services/network/public/cpp",
     "//third_party/icu",

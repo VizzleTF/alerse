@@ -1875,6 +1875,24 @@ device cannot be removed: deleting the account is the way. Chromium's local sync
 does not turn the server's 401 into an error, so the page asks the server for the
 device list and says so on a removed device.
 
+### What syncs, on the Sync page
+
+Under the server and the last sync, the page lists every Space: a dot (green when its
+chain syncs), its name, how many tabs this device has open in it, and under it each other
+device with its tab count in that Space. The heading sums it up ("Syncing 3 Spaces with
+12 tabs from this device"). The counts are what the Space's sessions data holds, as this
+device last got it (`OpenTabsUIDelegate`): web pages only, without the empty tab that
+keeps a hidden Space's window or browser pages, which do not sync. The page asks for
+them every 5 seconds while it is visible; that reads local data only.
+
+### Tabs from other devices
+
+Chromium's history page shows other devices' tabs only to a signed-in Google account.
+Alerse syncs through Chromium's local sync mode, so the page counts that as signed in,
+and tab and history sync as on when they are selected
+(`sync/history-other-devices.patch`): History, "Tabs from other devices" lists each
+device with its tabs, per Space, since each Space syncs on its own.
+
 ### How often devices sync
 
 Only changes are sent, in batches. The server tells every device how long to wait
