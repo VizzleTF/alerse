@@ -1881,12 +1881,16 @@ instead: the words as the login, the password while the account was created on t
 page (the browser keeps no password), the server and how to add a device.
 
 - **Copy for Bitwarden**: Bitwarden's CSV (`reprompt` set, so the vault asks for the
-  master password before it shows the entry) goes to the clipboard, which Bitwarden's
-  Import data page takes pasted: no file is written. The page clears the clipboard
+  master password before it shows the entry) goes to the clipboard. Its import page
+  takes it pasted, with the file format "Bitwarden (csv)": in the extension it is
+  Settings, Vault options, Import items; in the web app, Tools, Import data. No file
+  is written. The page clears the clipboard
   after 2 minutes if it still holds the entry.
 - **Download CSV**: `alerse-sync.csv` in Chrome's format (name, url, username,
   password, note), which 1Password, Proton Pass, KeePassXC, Edge and Brave import. The
   page says to delete the file after the import.
+- Until the restart after creating or joining an account, the status reads "Starts
+  after a restart of Alerse": the sync engine takes the account only on start.
 - The sign-in form's fields carry `autocomplete="username"` and
   `current-password`, for managers that fill such a page.
 

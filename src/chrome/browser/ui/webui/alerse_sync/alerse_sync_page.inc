@@ -359,6 +359,11 @@ function render(next) {
     $('status-server').textContent = state.server;
     $('status-synced').textContent =
         state.lastSynced ? new Date(state.lastSynced).toLocaleString() : '—';
+    // The account is saved, but the sync engine takes it only on a restart.
+    if (state.restartNeeded) {
+      $('status-text').textContent = 'Starts after a restart of Alerse';
+      $('status-dot').className = 'dot warn';
+    }
   } else {
     $('devices').hidden = true;
   }
@@ -481,8 +486,10 @@ $('pm-bitwarden').addEventListener('click', async () => {
       }
     } catch (error) {}
   }, 120000);
-  $('pm-done').textContent = 'Copied. In Bitwarden open Tools, Import data, ' +
-      'pick the format "Bitwarden (csv)" and paste. The clipboard is cleared ' +
+  $('pm-done').textContent = 'Copied. In the Bitwarden extension open ' +
+      'Settings, Vault options, Import items; pick the file format ' +
+      '"Bitwarden (csv)", paste into the text box and press Import. In the ' +
+      'Bitwarden web app it is Tools, Import data. The clipboard is cleared ' +
       'in 2 minutes.';
   $('pm-done').hidden = false;
 });
