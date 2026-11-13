@@ -1,0 +1,41 @@
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -45,6 +45,7 @@
+     "//chrome/browser/ui/webui/alerse_import",
+     "//chrome/browser/ui/webui/alerse_links",
+     "//chrome/browser/ui/webui/alerse_sync",
++    "//chrome/browser/ui/webui/alerse_welcome",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+     ":signin_internals_ui",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+ #include "chrome/browser/ui/webui/alerse_import/alerse_import_ui.h"
++#include "chrome/browser/ui/webui/alerse_welcome/alerse_welcome_ui.h"
+ #include "chrome/browser/ui/webui/alerse_links/alerse_links_ui.h"
+ #include "chrome/browser/ui/webui/alerse_sync/alerse_sync_ui.h"
+ #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
+@@ -342,6 +343,8 @@
+   map.AddWebUIConfig(std::make_unique<AlerseSyncUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseLinksUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseImportUIConfig>());
++  // Alerse: the first start's page.
++  map.AddWebUIConfig(std::make_unique<AlerseWelcomeUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -1335,7 +1335,8 @@
+     if (!base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kApp) &&
+         !base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kAppId)) {
+       // Alerse: not ungoogled-chromium's page about itself; Alerse is its own
+-      // browser.
++      // browser, and its first start opens its own welcome page.
++      browser_creator_->AddFirstRunTabs({GURL("chrome://alerse-welcome/")});
+       browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
+     }
+   }

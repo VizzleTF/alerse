@@ -1,0 +1,24 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("alerse_welcome") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_welcome_handler.cc",
+    "alerse_welcome_handler.h",
+    "alerse_welcome_page.inc",
+    "alerse_welcome_ui.cc",
+    "alerse_welcome_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/browser:browser_process",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/search_engines",
+    "//chrome/browser/themes",
+    "//chrome/browser/ui/webui/alerse_import",
+    "//components/search_engines",
+  ]
+}

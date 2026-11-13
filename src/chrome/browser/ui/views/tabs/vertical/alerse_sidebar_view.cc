@@ -2680,7 +2680,9 @@ bool AlerseSidebarView::SwapActiveRows(const TabStripSelectionChange& selection)
   // anew anyway; this would touch rows about to go.
   if (rebuild_pending_ || folder_animation_.is_animating() ||
       drag_source_ || preview_space_ || !selection.old_tab ||
-      !selection.new_tab) {
+      !selection.new_tab ||
+      browser_->GetTabStripModel()->selection_model().size() > 1 ||
+      selection.old_model.size() > 1) {
     return false;
   }
   tabs::TabInterface* const old_tab = selection.old_tab;
@@ -4053,6 +4055,10 @@ std::unique_ptr<AlerseSidebarView::Row> AlerseSidebarView::MakeTabRow(
              const ui::Event& event) {
             if (event.flags() & ui::EF_MIDDLE_MOUSE_BUTTON) {
               view->OnTabClosePressed(handle);
+            } else if (event.flags() & ui::EF_PLATFORM_ACCELERATOR) {
+              view->OnTabSelectPressed(handle, /*range=*/false);
+            } else if (event.flags() & ui::EF_SHIFT_DOWN) {
+              view->OnTabSelectPressed(handle, /*range=*/true);
             } else {
               view->OnTabPressed(handle);
             }
@@ -4064,8 +4070,15 @@ std::unique_ptr<AlerseSidebarView::Row> AlerseSidebarView::MakeTabRow(
 
 void AlerseSidebarView::AddTabRow(tabs::TabInterface* tab) {
   const tabs::TabInterface::Handle handle = tab->GetHandle();
-  Row* row =
-      AddRow(MakeTabRow(tab, kItemColor, tab->IsActivated()), 0, handle);
+  // Tabs picked together with Cmd or Shift take the shown tab's plate, as
+  // in Arc, until a plain click picks one again.
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  const int index = tabs->GetIndexOfTab(tab);
+  const bool picked = tabs->selection_model().size() > 1 &&
+                      index != TabStripModel::kNoTab &&
+                      tabs->IsTabSelected(index);
+  Row* row = AddRow(MakeTabRow(tab, kItemColor, tab->IsActivated() || picked),
+                    0, handle);
   AddSpeaker(row, tab);
   row->SetCloseCallback(base::BindRepeating(
       &AlerseSidebarView::OnTabClosePressed, base::Unretained(this), handle));
@@ -4340,6 +4353,24 @@ void AlerseSidebarView::OnTabPressed(tabs::TabInterface::Handle handle) {
     if (index != TabStripModel::kNoTab) {
       tabs->ActivateTabAt(index);
     }
+  }
+}
+
+void AlerseSidebarView::OnTabSelectPressed(tabs::TabInterface::Handle handle,
+                                           bool range) {
+  TabStripModel* tabs = browser_->GetTabStripModel();
+  tabs::TabInterface* tab = handle.Get();
+  const int index = tab ? tabs->GetIndexOfTab(tab) : TabStripModel::kNoTab;
+  if (index == TabStripModel::kNoTab) {
+    return;
+  }
+  if (range) {
+    tabs->ExtendSelectionTo(index);
+  } else if (tabs->IsTabSelected(index) &&
+             tabs->selection_model().size() > 1) {
+    tabs->DeselectTabAt(index);
+  } else {
+    tabs->SelectTabAt(index);
   }
 }
 

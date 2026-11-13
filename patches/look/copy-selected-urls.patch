@@ -1,0 +1,77 @@
+--- a/chrome/browser/ui/browser_commands.h
++++ b/chrome/browser/ui/browser_commands.h
+@@ -368,6 +368,10 @@
+ bool CanCopyUrl(BrowserWindowInterface* browser);
+ // Alerse: the active page whose address Copy URL takes, null for an empty
+ // Space's hidden tab or a blank page, whose address means nothing.
++// Alerse: copies the addresses of every picked tab, one a line, as Markdown
++// links with `markdown`, and returns true; false, copying nothing, when one
++// tab or none is picked.
++bool AlerseCopyPickedUrls(BrowserWindowInterface* browser, bool markdown);
+ content::WebContents* GetAlerseCopyableContents(
+     BrowserWindowInterface* browser);
+ // Alerse: Arc's Copy URL as Markdown: "[Title](url)".
+--- a/chrome/browser/ui/browser_commands.cc
++++ b/chrome/browser/ui/browser_commands.cc
+@@ -2990,6 +2990,37 @@
+ #endif
+ }
+ 
++bool AlerseCopyPickedUrls(BrowserWindowInterface* browser, bool markdown) {
++  TabStripModel* tabs = browser->GetTabStripModel();
++  if (tabs->selection_model().size() < 2) {
++    return false;
++  }
++  std::vector<std::u16string> lines;
++  for (int index = 0; index < tabs->count(); ++index) {
++    content::WebContents* contents = tabs->GetWebContentsAt(index);
++    const GURL& url = contents->GetVisibleURL();
++    if (!tabs->IsTabSelected(index) || !url.is_valid() || url.IsAboutBlank() ||
++        TabStripModel::IsAlerseEmptySpace(contents)) {
++      continue;
++    }
++    const std::u16string spec = base::UTF8ToUTF16(url.spec());
++    if (!markdown) {
++      lines.push_back(spec);
++      continue;
++    }
++    std::u16string title = contents->GetTitle();
++    base::ReplaceChars(title, u"[", u"\\[", &title);
++    base::ReplaceChars(title, u"]", u"\\]", &title);
++    lines.push_back(base::StrCat({u"[", title, u"](", spec, u")"}));
++  }
++  if (lines.empty()) {
++    return false;
++  }
++  ui::ScopedClipboardWriter scw(ui::ClipboardBuffer::kCopyPaste);
++  scw.WriteText(base::JoinString(lines, u"\n"));
++  return true;
++}
++
+ content::WebContents* GetAlerseCopyableContents(
+     BrowserWindowInterface* browser) {
+   content::WebContents* contents =
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1535,13 +1535,20 @@
+       break;
+     // Hosted App commands
+     case IDC_COPY_URL:
+-      // Alerse: not an empty Space's or a blank page's address.
++      // Alerse: not an empty Space's or a blank page's address; every
++      // picked tab's when several are.
++      if (AlerseCopyPickedUrls(browser_, /*markdown=*/false)) {
++        break;
++      }
+       if (content::WebContents* contents =
+               GetAlerseCopyableContents(browser_)) {
+         CopyURL(browser_, contents);
+       }
+       break;
+     case IDC_ALERSE_COPY_URL_MARKDOWN:
++      if (AlerseCopyPickedUrls(browser_, /*markdown=*/true)) {
++        break;
++      }
+       if (content::WebContents* contents =
+               GetAlerseCopyableContents(browser_)) {
+         AlerseCopyUrlAsMarkdown(browser_, contents);

@@ -103,3 +103,5 @@ look/command-bar-pinned-items.patch
 look/arc-shortcuts-off-mac.patch
 spaces/preload-spaces-session.patch
 look/pip-off-taskbar-win.patch
+look/copy-selected-urls.patch
+look/welcome-page.patch

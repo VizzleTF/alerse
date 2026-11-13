@@ -348,6 +348,9 @@ class AlerseSidebarView : public views::View,
   void ApplyFolderAnimation(double progress);
   void ResetFolderAnimation();
   void OnTabPressed(tabs::TabInterface::Handle handle);
+  // Cmd+click (Ctrl+click elsewhere) adds the tab to the selection or takes
+  // it out; Shift+click (`range`) selects from the last picked tab to it.
+  void OnTabSelectPressed(tabs::TabInterface::Handle handle, bool range);
   void OnTabClosePressed(tabs::TabInterface::Handle handle);
   // The "x" of a pinned item with no tab open: removes the item.
   void OnRemovePinnedPressed(int64_t id);

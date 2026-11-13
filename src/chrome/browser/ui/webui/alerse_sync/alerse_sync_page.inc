@@ -129,13 +129,25 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
   <section id="setup" hidden>
     <fieldset class="card server-choice">
       <legend>Sync server</legend>
-      <label class="check"><input type="radio" name="server" value="alerse"
-        checked> The Alerse server (<span id="default-server"></span>)</label>
+      <p class="note">A server of your own is the better choice: your data
+        stays with you. Running one takes Docker or Kubernetes and a few
+        minutes; the <a href="https://github.com/VizzleTF/alerse-sync#run-your-own-server"
+        target="_blank" rel="noopener">guide</a> shows how.</p>
       <label class="check"><input type="radio" name="server" value="own">
-        My own server</label>
+        My own server (recommended)</label>
       <input id="own-server" type="url" inputmode="url" autocomplete="url"
              placeholder="https://sync.example.com" spellcheck="false" hidden
              aria-label="Your server's address">
+      <label class="check"><input type="radio" name="server" value="alerse"
+        checked> The Alerse server (<span id="default-server"></span>)</label>
+      <p class="note">The Alerse server is run by Alerse's maintainer as a
+        favour, free and without any guarantee: it may stop, and its operator
+        takes no responsibility for the data on it. Everything is encrypted on
+        your devices, so it cannot read your data.
+        <a href="https://github.com/VizzleTF/alerse-sync/blob/main/docs/terms.md"
+        target="_blank" rel="noopener">Terms</a> ·
+        <a href="https://github.com/VizzleTF/alerse-sync/blob/main/docs/privacy.md"
+        target="_blank" rel="noopener">Privacy</a></p>
     </fieldset>
 
     <form id="create" class="card" novalidate>

@@ -303,6 +303,16 @@ Windows' measurements still set (see `AlerseSidebarView`):
   the same rule. Rows in a folder popup show it too; the popup is refilled only when one
   of its speakers changes.
 
+### Picking several tabs
+
+As in Arc, Cmd+click (Ctrl+click on Windows and Linux) on a tab's row adds it to the
+picked tabs or takes it out, and Shift+click picks every tab from the last picked one to
+it (`TabStripModel::SelectTabAt`, `DeselectTabAt`, `ExtendSelectionTo`). Picked rows take
+the shown tab's plate until a plain click picks one tab again. With several picked, Copy
+URL (Shift+Cmd+C) copies every picked tab's address, one a line, and Copy URL as Markdown
+one link a line, skipping blank pages and empty Spaces (`look/copy-selected-urls.patch`,
+`AlerseCopyPickedUrls`).
+
 ### Folder popup
 
 - Hovering a collapsed folder pops up its links (subfolders open in place); picking
@@ -1684,6 +1694,27 @@ The user decided against these Arc features, so they are deliberately not built:
 Wanted and built (2026-11-08): Split View without Peek (see Split View), Arc's icon
 pickers for pinned items, folders and Spaces (see Icon pickers), the macOS menu bar
 and the Arc look.
+
+## First start
+
+The first start opens `chrome://alerse-welcome` (`look/welcome-page.patch`, in place of
+ungoogled-chromium's page about itself), one step at a time, with dots for the steps,
+Back, and Skip on every step but the search engine. The idea follows Ardia's
+onboarding; the code is Alerse's own.
+
+1. **Welcome**: what Alerse is, in three lines.
+2. **Where are you coming from?**: the browsers found on this computer, each with
+   Import: the import page's own handler and import, so Arc's Spaces arrive as Spaces.
+3. **Search engine**: DuckDuckGo, Brave Search, Startpage, Ecosia, Qwant, Google, Bing,
+   with DuckDuckGo picked, so Google is a choice and not the default; set in every Space.
+   Only those the profile's engine list has are offered: the list is the region's. No
+   Skip here.
+4. **Light or dark**: Match the system, Light or Dark, for every Space.
+5. **Sync**: opens the Sync page in a new tab, recommending a server of your own.
+6. **Make Alerse your browser**: the system's default-browser request (Windows opens its
+   settings), and whether Alerse already is.
+7. **You are set**: what was picked, and the three things to know: the sidebar, Ctrl+T for
+   the command bar, Ctrl+D to pin, the Alerse menu.
 
 ## Import
 
