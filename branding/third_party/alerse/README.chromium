@@ -1,0 +1,13 @@
+Name: Alerse
+URL: https://github.com/VizzleTF/alerse
+License: BSD-3-Clause
+License File: LICENSE
+Version: N/A
+Update Mechanism: Manual
+Security Critical: no
+Shipped: yes
+
+Description:
+Alerse's changes to Chromium: its sidebar, Spaces, command bar, sync client and
+branding, from the alerse repository. Credited here because they ship in every
+Alerse build.

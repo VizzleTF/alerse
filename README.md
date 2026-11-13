@@ -199,9 +199,16 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 ## License
 
-BSD-3-Clause, as Chromium and ungoogled-chromium.
+BSD-3-Clause, as Chromium and ungoogled-chromium. Every build lists the licenses of all
+its components at `chrome://credits`; [NOTICE](NOTICE) names whose work Alerse is built on.
 
 Alerse is an independent project. It is not affiliated with, endorsed by or sponsored by
-The Browser Company. Arc is a trademark of its owner and is named here only to say what
-Alerse imports from and who it is meant for; Alerse uses none of Arc's code, artwork
-or branding. The icon (`artwork/`) is Alerse's own.
+Google, The Browser Company or Atlassian. Chrome and Chromium are trademarks of Google
+LLC, Arc of The Browser Company; Arc is named here only to say what Alerse imports from
+and who it is meant for. Alerse uses none of Arc's code, artwork or branding; the icon
+(`artwork/`) is Alerse's own.
+
+- Security problems: report them privately, as [SECURITY.md](SECURITY.md) says.
+- The Alerse sync server: [privacy policy](https://github.com/VizzleTF/alerse-sync/blob/main/docs/privacy.md)
+  and [terms](https://github.com/VizzleTF/alerse-sync/blob/main/docs/terms.md).
+- What publishing Alerse involves legally: [docs/legal.md](docs/legal.md).

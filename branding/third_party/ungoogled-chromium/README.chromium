@@ -1,0 +1,12 @@
+Name: ungoogled-chromium
+URL: https://github.com/ungoogled-software/ungoogled-chromium
+License: BSD-3-Clause
+License File: LICENSE
+Version: N/A
+Update Mechanism: Manual
+Security Critical: no
+Shipped: yes
+
+Description:
+The patches and build scripts that remove Google web services from Chromium,
+which Alerse is built on.

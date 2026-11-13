@@ -270,10 +270,10 @@ class TextFade : public views::View {
 BEGIN_METADATA(TextFade)
 END_METADATA
 
-// Arc for macOS' glyphs on the field's hover buttons, traced from its
-// screen: SF Symbols' link (two chain links at 45 degrees) and
-// slider.horizontal.below.square (a 15.3 pt rounded square, two slider
-// lines with hollow knobs), 1.2 pt strokes.
+// The field's hover buttons' glyphs, drawn here from rounded rects, lines and
+// circles at the sizes of Arc for macOS' buttons: a link (two chain links at
+// 45 degrees) and sliders (a 15.3 pt rounded square, two slider lines with
+// hollow knobs), 1.2 pt strokes.
 // After a copy, the link turns into a check mark for a moment.
 enum class HoverGlyph { kLink, kSliders, kCheck };
 

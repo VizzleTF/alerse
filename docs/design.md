@@ -535,8 +535,8 @@ Windows' numbers for those:
   field shows Arc's buttons from its end: the site controls (sliders, centred 20 pt
   from the end), Copy Link 28 pt before it, and, with exactly one pinned extension,
   that extension 28 pt before Copy Link; the address fades out over 16 pt before
-  them. The link and sliders are Arc's SF Symbols traced and drawn (#ACACAC, 1.2 pt
-  strokes). The button under the pointer has Arc's plate, 28 pt with 8 pt corners, a 7%
+  them. The link and sliders are drawn in code from lines and rounded
+  rects, at Arc's sizes (#ACACAC, 1.2 pt strokes). The button under the pointer has Arc's plate, 28 pt with 8 pt corners, a 7%
   veil over the hovered field (#4D4D4F on #3F3F40), and Arc's pill tooltips: "Site Control
   Center", and "Copy URL" with the ⇧ ⌘ C keycaps (measured 2026-11-12). The address is
   set in one grey, #AEAEAE, as Arc's, not a bright site before a dim rest

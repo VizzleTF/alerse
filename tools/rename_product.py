@@ -200,6 +200,12 @@ BRANDING = {
     # Arcomium's was io.github.vizzletf.arcomium; Alerse is another app, which
     # takes over Arcomium's profile (defaults/mac-own-profile-dir.patch).
     'MAC_BUNDLE_ID': 'io.github.vizzletf.alerse',
+    # Who publishes the binary, in its file properties and Info.plist: Alerse,
+    # not the Chromium project, which it is built on and credits.
+    'COMPANY_FULLNAME': 'The Alerse Authors',
+    'COMPANY_SHORTNAME': 'The Alerse Authors',
+    'COPYRIGHT': ('Copyright @LASTCHANGE_YEAR@ The Alerse Authors and '
+                  'The Chromium Authors. All rights reserved.'),
 }
 PRODUCT_DIR_KEY = '<key>CrProductDirName</key>'
 PRODUCT_DIR = re.compile(re.escape(PRODUCT_DIR_KEY) + r'(\s*)<string>[^<]*</string>')

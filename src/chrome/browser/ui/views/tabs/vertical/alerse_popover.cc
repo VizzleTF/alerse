@@ -203,7 +203,8 @@ void AddRoundRect(SkPathBuilder& path, float x, float y, float w, float h,
   path.addRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(x, y, w, h), r, r));
 }
 
-// Arc's SF Symbols, in outline, centred on `c`.
+// Outlined glyphs drawn here from primitives, at the sizes of Arc's, centred
+// on `c`.
 void PaintIcon(gfx::Canvas* canvas,
                PopoverIcon icon,
                const gfx::PointF& c,
