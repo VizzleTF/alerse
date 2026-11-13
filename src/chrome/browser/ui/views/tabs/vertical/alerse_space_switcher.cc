@@ -1383,7 +1383,7 @@ void AlerseSpaceSwitcher::Rebuild() {
     if (self.home) {
       // Home's bookmarks carry the list of Spaces to the other devices.
       alerse::UpdateSpaceList(
-          BookmarkModelFactory::GetForBrowserContext(profile));
+          BookmarkModelFactory::GetForBrowserContext(profile), profile);
     }
   }
   // An incognito window is outside the stacks and shows no Spaces.

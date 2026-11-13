@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "components/sync/service/alerse_sync_login.h"
+#include "components/sync/service/alerse_sync_sk.h"
 
 #include <algorithm>
 #include <set>
@@ -16,25 +16,23 @@
 #include "third_party/boringssl/src/include/openssl/digest.h"
 #include "third_party/boringssl/src/include/openssl/evp.h"
 #include "third_party/boringssl/src/include/openssl/hkdf.h"
-#include "third_party/boringssl/src/include/openssl/sha.h"
 
 namespace syncer {
 
 namespace {
 
-constexpr std::string_view kIdContext = "arcomium-sync-login-id-v1";
-constexpr std::string_view kKeyContext = "arcomium-sync-login-v1";
-constexpr std::string_view kAuthInfo = "arcomium-sync-login-auth";
-constexpr std::string_view kEncInfo = "arcomium-sync-login-enc";
+constexpr std::string_view kIdInfo = "alerse-sk-id";
+constexpr std::string_view kMixInfo = "alerse-sk-mix";
+constexpr std::string_view kMasterInfo = "alerse-sk-v1";
+constexpr std::string_view kAuthInfo = "alerse-sk-auth";
+constexpr std::string_view kWrapInfo = "alerse-sk-wrap";
+constexpr std::string_view kWrapContext = "alerse-sk-v1";
 constexpr uint8_t kWrapVersion = 0x01;
 constexpr size_t kNonceSize = 12;
 constexpr size_t kSaltSize = 32;
-constexpr size_t kMaxLoginBytes = 254;
-constexpr SyncLoginKdf kDefaultKdf;
-// The least cost a server may ask for. It stays where it is when the default
-// rises, so that logins made with an older default still unlock and are
-// wrapped again with the new one.
-constexpr SyncLoginKdf kMinKdf{.n = 1u << 17, .r = 8, .p = 1};
+// The least cost a server may ask for: today's default. It stays where it is
+// when the default rises, so that older accounts still open.
+constexpr SyncKdf kMinKdf{.n = 1u << 17, .r = 8, .p = 1};
 
 // Long passwords people pick often, from public breach lists. Shorter ones
 // are refused for their length.
@@ -81,48 +79,38 @@ bool IsRepetitive(std::string_view text) {
   return steps + 1 >= static_cast<int>(text.size()) * 3 / 4;
 }
 
-std::array<uint8_t, 32> Expand(base::span<const uint8_t> master,
-                               std::string_view info) {
+std::array<uint8_t, 32> Hkdf(base::span<const uint8_t> secret,
+                             std::string_view info) {
   std::array<uint8_t, 32> out;
-  CHECK(HKDF(out.data(), out.size(), EVP_sha256(), master.data(),
-             master.size(), nullptr, 0,
+  CHECK(HKDF(out.data(), out.size(), EVP_sha256(), secret.data(),
+             secret.size(), nullptr, 0,
              reinterpret_cast<const uint8_t*>(info.data()), info.size()));
   return out;
 }
 
-std::string AdditionalData(std::string_view login_id) {
-  return base::StrCat({kKeyContext, login_id});
+std::string AdditionalData(std::string_view id) {
+  return base::StrCat({kWrapContext, id});
+}
+
+void InitWrapCipher(EVP_AEAD_CTX* ctx, const SyncAccountKeys& keys) {
+  CHECK(EVP_AEAD_CTX_init(ctx, EVP_aead_aes_256_gcm(), keys.wrap.data(),
+                          keys.wrap.size(), EVP_AEAD_DEFAULT_TAG_LENGTH,
+                          nullptr));
 }
 
 }  // namespace
 
-std::string NormalizeSyncLogin(std::string_view login) {
-  std::string normalized =
-      base::ToLowerASCII(base::TrimWhitespaceASCII(login, base::TRIM_ALL));
-  if (normalized.size() > kMaxLoginBytes || !base::IsStringUTF8(normalized)) {
-    return std::string();
-  }
-  return normalized;
+std::string SyncAccountId(const SyncChainSecret& sk) {
+  return base::HexEncodeLower(Hkdf(sk, kIdInfo));
 }
 
-std::string SyncLoginId(std::string_view normalized_login) {
-  std::string input(kIdContext);
-  input.push_back('\0');
-  input.append(normalized_login);
-  std::array<uint8_t, SHA256_DIGEST_LENGTH> digest;
-  SHA256(reinterpret_cast<const uint8_t*>(input.data()), input.size(),
-         digest.data());
-  return base::HexEncodeLower(digest);
-}
-
-bool IsAcceptableSyncLoginKdf(const SyncLoginKdf& kdf) {
+bool IsAcceptableSyncKdf(const SyncKdf& kdf) {
   return kdf.n >= kMinKdf.n && kdf.n <= (1u << 20) &&
          (kdf.n & (kdf.n - 1)) == 0 && kdf.r >= kMinKdf.r && kdf.r <= 32 &&
          kdf.p >= 1 && kdf.p <= 16 && 128 * kdf.r * kdf.n <= (1u << 30);
 }
 
-SyncPasswordProblem CheckSyncPassword(std::string_view password,
-                                      std::string_view normalized_login) {
+SyncPasswordProblem CheckSyncPassword(std::string_view password) {
   const size_t length = CountCharacters(password);
   if (length < kMinSyncPasswordLength) {
     return SyncPasswordProblem::kTooShort;
@@ -136,88 +124,79 @@ SyncPasswordProblem CheckSyncPassword(std::string_view password,
       IsRepetitive(lower)) {
     return SyncPasswordProblem::kCommon;
   }
-  // The login name, or the part of an email address before the @.
-  std::string_view name = normalized_login.substr(
-      0, std::min(normalized_login.find('@'), normalized_login.size()));
-  if ((name.size() >= 4 && lower.find(name) != std::string::npos) ||
-      lower.find("alerse") != std::string::npos ||
+  if (lower.find("alerse") != std::string::npos ||
       // The product's earlier name (kept literal on purpose).
       lower.find("arcomium") != std::string::npos) {
-    return SyncPasswordProblem::kContainsLogin;
+    return SyncPasswordProblem::kContainsName;
   }
   return SyncPasswordProblem::kNone;
 }
 
-std::vector<uint8_t> NewSyncLoginSalt() {
+std::vector<uint8_t> NewSyncSalt() {
   std::vector<uint8_t> salt(kSaltSize);
   base::RandBytes(salt);
   return salt;
 }
 
-std::optional<SyncLoginKeys> DeriveSyncLoginKeys(std::string_view login_id,
-                                                 std::string_view password,
-                                                 base::span<const uint8_t> salt,
-                                                 const SyncLoginKdf& kdf) {
-  if (!IsAcceptableSyncLoginKdf(kdf)) {
+std::optional<SyncAccountKeys> DeriveSyncAccountKeys(
+    const SyncChainSecret& sk,
+    std::string_view password,
+    base::span<const uint8_t> salt,
+    const SyncKdf& kdf) {
+  if (!IsAcceptableSyncKdf(kdf)) {
     return std::nullopt;
   }
-  std::vector<uint8_t> full_salt(kKeyContext.begin(), kKeyContext.end());
-  full_salt.push_back(0);
-  full_salt.insert(full_salt.end(), login_id.begin(), login_id.end());
-  full_salt.insert(full_salt.end(), salt.begin(), salt.end());
-
-  std::array<uint8_t, 32> master;
-  // A little over the memory scrypt needs, which IsAcceptableSyncLoginKdf
-  // bounds by 1 GiB.
+  // pwkey | HKDF(sk, mix): the password's key first, then the words'.
+  std::array<uint8_t, 64> mixed;
+  // A little over the memory scrypt needs, which IsAcceptableSyncKdf bounds
+  // by 1 GiB.
   const size_t max_mem = 128 * kdf.r * (kdf.n + kdf.p + 2) + (1 << 20);
-  if (!EVP_PBE_scrypt(password.data(), password.size(), full_salt.data(),
-                      full_salt.size(), kdf.n, kdf.r, kdf.p, max_mem,
-                      master.data(), master.size())) {
+  if (!EVP_PBE_scrypt(password.data(), password.size(), salt.data(),
+                      salt.size(), kdf.n, kdf.r, kdf.p, max_mem, mixed.data(),
+                      32)) {
     return std::nullopt;
   }
-  SyncLoginKeys keys{Expand(master, kAuthInfo), Expand(master, kEncInfo)};
+  base::span(mixed).last(32u).copy_from(Hkdf(sk, kMixInfo));
+  std::array<uint8_t, 32> master = Hkdf(mixed, kMasterInfo);
+  SyncAccountKeys keys{SyncAccountId(sk), Hkdf(master, kAuthInfo),
+                       Hkdf(master, kWrapInfo)};
+  std::ranges::fill(mixed, 0);
   std::ranges::fill(master, 0);
   return keys;
 }
 
-std::vector<uint8_t> WrapSyncChainSecret(const SyncLoginKeys& keys,
-                                         std::string_view login_id,
-                                         const SyncChainSecret& secret) {
+std::vector<uint8_t> WrapSyncAccountKey(const SyncAccountKeys& keys,
+                                        const SyncChainSecret& account_key) {
   bssl::ScopedEVP_AEAD_CTX ctx;
-  CHECK(EVP_AEAD_CTX_init(ctx.get(), EVP_aead_aes_256_gcm(), keys.enc.data(),
-                          keys.enc.size(), EVP_AEAD_DEFAULT_TAG_LENGTH,
-                          nullptr));
-  std::vector<uint8_t> out(1 + kNonceSize + secret.size() +
+  InitWrapCipher(ctx.get(), keys);
+  std::vector<uint8_t> out(1 + kNonceSize + account_key.size() +
                            EVP_AEAD_max_overhead(EVP_aead_aes_256_gcm()));
   out[0] = kWrapVersion;
   base::span<uint8_t> nonce = base::span(out).subspan(1u, kNonceSize);
   base::RandBytes(nonce);
-  const std::string ad = AdditionalData(login_id);
+  const std::string ad = AdditionalData(keys.id);
   base::span<uint8_t> body = base::span(out).subspan(1u + kNonceSize);
   size_t sealed = 0;
   CHECK(EVP_AEAD_CTX_seal(ctx.get(), body.data(), &sealed, body.size(),
-                          nonce.data(), nonce.size(), secret.data(),
-                          secret.size(),
+                          nonce.data(), nonce.size(), account_key.data(),
+                          account_key.size(),
                           reinterpret_cast<const uint8_t*>(ad.data()),
                           ad.size()));
   out.resize(1 + kNonceSize + sealed);
   return out;
 }
 
-std::optional<SyncChainSecret> UnwrapSyncChainSecret(
-    const SyncLoginKeys& keys,
-    std::string_view login_id,
+std::optional<SyncChainSecret> UnwrapSyncAccountKey(
+    const SyncAccountKeys& keys,
     base::span<const uint8_t> wrapped) {
   if (wrapped.size() <= 1 + kNonceSize || wrapped[0] != kWrapVersion) {
     return std::nullopt;
   }
   bssl::ScopedEVP_AEAD_CTX ctx;
-  CHECK(EVP_AEAD_CTX_init(ctx.get(), EVP_aead_aes_256_gcm(), keys.enc.data(),
-                          keys.enc.size(), EVP_AEAD_DEFAULT_TAG_LENGTH,
-                          nullptr));
+  InitWrapCipher(ctx.get(), keys);
   const base::span<const uint8_t> nonce = wrapped.subspan(1u, kNonceSize);
   const base::span<const uint8_t> sealed = wrapped.subspan(1u + kNonceSize);
-  const std::string ad = AdditionalData(login_id);
+  const std::string ad = AdditionalData(keys.id);
   std::vector<uint8_t> plain(sealed.size());
   size_t opened = 0;
   if (!EVP_AEAD_CTX_open(ctx.get(), plain.data(), &opened, plain.size(),
@@ -228,9 +207,9 @@ std::optional<SyncChainSecret> UnwrapSyncChainSecret(
       opened != std::tuple_size_v<SyncChainSecret>) {
     return std::nullopt;
   }
-  SyncChainSecret secret;
-  base::span(secret).copy_from(base::span(plain).first(secret.size()));
-  return secret;
+  SyncChainSecret key;
+  base::span(key).copy_from(base::span(plain).first(key.size()));
+  return key;
 }
 
 }  // namespace syncer

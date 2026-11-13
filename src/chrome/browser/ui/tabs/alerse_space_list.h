@@ -12,12 +12,16 @@
 // info, which syncs with home's bookmarks. A device that reads an id it has
 // no profile for makes one, which then joins that Space's chain.
 
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
+#include "base/memory/raw_ptr.h"
+#include "base/scoped_observation.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
@@ -25,16 +29,21 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_attributes_entry.h"
 #include "chrome/browser/profiles/profile_attributes_storage.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/prefs/pref_service.h"
+#include "components/sync/base/data_type.h"
 #include "components/sync/service/alerse_sync_account.h"
+#include "components/sync/service/sync_service.h"
+#include "components/sync/service/sync_service_observer.h"
 
 namespace alerse {
 
@@ -106,18 +115,124 @@ inline void MakeSpaceOfList(const std::string& id,
                 id, name, icon, color));
 }
 
-// Brings the list in `model`, home's loaded bookmarks, and this device's
-// Spaces in line: lists the Spaces the list lacks, marks the ones deleted
-// here, and makes the ones this device lacks.
-inline void UpdateSpaceList(bookmarks::BookmarkModel* model) {
+// The list of Spaces in home's bookmarks `model`, or an empty one.
+inline base::DictValue ReadSpaceList(bookmarks::BookmarkModel* model) {
   const bookmarks::BookmarkNode* folder = FindSpaceFolder(model);
   std::string json;
   if (folder) {
     folder->GetMetaInfo(kSpaceListMetaKey, &json);
   }
-  base::DictValue list =
-      base::JSONReader::ReadDict(json, base::JSON_PARSE_RFC)
-          .value_or(base::DictValue());
+  return base::JSONReader::ReadDict(json, base::JSON_PARSE_RFC)
+      .value_or(base::DictValue());
+}
+
+// A device that signed in to an account brings Spaces of its own. Each one
+// named as a Space of the account's list, which this device has no profile
+// for, takes that Space's id from the next start on, so the two become one
+// and Chromium merges their data, as it does home's. Returns whether one
+// did.
+inline bool AdoptSpacesOfTheSameName(const base::DictValue& list) {
+  std::vector<ProfileAttributesEntry*> entries =
+      g_browser_process->profile_manager()
+          ->GetProfileAttributesStorage()
+          .GetAllProfilesAttributes();
+  std::set<std::string> here;
+  for (const ProfileAttributesEntry* entry : entries) {
+    here.insert(entry->GetAlerseValue(kSpaceEntryIdKey));
+  }
+  bool adopted = false;
+  std::set<const ProfileAttributesEntry*> taken;
+  for (const auto [id, value] : list) {
+    const base::DictValue* space = value.GetIfDict();
+    const std::string* name = space ? space->FindString("name") : nullptr;
+    if (!name || space->FindBool("deleted").value_or(false) ||
+        here.contains(id)) {
+      continue;
+    }
+    for (ProfileAttributesEntry* entry : entries) {
+      const std::string own = entry->GetAlerseValue(kSpaceEntryIdKey);
+      if (entry->IsOmitted() || IsHomeSpacePath(entry->GetPath()) ||
+          own.empty() || list.FindDict(own) || taken.contains(entry) ||
+          base::UTF16ToUTF8(SpaceInfoOfEntry(entry).name) != *name) {
+        continue;
+      }
+      syncer::AlerseSyncAccount::SetSpaceIdOfNewProfile(
+          g_browser_process->local_state(),
+          entry->GetPath().BaseName().AsUTF8Unsafe(), id);
+      entry->SetAlerseValue(kSpaceEntryIdKey, id);
+      taken.insert(entry);
+      adopted = true;
+      break;
+    }
+  }
+  return adopted;
+}
+
+inline void UpdateSpaceList(bookmarks::BookmarkModel* model, Profile* home);
+
+// Waits, on a device that signed in, for home's first sync to bring the
+// account's list of Spaces (AlerseSyncAccount::IsJoining), then takes the
+// list's Spaces of the same names over, lists the others and restarts, so
+// that every Space starts syncing as the account's.
+class SpaceJoinWatcher : public syncer::SyncServiceObserver {
+ public:
+  static void WatchHome(Profile* home) {
+    static base::NoDestructor<std::unique_ptr<SpaceJoinWatcher>> watcher;
+    syncer::SyncService* sync = SyncServiceFactory::GetForProfile(home);
+    if (!*watcher && sync) {
+      *watcher = std::make_unique<SpaceJoinWatcher>(home, sync);
+      (*watcher)->OnStateChanged(sync);
+    }
+  }
+
+  SpaceJoinWatcher(Profile* home, syncer::SyncService* sync) : home_(home) {
+    observation_.Observe(sync);
+  }
+
+  // syncer::SyncServiceObserver:
+  void OnStateChanged(syncer::SyncService* sync) override {
+    // Bookmarks are active once their first download and merge are done.
+    if (done_ || !sync->GetActiveDataTypes().Has(syncer::BOOKMARKS)) {
+      return;
+    }
+    done_ = true;
+    bookmarks::BookmarkModel* model =
+        BookmarkModelFactory::GetForBrowserContext(home_);
+    if (!model || !model->loaded()) {
+      done_ = false;
+      return;
+    }
+    AdoptSpacesOfTheSameName(ReadSpaceList(model));
+    PrefService* local_state = g_browser_process->local_state();
+    syncer::AlerseSyncAccount::SetJoining(local_state, false);
+    UpdateSpaceList(model, home_);
+    local_state->CommitPendingWrite();
+    // The other Spaces' sync services did not start while the device joined.
+    chrome::AttemptRestart();
+  }
+  void OnSyncShutdown(syncer::SyncService* sync) override {
+    observation_.Reset();
+  }
+
+ private:
+  raw_ptr<Profile> home_;
+  bool done_ = false;
+  base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
+      observation_{this};
+};
+
+// Brings the list in `model`, home's loaded bookmarks, and this device's
+// Spaces in line: lists the Spaces the list lacks, marks the ones deleted
+// here, and makes the ones this device lacks. While the device joins an
+// account it waits for the account's list instead (SpaceJoinWatcher).
+inline void UpdateSpaceList(bookmarks::BookmarkModel* model, Profile* home) {
+  if (syncer::AlerseSyncAccount::IsJoining(
+          *g_browser_process->local_state())) {
+    SpaceJoinWatcher::WatchHome(home);
+    return;
+  }
+  const bookmarks::BookmarkNode* folder = FindSpaceFolder(model);
+  base::DictValue list = ReadSpaceList(model);
   bool changed = false;
   for (const std::string& id : syncer::AlerseSyncAccount::TakeDeletedSpaces(
            g_browser_process->local_state())) {

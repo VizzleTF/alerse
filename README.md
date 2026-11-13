@@ -46,10 +46,11 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
   drag it onto that Space's icon in the Space bar, or use Move to in its menu.
 
   ![The Work Space, switched to from the Space bar at the bottom of the sidebar](docs/images/spaces.png)
-- **Sync on your terms**: bookmarks, tabs, passwords and settings through your own
+- **Sync on your terms**: bookmarks, tabs, Spaces, passwords and settings through an
   [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, end-to-end
-  encrypted, with no account: devices join with a 24-word sync code. Set it up from **Sync**
-  in the Alerse menu. A free public server is planned.
+  encrypted: the Alerse server or your own. A new device signs in with the 24 words and a
+  password; neither alone opens the account, and a lost device can be removed. Set it up
+  from **Sync** in the Alerse menu.
 - **Command bar actions**: type a command's name in the command bar to run it, as in
   Arc: Copy URL, Copy URL as Markdown or as Quote, Pin or Unpin Tab, New Space, Rename
   Space, Edit Theme, New Folder, Collapse Pinned Tabs, Reveal Tab in Sidebar, View
@@ -86,10 +87,10 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 - **No account and no AI.** Nothing signs in to a company, and there is no assistant,
   summaries or AI search.
 - **ungoogled-chromium underneath**, with its privacy defaults (see [Privacy](#privacy)).
-- **Sync of its own**, end-to-end encrypted on a server you run
-  ([alerse-sync](https://github.com/VizzleTF/alerse-sync)): devices join with a 24-word
-  sync code, or with a login and password and a short pairing code; a recovery sheet
-  keeps the code safe.
+- **Sync of its own**, end-to-end encrypted on the Alerse server or one you run
+  ([alerse-sync](https://github.com/VizzleTF/alerse-sync)): an account opens with the 24
+  words and a password, each device has a key of its own, and a recovery sheet keeps
+  the words safe.
 - **Windows looks like Arc for macOS** everywhere except the top bar, which stays Arc
   for Windows': the sidebar, Space bar, popovers, folder popup, page card, hidden
   sidebar and command bar are the Mac's.

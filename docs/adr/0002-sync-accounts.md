@@ -1,7 +1,10 @@
 # ADR-0002: Sync accounts: email, sync code and password, any server
 
-Status: proposed, 2026-11-13. Replaces the sign-in of 0.1.8 to 0.1.13
-([design.md, Sync](../design.md#sync)) once built; nothing of it is built yet.
+Status: accepted, 2026-11-13. Steps 1 and 2 of the [order of work](#order-of-work)
+are built (alerse-sync 0.2.0, Alerse 0.1.14): accounts with the 24 words and a
+password, device keys, the device list, starting over from the old chains, and the
+Alerse server at `sync.alerse.app`. [design.md, Sync](../design.md#sync) describes
+what is built.
 
 ## Context
 

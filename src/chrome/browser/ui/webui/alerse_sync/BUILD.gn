@@ -7,8 +7,8 @@ source_set("alerse_sync") {
     "../alerse_common/alerse_page_style.inc",
     "alerse_sync_handler.cc",
     "alerse_sync_handler.h",
-    "alerse_sync_login_client.cc",
-    "alerse_sync_login_client.h",
+    "alerse_sync_api_client.cc",
+    "alerse_sync_api_client.h",
     "alerse_sync_page.inc",
     "alerse_sync_ui.cc",
     "alerse_sync_ui.h",
@@ -22,11 +22,11 @@ source_set("alerse_sync") {
     "//chrome/browser/sync",
     "//components/os_crypt/async/browser",
     "//components/os_crypt/async/common",
-    "//components/qr_code_generator",
     "//components/sync/service",
     "//components/sync_device_info",
     "//net",
     "//services/network/public/cpp",
+    "//third_party/icu",
     "//url",
   ]
 }

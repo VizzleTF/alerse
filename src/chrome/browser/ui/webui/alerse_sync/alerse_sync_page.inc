@@ -20,10 +20,18 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
 <main>
   <header>
     <h1>Sync</h1>
-    <p class="lede">Keep bookmarks, tabs, passwords and settings the same on
-      all your devices. Everything is encrypted with your sync code before it
-      leaves this device: the server stores only data it cannot read.</p>
+    <p class="lede">Keep bookmarks, tabs, Spaces, passwords and settings the
+      same on all your devices. Everything is encrypted on this device before
+      it leaves it: the server stores only data it cannot read.</p>
   </header>
+
+  <section id="legacy" class="banner" hidden>
+    <p>Sync works differently now: an account opens with your 24 words and a
+      password, and you can remove a lost device. Your earlier sync was
+      turned off on this device. Your data is still here; set sync up again
+      below, and it is uploaded to the new account.</p>
+    <button id="legacy-ok">OK</button>
+  </section>
 
   <section id="restart" class="banner" hidden>
     <p id="restart-text"></p>
@@ -40,169 +48,125 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
       <dt>Last synced</dt><dd id="status-synced"></dd>
     </dl>
     <div class="actions">
-      <button id="pair-start">Add a device</button>
-      <button id="show-code">Show sync code</button>
-      <button id="leave" class="quiet">Leave sync chain</button>
+      <button id="devices-open">Devices</button>
+      <button id="words-open">Show the 24 words</button>
+      <button id="leave" class="quiet">Stop syncing on this device</button>
+      <button id="delete-open" class="quiet">Delete account</button>
     </div>
     <div id="leave-confirm" class="confirm" hidden>
-      <p>This device stops syncing. Its bookmarks, tabs and passwords stay on
-        it, and your other devices keep theirs.</p>
+      <p>This device stops syncing and forgets the account. Its data stays
+        here, and the account keeps syncing on your other devices.</p>
       <div class="actions">
-        <button id="leave-yes" class="danger">Leave</button>
+        <button id="leave-yes" class="danger">Stop syncing</button>
         <button id="leave-no">Cancel</button>
       </div>
     </div>
-  </section>
-
-  <section id="pair" hidden>
-    <h2>Add a device</h2>
-    <div id="pair-show" class="sub">
-      <p class="note">On the new device, open Sync, choose “Pair with another
-        device” and type this code. It works once, for 5 minutes.</p>
-      <div id="pair-code" class="pair-code"></div>
-      <canvas id="pair-qr" width="200" height="200"
-          aria-label="QR code of the pairing"></canvas>
-      <p class="note">The QR code is for phones. <span id="pair-expires"></span></p>
-    </div>
-    <div id="pair-ask" class="sub" hidden>
-      <p>Allow <strong id="pair-name"></strong> to join this sync chain? It
-        gets your bookmarks, tabs, passwords and settings. Check that it
-        shows the same number:</p>
-      <div id="pair-number" class="pair-number"></div>
+    <form id="delete-form" class="confirm" novalidate hidden>
+      <p>The account and everything synced to it are deleted from the server.
+        Every device stops syncing. The data on each device stays there.</p>
+      <label for="delete-password">Password</label>
+      <input id="delete-password" type="password" autocomplete="current-password">
+      <p id="delete-error" class="error" role="alert" hidden></p>
       <div class="actions">
-        <button id="pair-allow" class="primary">Allow</button>
-        <button id="pair-deny">Deny</button>
-      </div>
-    </div>
-    <p id="pair-result" class="note" hidden></p>
-    <p id="pair-error" class="error" role="alert" hidden></p>
-    <div class="actions">
-      <button id="pair-close" class="quiet">Close</button>
-    </div>
-  </section>
-
-  <section id="login" hidden>
-    <h2>Email and password</h2>
-    <p id="login-text" class="note"></p>
-    <div id="login-actions" class="actions">
-      <button id="login-set">Set up</button>
-      <button id="login-remove" class="quiet" hidden>Remove</button>
-    </div>
-    <form id="login-form" class="sub" novalidate hidden>
-      <div class="login-fields" data-prefix="login"></div>
-      <p id="login-error" class="error" role="alert" hidden></p>
-      <div class="actions">
-        <button class="primary" type="submit">Save</button>
-        <button id="login-cancel" type="button">Cancel</button>
+        <button id="delete-yes" class="danger" type="submit">Delete account</button>
+        <button id="delete-no" type="button">Cancel</button>
       </div>
     </form>
-    <div id="login-remove-confirm" class="confirm" hidden>
-      <p>New devices can then join only with the 24 words. Devices that
-        already sync are not affected.</p>
-      <p id="login-remove-error" class="error" role="alert" hidden></p>
+  </section>
+
+  <section id="devices" class="panel" hidden>
+    <h2>Devices</h2>
+    <p class="note">Remove a device you lost or gave away: it is refused from
+      its next request on. Its own copy of the data stays on it.</p>
+    <ul id="device-list" class="device-list"></ul>
+    <form id="remove-form" class="sub" novalidate hidden>
+      <p>Remove <strong id="remove-name"></strong>? Enter the password.</p>
+      <input id="remove-password" type="password" autocomplete="current-password"
+             aria-label="Password">
       <div class="actions">
-        <button id="login-remove-yes" class="danger">Remove</button>
-        <button id="login-remove-no">Cancel</button>
+        <button id="remove-yes" class="danger" type="submit">Remove</button>
+        <button id="remove-no" type="button">Cancel</button>
       </div>
+    </form>
+    <p id="devices-error" class="error" role="alert" hidden></p>
+    <div class="actions">
+      <button id="devices-close" class="quiet">Close</button>
     </div>
   </section>
 
-  <section id="code" hidden>
-    <h2>Your sync code</h2>
-    <p>Type these 24 words on your other devices to add them. Keep the code
-      somewhere safe: anyone who has it can read your synced data, and
-      without it a new device cannot join.</p>
-    <ol id="code-words" class="words"></ol>
+  <section id="words" class="panel" hidden>
+    <h2>Your 24 words</h2>
+    <p class="note">A new device needs these words and your password. Keep them
+      on paper or in a password manager, apart from the password. Nobody can
+      reset either: if both your devices and the words are lost, the synced
+      data is gone.</p>
+    <ol id="word-list" class="words"></ol>
     <div class="actions">
-      <button id="copy-code">Copy</button>
-      <button id="recovery-sheet">Print recovery sheet</button>
-      <span id="copy-done" class="note" hidden>Copied</span>
+      <button id="print-sheet">Print recovery sheet</button>
+      <button id="words-close" class="quiet">Close</button>
     </div>
-    <p class="note">The recovery sheet has the code, the server and how to
-      add a device. Print it, or choose Save as PDF in the print dialog, and
-      keep it somewhere safe. It is made on this device; nothing is sent
-      anywhere.</p>
+    <div id="words-saved-box" hidden>
+      <label class="check"><input id="words-saved" type="checkbox"> I saved the
+        words</label>
+    </div>
   </section>
 
   <section id="setup" hidden>
+    <fieldset class="card server-choice">
+      <legend>Sync server</legend>
+      <label class="check"><input type="radio" name="server" value="alerse"
+        checked> The Alerse server (<span id="default-server"></span>)</label>
+      <label class="check"><input type="radio" name="server" value="own">
+        My own server</label>
+      <input id="own-server" type="url" inputmode="url" autocomplete="url"
+             placeholder="https://sync.example.com" spellcheck="false" hidden
+             aria-label="Your server's address">
+    </fieldset>
+
     <form id="create" class="card" novalidate>
-      <h2>Start syncing</h2>
-      <p>For your first device. You get a sync code to add the others.</p>
-      <label for="create-server">Sync server</label>
-      <input id="create-server" type="url" inputmode="url" autocomplete="url"
-          placeholder="https://sync.example.com" required>
-      <details id="create-login-box">
-        <summary>Add an email and password (optional)</summary>
-        <div class="sub">
-          <p class="note">Your other devices can then join with them instead
-            of typing the 24 words. The words keep working.</p>
-          <div class="login-fields" data-prefix="create"></div>
-        </div>
-      </details>
+      <h2>Create an account</h2>
+      <p class="note">Alerse makes 24 words for you. A new device needs the
+        words and this password; neither alone opens the account.</p>
+      <label for="create-password">Password</label>
+      <input id="create-password" type="password" autocomplete="new-password"
+             aria-describedby="create-hint">
+      <div class="meter"><span id="create-meter"></span></div>
+      <p id="create-hint" class="note">At least 15 characters. A few unrelated
+        words make a good password.</p>
+      <label for="create-confirm">Password again</label>
+      <input id="create-confirm" type="password" autocomplete="new-password">
       <p id="create-error" class="error" role="alert" hidden></p>
-      <button class="primary" type="submit">Start</button>
+      <button id="create-button" class="primary" type="submit">Create account</button>
     </form>
 
-    <form id="join" class="card" novalidate>
-      <h2>Join a sync chain</h2>
-      <p>For a device you add to the ones that already sync.</p>
-      <label for="join-server">Sync server</label>
-      <input id="join-server" type="url" inputmode="url" autocomplete="url"
-          placeholder="https://sync.example.com" required>
-      <div class="segmented" role="radiogroup" aria-label="Join with">
-        <label><input type="radio" name="join-with" value="code" checked>
-          Sync code (24 words)</label>
-        <label><input type="radio" name="join-with" value="login">
-          Email and password</label>
-        <label><input type="radio" name="join-with" value="pair">
-          Pair with another device</label>
-      </div>
-      <div id="join-with-code" class="group">
-        <label for="join-code">Sync code</label>
-        <textarea id="join-code" rows="3" spellcheck="false"
-            autocapitalize="off" placeholder="24 words"></textarea>
-      </div>
-      <div id="join-with-pair" class="group" hidden>
-        <p class="note">On a device that already syncs, open Sync and choose
-          Add a device. Type the code it shows.</p>
-        <label for="join-pair-code">Pairing code</label>
-        <input id="join-pair-code" type="text" spellcheck="false"
-            autocapitalize="characters" autocomplete="off"
-            placeholder="XXXX-XXXX-XXXX">
-        <div id="join-pair-wait" class="sub" hidden>
-          <p>On the other device, allow this one to join. Check that it shows
-            this number:</p>
-          <div id="join-pair-number" class="pair-number"></div>
-        </div>
-      </div>
-      <div id="join-with-login" class="group" hidden>
-        <label for="join-login">Email or login name</label>
-        <input id="join-login" type="text" autocomplete="username"
-            spellcheck="false" autocapitalize="off">
-        <label for="join-password">Password</label>
-        <input id="join-password" type="password"
-            autocomplete="current-password">
-      </div>
-      <p id="join-error" class="error" role="alert" hidden></p>
-      <button class="primary" type="submit">Join</button>
+    <form id="signin" class="card" novalidate>
+      <h2>Sign in</h2>
+      <p class="note">On another device of yours: the 24 words and the
+        password.</p>
+      <label for="signin-words">24 words</label>
+      <textarea id="signin-words" rows="3" spellcheck="false"
+                autocomplete="off"></textarea>
+      <label for="signin-password">Password</label>
+      <input id="signin-password" type="password" autocomplete="current-password">
+      <p id="signin-error" class="error" role="alert" hidden></p>
+      <button id="signin-button" class="primary" type="submit">Sign in</button>
     </form>
   </section>
 </main>
-<section id="sheet" aria-hidden="true"></section>
-<template id="login-fields">
-  <label data-for="login">Email or login name</label>
-  <input data-field="login" type="text" autocomplete="username"
-      spellcheck="false" autocapitalize="off">
-  <label data-for="password">Password</label>
-  <input data-field="password" type="password" autocomplete="new-password">
-  <div class="meter" aria-hidden="true"><span data-field="meter"></span></div>
-  <p class="note" data-field="hint"></p>
-  <label data-for="confirm">Confirm password</label>
-  <input data-field="confirm" type="password" autocomplete="new-password">
-  <p class="note">Whoever runs the server could try to guess the password
-    offline, so make it long. Nobody checks that the email is yours. If you
-    forget the password, the 24 words still work.</p>
-</template>
+
+<section id="sheet" aria-hidden="true">
+  <h1>Alerse recovery sheet</h1>
+  <p class="note">Keep this sheet somewhere safe, apart from your password.
+    Anyone with the words and the password can read your synced data.</p>
+  <table>
+    <tr><th>Server</th><td id="sheet-server"></td></tr>
+    <tr><th>Made</th><td id="sheet-date"></td></tr>
+    <tr><th>Password</th><td class="blank"></td></tr>
+  </table>
+  <ol id="sheet-words" class="sheet-words"></ol>
+  <p>To add a device: install Alerse, open Sync, pick the same server, and
+    sign in with the 24 words and the password.</p>
+</section>
 </body>
 </html>
 )HTML";
@@ -224,43 +188,42 @@ inline constexpr char kAlerseSyncCss[] = R"CSS(
     font: 15px/1.9 ui-monospace, Consolas, monospace; }
 }
 .banner { border-color: var(--accent); }
-#login, #pair {
+.panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 20px;
 }
-.sub, .group, .login-fields { display: grid; gap: 12px; }
-#login-form { border-top: 1px solid var(--line); padding-top: 12px; }
-details > summary { cursor: pointer; color: var(--accent); font-weight: 500; }
-details[open] > summary { margin-bottom: 12px; }
-.segmented { display: flex; gap: 16px; flex-wrap: wrap; }
-.segmented label, label.check { font-weight: 400; margin: 0; display: flex;
-  gap: 8px; align-items: baseline; }
-.pair-code, .pair-number {
-  font: 600 24px/1.3 ui-monospace, "Cascadia Mono", Consolas, monospace;
-  letter-spacing: .08em;
-  user-select: all;
-}
-.pair-number { font-size: 32px; letter-spacing: .3em; }
-#pair-qr { width: 200px; height: 200px; image-rendering: pixelated;
-  background: #fff; border-radius: 8px; }
+.sub { display: grid; gap: 12px; border-top: 1px solid var(--line);
+  padding-top: 12px; }
+fieldset.server-choice { display: grid; gap: 8px; }
+fieldset.server-choice legend { font-weight: 600; padding: 0 4px; }
+label.check { font-weight: 400; margin: 0; display: flex; gap: 8px;
+  align-items: baseline; }
 .meter { height: 4px; border-radius: 2px; background: var(--line);
   overflow: hidden; margin-top: -6px; }
 .meter span { display: block; height: 100%; width: 0; background: var(--bad);
   transition: width .15s; }
 .meter span.fair { background: var(--warn); }
 .meter span.good { background: var(--ok); }
-
 .status-line { display: flex; align-items: center; gap: 8px; font-weight: 500; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+  flex: none; }
 .dot.ok { background: var(--ok); }
 .dot.warn { background: var(--warn); }
 .dot.bad { background: var(--bad); }
-dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px;
+  margin: 0; }
 dt { color: var(--muted); }
 dd { margin: 0; overflow-wrap: anywhere; }
-.confirm { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 12px; }
+.confirm { display: grid; gap: 12px; border-top: 1px solid var(--line);
+  padding-top: 12px; }
+.device-list { list-style: none; margin: 0; padding: 0; display: grid;
+  gap: 6px; }
+.device-list li { display: flex; align-items: center; gap: 12px;
+  background: var(--bg); border-radius: 8px; padding: 8px 12px; }
+.device-list .name { font-weight: 500; flex: 1; overflow-wrap: anywhere; }
+.device-list .seen { color: var(--muted); font-size: 13px; }
 .words {
   list-style: none;
   counter-reset: word;
@@ -291,485 +254,272 @@ inline constexpr char kAlerseSyncJs[] = R"JS(
 import {addWebUiListener, sendWithPromise} from 'chrome://resources/js/cr.js';
 
 const $ = (id) => document.getElementById(id);
+let state = {};
+// Set while the words of a new account are on screen: the restart waits
+// until the user says they are saved.
+let newAccount = false;
 
-const STATUS = {
-  active: ['ok', 'Syncing'],
-  starting: ['warn', 'Connecting to the server…'],
-  stopped: ['warn', 'Sync is paused'],
-  off: ['', 'Not syncing'],
-  wrongCode: ['bad', 'This device’s sync code does not open the chain’s ' +
-      'data. Leave the sync chain and join again with the right code.'],
-  refused: ['bad', 'The server refused this device. Check that the device’s ' +
-      'clock is right, then restart Alerse.'],
-  error: ['bad', 'Sync stopped after an error. Restart Alerse to try again.'],
-};
-
-function formatTime(ms) {
-  if (!ms) return 'Not yet';
-  const minutes = Math.round((Date.now() - ms) / 60000);
-  if (minutes < 1) return 'Just now';
-  if (minutes < 60) return `${minutes} min ago`;
-  return new Date(ms).toLocaleString();
+function showError(id, message) {
+  const el = $(id);
+  el.textContent = message || '';
+  el.hidden = !message;
 }
 
-function showCode(code) {
-  $('code-words').replaceChildren(...code.split(' ').map((word) => {
+function chosenServer() {
+  const own = document.querySelector('input[name=server]:checked').value ===
+      'own';
+  return own ? $('own-server').value.trim() : state.defaultServer;
+}
+
+function busy(button, on) {
+  button.disabled = on;
+}
+
+function fillWords(list, words) {
+  list.replaceChildren(...words.split(' ').map((word) => {
     const li = document.createElement('li');
     li.textContent = word;
     return li;
   }));
-  $('code').dataset.code = code;
-  $('code').hidden = false;
-  $('copy-done').hidden = true;
 }
 
-// Fills each .login-fields with the sign-in fields, ids prefixed.
-for (const box of document.querySelectorAll('.login-fields')) {
-  const prefix = box.dataset.prefix;
-  box.append($('login-fields').content.cloneNode(true));
-  for (const el of box.querySelectorAll('[data-field]')) {
-    el.id = `${prefix}-${el.dataset.field}`;
-  }
-  for (const el of box.querySelectorAll('[data-for]')) {
-    el.htmlFor = `${prefix}-${el.dataset.for}`;
-  }
-  const update = () => updateMeter(prefix);
-  $(`${prefix}-login`).addEventListener('input', update);
-  $(`${prefix}-password`).addEventListener('input', update);
-  updateMeter(prefix);
+function showWords(words, fresh) {
+  fillWords($('word-list'), words);
+  fillWords($('sheet-words'), words);
+  $('sheet-server').textContent = state.server || chosenServer();
+  $('sheet-date').textContent = new Date().toLocaleDateString();
+  $('words').hidden = false;
+  $('words-saved-box').hidden = !fresh;
+  $('words-close').hidden = fresh;
 }
 
-const PROBLEMS = {
-  tooShort: 'At least 15 characters.',
-  tooLong: 'At most 256 characters.',
-  common: 'Too common or too easy to guess.',
-  containsLogin: 'Do not use your login name or Alerse in the password.',
+function formatSeen(value) {
+  if (!value || value.startsWith('0001')) {
+    return 'never';
+  }
+  return new Date(value).toLocaleString();
+}
+
+const kStatus = {
+  active: ['Syncing', 'ok'],
+  starting: ['Starting…', 'warn'],
+  stopped: ['Stopped', 'warn'],
+  refused: ['The server refused this device. It may have been removed.', 'bad'],
+  wrongKey: ['The account\'s data does not open with this device\'s key.',
+             'bad'],
+  error: ['Sync stopped with an error.', 'bad'],
+  off: ['Not syncing yet', 'warn'],
 };
 
-async function updateMeter(prefix) {
-  const login = $(`${prefix}-login`).value;
-  const password = $(`${prefix}-password`).value;
-  const meter = $(`${prefix}-meter`);
-  const hint = $(`${prefix}-hint`);
-  if (!password) {
-    meter.style.width = '0';
-    hint.textContent = 'At least 15 characters. A few unrelated words are ' +
-        'easy to remember and hard to guess.';
-    return;
+// Chromium's local sync mode keeps a refused device looking active, so the
+// page asks the server whether it still knows this device.
+let checkedDevice = false;
+let removed = false;
+async function checkDevice() {
+  try {
+    await sendWithPromise('getDevices');
+  } catch (error) {
+    removed = String(error).includes('removed');
+    render(state);
   }
-  const {problem} = await sendWithPromise('checkPassword', login, password);
-  if ($(`${prefix}-password`).value !== password) return;
-  const length = [...password].length;
-  let width = Math.min(100, length / 25 * 100);
-  let tone = '';
-  let text = PROBLEMS[problem];
-  if (problem === 'tooShort') {
-    text = `${15 - length} more characters.`;
-  } else if (problem) {
-    width = 15;
-  } else if (length < 20) {
-    tone = 'fair';
-    text = 'Good. Longer is stronger.';
+}
+
+function render(next) {
+  state = next;
+  const setUp = !!state.server;
+  $('legacy').hidden = !state.legacyReset || setUp;
+  $('default-server').textContent = state.defaultServer;
+  $('setup').hidden = setUp;
+  $('status').hidden = !setUp;
+  if (setUp) {
+    const [text, tone] = kStatus[state.status] || kStatus.off;
+    $('status-text').textContent = text;
+    $('status-dot').className = 'dot ' + tone;
+    $('status-server').textContent = state.server;
+    $('status-synced').textContent =
+        state.lastSynced ? new Date(state.lastSynced).toLocaleString() : '—';
   } else {
-    tone = 'good';
-    text = 'Strong.';
+    $('devices').hidden = true;
   }
-  meter.className = tone;
-  meter.style.width = `${width}%`;
-  hint.textContent = text;
+  if (setUp && !checkedDevice) {
+    checkedDevice = true;
+    checkDevice();
+  }
+  if (setUp && removed) {
+    $('status-text').textContent =
+        'This device was removed from the account. Stop syncing on it, then ' +
+        'sign in again if it should sync.';
+    $('status-dot').className = 'dot bad';
+  }
+  const restart = state.restartNeeded && !(newAccount && !$('words-saved').checked);
+  $('restart').hidden = !restart;
+  $('restart-text').textContent = setUp ?
+      'Restart Alerse to start syncing in every Space.' :
+      'Restart Alerse to stop syncing on this device.';
 }
 
-function loginFields(prefix) {
-  return {
-    login: $(`${prefix}-login`).value,
-    password: $(`${prefix}-password`).value,
-    confirm: $(`${prefix}-confirm`).value,
-  };
-}
-
-let loginShown = false;
-
-async function refreshLogin() {
-  let state;
-  try {
-    state = await sendWithPromise('getLoginState');
-  } catch (message) {
-    $('login').hidden = true;
-    return;
-  }
-  const set = state.onServer === 'this' || state.onServer === 'other';
-  let text;
-  switch (state.onServer) {
-    case 'none':
-      text = 'Not set up. Other devices join with the 24-word sync code. ' +
-          'You can add an email or login name and a password, so they can ' +
-          'join with those instead.';
-      break;
-    case 'this':
-      text = `Set up as ${state.login}. Other devices can join with it and ` +
-          'its password.';
-      break;
-    case 'other':
-      text = 'Set up from another device. Setting it here replaces that ' +
-          'email or login name and password.';
-      break;
-    default:
-      text = 'Could not ask the server about it. ' + state.error;
-  }
-  $('login-text').textContent = text;
-  $('login-set').textContent = set ? 'Change' : 'Set up';
-  $('login-set').hidden = state.onServer === 'unknown';
-  $('login-remove').hidden = !set;
-  $('login').dataset.login = state.login;
-  lastLogin = state.login;
-  $('login').hidden = false;
-}
-
-let lastState = {server: ''};
-let lastLogin = '';
-
-function el(tag, text, className) {
-  const e = document.createElement(tag);
-  if (text !== undefined) e.textContent = text;
-  if (className) e.className = className;
-  return e;
-}
-
-// The recovery sheet: a page section that only prints. The print dialog
-// prints it or saves it as a PDF; nothing leaves this device.
-function printRecoverySheet() {
-  const words = $('code').dataset.code.split(' ');
-  const sheet = $('sheet');
-  const rows = [['Sync server', lastState.server]];
-  if (lastLogin) {
-    rows.push(['Email or login name', lastLogin], ['Password', '']);
-  }
-  const table = el('table');
-  for (const [name, value] of rows) {
-    const tr = el('tr');
-    tr.append(el('th', name), el('td', value, value ? '' : 'blank'));
-    table.append(tr);
-  }
-  const list = el('ol', undefined, 'sheet-words');
-  list.append(...words.map((w) => el('li', w)));
-  const steps = el('ol');
-  steps.append(
-      el('li', 'In Alerse, open Sync from the logo menu.'),
-      el('li', 'Under Join a sync chain, enter the sync server above.'),
-      el('li', 'Choose Sync code (24 words) and type the words in order; ' +
-          'the first four letters of each word are enough.' +
-          (lastLogin ? ' Or choose Email and password and sign in.' : '')),
-      el('li', 'Restart Alerse when it asks.'));
-  sheet.replaceChildren(
-      el('h1', 'Alerse sync recovery sheet'),
-      el('p', `Made on ${new Date().toLocaleDateString()}. Keep it ` +
-          'somewhere safe: anyone with these words can read your synced ' +
-          'data.', 'note'),
-      table, el('h2', 'Sync code'), list, el('h2', 'To add a device'), steps);
-  print();
-}
-
-// Pairing on the device that syncs.
-let pairTimer = 0;
-
-function drawQr(qr) {
-  const canvas = $('pair-qr');
-  canvas.hidden = !qr;
-  if (!qr) return;
-  const quiet = 4;
-  const cells = qr.size + 2 * quiet;
-  const scale = Math.floor(canvas.width / cells);
-  const offset = Math.floor((canvas.width - cells * scale) / 2);
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000';
-  for (let y = 0; y < qr.size; y++) {
-    for (let x = 0; x < qr.size; x++) {
-      if (qr.modules[y * qr.size + x] === '1') {
-        ctx.fillRect(offset + (x + quiet) * scale, offset + (y + quiet) * scale,
-            scale, scale);
-      }
-    }
-  }
-}
-
-function showPairError(text) {
-  $('pair-error').textContent = text;
-  $('pair-error').hidden = false;
-}
-
-function stopPairPolling() {
-  clearTimeout(pairTimer);
-  pairTimer = 0;
-}
-
-async function pollPairing() {
-  let state;
-  try {
-    state = await sendWithPromise('pairingStatus');
-  } catch (message) {
-    state = {state: 'waiting'};
-  }
-  if ($('pair').hidden) return;
-  if (state.expires) {
-    $('pair-expires').textContent =
-        `The code expires in ${Math.ceil(state.expires / 60)} min.`;
-  }
-  switch (state.state) {
-    case 'waiting':
-      pairTimer = setTimeout(pollPairing, 2000);
-      return;
-    case 'joined':
-      $('pair-show').hidden = true;
-      $('pair-name').textContent = state.name;
-      $('pair-number').textContent = state.number;
-      $('pair-ask').hidden = false;
-      return;
-    case 'wrongCode':
-      $('pair-show').hidden = true;
-      showPairError('The other device typed a wrong code, so the pairing ' +
-          'was closed. Make a new code and try again.');
-      return;
-    default:
-      $('pair-show').hidden = true;
-      showPairError('The code expired. Make a new one.');
-  }
-}
-
-$('pair-start').addEventListener('click', async () => {
-  stopPairPolling();
-  $('pair-error').hidden = true;
-  $('pair-result').hidden = true;
-  $('pair-ask').hidden = true;
-  $('pair-show').hidden = true;
-  $('pair').hidden = false;
-  try {
-    const {code, qr} = await sendWithPromise('startPairing');
-    $('pair-code').textContent = code;
-    drawQr(qr);
-    $('pair-expires').textContent = 'The code expires in 5 min.';
-    $('pair-show').hidden = false;
-    pairTimer = setTimeout(pollPairing, 2000);
-  } catch (message) {
-    showPairError(String(message));
-  }
-});
-
-$('pair-allow').addEventListener('click', async () => {
-  $('pair-allow').disabled = true;
-  try {
-    await sendWithPromise('approvePairing');
-    $('pair-ask').hidden = true;
-    $('pair-result').textContent = `${$('pair-name').textContent} got the ` +
-        'sync chain. It starts syncing after Alerse restarts there.';
-    $('pair-result').hidden = false;
-  } catch (message) {
-    showPairError(String(message));
-  } finally {
-    $('pair-allow').disabled = false;
-  }
-});
-
-async function closePairing() {
-  stopPairPolling();
-  $('pair').hidden = true;
-  await sendWithPromise('cancelPairing');
-}
-$('pair-deny').addEventListener('click', closePairing);
-$('pair-close').addEventListener('click', closePairing);
-
-// Pairing on the new device: waits until the other device allows it.
-async function waitForPairing() {
-  let state;
-  try {
-    state = await sendWithPromise('pairingJoinStatus');
-  } catch (message) {
-    state = {state: 'failed'};
-  }
-  if (state.state === 'waiting') {
-    pairTimer = setTimeout(waitForPairing, 2000);
-    return;
-  }
-  $('join-pair-wait').hidden = true;
-  $('join').querySelector('button[type=submit]').disabled = false;
-  if (state.state === 'cancelled') {
-    $('join-error').textContent = 'The pairing was closed: the code was ' +
-        'wrong, the other device denied it, or it expired.';
-    $('join-error').hidden = false;
-  } else if (state.state === 'failed') {
-    $('join-error').textContent = 'The pairing failed. Make a new code on ' +
-        'the other device.';
-    $('join-error').hidden = false;
-  }
-}
-
-function render(state) {
-  lastState = state;
-  const configured = state.server !== '';
-  $('setup').hidden = configured;
-  $('status').hidden = !configured || state.restartNeeded;
-  if (!configured) {
-    $('code').hidden = true;
-  }
-
-  const showLogin = configured && !state.restartNeeded;
-  if (!showLogin) {
-    $('login').hidden = true;
-    $('pair').hidden = true;
-    loginShown = false;
-  } else if (!loginShown) {
-    loginShown = true;
-    refreshLogin();
-  }
-
-  $('restart').hidden = !state.restartNeeded;
-  $('restart-text').textContent = configured ?
-      'Restart Alerse to start syncing.' :
-      'This device left its sync chain. Restart Alerse to finish.';
-
-  const [tone, text] = STATUS[state.status] || STATUS.off;
-  $('status-dot').className = 'dot ' + tone;
-  $('status-text').textContent = text;
-  $('status-server').textContent = state.server;
-  $('status-synced').textContent = formatTime(state.lastSynced);
-}
-
-async function submit(form, errorId, send) {
-  const button = form.querySelector('button[type=submit]');
-  $(errorId).hidden = true;
-  button.disabled = true;
-  try {
-    await send();
-  } catch (message) {
-    $(errorId).textContent = String(message);
-    $(errorId).hidden = false;
-  } finally {
-    button.disabled = false;
-  }
-}
-
-$('create').addEventListener('submit', (e) => {
-  e.preventDefault();
-  submit(e.target, 'create-error', async () => {
-    const fields = loginFields('create');
-    const withLogin = $('create-login-box').open &&
-        (fields.login !== '' || fields.password !== '');
-    const {code} = await sendWithPromise('createChain',
-        $('create-server').value, withLogin ? fields : null);
-    lastLogin = withLogin ? fields.login.trim().toLowerCase() : '';
-    showCode(code);
-  });
-});
-
-$('join').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const via = document.querySelector('input[name=join-with]:checked').value;
-  if (via === 'pair') {
-    const button = e.target.querySelector('button[type=submit]');
-    submit(e.target, 'join-error', async () => {
-      const {number} = await sendWithPromise('joinWithPairing',
-          $('join-server').value, $('join-pair-code').value);
-      $('join-pair-number').textContent = number;
-      $('join-pair-wait').hidden = false;
-      stopPairPolling();
-      pairTimer = setTimeout(waitForPairing, 2000);
-    }).then(() => {
-      // Stays disabled while the other device decides.
-      if (!$('join-pair-wait').hidden) button.disabled = true;
-    });
-    return;
-  }
-  submit(e.target, 'join-error', () => via === 'login' ?
-      sendWithPromise('joinWithLogin', $('join-server').value,
-          $('join-login').value, $('join-password').value) :
-      sendWithPromise('joinChain', $('join-server').value, $('join-code').value));
-});
-
-for (const radio of document.querySelectorAll('input[name=join-with]')) {
+// Setup.
+document.querySelectorAll('input[name=server]').forEach((radio) => {
   radio.addEventListener('change', () => {
-    if (!radio.checked) return;
-    $('join-with-login').hidden = radio.value !== 'login';
-    $('join-with-code').hidden = radio.value !== 'code';
-    $('join-with-pair').hidden = radio.value !== 'pair';
-    $('join-error').hidden = true;
+    $('own-server').hidden =
+        document.querySelector('input[name=server]:checked').value !== 'own';
   });
-}
+});
 
-$('login-set').addEventListener('click', () => {
-  $('login-login').value = $('login').dataset.login || '';
-  $('login-password').value = '';
-  $('login-confirm').value = '';
-  updateMeter('login');
-  $('login-error').hidden = true;
-  $('login-remove-confirm').hidden = true;
-  $('login-form').hidden = false;
-  $('login-actions').hidden = true;
-  $('login-login').focus();
+let checkTimer = 0;
+$('create-password').addEventListener('input', () => {
+  clearTimeout(checkTimer);
+  const password = $('create-password').value;
+  const meter = $('create-meter');
+  const length = [...password].length;
+  meter.style.width = Math.min(100, length / 20 * 100) + '%';
+  checkTimer = setTimeout(async () => {
+    const {problem} = await sendWithPromise('checkPassword', password);
+    meter.className = problem ? '' : (length >= 20 ? 'good' : 'fair');
+  }, 200);
 });
-$('login-cancel').addEventListener('click', () => {
-  $('login-form').hidden = true;
-  $('login-actions').hidden = false;
-});
-$('login-form').addEventListener('submit', (e) => {
+
+$('create').addEventListener('submit', async (e) => {
   e.preventDefault();
-  submit(e.target, 'login-error', async () => {
-    await sendWithPromise('setLogin', loginFields('login'));
-    $('login-form').hidden = true;
-    $('login-actions').hidden = false;
-    await refreshLogin();
-  });
-});
-$('login-remove').addEventListener('click', () => {
-  $('login-remove-error').hidden = true;
-  $('login-remove-confirm').hidden = false;
-});
-$('login-remove-no').addEventListener('click', () => {
-  $('login-remove-confirm').hidden = true;
-});
-$('login-remove-yes').addEventListener('click', async () => {
-  $('login-remove-yes').disabled = true;
+  showError('create-error', '');
+  busy($('create-button'), true);
   try {
-    await sendWithPromise('removeLogin');
-    $('login-remove-confirm').hidden = true;
-    await refreshLogin();
-  } catch (message) {
-    $('login-remove-error').textContent = String(message);
-    $('login-remove-error').hidden = false;
+    const {words} = await sendWithPromise(
+        'createAccount', chosenServer(), $('create-password').value,
+        $('create-confirm').value);
+    $('create-password').value = $('create-confirm').value = '';
+    newAccount = true;
+    showWords(words, true);
+  } catch (error) {
+    showError('create-error', error);
   } finally {
-    $('login-remove-yes').disabled = false;
+    busy($('create-button'), false);
   }
 });
 
-$('show-code').addEventListener('click', async () => {
+$('signin').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showError('signin-error', '');
+  busy($('signin-button'), true);
   try {
-    const {code} = await sendWithPromise('showCode');
-    showCode(code);
-  } catch (message) {
-    $('status-text').textContent = String(message);
+    await sendWithPromise('signIn', chosenServer(), $('signin-words').value,
+                          $('signin-password').value);
+    $('signin-words').value = $('signin-password').value = '';
+  } catch (error) {
+    showError('signin-error', error);
+  } finally {
+    busy($('signin-button'), false);
   }
 });
 
-$('recovery-sheet').addEventListener('click', printRecoverySheet);
-
-$('copy-code').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText($('code').dataset.code);
-    $('copy-done').hidden = false;
-  } catch {
-    getSelection().selectAllChildren($('code-words'));
-  }
-});
-
-$('leave').addEventListener('click', () => { $('leave-confirm').hidden = false; });
-$('leave-no').addEventListener('click', () => { $('leave-confirm').hidden = true; });
-$('leave-yes').addEventListener('click', async () => {
-  $('leave-confirm').hidden = true;
-  $('code').hidden = true;
-  await sendWithPromise('leaveChain');
-});
-
+$('legacy-ok').addEventListener('click', () => sendWithPromise('dismissLegacy'));
 $('restart-button').addEventListener('click', () => chrome.send('restart'));
+
+// Words.
+$('words-open').addEventListener('click', async () => {
+  const {words} = await sendWithPromise('showWords');
+  showWords(words, false);
+});
+$('words-close').addEventListener('click', () => {
+  $('words').hidden = true;
+  fillWords($('word-list'), '');
+});
+$('words-saved').addEventListener('change', () => render(state));
+$('print-sheet').addEventListener('click', () => window.print());
+
+// Devices.
+let removing = null;
+async function loadDevices() {
+  showError('devices-error', '');
+  try {
+    const {devices} = await sendWithPromise('getDevices');
+    $('device-list').replaceChildren(...devices.map((device) => {
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = device.name + (device.current ? ' (this device)' : '');
+      const seen = document.createElement('span');
+      seen.className = 'seen';
+      seen.textContent = 'Last seen ' + formatSeen(device.lastSeen);
+      li.append(name, seen);
+      if (!device.current) {
+        const remove = document.createElement('button');
+        remove.className = 'quiet';
+        remove.textContent = 'Remove';
+        remove.addEventListener('click', () => {
+          removing = device;
+          $('remove-name').textContent = device.name;
+          $('remove-form').hidden = false;
+          $('remove-password').focus();
+        });
+        li.append(remove);
+      }
+      return li;
+    }));
+  } catch (error) {
+    showError('devices-error', error);
+  }
+}
+$('devices-open').addEventListener('click', () => {
+  $('devices').hidden = false;
+  loadDevices();
+});
+$('devices-close').addEventListener('click', () => {
+  $('devices').hidden = true;
+});
+$('remove-no').addEventListener('click', () => {
+  $('remove-form').hidden = true;
+  $('remove-password').value = '';
+});
+$('remove-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  busy($('remove-yes'), true);
+  try {
+    await sendWithPromise('removeDevice', removing.id,
+                          $('remove-password').value);
+    $('remove-form').hidden = true;
+    $('remove-password').value = '';
+    loadDevices();
+  } catch (error) {
+    showError('devices-error', error);
+  } finally {
+    busy($('remove-yes'), false);
+  }
+});
+
+// Leaving and deleting.
+$('leave').addEventListener('click', () => {
+  $('leave-confirm').hidden = false;
+});
+$('leave-no').addEventListener('click', () => {
+  $('leave-confirm').hidden = true;
+});
+$('leave-yes').addEventListener('click', async () => {
+  await sendWithPromise('leave');
+  $('leave-confirm').hidden = true;
+});
+$('delete-open').addEventListener('click', () => {
+  $('delete-form').hidden = false;
+  $('delete-password').focus();
+});
+$('delete-no').addEventListener('click', () => {
+  $('delete-form').hidden = true;
+  $('delete-password').value = '';
+});
+$('delete-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showError('delete-error', '');
+  busy($('delete-yes'), true);
+  try {
+    await sendWithPromise('deleteAccount', $('delete-password').value);
+    $('delete-form').hidden = true;
+    $('delete-password').value = '';
+  } catch (error) {
+    showError('delete-error', error);
+  } finally {
+    busy($('delete-yes'), false);
+  }
+});
 
 addWebUiListener('state-changed', render);
 sendWithPromise('getState').then(render);

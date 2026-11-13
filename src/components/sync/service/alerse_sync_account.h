@@ -13,6 +13,7 @@
 
 #include "base/time/time.h"
 #include "components/sync/service/alerse_sync_code.h"
+#include "components/sync/service/alerse_sync_sk.h"
 #include "url/gurl.h"
 
 class PrefRegistrySimple;
@@ -24,27 +25,37 @@ class Encryptor;
 
 namespace syncer {
 
-// Alerse syncs without a Google account. The devices of a sync chain share
-// a 32-byte secret, from which each derives the same Ed25519 key pair, which
-// is the chain's identity on the server, and the same custom passphrase,
-// which encrypts all data before it leaves the device.
-//
-// The server URL lives in prefs; the secret is kept encrypted with OSCrypt.
-// Sync runs in Chromium's local sync mode (no account, full sync) against the
-// server, with tokens signed by the chain's key as access tokens.
+// Alerse syncs without a Google account, with an account of an alerse-sync
+// server that opens with the 24 words and a password (scheme sk-v1,
+// alerse_sync_sk.h; docs/adr/0002-sync-accounts.md). The account has a
+// 32-byte key, from which every Space's sync chain derives an Ed25519 key
+// pair, which names the chain, and a custom passphrase, which encrypts all
+// data before it leaves the device. Each device has an Ed25519 key of its
+// own, which signs its requests, so the server can refuse a removed device.
 //
 // On desktop a Space is a profile (docs/adr/0001-space-profiles.md), and the
-// user sets sync up once for all of them: the server, the secret and the
-// sign-in are the browser's, kept in Local State. Home syncs as the chain of
-// that secret. Every other Space has an id and syncs as a chain of its own,
-// whose secret is derived from the browser's and the id, so the server
-// cannot tell that the chains belong together. The functions below still
-// take a profile's prefs and find the browser's through PrepareProfile();
-// where that was never called (iOS, which has no Spaces) the profile's prefs
-// hold everything, as before Spaces were profiles.
+// user sets sync up once for all of them: the server and the account are the
+// browser's, kept in Local State, the keys encrypted with OSCrypt. Home syncs
+// as the chain of the account key. Every other Space has an id and syncs as a
+// chain of its own, whose key is derived from the account key and the id.
+// The functions below still take a profile's prefs and find the browser's
+// through PrepareProfile(); where that was never called the profile's prefs
+// hold everything.
 class AlerseSyncAccount {
  public:
   static constexpr size_t kSecretSize = 32;
+
+  // What a device keeps of its account.
+  struct Setup {
+    // The server's account ID, 64 lowercase hex digits.
+    std::string account_id;
+    SyncChainSecret account_key;
+    // The seed of this device's Ed25519 key.
+    SyncChainSecret device_seed;
+    // The secret key the 24 words encode: with the password it removes
+    // devices and the account, and the recovery sheet shows it.
+    SyncChainSecret words;
+  };
 
   static void RegisterProfilePrefs(PrefRegistrySimple* registry);
   static void RegisterLocalStatePrefs(PrefRegistrySimple* registry);
@@ -53,12 +64,15 @@ class AlerseSyncAccount {
   // the profile's directory. `local_state` then holds the setup of every
   // profile. A profile other than the first gets its Space's id here if it
   // has none: the one SetSpaceIdOfNewProfile() left for it, else a new one.
+  // Forgets a setup of the scheme before accounts (0.1.13 and earlier),
+  // whose chains the server no longer serves.
   static void PrepareProfile(PrefService* local_state,
                              PrefService* profile_prefs,
                              const std::string& profile_dir);
 
-  // Makes the profile about to be created in `profile_dir` the Space
-  // `space_id`, one that another device made.
+  // Makes the profile in `profile_dir` the Space `space_id`, one that
+  // another device made, from its next PrepareProfile() on: a profile about
+  // to be created for it, or one of this device's that takes it over.
   static void SetSpaceIdOfNewProfile(PrefService* local_state,
                                      const std::string& profile_dir,
                                      const std::string& space_id);
@@ -72,61 +86,80 @@ class AlerseSyncAccount {
   // The id of the profile's Space; empty for home.
   static std::string GetSpaceId(const PrefService& profile_prefs);
 
-  // Copies --alerse-sync-url into prefs. Call before SyncPrefs reads
-  // whether sync is enabled.
+  // Copies --alerse-sync-url into prefs (not in official builds). Call
+  // before SyncPrefs reads whether sync is enabled.
   static void ApplyCommandLine(PrefService* prefs);
 
-  // The server's URL, or an empty one when the profile does not sync.
+  // The server's base URL ("https://sync.alerse.app"), or an empty one when
+  // the browser does not sync.
   static GURL GetServerURL(const PrefService& prefs);
 
-  // Saves a profile's setup: the server and the chain's secret, encrypted.
-  // Sync starts with it at the next browser start. Returns false and saves
-  // nothing when the OS keystore cannot encrypt the secret.
+  // Saves the setup: the server and the account, its keys encrypted. Sync
+  // starts with it at the next browser start. Returns false and saves
+  // nothing when the OS keystore cannot encrypt the keys.
   static bool Save(PrefService* prefs,
                    const os_crypt_async::Encryptor& encryptor,
                    const GURL& server_url,
-                   const SyncChainSecret& secret);
+                   const Setup& setup);
 
-  // Forgets the setup, including the sign-in's local settings. Sync stops at
-  // the next browser start.
+  // Forgets the setup. Sync stops at the next browser start.
   static void Clear(PrefService* prefs);
 
-  // The optional sign-in with a login name and password, as this device
-  // knows it: the normalized login name it set or joined with, or empty.
-  // The password is never kept.
-  static std::string GetLogin(const PrefService& prefs);
-  static void SetLogin(PrefService* prefs, const std::string& login);
-  static void ClearLogin(PrefService* prefs);
-
-  // Reads the saved secret, the browser's, or nullopt.
-  static std::optional<SyncChainSecret> LoadSecret(
+  // Reads the saved setup, or nullopt.
+  static std::optional<Setup> LoadSetup(
       const PrefService& prefs,
       const os_crypt_async::Encryptor& encryptor);
 
-  // The account of the profile's chain: of the browser's secret for home, of
-  // the secret derived for its Space otherwise. The browser's secret comes
-  // from --alerse-sync-secret (64 hex digits), which is then saved, or from
-  // prefs. Returns nullopt when there is none or it cannot be decrypted.
+  // Set when this device signs in to an account that may have Spaces of its
+  // own: until home's first sync brings the account's list of Spaces, only
+  // home syncs, so that a Space of this device with the name of one of the
+  // account's takes that one's id rather than becoming a second Space of
+  // that name (chrome/browser/ui/tabs/alerse_space_list.h).
+  static bool IsJoining(const PrefService& prefs);
+  static void SetJoining(PrefService* prefs, bool joining);
+
+  // Whether a setup of the scheme before accounts was forgotten at startup,
+  // for the Sync page to say why sync is off; ClearLegacyReset() once said.
+  static bool WasLegacyReset(const PrefService& prefs);
+  static void ClearLegacyReset(PrefService* prefs);
+
+  // This device's public key, 32 bytes, from its seed.
+  static std::array<uint8_t, 32> DevicePublicKey(
+      const SyncChainSecret& device_seed);
+
+  // A token of the device for the server's /v3, valid from `now` for a day:
+  // base64url(0x02 | account (32) | device public key (32) | issued at (ms,
+  // big-endian) | signature), signed over "alerse-sync-device-token-v1" |
+  // account | public key | issued at.
+  static std::string MakeDeviceToken(const Setup& setup, base::Time now);
+
+  // The account of the profile's chain, or nullopt when there is none, it
+  // cannot be decrypted, or the profile is a Space other than home while
+  // the device joins.
   static std::optional<AlerseSyncAccount> Load(
       PrefService* prefs,
       const os_crypt_async::Encryptor& encryptor);
 
-  explicit AlerseSyncAccount(const SyncChainSecret& secret);
+  AlerseSyncAccount(const Setup& setup,
+                    const std::string& space_id,
+                    const GURL& server_url);
   AlerseSyncAccount(const AlerseSyncAccount&);
   AlerseSyncAccount& operator=(const AlerseSyncAccount&);
   ~AlerseSyncAccount();
 
-  // A token for the server, valid from `now` for a day:
-  // base64url(0x01 | public key | issued at (ms, big-endian) | signature),
-  // signed over "arcomium-sync-token-v1" | public key | issued at.
+  // The device's token, as MakeDeviceToken().
   std::string MakeToken(base::Time now) const;
+
+  // The chain's sync URL: <server>/v3/chains/<chain ID>, to which Chromium
+  // adds /command/ and the events client /events.
+  const GURL& sync_url() const { return sync_url_; }
 
   // The custom passphrase of the chain's data.
   const std::string& passphrase() const { return passphrase_; }
 
  private:
-  std::array<uint8_t, 32> public_key_;
-  std::array<uint8_t, 64> private_key_;
+  Setup setup_;
+  GURL sync_url_;
   std::string passphrase_;
 };
 

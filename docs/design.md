@@ -1773,206 +1773,143 @@ Known gaps:
 
 ## Sync
 
-Sync goes to an [alerse-sync](https://github.com/VizzleTF/alerse-sync) server the
-user picks, set up at `chrome://alerse-sync` (Sync in the logo menu and the app menu;
-every link to Chromium's sync settings leads there). There is no default server: the
-user runs one, at home or in their own cloud account, and the browser only needs its
-URL. A free public server is planned, not running. The server only ever sees ciphertext,
-so such a server would need no trust in its operator.
-[ADR-0002](adr/0002-sync-accounts.md) proposes what replaces this setup: accounts with
-an email or the 24 words and a password, removable devices, an official server next to
-your own, and tabs that reach other devices within seconds. Not built yet.
+Sync goes to an [alerse-sync](https://github.com/VizzleTF/alerse-sync) server, set up
+at `chrome://alerse-sync` (Sync in the logo menu and the app menu; every link to
+Chromium's sync settings leads there). The page offers the Alerse server,
+`https://sync.alerse.app`, first, or the user's own server by its address. Either way
+the server only ever sees ciphertext. The design is
+[ADR-0002](adr/0002-sync-accounts.md); this section is what is built (0.1.14).
 
 Each Space is a profile with its own sync service, so each Space syncs as its own
-chain, and the server cannot tell that the chains belong to one user. The setup is
-the browser's, not a Space's: the server URL, the secret behind the sync code and the
-sign-in are in `Local State` (`arcomium.sync.*`), and the Sync page of any Space sets
-sync up or leaves it for all of them. Home syncs as the chain of the secret. Every
-other Space has an id (the profile pref `alerse.sync.space`), and its chain's secret
-is derived from the browser's secret and that id. Home's chain carries the list of
-Spaces, so a second device makes the same Spaces and joins their chains.
+chain. The setup is the browser's, not a Space's: the server and the account are in
+`Local State` (`alerse.sync.*`), and the Sync page of any Space sets sync up or stops
+it for all of them. Home syncs as the chain of the account key. Every other Space has
+an id (the profile pref `alerse.sync.space`), and its chain's key is derived from the
+account key and that id. Home's chain carries the list of Spaces, so a second device
+makes the same Spaces and joins their chains.
 [ADR-0001](adr/0001-space-profiles.md#sync) has the derivation and the list's format;
 the code is `alerse_sync_account.cc`, `alerse_space_list.h` and
 `sync/space-sync-chains.patch`.
 
-### Identity and encryption: a sync code instead of an account
+### An account: the 24 words and a password
 
 Chromium only starts sync for a signed-in account, and ungoogled-chromium has no Google
-sign-in. As in Brave Sync v2:
+sign-in. Alerse signs in to an account of the alerse-sync server instead (scheme
+`sk-v1`, `alerse_sync_sk.cc`):
 
-- The first device starts a sync chain: a random 256-bit secret, shown as a 24-word
-  sync code (BIP39 words with an 8-bit SHA-256 checksum, `alerse_sync_code.cc`).
-  Other devices join by typing it; any case works, and so do the words' first four
-  letters. The page checks that the server answers before it saves anything.
-- HKDF-SHA256 over the secret derives, with separate labels, an Ed25519 key pair and the
-  Nigori custom passphrase (`alerse_sync_account.cc`). Every request carries a token:
-  the public key and a timestamp, signed with the private key. The server checks the
-  signature and freshness and knows the chain only by a hash of the public key. No
-  passwords, no emails, nothing to leak but a public key. The exact format is in
-  [alerse-sync's protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md).
-  The browser makes a new token every hour; a token is valid for 24 hours.
+- **Create** (first device): Alerse makes three random 256-bit values: the secret key
+  that the 24 words encode (BIP39 words with an 8-bit SHA-256 checksum,
+  `alerse_sync_code.cc`), the account key, and this device's Ed25519 key. From the
+  words and the password it derives, with scrypt (N = 2^17, r = 8, p = 1: 128 MiB,
+  about half a second, on the thread pool) and HKDF-SHA256, the envelope's id, an
+  authentication key and a key that wraps the account key with AES-256-GCM. The
+  server gets the id, the salt, the parameters, the authentication key (kept as
+  Argon2id), the wrapped account key and the device's public key and name.
+- **Sign in** (another device): the 24 words and the password. The device fetches the
+  salt and parameters for the id, derives the same keys, proves the authentication
+  key, gets the wrapped account key, opens it, and joins with a new device key.
+- A new device needs both: the words alone open nothing, and the server's database
+  alone cannot be used to guess the password without the words. The exact
+  derivations are in the server's
+  [protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md).
+- The device keeps the account id, the account key, its device key and the words'
+  secret, the last three encrypted by the OS (DPAPI, Keychain) through Chromium's
+  `os_crypt_async`; if that fails nothing is kept and sync does not start. The words
+  are kept so that the page can show them again and remove devices with the password
+  alone; the account key opens the data anyway.
+- The password policy follows NIST SP 800-63B-4: at least 15 characters (counted as
+  characters, not bytes), up to 256, no rules about character classes; a short list of
+  common long passwords, a short pattern repeated, and the product's names are
+  refused. The password is normalized to Unicode NFC, so the same password typed on
+  another system opens the account. A device refuses scrypt parameters below the
+  default, so a server cannot make it send a key that is cheap to attack.
+- Nobody can reset the password or the words. With both lost and no device signed in,
+  the synced data is gone; the page says so where the account is created.
+
+### Chains, tokens and encryption
+
+- Every chain's key derives from the account key with HKDF-SHA256: an Ed25519 key pair,
+  whose public key names the chain (`hex(SHA-256(public key))`), and the Nigori custom
+  passphrase. The chain's sync URL is `<server>/v3/chains/<chain ID>`; Chromium adds
+  `/command/`, and the events client `/events`.
+- Every request carries a token signed by this device's own key: the account id, the
+  device's public key and a timestamp. The server answers only active devices of the
+  account, so a removed device is refused from its next request on. The browser makes
+  a new token every hour; a token is valid for 24 hours.
 - The passphrase is applied with `encrypt_everything` on, so bookmarks, tabs, Spaces,
   passwords and history are encrypted on the device. Chromium refuses to go back from a
   custom passphrase to the server's keystore key.
-- End-to-end or nothing (`sync/e2e-before-data.patch`; Windows from 0.1.2, Linux and
-  macOS from their first build on 157, not iOS): until the chain's data is
+- End-to-end or nothing (`sync/e2e-before-data.patch`): until the chain's data is
   encrypted with its passphrase, only the device list (`DEVICE_INFO`) syncs; the other
-  data types are configured once the passphrase type is custom. Checked against a
-  server that refuses unencrypted data: none of the bookmarks reached it readable.
-- The secret is stored encrypted by the OS (DPAPI, Keychain) through Chromium's
-  `os_crypt_async`; if that fails it is not stored and sync does not start.
+  data types are configured once the passphrase type is custom. The Alerse server also
+  refuses unencrypted data (`REQUIRE_CUSTOM_PASSPHRASE`).
 - Client side: Chromium's local sync mode with a local primary account for the chain,
-  the access token in the Authorization header, and the server URL from the page. The
-  URL must be https; plain http only for a server on this computer, since the data is
-  encrypted but its metadata and the token are not.
-- `--alerse-sync-url` and `--alerse-sync-secret` set a chain from the command line
-  for tests; official builds ignore them, so a shortcut cannot join a profile to
-  someone else's chain.
-- Leave sync chain forgets the server and the code on this device and stops sync. The
-  other devices keep their data, and so does the server.
+  the token in the Authorization header, and the chain's URL. The server URL must be
+  https; plain http only for a server on this computer.
+- `--alerse-sync-url` sets the server for tests; official builds ignore it.
+- **Stop syncing on this device** forgets the account and stops sync. The other
+  devices keep their data, and so does the server. **Delete account** (with the
+  password) deletes the account and all its chains on the server; every device stops
+  syncing, and each keeps its own data.
 
-### Optional sign-in with an email and password
+### Devices
 
-Typing 24 words on every new device is the price of having no account. A chain may
-also get a sign-in: an email address or any login name, and a password. Another
-device then joins with those instead of the words. It is optional, set on
-`chrome://alerse-sync` when starting a chain ("Add an email and password") or
-later on a device that syncs (Set up, Change, Remove), and the words keep working
-exactly as before. The join form offers "Sync code (24 words)", "Email and
-password" or "Pair with another device" (below).
-
-The server stays zero-knowledge (`alerse_sync_login.cc`, the scheme `pw-v1` of
-[alerse-sync's protocol notes](https://github.com/VizzleTF/alerse-sync/blob/main/docs/protocol.md)):
-
-- The device derives a key from the password with scrypt (N = 2^17, r = 8, p = 1:
-  128 MiB, about half a second, on the thread pool), salted with a random salt of
-  the sign-in and the login name's id. HKDF-SHA256 splits it into an authentication
-  key and an encryption key. The encryption key wraps the chain's 256-bit secret
-  with AES-256-GCM; it never leaves the device.
-- The server gets the login name only as `SHA-256` of it with a context (the
-  lookup id), the salt and scrypt parameters, the wrapped secret, and the
-  authentication key, which it keeps only as an Argon2id hash with a salt of its
-  own. It never sees the login name, the password or the secret.
-- Joining: the device fetches the salt and parameters for the id, derives the
-  keys, proves the authentication key, gets the wrapped secret and opens it; from
-  there it is the same as joining with the words.
-- Setting, changing and removing the sign-in are requests signed with the chain's
-  token, so any device of the chain can do it. A new password only wraps the same
-  secret again; the chain's data stays as it is. Removing deletes the record.
-  Clearing the chain on the server removes its sign-in too.
-- Argon2id would be the first choice for the device's KDF (RFC 9106), but
-  Chromium's tree has none; scrypt is in BoringSSL. Every record names its scheme
-  and parameters, and a device that signs in to a record with weaker parameters
-  than its own wraps it again with the current ones, so the cost can be raised
-  later. OPAQUE (RFC 9807), which would hide even the authentication key from the
-  server, could be added as another scheme; not decided.
-
-Decisions and limits:
-
-- The password policy follows NIST SP 800-63B-4: at least 15 characters (counted
-  as characters, not bytes), up to 256, no rules about character classes; a short
-  bundled list of common long passwords, one character or a short run repeated,
-  and passwords that contain the login name or "Alerse" are refused
-  (only new passwords are checked, so an existing one still signs in). There is
-  no online breach check. The page shows a strength meter.
-- The residual risk, said on the page: whoever runs the server, or has a copy of
-  its database, can guess passwords offline at the cost of one scrypt and one
-  Argon2id a guess. Only the length of the password protects it. The words, 256
-  random bits, cannot be guessed. A device refuses parameters weaker than its
-  own, so a server cannot make it send a key that is cheap to attack.
-- No account enumeration: the server answers made-up but stable parameters for
-  login names that have no sign-in and does the same work before refusing. A
-  second chain that tries to take a login name in use is refused, which tells
-  that chain the name is taken; the server limits how often a chain may try.
-- Wrong passwords: "Wrong email, login name or password." The server allows ten
-  attempts an hour per login name and thirty per address, then answers "Too many
-  attempts. Try again in N minutes." The limit holds even for the right password,
-  so someone guessing at a name can lock its owner out for an hour; the words
-  still work.
-- The login name is a user name, not a verified email: nobody checks that the
-  address belongs to whoever types it, and the first chain to set it has it. A
-  public server would need verification before email addresses can be claimed,
-  which comes with mail.
-- The login name (lower-cased, without surrounding spaces) is kept in this
-  device's prefs (`arcomium.sync.login`) to show it on the page and on the
-  recovery sheet; the password is never kept.
-- Mailing the words to the user was considered and rejected: mail is a weak
-  channel (stored in the clear by mail providers, forwarded, searched), and
-  sending from the server would hand the words to the server. The recovery sheet
-  replaces it.
-- iOS has no sign-in yet; it still joins with the words.
+The page lists the account's devices with their names (the computer's name) and when
+each was last seen, and removes one with the password. A removed device keeps its own
+copy of the data but gets nothing new; its key cannot join the account again, so it
+signs in anew with the words and the password if it comes back. The account's only
+device cannot be removed: deleting the account is the way. Chromium's local sync mode
+does not turn the server's 401 into an error, so the page asks the server for the
+device list and says so on a removed device.
 
 ### Recovery sheet
 
-Next to the sync code, "Print recovery sheet" (like 1Password's Emergency Kit)
-prints a sheet with the 24 words, the server address, the login name if the
-chain has a sign-in (with an empty line for the password, written by hand), the
-date and how to add a device; the print dialog's Save as PDF makes a file of it.
-The sheet is a print-only part of the Sync page, built from what the page already
-shows, so nothing is sent anywhere. A downloaded HTML file was tried first:
-Chromium treats HTML downloads from a script as dangerous and drops them, and
-printing gives paper and PDF in one step.
+"Print recovery sheet" (like 1Password's Emergency Kit) prints the 24 words, the
+server and the date, with an empty line for the password, written by hand; the print
+dialog's Save as PDF makes a file of it. The sheet is a print-only part of the Sync
+page, so nothing is sent anywhere. After an account is created the words stay on the
+page, and the restart that starts sync waits for "I saved the words".
 
-### Pairing a device with a short code
+### From the scheme before accounts
 
-"Add a device" on a device that syncs shows a one-time code such as
-`7KQ2-M9XD-4TPA` and a QR code of `alerse://pair?server=…&code=…` (the QR is
-for the future iOS app; computers have no camera, so they type the code). On the
-new device the join form's "Pair with another device" takes the server and the
-code. Both devices then show a four-digit number; the existing device asks "Allow
-<device name> to join this sync chain?", and only after Allow does the new device
-get the chain's secret, which it saves like a typed sync code.
+Up to 0.1.13 a sync chain had no account: the 24 words alone were the chain's secret,
+with an optional login name and password and pairing by short code. The server no
+longer serves that scheme (alerse-sync 0.2.0). On the first start of 0.1.14 the
+browser forgets such a setup (`arcomium.sync.*`), keeps all its data, and the Sync page
+says that sync is to be set up again. Creating the account uploads the data of every
+Space into its new chains; the server deleted the old chains when it moved to 0.2.0.
 
-The server is a dumb relay (`alerse_sync_pairing.cc`, scheme `pair-v1` of the
-server's protocol notes):
+When a second device signs in with data of its own, the data of both ends up on both,
+without duplicates (checked with two devices that each had a home and a work Space
+and pinned items the other lacked):
 
-- The code is 12 characters of Crockford's base32: 4 name the relay slot (the
-  server knows the slot only as SHA-256 of them), 8 (40 bits) are the password of
-  a SPAKE2 exchange (BoringSSL's, on Curve25519) between the two devices. The
-  server sees the two SPAKE2 messages but never the code, and SPAKE2 gives it
-  nothing to guess the password offline with.
-- From the SPAKE2 key, HKDF-SHA256 derives a confirmation key, a box key and a
-  verification key. The new device proves the key with an HMAC over its name; a
-  wrong code fails there, and the existing device closes the slot, so a guess
-  costs the attacker the whole slot: one try per code, at most 2^-40.
-- The four-digit number from the verification key, shown on both devices,
-  catches a relay that would put itself between them; the user also sees the new
-  device's name before allowing it.
-- The secret travels in AES-256-GCM under the box key. A slot lives 5 minutes,
-  takes one join and one approval, and goes with its chain; only the chain's
-  devices (signed token) can open, approve or close one. Joins and reads are
-  rate-limited per address.
-- The new device's name is Chromium's personalizable device name (the computer's
-  name), cut to 64 characters.
+- After the sign-in only home syncs (`AlerseSyncAccount::IsJoining`). Once home's
+  bookmarks have synced, a Space of this device with the name of one of the account's
+  takes that Space's id (`AdoptSpacesOfTheSameName`, `alerse_space_list.h`), the
+  other Spaces of this device join the account's list, and Alerse restarts by itself
+  once so that every Space starts syncing. Without this the two devices' "work"
+  Spaces stayed two Spaces of the same name, as their ids differ.
+- Chromium then merges each Space's data as it merges home's: a pinned item with the
+  same address in the same folder becomes one, the others are added. Passwords are
+  merged the same way; open tabs stay per device.
 
-Known gaps: the sync code cannot be changed or revoked, a single device cannot be
-removed, and nothing deletes the chain's data on the server, although the server
-supports Chromium's ClearServerData; the iOS page accepts plain http to any host; the
-code is shown and copied without asking for the OS password. Linux 0.1.1, macOS 0.1.0
-and the iOS app do not hold data back until the passphrase is set, so a chain started
-on one of them may upload its first data unencrypted: start a chain on Windows 0.1.2 or
-later and only join it from the others.
+Known gaps: email accounts, a recovery code and pairing a device with a short code
+(ADR-0002's later steps) are not built; changing the password or the keys is not built;
+iOS still pins the core of the scheme before accounts and is not updated.
 
-The page shows one state at a time with the `hidden` attribute: the setup forms
-(start or join a chain) on a profile with no server, the status on a syncing one,
-and the banner "This device left its sync chain. Restart Alerse to finish." only
-once a profile has left its chain and its sync service still runs. The pages'
-shared style (`alerse_page_style.inc`, also the import and link-routing pages)
-makes every section a grid, and an author `display` beats the user agent's
-`[hidden]` rule, so the same style carries `[hidden] { display: none !important; }`
-(so does the iOS page's own CSS). The macOS 156 build's older Sync page did not
-have that rule, so a fresh profile showed the left banner and the status block,
-hidden but drawn, above the setup forms.
+The page shows one state at a time with the `hidden` attribute. The pages' shared style
+(`alerse_page_style.inc`, also the import and link-routing pages) makes every section a
+grid, and an author `display` beats the user agent's `[hidden]` rule, so the same style
+carries `[hidden] { display: none !important; }`.
 
 ### Server: alerse-sync
 
 Written for Alerse in Go: [alerse-sync](https://github.com/VizzleTF/alerse-sync). The
 Go module keeps the earlier name, `github.com/VizzleTF/arcomium-sync`. The protocol's
-identifiers never change with the product's name: the key derivation contexts
-(`arcomium-sync-token-v1`, `arcomium-sync-login-id-v1`, `arcomium-sync-login-auth`,
-`arcomium-sync-login-enc`, `arcomium-pair-*`) and the `pw-v1` and `pair-v1` schemes are
-part of the wire format. The switches are `--alerse-sync-url` and `--alerse-sync-secret`.
-It speaks the Chromium sync protocol (`POST /v2/command/`), with the protocol buffers of
+identifiers are part of the wire format and never change: the `sk-v1` derivation
+contexts (`alerse-sk-*`), the device token's `alerse-sync-device-token-v1`, and the
+chains' key derivation salt `arcomium-sync`. It serves only `/v3` since 0.2.0, and
+speaks the Chromium sync protocol (`POST /v3/chains/<chain>/command/`), with the protocol buffers of
 the Chromium tree we build, so every data type Chromium syncs works without server
 changes.
 
@@ -1980,7 +1917,7 @@ changes.
   that holds the chain's lock, so versions only grow and a device never misses a change.
   Any Postgres works: a container, CloudNativePG, or a free managed database (Neon,
   Supabase), which also makes the server itself stateless.
-- `GET /v2/events` Server-Sent Events: after a Commit, the server tells the chain's other
+- `GET /v3/chains/<chain>/events` Server-Sent Events: after a Commit, the server tells the chain's other
   devices which data types changed, through Postgres `NOTIFY` so several instances can
   share a database. The client (`alerse_sync_events.cc`) subscribes, reconnects with
   backoff from 5 seconds to 5 minutes, and triggers a sync cycle; without events the
@@ -2003,11 +1940,11 @@ built around DynamoDB and Redis, and [selfsync](https://github.com/loyalpartner/
 |---|---|---|---|
 | Home server | NAS, Raspberry Pi, homelab | free | `docker compose up -d` (server + Postgres). Reach it from outside through Tailscale, NetBird or a Cloudflare Tunnel (all free); no open ports needed. |
 | A VPS or cloud VM | no home server | a small VM | The same compose file; Caddy gets the certificate. |
-| Public server (planned) | everyone | free | One instance with the public-server limits of the server's README. Data is end-to-end encrypted. |
+| The Alerse server | everyone | free | `https://sync.alerse.app`, in the owner's homelab behind the NetBird Reverse Proxy, with the public-server limits of the server's README. Data is end-to-end encrypted. |
 | Own free cloud (later) | no server at all | free | A Cloudflare Workers port (one SQLite-backed Durable Object per chain; WebSocket hibernation for events) behind a "Deploy to Cloudflare" button. The free plan's 100k requests a day fit one person's devices. |
 
-Moving between options: the sync code stays the same; point the browser at the new URL
-and it uploads everything again.
+Moving between options: create an account on the new server and the data is uploaded
+again; accounts do not move between servers.
 
 ### Data mapping
 
@@ -2203,12 +2140,9 @@ these changes:
 - No crash dumps or debug symbols in releases, so crashes are known only by symptoms.
 - Few automated tests, and CI runs none of the browser's: the import and update-check
   unit tests run only locally.
-- No public sync server.
-- Sync, planned for the public server: OPAQUE (RFC 9807) for the email and password
-  sign-in, so the server would not see even the authentication key (each sign-in
-  record names its scheme, so OPAQUE can sit next to `pw-v1`); a second factor
-  (TOTP) for signing in with the email and password; verified email addresses
-  before a login name can be claimed. Pairing and sign-in on iOS.
+- Sync, the later steps of ADR-0002: email accounts with verified addresses and a
+  recovery code, pairing a device with a short code, changing the password or the
+  keys, OPAQUE (RFC 9807) for email sign-in. iOS on accounts.
 - From Arc: Share in the sidebar's menus on Windows and Linux (macOS has it on the
   system's sharing services; Arc for Windows' menus were not compared);
   the Ctrl+T hint on New Tab (each new string means a full resource rebuild, so they

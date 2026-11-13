@@ -2,13 +2,12 @@ diff --git a/components/sync/BUILD.gn b/components/sync/BUILD.gn
 index 1458d9d387b..69be325082d 100644
 --- a/components/sync/BUILD.gn
 +++ b/components/sync/BUILD.gn
-@@ -277,6 +277,9 @@ source_set("unit_tests") {
+@@ -277,6 +277,8 @@ source_set("unit_tests") {
      "service/sync_error_unittest.cc",
      "service/sync_feature_status_for_migrations_recorder_unittest.cc",
      "service/sync_internals_util_unittest.cc",
 +    "service/alerse_sync_code_unittest.cc",
-+    "service/alerse_sync_login_unittest.cc",
-+    "service/alerse_sync_pairing_unittest.cc",
++    "service/alerse_sync_sk_unittest.cc",
      "service/sync_prefs_unittest.cc",
      "service/sync_service_crypto_unittest.cc",
      "service/sync_service_impl_startup_unittest.cc",
@@ -16,7 +15,7 @@ diff --git a/components/sync/service/BUILD.gn b/components/sync/service/BUILD.gn
 index 60d8dc0f7d6..4e7bf97b3dc 100644
 --- a/components/sync/service/BUILD.gn
 +++ b/components/sync/service/BUILD.gn
-@@ -4,6 +4,16 @@
+@@ -4,6 +4,14 @@
  
  static_library("service") {
    sources = [
@@ -26,14 +25,12 @@ index 60d8dc0f7d6..4e7bf97b3dc 100644
 +    "alerse_sync_code.h",
 +    "alerse_sync_events.cc",
 +    "alerse_sync_events.h",
-+    "alerse_sync_login.cc",
-+    "alerse_sync_login.h",
-+    "alerse_sync_pairing.cc",
-+    "alerse_sync_pairing.h",
++    "alerse_sync_sk.cc",
++    "alerse_sync_sk.h",
      "active_devices_provider.h",
      "backend_migrator.cc",
      "backend_migrator.h",
-@@ -127,6 +137,7 @@ static_library("service") {
+@@ -127,6 +135,7 @@ static_library("service") {
      "//components/version_info",
      "//components/version_info:generate_version_info",
      "//services/network/public/cpp",
@@ -137,7 +134,7 @@ index 1f03761e186..165393bc468 100644
          EngineComponentsFactoryImpl::CreateForServerSync(
 -            EngineSwitchesFromCommandLine(), sync_service_url_,
 +            EngineSwitchesFromCommandLine(),
-+            alerse_account_ ? alerse_server_url : sync_service_url_,
++            alerse_account_ ? alerse_account_->sync_url() : sync_service_url_,
              base::BindOnce(
                  create_http_post_provider_factory_override_for_test_.value_or(
                      create_http_post_provider_factory_),
@@ -232,7 +229,7 @@ index 1f03761e186..165393bc468 100644
 +    // Owned here and reset with the engine, so Unretained is safe.
 +    alerse_events_ = std::make_unique<AlerseSyncEvents>(
 +        url_loader_factory_,
-+        AlerseSyncAccount::GetServerURL(*sync_client_->GetPrefService()),
++        alerse_account_->sync_url(),
 +        engine_->GetCacheGuid(),
 +        base::BindRepeating(
 +            [](const AlerseSyncAccount* account) {
