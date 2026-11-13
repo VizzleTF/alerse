@@ -1873,6 +1873,23 @@ dialog's Save as PDF makes a file of it. The sheet is a print-only part of the S
 page, so nothing is sent anywhere. After an account is created the words stay on the
 page, and the restart that starts sync waits for "I saved the words".
 
+### Saving to a password manager
+
+Password manager extensions cannot run on `chrome://` pages, and Chromium's own
+password manager does not save from them, so the words panel exports one entry
+instead: the words as the login, the password while the account was created on this
+page (the browser keeps no password), the server and how to add a device.
+
+- **Copy for Bitwarden**: Bitwarden's CSV (`reprompt` set, so the vault asks for the
+  master password before it shows the entry) goes to the clipboard, which Bitwarden's
+  Import data page takes pasted: no file is written. The page clears the clipboard
+  after 2 minutes if it still holds the entry.
+- **Download CSV**: `alerse-sync.csv` in Chrome's format (name, url, username,
+  password, note), which 1Password, Proton Pass, KeePassXC, Edge and Brave import. The
+  page says to delete the file after the import.
+- The sign-in form's fields carry `autocomplete="username"` and
+  `current-password`, for managers that fill such a page.
+
 ### From the scheme before accounts
 
 Up to 0.1.13 a sync chain had no account: the 24 words alone were the chain's secret,

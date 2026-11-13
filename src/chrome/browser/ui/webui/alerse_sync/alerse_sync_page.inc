@@ -105,6 +105,17 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
       <button id="print-sheet">Print recovery sheet</button>
       <button id="words-close" class="quiet">Close</button>
     </div>
+    <div class="pm">
+      <h3>Save to a password manager</h3>
+      <p class="note">Password manager extensions cannot reach this page, so the
+        entry goes in by import. It holds the words as the login<span
+        id="pm-with-password"> and the password</span>, with the server.</p>
+      <div class="actions">
+        <button id="pm-bitwarden">Copy for Bitwarden</button>
+        <button id="pm-csv">Download CSV</button>
+      </div>
+      <p id="pm-done" class="note" role="status" hidden></p>
+    </div>
     <div id="words-saved-box" hidden>
       <label class="check"><input id="words-saved" type="checkbox"> I saved the
         words</label>
@@ -145,7 +156,7 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
         password.</p>
       <label for="signin-words">24 words</label>
       <textarea id="signin-words" rows="3" spellcheck="false"
-                autocomplete="off"></textarea>
+                autocomplete="username"></textarea>
       <label for="signin-password">Password</label>
       <input id="signin-password" type="password" autocomplete="current-password">
       <p id="signin-error" class="error" role="alert" hidden></p>
@@ -220,6 +231,9 @@ dd { margin: 0; overflow-wrap: anywhere; }
   padding-top: 12px; }
 .device-list { list-style: none; margin: 0; padding: 0; display: grid;
   gap: 6px; }
+.pm { display: grid; gap: 8px; border-top: 1px solid var(--line);
+  padding-top: 12px; margin-top: 12px; }
+.pm h3 { margin: 0; font-size: 15px; }
 .device-list li { display: flex; align-items: center; gap: 12px;
   background: var(--bg); border-radius: 8px; padding: 8px 12px; }
 .device-list .name { font-weight: 500; flex: 1; overflow-wrap: anywhere; }
@@ -258,6 +272,10 @@ let state = {};
 // Set while the words of a new account are on screen: the restart waits
 // until the user says they are saved.
 let newAccount = false;
+// The words on screen, and the password of an account created just now: the
+// browser keeps no password, so only then can the entry carry it.
+let shownWords = '';
+let newPassword = '';
 
 function showError(id, message) {
   const el = $(id);
@@ -284,6 +302,9 @@ function fillWords(list, words) {
 }
 
 function showWords(words, fresh) {
+  shownWords = words;
+  $('pm-with-password').hidden = !newPassword;
+  $('pm-done').hidden = true;
   fillWords($('word-list'), words);
   fillWords($('sheet-words'), words);
   $('sheet-server').textContent = state.server || chosenServer();
@@ -387,6 +408,7 @@ $('create').addEventListener('submit', async (e) => {
     const {words} = await sendWithPromise(
         'createAccount', chosenServer(), $('create-password').value,
         $('create-confirm').value);
+    newPassword = $('create-password').value;
     $('create-password').value = $('create-confirm').value = '';
     newAccount = true;
     showWords(words, true);
@@ -423,6 +445,60 @@ $('words-open').addEventListener('click', async () => {
 $('words-close').addEventListener('click', () => {
   $('words').hidden = true;
   fillWords($('word-list'), '');
+  shownWords = newPassword = '';
+});
+
+// Password manager entries, by import: Bitwarden's CSV through the
+// clipboard, which its import page takes pasted, and Chrome's CSV as a file,
+// which 1Password, Proton Pass, KeePassXC, Edge and Brave import.
+function csvRow(fields) {
+  return fields.map((f) => '"' + String(f).replaceAll('"', '""') + '"')
+      .join(',');
+}
+function entry() {
+  const server = state.server || chosenServer();
+  const notes = 'Alerse sync: on a new device open Sync, pick ' + server +
+      ', sign in with these 24 words and the password.' +
+      (newPassword ? '' : ' Add the password to this entry.');
+  return {name: 'Alerse sync', server, words: shownWords,
+          password: newPassword, notes};
+}
+let clipboardTimer = 0;
+$('pm-bitwarden').addEventListener('click', async () => {
+  const e = entry();
+  const text = csvRow(['folder', 'favorite', 'type', 'name', 'notes',
+                       'fields', 'reprompt', 'login_uri', 'login_username',
+                       'login_password', 'login_totp']) + '\n' +
+      csvRow(['', '', 'login', e.name, e.notes, '', '1', e.server, e.words,
+              e.password, '']) + '\n';
+  await navigator.clipboard.writeText(text);
+  // The entry holds the account's secrets: they leave the clipboard soon.
+  clearTimeout(clipboardTimer);
+  clipboardTimer = setTimeout(async () => {
+    try {
+      if (await navigator.clipboard.readText() === text) {
+        await navigator.clipboard.writeText('');
+      }
+    } catch (error) {}
+  }, 120000);
+  $('pm-done').textContent = 'Copied. In Bitwarden open Tools, Import data, ' +
+      'pick the format "Bitwarden (csv)" and paste. The clipboard is cleared ' +
+      'in 2 minutes.';
+  $('pm-done').hidden = false;
+});
+$('pm-csv').addEventListener('click', () => {
+  const e = entry();
+  const text = csvRow(['name', 'url', 'username', 'password', 'note']) + '\n' +
+      csvRow([e.name, e.server, e.words, e.password, e.notes]) + '\n';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], {type: 'text/csv'}));
+  link.download = 'alerse-sync.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+  $('pm-done').textContent = 'Saved alerse-sync.csv. Import it in the ' +
+      'password manager, then delete the file: it holds the words' +
+      (e.password ? ' and the password.' : '.');
+  $('pm-done').hidden = false;
 });
 $('words-saved').addEventListener('change', () => render(state));
 $('print-sheet').addEventListener('click', () => window.print());
