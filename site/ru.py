@@ -83,7 +83,7 @@ PAIRS = [
     ('Press Import next to Arc. Every Space arrives with its pinned tabs, folders and icons.', 'Нажмите Import рядом с Arc. Каждый Space переедет со своими закреплёнными вкладками, папками и иконками.'),
     ('>What is not there<', '>Чего нет<'),
     ('Said plainly, so you can decide before you download.', 'Говорим прямо, чтобы решить до скачивания.'),
-    ('Not built: Easels, Boosts and the tab archive.', 'Нет Easels, Boosts и архива вкладок.'),
+    ('Not built: Easels and the tab archive.', 'Нет Easels и архива вкладок.'),
     ('Netflix and other DRM video play on macOS in a WebKit view, with Apple’s FairPlay; on Windows Alerse offers Microsoft Edge for them, since Google licenses Widevine only to browsers it has signed.', 'Netflix и другое видео с DRM играют на macOS во встроенном WebKit с FairPlay от Apple; на Windows Alerse предлагает для них Microsoft Edge, потому что Google выдаёт Widevine только браузерам, которые сам подписал.'),
     ('Builds are not code-signed by Apple or Microsoft yet: Windows SmartScreen asks once, macOS needs one terminal command.', 'Сборки пока не подписаны Apple и Microsoft: Windows SmartScreen спросит один раз, на macOS нужна одна команда в терминале.'),
     ('Alerse tells you about updates; you install them yourself.', 'Alerse сообщает об обновлениях, ставите их вы сами.'),

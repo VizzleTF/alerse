@@ -103,7 +103,9 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
   for Windows': the sidebar, Space bar, popovers, folder popup, page card, hidden
   sidebar and command bar are the Mac's.
 - **Downloads instead of the Library** at the left of the Space bar.
-- **Not built**: Easels, Boosts and the tab archive.
+- **Boosts**: your own look for a site (colors, dark, font, size, parts zapped away,
+  your CSS), from the site controls or Boost This Site in the command bar.
+- **Not built**: Easels and the tab archive.
 
 ## Move from Arc
 

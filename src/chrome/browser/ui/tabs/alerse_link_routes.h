@@ -20,6 +20,7 @@
 #include "base/strings/string_util.h"
 #include "base/files/file_path.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/ui/tabs/alerse_boost.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_data.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -96,6 +97,9 @@ inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) 
   // this is the call browser_prefs.cc makes for Alerse's profile prefs.
   registry->RegisterDictionaryPref(alerse_import::kImportFoldersPref);
   registry->RegisterStringPref(alerse_import::kImportKeyPref, std::string());
+  // Boosts (alerse_boost.h).
+  registry->RegisterDictionaryPref(kBoostsPref);
+  registry->RegisterBooleanPref(kBoostsEnabledPref, true);
 }
 
 inline std::vector<LinkRoute> GetLinkRoutes() {

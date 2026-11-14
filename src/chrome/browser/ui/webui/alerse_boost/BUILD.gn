@@ -1,0 +1,25 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("alerse_boost") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_boost_page.inc",
+    "alerse_boost_ui.cc",
+    "alerse_boost_ui.h",
+    "alerse_boosts.cc",
+    "alerse_boosts.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common",
+    "//components/prefs",
+    "//components/tabs:public",
+    "//net",
+    "//ui/views",
+    "//url",
+  ]
+}

@@ -42,8 +42,9 @@ that way:
 - No logo, icon or product name of Google, The Browser Company or Atlassian in the
   browser, the installers or the site.
 - "For people moving from Arc", "Arc-style": yes. "Arc 2", "the new Arc", Arc's logo: no.
-- Feature names Arc made its own (Easels, Boosts, Little Arc, Peek) appear only to say
-  they are not built.
+- Arc's own feature names: Little Arc is "Little window" and Easels are not built. Peek
+  and Boost are kept as the plain words they are (a peek at a link, a boost of a
+  site), with no Arc branding.
 - Screenshots for the site show neutral pages, not other companies' sites.
 
 The name Alerse turned up no software trademark in a web search (2026-11-13). A search

@@ -98,6 +98,8 @@ const Command kCommands[] = {
      &vector_icons::kSearchIcon, nullptr, u"show find"},
     {IDC_ALERSE_COPY_URL_QUOTE, Kind::kSidebar, IDS_ALERSE_COPY_URL_QUOTE,
      0, &vector_icons::kContentCopyIcon, nullptr, u"link selection"},
+    {IDC_ALERSE_BOOST_SITE, Kind::kBrowser, IDS_ALERSE_BOOST_SITE, 0,
+     &kBrushFilledIcon, nullptr, u"zap style css color font"},
     {IDC_OPTIONS, Kind::kBrowser, IDS_ALERSE_MENU_SETTINGS, 0,
      &vector_icons::kSettingsIcon, nullptr, u"preferences options"},
     {IDC_SHOW_HISTORY, Kind::kBrowser, IDS_ALERSE_VIEW_HISTORY, 0,

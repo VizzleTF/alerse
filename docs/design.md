@@ -520,7 +520,7 @@ Windows' numbers for those:
   "+" opens one above it, 210 pt wide and starting 6 pt from the window's left edge, as
   Arc's: New Space, New Folder, then New Split (Control+Shift+=, dimmed on an empty
   Space or a page already split, see Split View) and New Tab (Cmd+T); "+" turns into a
-  cross meanwhile, on its plate only while the pointer is on it. Arc's New Easel and New Boost rows are left out with those features. The same
+  cross meanwhile, on its plate only while the pointer is on it. Arc's New Easel row is left out with Easels, and New Boost with it (Boosts open from the site controls and the command bar). The same
   popover on every platform; off macOS its shortcuts read "Ctrl+Shift+=" and it is
   250 pt wide for them.
 
@@ -1063,7 +1063,7 @@ Appearance (Arc's light or dark web pages), Blank Window, Stay On Top, Find and
 Replace (Chromium has no replace), Reset all tabs in this Space, Change Profile and
 Manage Spaces are not there (Arc's New Little Arc Window is New Little Window, see
 Peek and the Little window); Arc-only items (Share Arc, Sign Out, Easels,
-Notes, Boosts, Capture, Library, View Archive, Clear Archive, Arc's help pages) are
+Notes, Capture, Library, View Archive, Clear Archive, Arc's help pages) are
 left out on purpose. Set as Default Browser stays enabled when Alerse is the
 default already (asking the system blocks, which the menu must not); Pin Tab, New
 Folder and Clear Today stay enabled where they would do nothing. An extension run from the
@@ -1547,8 +1547,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   tip sits 3 pt under the button, 13 pt corners, 10 pt margins, Arc's rim, and on
   macOS the icon pickers' vibrancy (half of #565656 over the window server's blur).
   Its top row is four 48x32 pt near black tiles: Share (macOS' picker for the page's
-  link; Copy Link elsewhere), Find, Screenshot and Reading Mode (Arc's Boost and
-  Capture have no counterpart). Under "Extensions" every extension is a tile on a
+  link; Copy Link elsewhere), Boost, Screenshot and Reading Mode (Arc's Capture has
+  no counterpart; Find in Page stays on Ctrl+F and in the command bar). Under "Extensions" every extension is a tile on a
   faint veil, four a row (click runs it, right click opens its menu with Pin and
   Unpin, `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
   runs only from a menu button and crashed on a tile); a pinned one carries a pin on a
@@ -1695,6 +1695,43 @@ asked for both, each with a switch (see Peek and the Little window).
 Wanted and built (2026-11-08): Split View without Peek (see Split View), Arc's icon
 pickers for pinned items, folders and Spaces (see Icon pickers), the macOS menu bar
 and the Arc look.
+
+## Boosts
+
+Arc's Boosts: a site's look of the user's own, seen by no one else
+(`chrome/browser/ui/webui/alerse_boost/`, `tabs/alerse_boost.h`,
+`views/tabs/vertical/alerse_boost_panel.cc`, `look/boosts.patch`; asked for on
+2026-11-14).
+
+- **Opening**: Boost in the site controls' top row, or Boost This Site in the command
+  bar. The panel is chrome://alerse-boost/?tab=<tab> in a bubble over the page's top
+  right corner, 340 px wide; the page stays live under it, and each change shows at
+  once. The same command closes it; so do Esc and its close button.
+- **What a boost holds**, per site (the registrable domain: www. and m.youtube.com
+  share youtube.com's), in the profile pref `alerse.boosts`: on or off; a color (the
+  page's hues turned round the wheel, `hue-rotate`); Dark (lightness inverted, hues
+  kept); a font (Sans, Serif, Mono or Round, never on code or icon fonts); a size (60
+  to 160 %, `zoom`); zapped elements (one CSS selector each); and the user's CSS.
+  Pictures, video, canvases and frames get the opposite filter first, so they keep
+  their own colors.
+- **Zap**: the panel steps aside, a red box follows the element under the pointer,
+  a click hides it on this site and the panel comes back with it listed (Restore
+  shows it again). Esc gives up. The page receives neither the click nor the key.
+  The selector prefers a unique id, else tag, two stable classes and the place among
+  its siblings, up to `body`.
+- **How it reaches the page**: `BoostTabHelper`, which each tab gets on its first
+  navigation (`MaybeAttachBoosts` in the navigation throttles' registration, which
+  adds no throttle), puts a constructed style sheet on the document from Chrome's
+  internal isolated world when the page commits, when its DOM is ready and when it
+  has loaded, and again whenever the boosts change. A constructed sheet is not
+  refused by a page's Content-Security-Policy as a `<style>` element is, and the
+  page's scripts cannot see the world it comes from.
+- **chrome://alerse-boost/** lists every boost (on or off, what it changes, Delete)
+  and holds the switch for all of them (`alerse.boosts_enabled`, on by default; a
+  site without a boost is untouched either way). The panel's All Boosts opens it.
+- **Not built**: Arc's boost JavaScript (a page's own script would need the page's
+  world, and Content-Security-Policy refuses an injected `<script>` on most sites) and
+  sharing boosts.
 
 ## Peek and the Little window
 

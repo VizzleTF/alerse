@@ -1,0 +1,107 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -324,6 +324,8 @@
+ #define IDC_ALERSE_REVEAL_TAB 40409
+ // Alerse: a small window of its own (alerse_peek.h).
+ #define IDC_ALERSE_NEW_LITTLE_WINDOW 40410
++// Alerse: the Boost panel for the shown site (alerse_boost.h).
++#define IDC_ALERSE_BOOST_SITE 40411
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -46,6 +46,7 @@
+ #include "chrome/browser/ui/passwords/well_known_change_password_navigation_throttle.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_redirection_throttle.h"
+ #include "chrome/browser/ui/tabs/alerse_peek.h"
++#include "chrome/browser/ui/webui/alerse_boost/alerse_boosts.h"
+ #include "chrome/browser/ui/webui/alerse_webkit/alerse_protected_video.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -306,6 +307,8 @@
+     alerse::MaybeAddProtectedVideoThrottle(registry);
+     // Alerse: a pinned tab's link to another site opens in Peek.
+     alerse::MaybeAddPeekThrottle(registry);
++    // Alerse: the tab's boost helper, which restyles its pages.
++    alerse::MaybeAttachBoosts(registry);
+ 
+     // Appends the X-Geo header to the navigation request if needed.
+     if (auto throttle =
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -28,6 +28,7 @@
+ #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
+ #include "chrome/browser/alerse_update/alerse_update_checker.h"
+ #include "chrome/browser/ui/tabs/alerse_command_bar_hook.h"
++#include "chrome/browser/ui/tabs/alerse_boost.h"
+ #include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+ #include "chrome/browser/ui/tabs/alerse_split.h"
+@@ -1034,6 +1035,10 @@
+         alerse::ShowLittleWindow(profile(), GURL());
+       }
+       break;
++    // Alerse: Arc's Boost editor for the shown site.
++    case IDC_ALERSE_BOOST_SITE:
++      alerse::ShowBoostPanel(browser_);
++      break;
+     // Alerse: the page of the newer release the update check found.
+     case IDC_ALERSE_UPDATE: {
+       const std::string update =
+@@ -2030,6 +2035,7 @@
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_NEW_LITTLE_WINDOW,
+                                          !guest_session);
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_BOOST_SITE, true);
+   for (int command :
+        {IDC_ALERSE_NEW_SPACE, IDC_ALERSE_NEXT_SPACE,
+         IDC_ALERSE_PREVIOUS_SPACE, IDC_ALERSE_RENAME_SPACE,
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -47,6 +47,7 @@
+ source_set("impl") {
+   sources = [
+     "alerse_app_menu.cc",
++    "alerse_boost_panel.cc",
+     "alerse_mini_player.cc",
+     "alerse_peek.cc",
+     "alerse_address_bar.cc",
+@@ -70,6 +71,8 @@
+     "//chrome/browser:browser_process",
+     "//chrome/browser:primitives",
+     "//chrome/browser/alerse_update",
++    # Alerse: the Boost panel shows its page in a web view.
++    "//ui/views/controls/webview",
+     "//components/favicon/content",
+     "//components/vector_icons",
+     "//services/media_session/public/cpp",
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -45,6 +45,7 @@
+     "//chrome/browser/ui/webui/alerse_import",
+     "//chrome/browser/ui/webui/alerse_links",
+     "//chrome/browser/ui/webui/alerse_sync",
++    "//chrome/browser/ui/webui/alerse_boost",
+     "//chrome/browser/ui/webui/alerse_webkit",
+     "//chrome/browser/ui/webui/alerse_welcome",
+     ":net_export_ui",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/browser_actuator/internals/browser_actuator_internals_ui.h"
+ #include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
+ #include "chrome/browser/ui/webui/alerse_import/alerse_import_ui.h"
++#include "chrome/browser/ui/webui/alerse_boost/alerse_boost_ui.h"
+ #include "chrome/browser/ui/webui/alerse_webkit/alerse_webkit_ui.h"
+ #include "chrome/browser/ui/webui/alerse_welcome/alerse_welcome_ui.h"
+ #include "chrome/browser/ui/webui/alerse_links/alerse_links_ui.h"
+@@ -348,6 +349,8 @@
+   map.AddWebUIConfig(std::make_unique<AlerseWelcomeUIConfig>());
+   // Alerse: streaming sites with protected video (alerse_protected_video.h).
+   map.AddWebUIConfig(std::make_unique<AlerseWebKitUIConfig>());
++  // Alerse: Boosts, a site's look of the user's own (alerse_boosts.h).
++  map.AddWebUIConfig(std::make_unique<AlerseBoostUIConfig>());
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)

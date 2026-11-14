@@ -576,4 +576,10 @@
   <message name="IDS_ALERSE_PEEK_ADDRESS" desc="Accessible name of the address field in Peek and in the Little window.">
     Address
   </message>
+  <message name="IDS_ALERSE_BOOST" desc="Button in the site controls that opens the Boost panel, Arc's editor of a site's look (its colors, font, size, hidden parts and CSS) for the user alone.">
+    Boost
+  </message>
+  <message name="IDS_ALERSE_BOOST_SITE" desc="Command bar action that opens the Boost panel for the shown site.">
+    Boost This Site
+  </message>
 </grit-part>

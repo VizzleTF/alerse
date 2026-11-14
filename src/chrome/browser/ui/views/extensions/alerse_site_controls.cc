@@ -977,9 +977,9 @@ class SiteControlsView : public views::View,
         browser_, index));
   }
 
-  // Arc's top row: Share, Boost, Screenshot, Capture. Alerse has no boosts
-  // and no captures: Share (macOS' picker; Copy Link elsewhere), Find,
-  // Screenshot and Reading Mode.
+  // Arc's top row: Share, Boost, Screenshot, Capture. Alerse has no
+  // captures: Share (macOS' picker; Copy Link elsewhere), Boost, Screenshot
+  // and Reading Mode. Find in Page stays in the command bar and on Ctrl+F.
   void AddActions() {
     struct Action {
       int command;
@@ -994,7 +994,8 @@ class SiteControlsView : public views::View,
         {IDC_COPY_URL, &vector_icons::kAlerseLinkIcon, Glyph::kNone,
          IDS_ALERSE_COPY_LINK},
 #endif
-        {IDC_FIND, &kFindInPageIcon, Glyph::kNone, IDS_ALERSE_FIND_IN_PAGE},
+        {IDC_ALERSE_BOOST_SITE, &kBrushFilledIcon, Glyph::kNone,
+         IDS_ALERSE_BOOST},
         {IDC_SHARING_HUB_SCREENSHOT, nullptr, Glyph::kCamera,
          IDS_ALERSE_SCREENSHOT},
         {IDC_SHOW_READING_MODE, &kMenuBookIcon, Glyph::kNone,
