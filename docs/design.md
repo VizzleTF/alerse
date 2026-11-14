@@ -1176,9 +1176,12 @@ What animates:
   an empty Space's tab, a pending rebuild, a drag or a curtain still rebuild.
 - **A row's close button** fades in over the quick token as the pointer enters the
   row and goes at once as it leaves; the title re-elides at once either way.
-- **Sidebar show / hide** keeps Chromium's animation, at the emphasized token
-  (`look/sidebar-motion.patch`). It still lays the sidebar and the page out on each
-  frame.
+- **Sidebar show / hide** (Ctrl+S / Command-S) runs Chromium's animation at the
+  emphasized token (`look/sidebar-motion.patch`), but the sidebar keeps its full
+  width and slides on its layer (`look/sidebar-slide.patch`); the page's edge follows
+  it. Chromium narrowed the sidebar on every frame, which squeezed the favorites into
+  slivers and cut the rows' titles down a letter at a time (seen frame by frame,
+  2026-11-14). The page is resized once, when hiding starts or showing ends.
 - **Floating sidebar** (`look/floating-sidebar-slide.patch`). The panel has its full
   size from the first frame to the last and slides on its layer; Chromium grew its
   width, which squeezed the rows anew on every frame, and emptied it before it shrank

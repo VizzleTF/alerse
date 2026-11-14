@@ -1,0 +1,60 @@
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -950,11 +950,26 @@
+         last_vertical_tab_strip_width_ = vertical_tab_strip_width;
+       }
+ 
++      // Alerse: hiding or showing, the sidebar keeps its full width and
++      // slides on its layer (VerticalTabStripRegionView), as Arc's does:
++      // Chromium squeezed its rows anew on every frame. The page's edge
++      // still follows the animated width.
++      int alerse_strip_width = vertical_tab_strip_width;
++      if (!alerse_floating &&
++          (vertical_tab_strip_animation.current_motion ==
++               TabStripAnimations::kExpand ||
++           vertical_tab_strip_animation.current_motion ==
++               TabStripAnimations::kCollapse)) {
++        alerse_strip_width = std::max(
++            vertical_tab_strip_width,
++            views().vertical_tab_strip_region_view->uncollapsed_width());
++      }
++
+       vertical_tab_strip_bounds =
+           gfx::Rect(params.visual_client_area.x(),
+                     params.visual_client_area.y() +
+                         vertical_tab_strip_animation.top_offset,
+-                    vertical_tab_strip_width,
++                    alerse_strip_width,
+                     params.visual_client_area.height() -
+                         vertical_tab_strip_animation.top_offset);
+       // Alerse: Arc for macOS' hidden sidebar floats 5 pt in from the
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -1353,6 +1353,25 @@
+     const float hidden = (1.0 - shown) * std::max(0, width() - 5);
+     transform.Translate(base::i18n::IsRTL() ? hidden : -hidden, 0);
+   }
++  // Hiding and showing slide the whole sidebar the same way: the layout
++  // keeps its full width, and what the animated width leaves out is moved
++  // past the window's edge.
++  const auto motion =
++      controller->GetCurrentMotion(TabStripAnimations::kVerticalTabStrip);
++  if (!IsAlerseFloating() && status != BrowserAnimationUpdate::kEnded &&
++      status != BrowserAnimationUpdate::kCanceled &&
++      (motion == TabStripAnimations::kExpand ||
++       motion == TabStripAnimations::kCollapse)) {
++    const double width_shown =
++        controller
++            ->GetCurrentValue(TabStripAnimations::kVerticalTabStrip,
++                              TabStripAnimations::kTabStripWidth)
++            .value_or(1.0);
++    const float hidden =
++        (1.0 - width_shown) *
++        std::max(0, uncollapsed_width() - tabs::kVerticalTabStripCollapsedWidth);
++    transform.Translate(base::i18n::IsRTL() ? hidden : -hidden, 0);
++  }
+   if (layer()->GetTargetTransform() != transform) {
+     layer()->SetTransform(transform);
+   }
