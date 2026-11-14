@@ -26,9 +26,12 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/alerse_link_routes.h"
+#include "chrome/browser/ui/tabs/alerse_spaces.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/common/referrer.h"
+#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
@@ -64,15 +67,45 @@ void ShowLittleWindow(Profile* profile, const GURL& url);
 // Adds the throttle that sends a pinned tab's links to other sites to Peek.
 void MaybeAddPeekThrottle(content::NavigationThrottleRegistry& registry);
 
+// A tab of a pinned item or a favorite, or one pinned in the tab strip.
+inline bool IsPinnedTab(BrowserWindowInterface* browser,
+                        content::WebContents* contents) {
+  if (!GetPinnedTabUuid(contents).empty()) {
+    return true;
+  }
+  TabStripModel* tabs = browser->GetTabStripModel();
+  const int index = tabs->GetIndexOfWebContents(contents);
+  return index != TabStripModel::kNoTab && tabs->IsTabPinned(index);
+}
+
+// Whether `url` is another site than the page of `contents`.
+inline bool IsOtherSite(content::WebContents* contents, const GURL& url) {
+  const GURL& from = contents->GetLastCommittedURL();
+  return !from.SchemeIsHTTPOrHTTPS() ||
+         !net::registry_controlled_domains::SameDomainOrHost(
+             url, from,
+             net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+}
+
 // Navigate()'s hook: true if Peek took the link. Shift+click asks for a new
-// window: with Peek on, the link opens in Peek instead.
+// window, and a pinned tab's link for a new tab in front (a target="_blank"
+// link, as most sites make theirs, often through a redirect of the site's
+// own): with Peek on, either opens in Peek instead. Ctrl+click, a tab in the
+// background, stays a tab.
 inline bool OpenLinkInPeek(const NavigateParams& params) {
   if (!PeekEnabled() || !params.browser || !params.source_contents ||
-      params.disposition != WindowOpenDisposition::NEW_WINDOW ||
       !ui::PageTransitionCoreTypeIs(params.transition,
                                     ui::PAGE_TRANSITION_LINK) ||
       params.browser->GetType() != BrowserWindowInterface::TYPE_NORMAL ||
       !params.url.SchemeIsHTTPOrHTTPS()) {
+    return false;
+  }
+  const bool shift_click =
+      params.disposition == WindowOpenDisposition::NEW_WINDOW;
+  const bool pinned_link =
+      params.disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB &&
+      IsPinnedTab(params.browser, params.source_contents);
+  if (!shift_click && !pinned_link) {
     return false;
   }
   ShowPeek(params.browser, params.url, params.referrer);

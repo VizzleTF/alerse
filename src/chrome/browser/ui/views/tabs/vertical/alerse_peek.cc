@@ -625,26 +625,32 @@ class PeekThrottle : public content::NavigationThrottle {
  public:
   using content::NavigationThrottle::NavigationThrottle;
 
-  ThrottleCheckResult WillStartRequest() override {
+  ThrottleCheckResult WillStartRequest() override { return Check(); }
+  // A link through the site's own redirect (google.com/url?q=...) leaves
+  // the site only here.
+  ThrottleCheckResult WillRedirectRequest() override { return Check(); }
+
+  const char* GetNameForLogging() override { return "AlersePeekThrottle"; }
+
+ private:
+  ThrottleCheckResult Check() {
     content::NavigationHandle* handle = navigation_handle();
     content::WebContents* contents = handle->GetWebContents();
     const GURL& url = handle->GetURL();
     const GURL& from = contents->GetLastCommittedURL();
-    if (!PeekEnabled() || GetPinnedTabUuid(contents).empty() ||
-        !handle->IsRendererInitiated() || !handle->HasUserGesture() ||
-        handle->IsPost() ||
+    if (!PeekEnabled() || !handle->IsRendererInitiated() ||
+        !handle->HasUserGesture() || handle->IsPost() ||
         !ui::PageTransitionCoreTypeIs(handle->GetPageTransition(),
                                       ui::PAGE_TRANSITION_LINK) ||
         !url.SchemeIsHTTPOrHTTPS() || !from.SchemeIsHTTPOrHTTPS() ||
-        net::registry_controlled_domains::SameDomainOrHost(
-            url, from,
-            net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES)) {
+        !IsOtherSite(contents, url)) {
       return PROCEED;
     }
     tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
     if (!tab || !tab->GetBrowserWindowInterface() ||
         tab->GetBrowserWindowInterface()->GetType() !=
-            BrowserWindowInterface::TYPE_NORMAL) {
+            BrowserWindowInterface::TYPE_NORMAL ||
+        !IsPinnedTab(tab->GetBrowserWindowInterface(), contents)) {
       return PROCEED;
     }
     // Posted: a navigation cannot start another while it is being decided.
@@ -666,8 +672,6 @@ class PeekThrottle : public content::NavigationThrottle {
             content::Referrer(from, network::mojom::ReferrerPolicy::kDefault)));
     return CANCEL_AND_IGNORE;
   }
-
-  const char* GetNameForLogging() override { return "AlersePeekThrottle"; }
 };
 
 }  // namespace

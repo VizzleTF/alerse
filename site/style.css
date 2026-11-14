@@ -8,6 +8,9 @@
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --gutter: 120px;
+  /* The side space: the gutter, or more on a wide screen, so that the content
+     stays 1360px wide and centered while bands and rules span the window. */
+  --side: max(var(--gutter), calc((100% - 1360px) / 2));
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -39,7 +42,7 @@ p { margin: 0; }
 .muted { color: var(--muted); }
 .small { font-size: 14px; line-height: 1.5; }
 .mono { font-family: var(--mono); font-size: 13px; }
-.wrap { padding: 0 var(--gutter); }
+.wrap { padding: 0 var(--side); }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 16px; top: 16px; z-index: 10; background: var(--surface); padding: 8px 12px; }
 @media (prefers-reduced-motion: no-preference) {
@@ -47,7 +50,7 @@ p { margin: 0; }
 }
 
 /* Header */
-.header { display: flex; align-items: center; justify-content: space-between; padding: 14px var(--gutter); border-bottom: 1px solid var(--line); }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 14px var(--side); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: center; gap: 12px; color: var(--text); font-size: 20px; font-weight: 500; }
 .brand:hover { text-decoration: none; }
 .brand img { width: 32px; height: 32px; border-radius: 7px; }
@@ -75,19 +78,19 @@ p { margin: 0; }
 .button-small { height: 36px; padding: 0 14px; font-size: 14px; }
 
 /* Screenshots */
-.shot { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--line); }
+.shot { width: fit-content; max-width: 100%; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--line); }
 
 /* Landing */
-.hero { display: grid; grid-template-columns: 440px 1fr; gap: 64px; align-items: center; padding: 96px var(--gutter) 88px; }
+.hero { display: grid; grid-template-columns: 440px 1fr; gap: 64px; align-items: center; padding: 96px var(--side) 88px; }
 .hero-text { display: grid; gap: 24px; }
 .hero .lead { font-size: 17px; color: var(--muted); }
 .cta { display: grid; gap: 6px; justify-items: start; padding-top: 8px; }
-.rule { width: 48px; height: 2px; background: var(--ochre); margin: 0 var(--gutter); }
-.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; padding: 64px var(--gutter) 96px; }
+.rule { width: 48px; height: 2px; background: var(--ochre); margin: 0 var(--side); }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 48px; padding: 64px var(--side) 96px; }
 .facts h3 { margin-bottom: 10px; }
 .facts p { font-size: 16px; color: var(--muted); }
 .band { background: var(--surface); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.features { display: grid; gap: 96px; padding: 96px var(--gutter); }
+.features { display: grid; gap: 96px; padding: 96px var(--side); }
 .features-head { max-width: 640px; display: grid; gap: 12px; }
 .feature { display: grid; grid-template-columns: 400px 1fr; gap: 72px; align-items: center; }
 .feature.flip { grid-template-columns: 1fr 400px; }
@@ -98,7 +101,7 @@ p { margin: 0; }
 .feature-text li { font-size: 14px; color: var(--muted); }
 .feature-text li::before { content: "— "; }
 .feature .shot.narrow { max-width: 440px; }
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 96px; padding: 112px var(--gutter); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 96px; padding: 112px var(--side); }
 .split > div { display: grid; gap: 16px; align-content: start; }
 .kv { border-top: 1px solid var(--line); }
 .kv div { display: grid; grid-template-columns: 120px 1fr; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--line); }
@@ -110,10 +113,10 @@ p { margin: 0; }
 .gaps { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
 .platforms { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
 .platform { display: grid; gap: 8px; align-content: start; justify-items: start; padding: 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
-.downloads { display: grid; gap: 40px; padding: 96px var(--gutter); }
+.downloads { display: grid; gap: 40px; padding: 96px var(--side); }
 
 /* Download page */
-.page { display: grid; gap: 40px; padding: 88px var(--gutter) 112px; }
+.page { display: grid; gap: 40px; padding: 88px var(--side) 112px; }
 .page-head { max-width: 720px; display: grid; gap: 14px; }
 .table { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
 .table .head, .table .row { display: grid; grid-template-columns: 190px 140px 170px 180px 1fr; gap: 24px; padding: 20px 28px; }
@@ -142,7 +145,7 @@ p { margin: 0; }
 .reading th, .reading td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); }
 
 /* Footer */
-.footer { padding: 40px var(--gutter); border-top: 1px solid var(--line); display: grid; gap: 24px; }
+.footer { padding: 40px var(--side); border-top: 1px solid var(--line); display: grid; gap: 24px; }
 .footer-main { display: flex; justify-content: space-between; align-items: center; gap: 48px; }
 .footer-brand { display: flex; gap: 14px; align-items: center; max-width: 560px; font-size: 14px; color: var(--muted); }
 .footer-brand img { width: 24px; height: 24px; border-radius: 5px; }
@@ -161,7 +164,7 @@ p { margin: 0; }
   .table .head { display: none; }
   .table .row { grid-template-columns: 1fr; gap: 10px; }
   .table .name { grid-auto-flow: column; justify-content: space-between; align-items: center; }
-  .reading { padding: 56px var(--gutter) 80px; }
+  .reading { padding: 56px var(--side) 80px; }
   .footer-main { flex-direction: column; align-items: start; gap: 20px; }
 }
 /* Phone */
@@ -170,7 +173,7 @@ p { margin: 0; }
   h1 { font-size: 32px; }
   h2 { font-size: 24px; }
   .nav { display: none; }
-  .hero { padding: 40px var(--gutter) 48px; }
+  .hero { padding: 40px var(--side) 48px; }
   .features, .split, .downloads, .page { padding-top: 56px; padding-bottom: 56px; }
   .table .name { grid-auto-flow: row; }
   .diagram { flex-direction: column; gap: 10px; }

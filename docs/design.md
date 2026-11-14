@@ -1706,10 +1706,12 @@ in Arc.
   the sides, 12 px corners, rising 8 px and fading in over 160 ms (none with reduced
   motion). Its header has the address (editable: Enter loads what is typed, a site or
   a search), Open as Tab and Close. Shift+click a link opens it in Peek (Chromium's
-  new window; `OpenLinkInPeek` in Navigate()), and so does a click in a pinned tab on
-  a link to another site (`PeekThrottle`: a renderer-initiated link navigation with a
-  user gesture, not a form post, to another registrable domain, cancelled and shown in
-  Peek). Esc, Close or a click on the dimmed part closes it; another link replaces its
+  new window; `OpenLinkInPeek` in Navigate()). In a pinned tab (a pinned item's or a
+  favorite's, or one pinned in the tab strip) so does a link that opens a new tab in
+  front (`target="_blank"`, whatever its site), and a click on a link to another site
+  (`PeekThrottle`: a renderer-initiated link navigation with a user gesture, not a form
+  post, to another registrable domain on start or after a redirect, as Google's
+  google.com/url, cancelled and shown in Peek). Ctrl+click still opens a tab behind. Esc, Close or a click on the dimmed part closes it; another link replaces its
   page. Open as Tab gives the page to the window's tab strip with its history and
   state. Peek follows the window when it moves or resizes and closes with it.
 - **The Little window** is a small window of its own (560 x 720, centered at the top
