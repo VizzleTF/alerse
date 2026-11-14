@@ -48,8 +48,47 @@ inline std::string LinkRouteSpaceOf(const base::FilePath& path) {
   return name == "Default" ? std::string() : name;
 }
 
+// Whether Peek and the Little window are on (alerse_peek.h): Local State
+// prefs shared by every Space, set on the Link routing page; both on, as in
+// Arc.
+inline constexpr char kPeekPref[] = "alerse.peek";
+inline constexpr char kLittleWindowPref[] = "alerse.little_window";
+
+// The pages' names of the two switches: "peek" and "littleWindow".
+inline const char* LinkOptionPref(std::string_view name) {
+  if (name == "peek") {
+    return kPeekPref;
+  }
+  if (name == "littleWindow") {
+    return kLittleWindowPref;
+  }
+  return nullptr;
+}
+
+// {peek, littleWindow}, for the pages.
+inline base::DictValue LinkOptions() {
+  PrefService* local_state = g_browser_process->local_state();
+  return base::DictValue()
+      .Set("peek", local_state && local_state->GetBoolean(kPeekPref))
+      .Set("littleWindow",
+           local_state && local_state->GetBoolean(kLittleWindowPref));
+}
+
+// Sets a switch the pages name; false for a name that is none.
+inline bool SetLinkOption(std::string_view name, bool on) {
+  const char* pref = LinkOptionPref(name);
+  PrefService* local_state = g_browser_process->local_state();
+  if (!pref || !local_state) {
+    return false;
+  }
+  local_state->SetBoolean(pref, on);
+  return true;
+}
+
 inline void RegisterLinkRoutesLocalState(PrefRegistrySimple* registry) {
   registry->RegisterListPref(kLinkRoutesPref);
+  registry->RegisterBooleanPref(kPeekPref, true);
+  registry->RegisterBooleanPref(kLittleWindowPref, true);
 }
 
 inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {

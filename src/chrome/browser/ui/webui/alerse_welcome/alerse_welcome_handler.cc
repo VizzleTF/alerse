@@ -16,6 +16,7 @@
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/tabs/alerse_link_routes.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
@@ -90,6 +91,7 @@ void AlerseWelcomeHandler::RegisterMessages() {
   add("setSearchEngine", &AlerseWelcomeHandler::HandleSetSearchEngine);
   add("setTheme", &AlerseWelcomeHandler::HandleSetTheme);
   add("setDefaultBrowser", &AlerseWelcomeHandler::HandleSetDefaultBrowser);
+  add("setLinkOption", &AlerseWelcomeHandler::HandleSetLinkOption);
 }
 
 void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {
@@ -128,6 +130,7 @@ void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {
   base::DictValue state;
   state.Set("engines", std::move(engines));
   state.Set("theme", theme);
+  state.Set("options", alerse::LinkOptions());
   // Whether Alerse is the default browser comes from the system, in a
   // moment; the page asks for it with setDefaultBrowser(false).
   ResolveJavascriptCallback(base::Value(callback_id), std::move(state));
@@ -171,6 +174,19 @@ void AlerseWelcomeHandler::HandleSetTheme(const base::ListValue& args) {
     if (ThemeService* themes = ThemeServiceFactory::GetForProfile(profile)) {
       themes->SetBrowserColorScheme(scheme);
     }
+  }
+  ResolveJavascriptCallback(base::Value(callback_id), base::Value());
+}
+
+// [callback, name, on]: Peek or the Little window on or off.
+void AlerseWelcomeHandler::HandleSetLinkOption(const base::ListValue& args) {
+  AllowJavascript();
+  const std::string callback_id = args[0].GetString();
+  if (args.size() != 3 || !args[1].is_string() || !args[2].is_bool() ||
+      !alerse::SetLinkOption(args[1].GetString(), args[2].GetBool())) {
+    RejectJavascriptCallback(base::Value(callback_id),
+                             base::Value("unknown option"));
+    return;
   }
   ResolveJavascriptCallback(base::Value(callback_id), base::Value());
 }

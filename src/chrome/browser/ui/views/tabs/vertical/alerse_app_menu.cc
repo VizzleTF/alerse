@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
+#include "chrome/browser/ui/tabs/alerse_peek.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -114,6 +115,10 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
                   l10n_util::GetStringUTF16(IDS_ALERSE_MENU_NEW_WINDOW));
     root_.AddItem(IDC_NEW_INCOGNITO_WINDOW,
                   l10n_util::GetStringUTF16(IDS_ALERSE_MENU_NEW_INCOGNITO));
+    if (alerse::LittleWindowEnabled()) {
+      root_.AddItem(IDC_ALERSE_NEW_LITTLE_WINDOW,
+                    l10n_util::GetStringUTF16(IDS_ALERSE_NEW_LITTLE_WINDOW));
+    }
     root_.AddSeparator(ui::NORMAL_SEPARATOR);
 
     spaces_.AddItem(kNewSpace, l10n_util::GetStringUTF16(IDS_ALERSE_NEW_SPACE));

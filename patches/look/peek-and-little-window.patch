@@ -1,0 +1,133 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -322,6 +322,8 @@
+ // Reveal Tab in Sidebar.
+ #define IDC_ALERSE_COPY_URL_QUOTE 40408
+ #define IDC_ALERSE_REVEAL_TAB 40409
++// Alerse: a small window of its own (alerse_peek.h).
++#define IDC_ALERSE_NEW_LITTLE_WINDOW 40410
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -28,6 +28,7 @@
+ #include "chrome/browser/actor/ui/actor_overlay_web_view.h"
+ #include "chrome/browser/alerse_update/alerse_update_checker.h"
+ #include "chrome/browser/ui/tabs/alerse_command_bar_hook.h"
++#include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+ #include "chrome/browser/ui/tabs/alerse_split.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+@@ -1027,6 +1028,12 @@
+     case IDC_ALERSE_IMPORT:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-import/"));
+       break;
++    // Alerse: Arc's Little Arc, unless it is turned off.
++    case IDC_ALERSE_NEW_LITTLE_WINDOW:
++      if (alerse::LittleWindowEnabled()) {
++        alerse::ShowLittleWindow(profile(), GURL());
++      }
++      break;
+     // Alerse: the page of the newer release the update check found.
+     case IDC_ALERSE_UPDATE: {
+       const std::string update =
+@@ -2021,6 +2028,8 @@
+   command_updater_->UpdateCommandEnabled(
+       IDC_ALERSE_IMPORT, !guest_session && !profile()->IsOffTheRecord());
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_NEW_LITTLE_WINDOW,
++                                         !guest_session);
+   for (int command :
+        {IDC_ALERSE_NEW_SPACE, IDC_ALERSE_NEXT_SPACE,
+         IDC_ALERSE_PREVIOUS_SPACE, IDC_ALERSE_RENAME_SPACE,
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -237,6 +237,11 @@
+     {ui::VKEY_N, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_NEW_INCOGNITO_WINDOW},
+     {ui::VKEY_N, ui::EF_PLATFORM_ACCELERATOR, IDC_NEW_WINDOW},
++#if !BUILDFLAG(IS_MAC)
++    // Alerse: Arc's New Little Arc Window key on Windows.
++    {ui::VKEY_N, ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN,
++     IDC_ALERSE_NEW_LITTLE_WINDOW},
++#endif
+     {ui::VKEY_T, ui::EF_SHIFT_DOWN | ui::EF_PLATFORM_ACCELERATOR,
+      IDC_RESTORE_TAB},
+ 
+--- a/chrome/browser/global_keyboard_shortcuts_mac.mm
++++ b/chrome/browser/global_keyboard_shortcuts_mac.mm
+@@ -160,6 +160,8 @@
+       // items show Control-Shift-= and -Minus (main_menu_builder.mm).
+       {false, true,  true,  false, kVK_ANSI_Equal,        IDC_NEW_SPLIT_TAB},
+       {false, true,  true,  false, kVK_ANSI_Minus,        IDC_ALERSE_CLOSE_SPLIT_PANE},
++      // Alerse: Arc's New Little Arc Window, Option-Command-N.
++      {true,  false, false, true,  kVK_ANSI_N,            IDC_ALERSE_NEW_LITTLE_WINDOW},
+       {true,  true,  false, true,  kVK_ANSI_A,            IDC_FOCUS_INACTIVE_POPUP_FOR_ACCESSIBILITY},
+       {true,  false, false, true,  kVK_ANSI_R,            IDC_SHOW_READING_MODE_KEYBOARD},
+     });
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -240,6 +240,10 @@
+                   .command_id(IDC_NEW_WINDOW),
+               Item(IDS_NEW_INCOGNITO_WINDOW_MAC)
+                   .command_id(IDC_NEW_INCOGNITO_WINDOW)
++                  .remove_if(is_pwa),
++              // Alerse: Arc's New Little Arc Window.
++              Item(IDS_ALERSE_NEW_LITTLE_WINDOW)
++                  .command_id(IDC_ALERSE_NEW_LITTLE_WINDOW)
+                   .remove_if(is_pwa),
+               Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                   .command_id(IDC_NEW_ISOLATED_WINDOW)
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -42,6 +42,7 @@
+ #include "chrome/browser/ui/status_bubble.h"
+ #include "chrome/browser/ui/tab_helpers.h"
+ #include "chrome/browser/ui/tabs/alerse_link_router.h"
++#include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -731,6 +732,12 @@
+   if (alerse::RouteLinkToSpace(*params)) {
+     return nullptr;
+   }
++  // Alerse: Shift+click opens a link in Peek, and a link from another app
++  // that no route takes opens in a Little window (alerse_peek.h).
++  if (alerse::OpenLinkInPeek(*params) ||
++      alerse::OpenExternalLinkInLittleWindow(*params)) {
++    return nullptr;
++  }
+ 
+   // If no source WebContents was specified, we use the selected one from the
+   // target browser. This must happen before GetBrowserAndTabForDisposition()
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -45,6 +45,7 @@
+ #include "chrome/browser/ui/passwords/password_manager_navigation_throttle.h"
+ #include "chrome/browser/ui/passwords/well_known_change_password_navigation_throttle.h"
+ #include "chrome/browser/ui/web_applications/navigation_capturing_redirection_throttle.h"
++#include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/webui/alerse_webkit/alerse_protected_video.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+@@ -303,6 +304,8 @@
+     // Alerse: a streaming site with protected video opens in
+     // chrome://alerse-webkit, which plays it in WebKit on macOS.
+     alerse::MaybeAddProtectedVideoThrottle(registry);
++    // Alerse: a pinned tab's link to another site opens in Peek.
++    alerse::MaybeAddPeekThrottle(registry);
+ 
+     // Appends the X-Geo header to the navigation request if needed.
+     if (auto throttle =
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -48,6 +48,7 @@
+   sources = [
+     "alerse_app_menu.cc",
+     "alerse_mini_player.cc",
++    "alerse_peek.cc",
+     "alerse_address_bar.cc",
+     "alerse_sidebar_view.cc",
+     "alerse_space_color.cc",

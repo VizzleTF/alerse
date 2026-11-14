@@ -108,6 +108,21 @@ void AlerseLinksHandler::RegisterMessages() {
       "removeRoute",
       base::BindRepeating(&AlerseLinksHandler::HandleRemoveRoute,
                           base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
+      "setLinkOption",
+      base::BindRepeating(&AlerseLinksHandler::HandleSetLinkOption,
+                          base::Unretained(this)));
+}
+
+// [callback, name, on]: Peek or the Little window on or off.
+void AlerseLinksHandler::HandleSetLinkOption(const base::ListValue& args) {
+  AllowJavascript();
+  if (args.size() != 3 || !args[1].is_string() || !args[2].is_bool() ||
+      !alerse::SetLinkOption(args[1].GetString(), args[2].GetBool())) {
+    RejectJavascriptCallback(args[0], base::Value("unknown option"));
+    return;
+  }
+  ResolveJavascriptCallback(args[0], BuildState());
 }
 
 base::DictValue AlerseLinksHandler::BuildState() const {
@@ -136,7 +151,8 @@ base::DictValue AlerseLinksHandler::BuildState() const {
   }
   return base::DictValue()
       .Set("spaces", std::move(space_list))
-      .Set("routes", std::move(route_list));
+      .Set("routes", std::move(route_list))
+      .Set("options", alerse::LinkOptions());
 }
 
 void AlerseLinksHandler::HandleGetState(const base::ListValue& args) {

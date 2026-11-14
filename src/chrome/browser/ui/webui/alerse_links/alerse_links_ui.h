@@ -55,6 +55,7 @@ class AlerseLinksHandler : public content::WebUIMessageHandler {
   void HandleGetState(const base::ListValue& args);
   void HandleAddRoute(const base::ListValue& args);
   void HandleRemoveRoute(const base::ListValue& args);
+  void HandleSetLinkOption(const base::ListValue& args);
 
   base::DictValue BuildState() const;
 

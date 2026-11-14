@@ -5,7 +5,8 @@ How each Alerse feature maps onto Chromium, and why it is built that way.
 Goals: Spaces with separate accounts in one window, a sidebar for people moving from Arc,
 a command bar, Split View, real-time sync across Windows, macOS, Linux and iPhone, link routing to
 Spaces, media controls and picture-in-picture. Left out by the user's choice: Arc's tab
-archive, Peek and Little Arc (see [Left out on purpose](#left-out-on-purpose)).
+archive (see [Left out on purpose](#left-out-on-purpose)). Peek and Little Arc are
+built, each with a switch (see Peek and the Little window).
 
 Alerse follows how Arc behaves, not how it looks in detail: its own names, icons, logo
 and texts, and none of Arc's code or artwork.
@@ -1060,7 +1061,8 @@ Menu bar gaps:
 Arc's Show Toolbar (Shift+Cmd+D; Alerse for macOS has no toolbar to show), View >
 Appearance (Arc's light or dark web pages), Blank Window, Stay On Top, Find and
 Replace (Chromium has no replace), Reset all tabs in this Space, Change Profile and
-Manage Spaces are not there; Arc-only items (Share Arc, Sign Out, Little Arc, Easels,
+Manage Spaces are not there (Arc's New Little Arc Window is New Little Window, see
+Peek and the Little window); Arc-only items (Share Arc, Sign Out, Easels,
 Notes, Boosts, Capture, Library, View Archive, Clear Archive, Arc's help pages) are
 left out on purpose. Set as Default Browser stays enabled when Alerse is the
 default already (asking the system blocks, which the menu must not); Pin Tab, New
@@ -1571,7 +1573,7 @@ themselves.
 
 Arc's Split View on Chromium's split tabs (`look/split-view.patch`,
 `alerse_split.h`): two pages side by side in one window, each a tab of the Space.
-The user asked for it back on 2026-11-08 after it had been taken out; Peek stays out.
+The user asked for it back on 2026-11-08 after it had been taken out.
 
 - **Add Split View** is Chromium's `IDC_NEW_SPLIT_TAB` (`chrome::NewSplitTab`): the
   shown tab and a new pane on Chromium's "Choose a tab" page
@@ -1683,18 +1685,44 @@ The user decided against these Arc features, so they are deliberately not built:
   before); Clear Today (macOS' Tabs menu,
   Shift+Cmd+K) closes the Space's unpinned tabs. There is no archive page, setting,
   command or key.
-- **Peek**, Arc's floating preview of a link over the page: Shift+click opens a
-  new window and a pinned tab's links open new tabs, as in Chromium. There is no
-  Peek setting on the Link routing page.
-- **Little Arc**, Arc's small window for a quick look at a page (New Little Arc
-  Window, Option-Command-N / Ctrl+Alt+N, and links from other apps opening in it):
-  the user's choice (2026-11-08). There is no Little Arc command, menu item, key,
-  window or setting; links from other apps open in a tab of the Space a route sends
-  them to, else of the Space last shown, as before.
+
+Peek and Little Arc were on this list from 2026-11-08 until 2026-11-14, when the user
+asked for both, each with a switch (see Peek and the Little window).
 
 Wanted and built (2026-11-08): Split View without Peek (see Split View), Arc's icon
 pickers for pinned items, folders and Spaces (see Icon pickers), the macOS menu bar
 and the Arc look.
+
+## Peek and the Little window
+
+Arc's two ways to look at a page without a tab (`chrome/browser/ui/tabs/alerse_peek.h`,
+`views/tabs/vertical/alerse_peek.cc`, `look/peek-and-little-window.patch`). Each has a
+switch on the Link routing page and a step of the welcome page: the Local State prefs
+`alerse.peek` and `alerse.little_window`, shared by every Space, both on by default as
+in Arc.
+
+- **Peek** opens a link in a panel over the window's page: the page area dimmed, the
+  panel inset 20 px top and bottom and a fourteenth of the width (at least 24 px) at
+  the sides, 12 px corners, rising 8 px and fading in over 160 ms (none with reduced
+  motion). Its header has the address (editable: Enter loads what is typed, a site or
+  a search), Open as Tab and Close. Shift+click a link opens it in Peek (Chromium's
+  new window; `OpenLinkInPeek` in Navigate()), and so does a click in a pinned tab on
+  a link to another site (`PeekThrottle`: a renderer-initiated link navigation with a
+  user gesture, not a form post, to another registrable domain, cancelled and shown in
+  Peek). Esc, Close or a click on the dimmed part closes it; another link replaces its
+  page. Open as Tab gives the page to the window's tab strip with its history and
+  state. Peek follows the window when it moves or resizes and closes with it.
+- **The Little window** is a small window of its own (560 x 720, centered at the top
+  of the screen the pointer is on, resizable) with the address and Open in Alerse.
+  New Little Window opens one on an empty page with the address focused: Ctrl+Alt+N on
+  Windows and Linux (the logo menu has it while the switch is on), Option-Command-N
+  and File > New Little Window on macOS. A link from another app opens in one when no
+  link route matches it and the window it would go to has tabs (a browser starting
+  for the link opens it as a tab). Open in Alerse gives the page to the Space's last
+  active window, or opens it in the Space when it has none.
+- In both, a link the page opens in a new tab or window opens as a tab of the Space;
+  the page has no tab helpers until it is a tab, so autofill, password saving,
+  JavaScript dialogs and extensions' content scripts wait for Open as Tab.
 
 ## First start
 

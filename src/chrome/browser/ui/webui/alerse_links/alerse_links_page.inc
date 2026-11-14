@@ -26,6 +26,25 @@ inline constexpr char kAlerseLinksHtml[] = R"HTML(<!doctype html>
       the Space you are in.</p>
   </header>
 
+  <section class="card">
+    <h2>Looking at a link</h2>
+    <label class="switch">
+      <input id="peek" type="checkbox">
+      <span><strong>Peek</strong>
+        <span class="note">Shift+click a link, or click a link to another site
+          in a pinned tab, and it opens over the page. Open as Tab keeps it;
+          Esc closes it.</span></span>
+    </label>
+    <label class="switch">
+      <input id="little-window" type="checkbox">
+      <span><strong>Little window</strong>
+        <span class="note">New Little Window (Ctrl+Alt+N, or Option-Command-N
+          on a Mac) opens a small window for a quick look, and links from
+          other apps that no route below takes open in one. Open in Alerse
+          moves its page to a tab.</span></span>
+    </label>
+  </section>
+
   <form id="add" class="card" novalidate>
     <h2>Add a route</h2>
     <div class="fields">
@@ -55,6 +74,10 @@ inline constexpr char kAlerseLinksHtml[] = R"HTML(<!doctype html>
 )HTML";
 
 inline constexpr char kAlerseLinksCss[] = R"CSS(
+.switch { display: grid; grid-template-columns: auto 1fr; gap: 10px;
+  align-items: start; padding: 6px 0; cursor: pointer; }
+.switch input { margin-top: 3px; }
+.switch .note { display: block; }
 .fields { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
 @media (max-width: 30rem) { .fields { grid-template-columns: 1fr; } }
 .field { display: grid; gap: 6px; min-width: 0; }
@@ -81,6 +104,8 @@ import {sendWithPromise} from 'chrome://resources/js/cr.js';
 const $ = (id) => document.getElementById(id);
 
 function render(state) {
+  $('peek').checked = state.options.peek;
+  $('little-window').checked = state.options.littleWindow;
   const select = $('space');
   const chosen = select.value;
   select.replaceChildren(...state.spaces.map((space) => new Option(space.name, space.id)));
@@ -122,6 +147,12 @@ $('add').addEventListener('submit', async (e) => {
     $('add-error').hidden = false;
   }
 });
+
+for (const [id, name] of [['peek', 'peek'], ['little-window', 'littleWindow']]) {
+  $(id).addEventListener('change', async () => {
+    render(await sendWithPromise('setLinkOption', name, $(id).checked));
+  });
+}
 
 sendWithPromise('getState').then(render);
 )JS";

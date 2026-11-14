@@ -83,6 +83,10 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 - **Import from Arc and other browsers**: Arc's Spaces, pinned tabs, nested folders and
   icons, and the bookmarks of Chrome, Edge, Brave, Vivaldi, Opera, Yandex Browser and
   Chromium, built in, with their Chrome Web Store extensions.
+- **Peek and the Little window**: Shift+click a link, or click a link to another site
+  in a pinned tab, and it opens over the page; Ctrl+Alt+N (Option-Command-N) opens a
+  small window, where links from other apps open too. Both can be turned off on the
+  Link routing page.
 - **Netflix on macOS**: streaming sites with DRM open in a WebKit view inside the tab,
   which plays them with Apple's FairPlay.
 
@@ -99,7 +103,7 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
   for Windows': the sidebar, Space bar, popovers, folder popup, page card, hidden
   sidebar and command bar are the Mac's.
 - **Downloads instead of the Library** at the left of the Space bar.
-- **Not built**: Easels, Boosts, Little Arc, Peek and the tab archive.
+- **Not built**: Easels, Boosts and the tab archive.
 
 ## Move from Arc
 

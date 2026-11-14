@@ -66,6 +66,24 @@ inline constexpr char kAlerseWelcomeHtml[] = R"HTML(<!doctype html>
     </div>
   </section>
 
+  <section class="step" data-step="links" hidden>
+    <h1>Looking at a link</h1>
+    <p class="lede">Two ways to see a page without making a tab of it, as in
+      Arc. Both stay on the Link routing page in the Alerse menu.</p>
+    <div class="choices" role="group" aria-label="Looking at a link">
+      <button class="choice" id="opt-peek" role="switch" aria-checked="true">
+        <span class="name">Peek</span>
+        <span class="note">Shift+click a link, or click a link to another site
+          in a pinned tab: it opens over the page. Open as Tab keeps it.</span>
+      </button>
+      <button class="choice" id="opt-little" role="switch" aria-checked="true">
+        <span class="name">Little window</span>
+        <span class="note" id="little-note">A small window for a quick look,
+          and where links from other apps open.</span>
+      </button>
+    </div>
+  </section>
+
   <section class="step" data-step="sync" hidden>
     <h1>Sync, if you want it</h1>
     <p class="lede">Bookmarks, tabs, Spaces, passwords and settings, encrypted
@@ -316,6 +334,24 @@ async function loadState() {
   const theme = document.querySelector(`[data-theme="${state.theme}"]`);
   if (theme) radio(theme.parentElement, theme);
   picked.theme = state.theme;
+  $('opt-peek').setAttribute('aria-checked', String(state.options.peek));
+  $('opt-little').setAttribute('aria-checked',
+                               String(state.options.littleWindow));
+}
+
+for (const [id, name] of [['opt-peek', 'peek'], ['opt-little', 'littleWindow']]) {
+  $(id).addEventListener('click', async () => {
+    const on = $(id).getAttribute('aria-checked') !== 'true';
+    $(id).setAttribute('aria-checked', String(on));
+    await sendWithPromise('setLinkOption', name, on);
+  });
+}
+if (navigator.platform.startsWith('Mac')) {
+  $('little-note').textContent = 'Option-Command-N opens a small window ' +
+      'for a quick look, and links from other apps open in one.';
+} else {
+  $('little-note').textContent = 'Ctrl+Alt+N opens a small window for a ' +
+      'quick look, and links from other apps open in one.';
 }
 
 document.querySelectorAll('[data-theme]').forEach((b) => {

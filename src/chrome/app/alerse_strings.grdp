@@ -564,4 +564,16 @@
       Open Task Manager
     </message>
   </if>
+  <message name="IDS_ALERSE_NEW_LITTLE_WINDOW" desc="Menu item and window title: opens a small window of its own for a quick look at a page, as Arc's Little Arc.">
+    New Little Window
+  </message>
+  <message name="IDS_ALERSE_PEEK_OPEN_AS_TAB" desc="Tooltip of the button in Peek, a page shown over the current page, that keeps the page as a tab.">
+    Open as Tab
+  </message>
+  <message name="IDS_ALERSE_LITTLE_WINDOW_OPEN_IN_ALERSE" desc="Tooltip of the button in the Little window that moves its page to a tab of the main window.">
+    Open in Alerse
+  </message>
+  <message name="IDS_ALERSE_PEEK_ADDRESS" desc="Accessible name of the address field in Peek and in the Little window.">
+    Address
+  </message>
 </grit-part>
