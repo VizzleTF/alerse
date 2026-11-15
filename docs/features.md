@@ -1,7 +1,7 @@
 # Features and their status
 
 What Alerse has, what was checked on screen, and what is not built. True for
-**0.1.17** (Windows on Chromium 157, macOS on 156), as of 2026-11-15. How each feature
+**0.1.19** (Windows on Chromium 157, macOS on 156), as of 2026-11-15. How each feature
 works is in [design.md](design.md); this page only says where it stands.
 
 ## Status words
@@ -24,7 +24,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Switch Spaces: Ctrl+1..9, Space bar, swipe | checked | checked | Swipe on Windows not checked; one unreproduced report of a swipe landing back (backlog) |
 | Space color, icon and theme picker | built | checked | |
 | Favorites, pinned tree, folders, folder popup | partly | checked | Windows: pinned items checked in 0.1.13, the rest not recorded |
-| Same favorites in every Space, with a switch | built | checked | macOS: a Space opened later takes them, a removal reaches the other Space, unchecked each keeps its own (after 0.1.18) |
+| Same favorites in every Space, with a switch | partly 0.1.19 | checked 0.1.19 | Both: a Space opened later takes them, a removal reaches the other Space. Windows: an add, rename, move and removal reach the other Space either way and survive a restart; the switch checked on macOS only (the menu needs the real cursor on Windows) |
 | Drag and drop in the sidebar | built | checked | Dragging a favorite out: not checked |
 | Drop a row on a Space's icon to move it | built | checked | |
 | Picking several tabs, copying their links | built | checked | Shift+click, Cmd+click and Copy URL of every picked tab |
