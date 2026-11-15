@@ -46,6 +46,7 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.14 | macOS (pre-release); Windows skipped, its CI stopped for 0.1.16 | 156.0.8078.7914 (macOS) | Boosts (a site's colors, dark mode, font, size, zapped parts and own CSS, with a switch); Peek and the Little window, each with a switch; picking several tabs and copying their links; a welcome page at first start; sync accounts with the 24 words and a password; drop a sidebar row on a Space's icon to move it; overlay scroll bar in the sidebar; the sidebar slides as a whole when hidden or shown; Beta Updates in the Developer menu |
 | 0.1.15 | macOS (pre-release) | 156.0.8078.7915 (macOS) | The Little window gets Arc's Open in <Space> button, a caret listing the other Spaces, and Ctrl+O / Ctrl+Alt+O (Command-O / Command-Option-O on macOS); Windows has it in 0.1.14 |
 | 0.1.16 | Windows, macOS (pre-release) | 157.0.8103.5016 (Windows, on 157.0.8103.50), 156.0.8078.7916 (macOS) | A link from another app opens in the Little window without bringing the Space's window over it |
+| 0.1.17 | Windows, macOS (pre-release) | 157.0.8103.5017 (Windows, on 157.0.8103.50), 156.0.8078.7917 (macOS) | Allow in Incognito in an extension's menu; a browser started with several addresses opens them all as tabs; Arc import goes to Home from any Space and joins Spaces of the same name; the Boost panel closes with its tab and its font buttons fit; the find bar sits in the page's corner on Windows too; sync server label spacing |
 
 Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
