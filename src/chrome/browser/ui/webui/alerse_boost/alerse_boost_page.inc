@@ -145,7 +145,9 @@ input[type="range"] { width: 100%; margin: 0; padding: 0; border: none;
   border-radius: 50%; background: #fff; border: 2px solid rgb(0 0 0 / .35);
   box-shadow: 0 1px 3px rgb(0 0 0 / .3); }
 .fonts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.font { padding: 8px 0; font-size: 13px; }
+.font { padding: 8px 2px; font-size: 13px; width: 100%; min-width: 0;
+  box-sizing: border-box; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
 .font[aria-checked="true"] { outline: 2px solid var(--accent);
   outline-offset: -2px; }
 .zaps, .sites { list-style: none; margin: 0; padding: 0; display: flex;
