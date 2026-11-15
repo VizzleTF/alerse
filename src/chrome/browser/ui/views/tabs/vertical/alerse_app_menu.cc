@@ -222,6 +222,8 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
                   l10n_util::GetStringUTF16(IDS_ALERSE_SEARCH_ENGINE));
     root_.AddItem(IDC_ALERSE_LINK_ROUTING,
                   l10n_util::GetStringUTF16(IDS_ALERSE_LINK_ROUTING));
+    root_.AddItem(IDC_ALERSE_KEYBOARD_SHORTCUTS,
+                  l10n_util::GetStringUTF16(IDS_ALERSE_MENU_KEYBOARD_SHORTCUTS));
     root_.AddItem(IDC_OPTIONS,
                   l10n_util::GetStringUTF16(IDS_ALERSE_MENU_SETTINGS));
     root_.AddItem(IDC_PRINT, l10n_util::GetStringUTF16(IDS_ALERSE_MENU_PRINT));

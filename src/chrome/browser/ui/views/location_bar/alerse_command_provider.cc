@@ -104,6 +104,9 @@ const Command kCommands[] = {
      &vector_icons::kSettingsIcon, nullptr, u"preferences options"},
     {IDC_SHOW_HISTORY, Kind::kBrowser, IDS_ALERSE_VIEW_HISTORY, 0,
      &vector_icons::kHistoryIcon, nullptr, u"library"},
+    {IDC_ALERSE_KEYBOARD_SHORTCUTS, Kind::kBrowser,
+     IDS_ALERSE_MENU_KEYBOARD_SHORTCUTS, 0, &vector_icons::kKeyboardIcon,
+     nullptr, u"keys hotkeys"},
 };
 
 // At most this many action rows.

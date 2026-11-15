@@ -1,0 +1,137 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -326,6 +326,8 @@
+ #define IDC_ALERSE_NEW_LITTLE_WINDOW 40410
+ // Alerse: the Boost panel for the shown site (alerse_boost.h).
+ #define IDC_ALERSE_BOOST_SITE 40411
++// Alerse: opens chrome://alerse-shortcuts (alerse_shortcuts.h).
++#define IDC_ALERSE_KEYBOARD_SHORTCUTS 40412
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/accelerator_table.cc b/chrome/browser/ui/accelerator_table.cc
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/accelerator_table.h"
+ 
++#include "chrome/browser/ui/tabs/alerse_shortcuts.h"
++
+ #include <stddef.h>
+ 
+ #include <algorithm>
+@@ -387,7 +389,15 @@
+     }
+   }
+ 
++#if BUILDFLAG(IS_MAC)
+   return *accelerators;
++#else
++  // Alerse: the user's own keys (alerse_shortcuts.h); macOS takes them from
++  // System Settings' App Shortcuts.
++  std::vector<AcceleratorMapping> list = *accelerators;
++  alerse::ApplyShortcuts(list);
++  return list;
++#endif
+ }
+ 
+ void ClearAcceleratorListForTesting() {
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1006,6 +1006,9 @@
+     case IDC_ALERSE_LINK_ROUTING:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-links/"));
+       break;
++    case IDC_ALERSE_KEYBOARD_SHORTCUTS:
++      ShowSingletonTab(browser_, GURL("chrome://alerse-shortcuts/"));
++      break;
+     // Alerse: the Space bar's commands, from the macOS menu bar.
+     case IDC_ALERSE_NEW_SPACE:
+     case IDC_ALERSE_NEXT_SPACE:
+@@ -2030,6 +2033,7 @@
+                                          !guest_session);
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_LINK_ROUTING, true);
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_KEYBOARD_SHORTCUTS, true);
+   command_updater_->UpdateCommandEnabled(
+       IDC_ALERSE_IMPORT, !guest_session && !profile()->IsOffTheRecord());
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
+diff --git a/chrome/browser/ui/views/frame/browser_view.cc b/chrome/browser/ui/views/frame/browser_view.cc
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -122,6 +122,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_ui.h"
+ #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+ #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
++#include "chrome/browser/ui/tabs/alerse_shortcuts.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_controller.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_panel_utils.h"
+@@ -5711,6 +5712,20 @@
+       browser_->GetProfile()->IsOffTheRecord() &&
+       browser_->GetProfile()->GetOTRProfileID().IsCaptivePortal();
+ #endif
++  // Alerse: a changed shortcut takes this window's keys out and loads them
++  // again.
++  if (!alerse_shortcuts_changed_) {
++    alerse_shortcuts_changed_ = alerse::ShortcutsChangedCallbacks().Add(
++        base::BindRepeating(
++            [](BrowserView* view) {
++              if (views::FocusManager* focus = view->GetFocusManager()) {
++                focus->UnregisterAccelerators(view);
++              }
++              view->accelerator_table_.clear();
++              view->LoadAccelerators();
++            },
++            base::Unretained(this)));
++  }
+   const std::vector<AcceleratorMapping> accelerator_list(GetAcceleratorList());
+   for (const auto& entry : accelerator_list) {
+     // In app mode, only allow accelerators of allowlisted commands to pass
+diff --git a/chrome/browser/ui/views/frame/browser_view.h b/chrome/browser/ui/views/frame/browser_view.h
+--- a/chrome/browser/ui/views/frame/browser_view.h
++++ b/chrome/browser/ui/views/frame/browser_view.h
+@@ -1263,6 +1263,10 @@
+   // A mapping between accelerators and command IDs.
+   std::map<ui::Accelerator, int> accelerator_table_;
+ 
++  // Alerse: loads the keys again when the user changes a shortcut
++  // (alerse_shortcuts.h).
++  base::CallbackListSubscription alerse_shortcuts_changed_;
++
+   // True if we have already been initialized.
+   bool initialized_ = false;
+ 
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -44,6 +44,7 @@
+     ":gcm_internals_ui",
+     "//chrome/browser/ui/webui/alerse_import",
+     "//chrome/browser/ui/webui/alerse_links",
++    "//chrome/browser/ui/webui/alerse_shortcuts",
+     "//chrome/browser/ui/webui/alerse_sync",
+     "//chrome/browser/ui/webui/alerse_boost",
+     "//chrome/browser/ui/webui/alerse_webkit",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -14,6 +14,7 @@
+ #include "chrome/browser/ui/webui/alerse_webkit/alerse_webkit_ui.h"
+ #include "chrome/browser/ui/webui/alerse_welcome/alerse_welcome_ui.h"
+ #include "chrome/browser/ui/webui/alerse_links/alerse_links_ui.h"
++#include "chrome/browser/ui/webui/alerse_shortcuts/alerse_shortcuts_ui.h"
+ #include "chrome/browser/ui/webui/alerse_sync/alerse_sync_ui.h"
+ #include "chrome/browser/glic/experimental_opt_in/glic_experimental_opt_in_ui.h"
+ #include "chrome/browser/glic/host/glic_ui.h"
+@@ -344,6 +345,7 @@
+   map.AddWebUIConfig(std::make_unique<VersionUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseSyncUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseLinksUIConfig>());
++  map.AddWebUIConfig(std::make_unique<AlerseShortcutsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AlerseImportUIConfig>());
+   // Alerse: the first start's page.
+   map.AddWebUIConfig(std::make_unique<AlerseWelcomeUIConfig>());

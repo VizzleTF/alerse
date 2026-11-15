@@ -1,0 +1,22 @@
+# Copyright 2026 The Alerse Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("alerse_shortcuts") {
+  sources = [
+    "../alerse_common/alerse_page_style.inc",
+    "alerse_shortcuts_page.inc",
+    "alerse_shortcuts_ui.cc",
+    "alerse_shortcuts_ui.h",
+  ]
+  public_deps = [ "//content/public/browser" ]
+  deps = [
+    "//base",
+    "//chrome/app:command_ids",
+    "//chrome/app:generated_resources",
+    "//chrome/browser/profiles:profile",
+    "//components/prefs",
+    "//ui/base",
+    "//url",
+  ]
+}
