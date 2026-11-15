@@ -38,6 +38,7 @@ look/search-engine.patch
 extensions/extensions-in-header-row.patch
 defaults/mac-own-profile-dir.patch
 extensions/site-controls.patch
+extensions/allow-incognito-menu.patch
 spaces/space-swipe.patch
 look/sidebar-placeholder-sticks.patch
 look/alerse-strings.patch

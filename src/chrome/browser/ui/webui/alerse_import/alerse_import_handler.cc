@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/i18n/case_conversion.h"
 #include "base/location.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -24,6 +25,7 @@
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_bookmarks.h"
+#include "chrome/common/chrome_constants.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
@@ -97,13 +99,23 @@ base::FilePath FindSpaceOfArcSpace(const std::string& arc_space) {
   return base::FilePath();
 }
 
+// How a Space takes an imported Arc Space's folder.
+enum class Take {
+  // A Space made for it: the folder's icon and color too.
+  kFresh,
+  // A Space of the same name that no Arc Space had: the binding to Arc's
+  // Space only; the Space keeps its own icon and color.
+  kAdopt,
+  // The Space that took this Arc Space before: it loses only what that import
+  // brought.
+  kAgain,
+};
+
 // Moves what the folder `id` of the profile in `from_path` holds into the
-// Space folder of `space_profile`, whose bookmarks are `to`. A Space made
-// now (`fresh`) takes the folder's icon and color too; one that took this
-// Arc Space before keeps its own and loses only what that import brought.
+// Space folder of `space_profile`, whose bookmarks are `to` (see Take).
 void MoveFolderToSpace(base::FilePath from_path,
                        int64_t id,
-                       bool fresh,
+                       Take take,
                        Profile* space_profile,
                        BookmarkModel* to) {
   Profile* from =
@@ -119,7 +131,7 @@ void MoveFolderToSpace(base::FilePath from_path,
       alerse::GetOrAddSpaceFolder(to, folder->GetTitle());
   std::string arc_space;
   folder->GetMetaInfo(alerse_import::kSpaceMetaKey, &arc_space);
-  if (fresh) {
+  if (take != Take::kAgain) {
     if (ProfileAttributesEntry* entry =
             g_browser_process->profile_manager()
                 ->GetProfileAttributesStorage()
@@ -129,8 +141,11 @@ void MoveFolderToSpace(base::FilePath from_path,
     if (const BookmarkNode::MetaInfoMap* meta = folder->GetMetaInfoMap()) {
       for (const auto& [key, value] : *meta) {
         // All but the mark of a folder no Space has: Arc's id of the Space,
-        // its icon and its color.
-        if (key != alerse_import::kSpaceMetaKey) {
+        // its icon and its color; an adopting Space only Arc's id.
+        const bool binding = key == alerse_import::kArcSpaceMetaKey ||
+                             key == alerse_import::kArcSpaceMarkMetaKey;
+        if (key != alerse_import::kSpaceMetaKey &&
+            (take == Take::kFresh || binding)) {
           to->SetNodeMetaInfo(space, key, value);
         }
       }
@@ -154,9 +169,27 @@ void MoveFolderToSpace(base::FilePath from_path,
                 FROM_HERE);
 }
 
+// The Space named `title`, whatever the case, that no Arc Space has; empty
+// if there is none.
+base::FilePath FindUnboundSpaceNamed(const std::u16string& title) {
+  for (const ProfileAttributesEntry* entry :
+       g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetAllProfilesAttributes()) {
+    if (!entry->IsOmitted() && !alerse::IsHomeSpacePath(entry->GetPath()) &&
+        entry->GetAlerseValue(alerse::kSpaceEntryArcKey).empty() &&
+        base::i18n::ToLower(entry->GetLocalProfileName()) ==
+            base::i18n::ToLower(title)) {
+      return entry->GetPath();
+    }
+  }
+  return base::FilePath();
+}
+
 // Gives `folder`, the folder of an imported Arc Space that no folder of
 // `profile` took, to a Space: the one that took this Arc Space in an earlier
-// import, else a new profile. `folder` then goes from `profile`'s bookmarks.
+// import, else a Space of the same name that no Arc Space has, else a new
+// profile. `folder` then goes from `profile`'s bookmarks.
 // No window opens: a new Space shows in the Space bar.
 void MakeSpaceOfFolder(Profile* profile,
                        const BookmarkNode* folder,
@@ -167,7 +200,14 @@ void MakeSpaceOfFolder(Profile* profile,
       !taken.empty()) {
     alerse::WithSpaceBookmarks(
         taken, base::BindOnce(&MoveFolderToSpace, profile->GetPath(),
-                              folder->id(), /*fresh=*/false));
+                              folder->id(), Take::kAgain));
+    return;
+  }
+  if (const base::FilePath named = FindUnboundSpaceNamed(title);
+      !named.empty()) {
+    alerse::WithSpaceBookmarks(
+        named, base::BindOnce(&MoveFolderToSpace, profile->GetPath(),
+                              folder->id(), Take::kAdopt));
     return;
   }
   ProfileManager::CreateMultiProfileAsync(
@@ -178,7 +218,7 @@ void MakeSpaceOfFolder(Profile* profile,
             if (created) {
               alerse::WithBookmarksOf(
                   created, base::BindOnce(&MoveFolderToSpace, from_path, id,
-                                          /*fresh=*/true));
+                                          Take::kFresh));
             }
           },
           profile->GetPath(), folder->id()));
@@ -197,7 +237,8 @@ base::DictValue ApplyArc(BookmarkModel* model,
   for (const auto& [folder, title] : result.unadopted) {
     std::string arc_space;
     folder->GetMetaInfo(alerse_import::kSpaceMetaKey, &arc_space);
-    created += FindSpaceOfArcSpace(arc_space).empty();
+    created += FindSpaceOfArcSpace(arc_space).empty() &&
+               FindUnboundSpaceNamed(title).empty();
     MakeSpaceOfFolder(profile, folder, title);
   }
   return base::DictValue()
@@ -373,19 +414,29 @@ void AlerseImportHandler::OnArcRead(
     const std::string& callback_id,
     std::optional<std::vector<ArcSpace>> spaces) {
   importing_ = false;
-  BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile_);
   // No Space at all is a sidebar Arc is rewriting, not one to replace the
   // earlier import with.
   if (!spaces || spaces->empty()) {
     Reject(callback_id, "readFailed");
     return;
   }
-  if (!model || !model->loaded()) {
-    Reject(callback_id, "notReady");
-    return;
-  }
+  // Arc's Spaces go to Home and the Spaces after it from whichever Space the
+  // page is open in: Arc's first Space is Home's, not the current Space's.
+  alerse::WithSpaceBookmarks(
+      g_browser_process->profile_manager()->user_data_dir().AppendASCII(
+          chrome::kInitialProfile),
+      base::BindOnce(&AlerseImportHandler::OnHomeBookmarks,
+                     weak_factory_.GetWeakPtr(), callback_id,
+                     std::move(*spaces)));
+}
+
+void AlerseImportHandler::OnHomeBookmarks(
+    const std::string& callback_id,
+    std::vector<ArcSpace> spaces,
+    Profile* home,
+    BookmarkModel* model) {
   ResolveJavascriptCallback(base::Value(callback_id),
-                            ApplyArc(model, profile_, *spaces));
+                            ApplyArc(model, home, spaces));
 }
 
 void AlerseImportHandler::OnBookmarksRead(const std::string& callback_id,

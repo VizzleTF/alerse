@@ -133,7 +133,15 @@
      "alerse_space_color.cc",
 --- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-@@ -370,6 +370,10 @@
+@@ -49,6 +49,7 @@
+ #include "chrome/browser/ui/startup/startup_tab.h"
+ #include "chrome/browser/ui/startup/startup_tab_provider.h"
+ #include "chrome/browser/ui/startup/startup_types.h"
++#include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/shared_tab_group_version_upgrade_modal.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -370,6 +371,15 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
    CHECK(profile_);
  
    bool first_tab = true;
@@ -141,10 +149,15 @@
 +  // and this window must then stay where it is (alerse_peek.h).
 +  const int alerse_tabs_before = browser->GetTabStripModel()->count();
 +  bool alerse_navigated_here = false;
++  // Alerse: a starting browser opens every address it is given as a tab.
++  base::AutoReset<bool> alerse_startup_tabs(
++      &alerse::OpeningStartupTabs(),
++      create_new_browser ||
++          process_startup == chrome::startup::IsProcessStartup::kYes);
    bool process_headless_commands = headless::ShouldProcessHeadlessCommands();
    custom_handlers::ProtocolHandlerRegistry* registry =
        ProtocolHandlerRegistryFactory::GetForBrowserContext(profile_);
-@@ -431,6 +435,7 @@
+@@ -431,6 +441,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
        params.disposition = WindowOpenDisposition::CURRENT_TAB;
        params.tabstrip_add_types = ADD_NONE;
        first_tab = false;
@@ -152,7 +165,7 @@
        Navigate(&params);
        continue;
      }
-@@ -483,6 +488,11 @@
+@@ -483,6 +494,11 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
      base::nix::SetActivationToken(startup_id);
    }
  #endif
@@ -164,3 +177,54 @@
    if (open_in_background && !create_new_browser) {
      // A no-op for an already-visible window, which is the common case here;
      // this only matters for a window that is currently hidden.
+@@ -497,6 +513,12 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+ void StartupBrowserCreatorImpl::DetermineURLsAndLaunch(
+     chrome::startup::IsProcessStartup process_startup,
+     bool restore_tabbed_browser) {
++  // Alerse: every address a starting browser is given is a tab, whether the
++  // session is restored around it or not (alerse_peek.h).
++  base::AutoReset<bool> alerse_startup_launch(
++      &alerse::OpeningStartupTabs(),
++      alerse::OpeningStartupTabs() ||
++          process_startup == chrome::startup::IsProcessStartup::kYes);
+   const bool is_incognito_or_guest = profile_->IsOffTheRecord();
+   bool is_post_crash_launch = HasPendingUncleanExit(profile_);
+ 
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -104,6 +104,7 @@
+ #include "chrome/browser/ui/startup/startup_tab.h"
+ #include "chrome/browser/ui/startup/startup_types.h"
+ #include "chrome/browser/ui/startup/url_util.h"
++#include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+@@ -2656,12 +2654,18 @@ void OpenStartupTabsInBrowserWithProfile(const StartupTabs& tabs,
+       ProfileBrowserCollection::GetForProfile(profile)->FindTabbedBrowser();
+   int startupIndex = TabStripModel::kNoTab;
+   content::WebContents* startupContent = nullptr;
++  // Alerse: a window that only has a new tab, or none yet, takes every
++  // address as a tab; a Little window takes links only beside open pages.
++  bool alerse_startup_window = !browser;
+   if (browser && browser->GetTabStripModel()->count() == 1) {
+     // If there's only 1 tab and the tab is NTP, close this NTP tab and open all
+     // startup urls in new tabs, because the omnibox will stay focused if we
+     // load url in NTP tab.
+     startupIndex = browser->GetTabStripModel()->active_index();
+     startupContent = browser->GetTabStripModel()->GetActiveWebContents();
++    alerse_startup_window =
++        startupContent->GetVisibleURL() == chrome::kChromeUINewTabURL ||
++        startupContent->GetVisibleURL() == chrome::kChromeUINewTabPageURL;
+   } else if (!browser) {
+     // if no browser window exists then create one with no tabs to be filled in.
+     browser = CreateBrowserWindow(BrowserWindowCreateParams(profile, true));
+@@ -2677,6 +2681,8 @@ void OpenStartupTabsInBrowserWithProfile(const StartupTabs& tabs,
+       first_run::IsChromeFirstRun() ? chrome::startup::IsFirstRun::kYes
+                                     : chrome::startup::IsFirstRun::kNo;
+   StartupBrowserCreatorImpl launch(base::FilePath(), dummy, first_run);
++  base::AutoReset<bool> alerse_startup_tabs(&alerse::OpeningStartupTabs(),
++                                            alerse_startup_window);
+   launch.OpenTabsInBrowser(browser, chrome::startup::IsProcessStartup::kNo,
+                            tabs, StartupBrowserCreatorImpl::TabOverWrite::kNo);
+ 

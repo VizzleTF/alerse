@@ -1,0 +1,87 @@
+diff --git a/chrome/browser/extensions/extension_context_menu_model.cc b/chrome/browser/extensions/extension_context_menu_model.cc
+index e815e84..1b84baf 100644
+--- a/chrome/browser/extensions/extension_context_menu_model.cc
++++ b/chrome/browser/extensions/extension_context_menu_model.cc
+@@ -55,6 +55,7 @@
+ #include "extensions/browser/extension_action_manager.h"
+ #include "extensions/browser/extension_registry.h"
+ #include "extensions/browser/extension_system.h"
++#include "extensions/browser/extension_util.h"
+ #include "extensions/browser/management_policy.h"
+ #include "extensions/browser/permissions/site_permissions_helper.h"
+ #include "extensions/browser/permissions_manager.h"
+@@ -414,6 +415,10 @@ bool ExtensionContextMenuModel::IsCommandIdChecked(int command_id) const {
+   if (ContextMenuMatcher::IsExtensionsCustomCommandId(command_id))
+     return extension_items_->IsCommandIdChecked(command_id);
+ 
++  if (command_id == ALERSE_ALLOW_INCOGNITO) {
++    return util::IsIncognitoEnabled(extension->id(), profile_);
++  }
++
+   if (command_id == PAGE_ACCESS_RUN_ON_CLICK ||
+       command_id == PAGE_ACCESS_RUN_ON_SITE ||
+       command_id == PAGE_ACCESS_RUN_ON_ALL_SITES) {
+@@ -450,6 +455,10 @@ bool ExtensionContextMenuModel::IsCommandIdEnabled(int command_id) const {
+   if (ContextMenuMatcher::IsExtensionsCustomCommandId(command_id))
+     return extension_items_->IsCommandIdEnabled(command_id);
+ 
++  if (command_id == ALERSE_ALLOW_INCOGNITO) {
++    return !IsExtensionRequiredByPolicy(extension, profile_);
++  }
++
+   switch (command_id) {
+     case HOME_PAGE:
+       // The HOME_PAGE links to the Homepage URL. If the extension doesn't have
+@@ -540,6 +549,13 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
+     return;
+   }
+ 
++  if (command_id == ALERSE_ALLOW_INCOGNITO) {
++    util::SetIsIncognitoEnabled(
++        extension->id(), profile_->GetOriginalProfile(),
++        !util::IsIncognitoEnabled(extension->id(), profile_));
++    return;
++  }
++
+   action_taken_ = CommandIdToContextMenuAction(command_id);
+ 
+   switch (command_id) {
+@@ -934,6 +950,12 @@ void ExtensionContextMenuModel::InitMenuWithFeature(
+   // Settings section.
+   if (!is_component_) {
+     AddSeparator(ui::NORMAL_SEPARATOR);
++    // Alerse: the choice chrome://extensions has in an extension's details,
++    // next to the extension itself; Incognito windows list it once allowed.
++    if (util::CanBeIncognitoEnabled(extension)) {
++      AddCheckItemWithStringId(ALERSE_ALLOW_INCOGNITO,
++                               IDS_EXTENSIONS_ITEM_ALLOW_INCOGNITO);
++    }
+     AddItemWithStringId(MANAGE_EXTENSIONS, IDS_MANAGE_EXTENSION);
+     AddItemWithStringId(VIEW_WEB_PERMISSIONS, IDS_VIEW_WEB_PERMISSIONS);
+   }
+@@ -1034,6 +1056,12 @@ void ExtensionContextMenuModel::InitMenu(const Extension* extension,
+ 
+   if (!is_component_) {
+     AddSeparator(ui::NORMAL_SEPARATOR);
++    // Alerse: the choice chrome://extensions has in an extension's details,
++    // next to the extension itself; Incognito windows list it once allowed.
++    if (util::CanBeIncognitoEnabled(extension)) {
++      AddCheckItemWithStringId(ALERSE_ALLOW_INCOGNITO,
++                               IDS_EXTENSIONS_ITEM_ALLOW_INCOGNITO);
++    }
+     AddItemWithStringId(MANAGE_EXTENSIONS, IDS_MANAGE_EXTENSION);
+     AddItemWithStringId(VIEW_WEB_PERMISSIONS, IDS_VIEW_WEB_PERMISSIONS);
+   }
+diff --git a/chrome/browser/extensions/extension_context_menu_model.h b/chrome/browser/extensions/extension_context_menu_model.h
+index 08e1f90..76fd780 100644
+--- a/chrome/browser/extensions/extension_context_menu_model.h
++++ b/chrome/browser/extensions/extension_context_menu_model.h
+@@ -62,6 +62,8 @@ class ExtensionContextMenuModel : public ui::SimpleMenuModel,
+     POLICY_INSTALLED,
+     TOGGLE_SIDE_PANEL_VISIBILITY,
+     RATE_EXTENSION,
++    // Alerse: whether the extension runs in Incognito windows too.
++    ALERSE_ALLOW_INCOGNITO,
+     // NOTE: If you update this, you probably need to update the
+     // ContextMenuAction enum below.
+   };

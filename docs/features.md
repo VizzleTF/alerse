@@ -25,12 +25,12 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Space color, icon and theme picker | built | checked | |
 | Favorites, pinned tree, folders, folder popup | partly | checked | Windows: pinned items checked in 0.1.13, the rest not recorded |
 | Drag and drop in the sidebar | built | checked | Dragging a favorite out: not checked |
-| Drop a row on a Space's icon to move it | built | built | 0.1.14 |
-| Picking several tabs, copying their links | built | built | 0.1.14 |
+| Drop a row on a Space's icon to move it | built | checked | |
+| Picking several tabs, copying their links | built | checked | Shift+click, Cmd+click and Copy URL of every picked tab |
 | Clear (close the Space's unpinned tabs) | built | checked | |
 | Hidden sidebar and floating sidebar on hover | partly | checked | Windows: hover needs the real cursor, not checked |
-| Sidebar slides as a whole when hidden or shown | built | built | 0.1.14 |
-| Overlay scroll bar in the sidebar | built | built | 0.1.14 |
+| Sidebar slides as a whole when hidden or shown | built | checked | About 250 ms each way, 60 fps recording |
+| Overlay scroll bar in the sidebar | built | checked | The Space's name row stays put |
 | Row marks: loading, attention dot, sound, camera, dimmed when discarded | built | checked | |
 | Keyboard focus ring and arrow keys in rows | built | built | Not seen: needs macOS keyboard navigation on |
 | Mini player across the Space's windows | built | checked | |
@@ -50,6 +50,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Split View | checked 0.1.13 | checked | |
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
 | Link routing to a Space | partly | built | Windows: the page renders; a routed link not tried |
+| Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (after 0.1.16) and in chrome://extensions; takes effect at once |
 
 ## Boosts, Peek and the Little window
 
@@ -58,7 +59,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Boosts: color, dark, font, size, zap, own CSS | checked 0.1.16 | checked 0.1.16 | Font buttons fixed after 0.1.16; Dark leaves the body's box visible on a black canvas |
 | Boosts on/off switch, chrome://alerse-boost list | checked 0.1.16 | partly | The panel stayed over another tab until after 0.1.16; now it closes (checked on both) |
 | Peek (Shift+click, links from pinned tabs) | checked 0.1.16 | checked | Shift+click, a pinned tab's link and Open as Tab checked on Windows; the dimmed page around it seen on macOS |
-| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does |
+| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does. A browser started with several addresses put all but the first in Little windows until after 0.1.16 |
 | Open in <Space>, arrow to other Spaces, Ctrl/Cmd+O, Ctrl/Cmd+Alt+O | partly | checked 0.1.16 | Windows: button and Ctrl+O checked; the arrow's menu not checked |
 
 ## Sync, import, updates
@@ -67,10 +68,10 @@ the features below that came after it ([Platforms](design.md#platforms)).
 |---|---|---|---|
 | Sync account: 24 words and a password | partly | no | Windows: the page and its form render; no account made. The macOS 156 tree has the older Sync page |
 | Sync with the official or own server | built | built | |
-| Import from Arc, Chrome and others | partly | built | Windows finds Arc's Spaces, pinned tabs and extensions; import itself not run |
+| Import from Arc, Chrome and others | partly | checked | Arc's Spaces went to the open Space instead of Home, and a same-named Space got a twin, until after 0.1.16; import again doubles nothing |
 | Update notice | built | built | Reads pre-releases on macOS; unit tests run locally only |
 | Beta Updates in the Developer menu | built | no | macOS is always on pre-releases |
-| Welcome page at first start | checked 0.1.16 | built | All eight steps |
+| Welcome page at first start | checked 0.1.16 | partly | All eight steps on Windows; macOS opens it |
 | Own install identity and profile folder | checked | checked | |
 
 ## Not built yet

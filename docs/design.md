@@ -1554,7 +1554,10 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   no counterpart; Find in Page stays on Ctrl+F and in the command bar). Under "Extensions" every extension is a tile on a
   faint veil, four a row (click runs it, right click opens its menu with Pin and
   Unpin, `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
-  runs only from a menu button and crashed on a tile); a pinned one carries a pin on a
+  runs only from a menu button and crashed on a tile). The menu also has Allow in
+  Incognito, the switch of chrome://extensions' details
+  (`extensions/allow-incognito-menu.patch`): an Incognito window's site controls list
+  only the extensions allowed there, which take effect in it at once; a pinned one carries a pin on a
   light disc over its lower right corner. "Settings" lists Arc's rows, a 32 pt disc
   (white while on, grey while off) and a name over its state: what the page did that
   the toolbar's icons would tell (the zoom while it is not 100%, a click resets it;
@@ -1766,7 +1769,7 @@ in Arc.
   Windows and Linux (the logo menu has it while the switch is on), Option-Command-N
   and File > New Little Window on macOS. A link from another app opens in one when no
   link route matches it and the window it would go to has tabs (a browser starting
-  for the link opens it as a tab); the Space's window then stays behind it, as
+  for links opens every one of them as a tab); the Space's window then stays behind it, as
   in Arc. Open in <Space> (Ctrl+O, Command-O on a Mac) gives the
   page to the Space's last active window, or opens it in the Space when it has none.
   Another Space from the caret (Ctrl+Alt+O, Command-Option-O) loads the page's address
@@ -1807,10 +1810,13 @@ the bookmark model on the UI thread. Each node an import adds is marked
 uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy the user
 made (another uuid) and what another device imported (synced, another key) are not
 marked here, so importing again replaces only this profile's imported nodes and keeps
-the rest. Arc's first Space goes to Home's Space folder. Every other Arc Space
-becomes a Space of its own (`MakeSpaceOfFolder` in `alerse_import_handler.cc`): the
-import writes its folder into the importing profile, moves what the folder holds into
-the Space folder of a new profile, and removes the folder. No window opens: the new
+the rest. The import runs in Home's profile whichever Space the page is open in, and
+Arc's first Space goes to Home's Space folder. Every other Arc Space goes to the Space
+of the same name (any case) that no Arc Space has yet, keeping that Space's icon and
+color, else becomes a Space of its own (`MakeSpaceOfFolder` in
+`alerse_import_handler.cc`): the import writes its folder into Home's profile, moves
+what the folder holds into the Space folder of that Space or a new profile, and
+removes the folder. No window opens: the new
 Space shows in the Space bar. The new Space's profile entry in `Local State` records
 Arc's id of the Space (`alerse_arc_space`), so an import again finds that Space
 whatever Arc's order and replaces in it only what the earlier import brought; the

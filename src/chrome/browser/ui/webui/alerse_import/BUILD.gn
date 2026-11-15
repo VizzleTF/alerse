@@ -43,6 +43,7 @@ source_set("alerse_import") {
     ":bookmarks",
     ":data",
     "//base",
+    "//base:i18n",
     "//chrome/app:generated_resources",
     "//chrome/browser/bookmarks",
     "//chrome/browser/profiles:profile",

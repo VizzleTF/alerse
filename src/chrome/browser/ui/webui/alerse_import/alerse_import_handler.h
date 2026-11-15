@@ -17,6 +17,10 @@
 
 class Profile;
 
+namespace bookmarks {
+class BookmarkModel;
+}
+
 // Backs chrome://alerse-import. The page calls:
 //
 //   getSources()          -> [{id, kind, browser, profile, links, spaces}]
@@ -26,6 +30,8 @@ class Profile;
 //
 // Each takes only an id that the last getSources() returned. importSource()
 // rejects with "busy", "notReady" (bookmarks still loading) or "readFailed".
+// Arc's Spaces always go to Home and the Spaces after it, whichever Space
+// the page is open in.
 // importExtensions() installs the source's Web Store extensions that this
 // profile does not have, from the source's copies (alerse_import_data.h).
 class AlerseImportHandler : public content::WebUIMessageHandler {
@@ -57,6 +63,10 @@ class AlerseImportHandler : public content::WebUIMessageHandler {
                       std::vector<alerse_import::Source> sources);
   void OnArcRead(const std::string& callback_id,
                  std::optional<std::vector<alerse_import::ArcSpace>> spaces);
+  void OnHomeBookmarks(const std::string& callback_id,
+                       std::vector<alerse_import::ArcSpace> spaces,
+                       Profile* home,
+                       bookmarks::BookmarkModel* model);
   void OnBookmarksRead(const std::string& callback_id,
                        const alerse_import::Source& source,
                        std::optional<alerse_import::Node> root);

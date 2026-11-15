@@ -13,7 +13,7 @@
 //   a link in Peek, and so does a click in a pinned tab on a link to another
 //   site.
 // - Little window: a small window of its own with an address field and Open
-//   in Alerse, which moves its page to a tab of the Space. New Little Window
+//   in <Space>, which moves its page to a tab of the Space. New Little Window
 //   (Ctrl+Alt+N, Option-Command-N) opens one, and so does a link from another
 //   app that no link route sends to a Space.
 //
@@ -53,6 +53,13 @@ inline bool PeekEnabled() {
 
 inline bool LittleWindowEnabled() {
   return LocalStateFlag(kLittleWindowPref);
+}
+
+// True while the browser opens the tabs it starts with: every address on the
+// command line of a starting browser is a tab, not a Little window.
+inline bool& OpeningStartupTabs() {
+  static bool opening = false;
+  return opening;
 }
 
 // Opens `url` in Peek over `browser`'s page.
@@ -116,7 +123,8 @@ inline bool OpenLinkInPeek(const NavigateParams& params) {
 // link from another app. A link a route names stays a tab of its Space, and
 // a window with no tab yet (the browser starting for the link) takes it.
 inline bool OpenExternalLinkInLittleWindow(const NavigateParams& params) {
-  if (!LittleWindowEnabled() || !params.browser || params.source_contents ||
+  if (!LittleWindowEnabled() || OpeningStartupTabs() || !params.browser ||
+      params.source_contents ||
       params.opener ||
       !ui::PageTransitionCoreTypeIs(params.transition,
                                     ui::PAGE_TRANSITION_AUTO_TOPLEVEL) ||
