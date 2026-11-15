@@ -1,7 +1,7 @@
 # Features and their status
 
 What Alerse has, what was checked on screen, and what is not built. True for
-**0.1.16** (Windows on Chromium 157, macOS on 156), as of 2026-11-15. How each feature
+**0.1.17** (Windows on Chromium 157, macOS on 156), as of 2026-11-15. How each feature
 works is in [design.md](design.md); this page only says where it stands.
 
 ## Status words
@@ -45,21 +45,21 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | macOS menu bar and window look | no | checked | |
 | Compact address field, click selects the address | built | checked | |
 | Command bar (Ctrl/Cmd+T, Ctrl/Cmd+L) and its actions | checked | checked | Space commands in the bar: not checked |
-| Find bar as Arc's pill | checked 0.1.16 | checked | Windows put it under the address field until after 0.1.16; now the card's corner, as on macOS |
+| Find bar as Arc's pill | checked 0.1.16 | checked | Windows put it under the address field until 0.1.17; now the card's corner, as on macOS |
 | Site controls popover | partly | partly | Opens with its tiles, Extensions and Not Secure; translate, password and permission rows not seen |
 | Split View | checked 0.1.13 | checked | |
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
 | Link routing to a Space | partly | checked | macOS: a routed link from another app opens as a tab of its Space |
-| Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (after 0.1.16) and in chrome://extensions; takes effect at once |
+| Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (0.1.17) and in chrome://extensions; takes effect at once |
 
 ## Boosts, Peek and the Little window
 
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
-| Boosts: color, dark, font, size, zap, own CSS | checked 0.1.16 | checked 0.1.16 | Font buttons fixed after 0.1.16; Dark leaves the body's box visible on a black canvas |
-| Boosts on/off switch, chrome://alerse-boost list | checked 0.1.16 | partly | The panel stayed over another tab until after 0.1.16; now it closes (checked on both) |
+| Boosts: color, dark, font, size, zap, own CSS | checked 0.1.16 | checked 0.1.16 | Font buttons fixed in 0.1.17; Dark leaves the body's box visible on a black canvas |
+| Boosts on/off switch, chrome://alerse-boost list | checked 0.1.16 | partly | The panel stayed over another tab until 0.1.17; now it closes (checked on both) |
 | Peek (Shift+click, links from pinned tabs) | checked 0.1.16 | checked | Shift+click, a pinned tab's link and Open as Tab checked on Windows; the dimmed page around it seen on macOS |
-| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does. A browser started with several addresses put all but the first in Little windows until after 0.1.16 |
+| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does. A browser started with several addresses put all but the first in Little windows until 0.1.17 |
 | Open in <Space>, arrow to other Spaces, Ctrl/Cmd+O, Ctrl/Cmd+Alt+O | partly | checked 0.1.16 | Windows: button and Ctrl+O checked; the arrow's menu not checked |
 
 ## Sync, import, updates
@@ -68,8 +68,8 @@ the features below that came after it ([Platforms](design.md#platforms)).
 |---|---|---|---|
 | Sync account: 24 words and a password | checked | no | Windows: an account made on a local server, a second device signed in with the words and the password. The macOS 156 tree has the older Sync page |
 | Sync with the official or own server | partly | built | Own server checked on Windows: a bookmark reached the other device in about a minute; the official server not tried |
-| Import from Arc, Chrome and others | partly | checked | Arc's Spaces went to the open Space instead of Home, and a same-named Space got a twin, until after 0.1.16; import again doubles nothing |
-| Update notice | built | built | Reads pre-releases on macOS; unit tests run locally only |
+| Import from Arc, Chrome and others | partly | checked | Arc's Spaces went to the open Space instead of Home, and a same-named Space got a twin, until 0.1.17; import again doubles nothing |
+| Update notice | built | checked | macOS 0.1.16 offered 0.1.17 five minutes after start, and the item opened its release page |
 | Beta Updates in the Developer menu | built | no | macOS is always on pre-releases |
 | Welcome page at first start | checked 0.1.16 | partly | All eight steps on Windows; macOS opens it |
 | Own install identity and profile folder | checked | checked | |
