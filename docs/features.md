@@ -28,7 +28,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Drop a row on a Space's icon to move it | built | checked | |
 | Picking several tabs, copying their links | built | checked | Shift+click, Cmd+click and Copy URL of every picked tab |
 | Clear (close the Space's unpinned tabs) | built | checked | |
-| Hidden sidebar and floating sidebar on hover | partly | checked | Windows: hover needs the real cursor, not checked |
+| Hidden sidebar and floating sidebar on hover | partly | checked | Windows: hiding checked; the floating sidebar follows the real cursor and was not seen |
 | Sidebar slides as a whole when hidden or shown | built | checked | About 250 ms each way, 60 fps recording |
 | Overlay scroll bar in the sidebar | built | checked | The Space's name row stays put |
 | Row marks: loading, attention dot, sound, camera, dimmed when discarded | built | checked | |
@@ -49,7 +49,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Site controls popover | partly | partly | Opens with its tiles, Extensions and Not Secure; translate, password and permission rows not seen |
 | Split View | checked 0.1.13 | checked | |
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
-| Link routing to a Space | partly | built | Windows: the page renders; a routed link not tried |
+| Link routing to a Space | partly | checked | macOS: a routed link from another app opens as a tab of its Space |
 | Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (after 0.1.16) and in chrome://extensions; takes effect at once |
 
 ## Boosts, Peek and the Little window
@@ -66,8 +66,8 @@ the features below that came after it ([Platforms](design.md#platforms)).
 
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
-| Sync account: 24 words and a password | partly | no | Windows: the page and its form render; no account made. The macOS 156 tree has the older Sync page |
-| Sync with the official or own server | built | built | |
+| Sync account: 24 words and a password | checked | no | Windows: an account made on a local server, a second device signed in with the words and the password. The macOS 156 tree has the older Sync page |
+| Sync with the official or own server | partly | built | Own server checked on Windows: a bookmark reached the other device in about a minute; the official server not tried |
 | Import from Arc, Chrome and others | partly | checked | Arc's Spaces went to the open Space instead of Home, and a same-named Space got a twin, until after 0.1.16; import again doubles nothing |
 | Update notice | built | built | Reads pre-releases on macOS; unit tests run locally only |
 | Beta Updates in the Developer menu | built | no | macOS is always on pre-releases |
