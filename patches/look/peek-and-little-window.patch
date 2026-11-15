@@ -131,3 +131,36 @@
      "alerse_address_bar.cc",
      "alerse_sidebar_view.cc",
      "alerse_space_color.cc",
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -370,6 +370,10 @@
+   CHECK(profile_);
+ 
+   bool first_tab = true;
++  // Alerse: a link a Little window or another Space takes adds no tab here,
++  // and this window must then stay where it is (alerse_peek.h).
++  const int alerse_tabs_before = browser->GetTabStripModel()->count();
++  bool alerse_navigated_here = false;
+   bool process_headless_commands = headless::ShouldProcessHeadlessCommands();
+   custom_handlers::ProtocolHandlerRegistry* registry =
+       ProtocolHandlerRegistryFactory::GetForBrowserContext(profile_);
+@@ -431,6 +435,7 @@
+       params.disposition = WindowOpenDisposition::CURRENT_TAB;
+       params.tabstrip_add_types = ADD_NONE;
+       first_tab = false;
++      alerse_navigated_here = true;
+       Navigate(&params);
+       continue;
+     }
+@@ -483,6 +488,11 @@
+     base::nix::SetActivationToken(startup_id);
+   }
+ #endif
++  if (!create_new_browser && !alerse_navigated_here && !tabs.empty() &&
++      alerse_tabs_before > 0 &&
++      browser->GetTabStripModel()->count() == alerse_tabs_before) {
++    return browser;
++  }
+   if (open_in_background && !create_new_browser) {
+     // A no-op for an already-visible window, which is the common case here;
+     // this only matters for a window that is currently hidden.

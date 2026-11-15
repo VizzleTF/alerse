@@ -1765,7 +1765,8 @@ in Arc.
   Windows and Linux (the logo menu has it while the switch is on), Option-Command-N
   and File > New Little Window on macOS. A link from another app opens in one when no
   link route matches it and the window it would go to has tabs (a browser starting
-  for the link opens it as a tab). Open in <Space> (Ctrl+O, Command-O on a Mac) gives the
+  for the link opens it as a tab); the Space's window then stays behind it, as
+  in Arc. Open in <Space> (Ctrl+O, Command-O on a Mac) gives the
   page to the Space's last active window, or opens it in the Space when it has none.
   Another Space from the caret (Ctrl+Alt+O, Command-Option-O) loads the page's address
   there anew, since that Space has its own logins.
