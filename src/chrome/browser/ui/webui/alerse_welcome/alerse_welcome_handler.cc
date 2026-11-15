@@ -20,6 +20,7 @@
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 
 namespace {
@@ -92,6 +93,13 @@ void AlerseWelcomeHandler::RegisterMessages() {
   add("setTheme", &AlerseWelcomeHandler::HandleSetTheme);
   add("setDefaultBrowser", &AlerseWelcomeHandler::HandleSetDefaultBrowser);
   add("setLinkOption", &AlerseWelcomeHandler::HandleSetLinkOption);
+  add("finish", &AlerseWelcomeHandler::HandleFinish);
+}
+
+// Start browsing: the welcome tab goes, and the Space shows its own page or
+// its other tabs.
+void AlerseWelcomeHandler::HandleFinish(const base::ListValue& args) {
+  web_ui()->GetWebContents()->ClosePage();
 }
 
 void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {

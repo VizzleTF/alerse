@@ -127,7 +127,9 @@ inline constexpr char kAlerseWelcomeHtml[] = R"HTML(<!doctype html>
 
 inline constexpr char kAlerseWelcomeCss[] = R"CSS(
 main { max-width: 640px; min-height: 100vh; display: grid;
-  align-content: center; gap: 28px; }
+  align-content: start; gap: 28px; padding-top: max(48px, 22vh);
+  box-sizing: border-box; }
+h1 { font-size: 30px; letter-spacing: -0.01em; }
 .dots { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .dots li { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
 .dots li.on { background: var(--accent); }
@@ -139,7 +141,9 @@ main { max-width: 640px; min-height: 100vh; display: grid;
 }
 @keyframes step-in { from { opacity: 0; transform: translateY(6px); } }
 .plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
-.plain li::before { content: "— "; color: var(--muted); }
+.plain li { display: flex; align-items: baseline; gap: 10px; }
+.plain li::before { content: ""; flex: none; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--accent); transform: translateY(-2px); }
 .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .choices.three { grid-template-columns: repeat(3, 1fr); }
 .choice { display: grid; gap: 2px; width: 100%; text-align: left;
@@ -248,6 +252,7 @@ async function findSources() {
     });
     li.append(what, button);
     $('sources').append(li);
+    if (source.kind === 'arc') offerArcData(source, what);
     offerExtensions(source, what, EXTENSION_TEXT);
   }
 }
@@ -261,6 +266,39 @@ const EXTENSION_TEXT = {
       (failed ? `; ${failed} could not be added` : ''),
   failed: 'The extensions could not be read. Close the browser and try again.',
 };
+
+// Arc's history and saved passwords, into Home; on a Mac, macOS asks for
+// Arc's Keychain entry first.
+function offerArcData(source, parent) {
+  const row = document.createElement('div');
+  row.className = 'extensions';
+  const note = document.createElement('p');
+  note.className = 'note';
+  note.textContent = 'History and saved passwords';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Add';
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = 'Adding…';
+    try {
+      const r = await sendWithPromise('importArcData', source.id);
+      note.className = 'note result';
+      note.textContent = `Added ${r.pages} pages and ${r.passwords} ` +
+          `password${r.passwords === 1 ? '' : 's'}` +
+          (r.locked ? `; ${r.locked} could not be read` : '');
+      button.remove();
+    } catch (code) {
+      note.className = 'note error';
+      note.textContent =
+          "Arc's history could not be read. Close Arc and try again.";
+      button.disabled = false;
+      button.textContent = 'Add';
+    }
+  });
+  row.append(note, button);
+  parent.append(row);
+}
 
 // The source's Chrome Web Store extensions that this Space does not have,
 // with a button that adds them from the source's copies.
@@ -399,7 +437,7 @@ $('next').addEventListener('click', async () => {
     await sendWithPromise('setSearchEngine', picked.engine.id);
   }
   if (name === 'done') {
-    location.href = 'chrome://newtab/';
+    chrome.send('finish');
     return;
   }
   show(index + 1);

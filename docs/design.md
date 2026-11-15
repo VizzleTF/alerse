@@ -1568,6 +1568,20 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   disc with site settings, extension site access and extension management. The panel
   closes when its tab closes or leaves the page.
 
+### Keyboard shortcuts
+
+Keyboard Shortcuts in the logo menu and the command bar opens
+`chrome://alerse-shortcuts` (`alerse_shortcuts.h`, `look/keyboard-shortcuts.patch`):
+Alerse's and Arc's everyday commands with their keys. On Windows and Linux,
+Change records the next key with Ctrl, Alt, Shift or the Windows key (a function
+key may stand alone), Remove leaves the command without a key, Reset gives back its
+own. The choices live in local state (`alerse.shortcuts`, the command's id with its
+key and modifiers), so every Space shares them; `GetAcceleratorList()` applies them,
+so a key given to one command leaves the command that had it, and every window loads
+its keys again at once. On macOS a menu's keys are the system's to change: the page
+lists the menu bar's keys and opens System Settings, where App Shortcuts sets a key
+for any Alerse menu item by its name.
+
 ### Strings and colors
 
 Text the user sees is in `IDS_ALERSE_*` messages (except the sync page's errors) and colors are `kColorAlerse*` ids

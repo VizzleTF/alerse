@@ -33,6 +33,7 @@ class AlerseWelcomeHandler : public content::WebUIMessageHandler {
   void HandleSetTheme(const base::ListValue& args);
   void HandleSetDefaultBrowser(const base::ListValue& args);
   void HandleSetLinkOption(const base::ListValue& args);
+  void HandleFinish(const base::ListValue& args);
 
   const raw_ptr<Profile> profile_;
   base::WeakPtrFactory<AlerseWelcomeHandler> weak_factory_{this};
