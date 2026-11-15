@@ -45,19 +45,19 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | macOS menu bar and window look | no | checked | |
 | Compact address field, click selects the address | built | checked | |
 | Command bar (Ctrl/Cmd+T, Ctrl/Cmd+L) and its actions | checked | checked | Space commands in the bar: not checked |
-| Find bar as Arc's pill | built | checked | |
-| Site controls popover | built | partly | Translate, password and permission rows not seen |
+| Find bar as Arc's pill | checked 0.1.16 | checked | Windows put it under the address field until after 0.1.16; now the card's corner, as on macOS |
+| Site controls popover | partly | partly | Opens with its tiles, Extensions and Not Secure; translate, password and permission rows not seen |
 | Split View | checked 0.1.13 | checked | |
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
-| Link routing to a Space | built | built | |
+| Link routing to a Space | partly | built | Windows: the page renders; a routed link not tried |
 
 ## Boosts, Peek and the Little window
 
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
-| Boosts: color, dark, font, size, zap, own CSS | built | checked 0.1.16 | Code (own CSS) not tried; font buttons fixed after 0.1.16 |
-| Boosts on/off switch, chrome://alerse-boost list | built | built | |
-| Peek (Shift+click, links from pinned tabs) | built | built | Owner's retest of Peek from a pinned tab pending |
+| Boosts: color, dark, font, size, zap, own CSS | checked 0.1.16 | checked 0.1.16 | Font buttons fixed after 0.1.16; Dark leaves the body's box visible on a black canvas |
+| Boosts on/off switch, chrome://alerse-boost list | checked 0.1.16 | partly | The panel stayed over another tab until after 0.1.16; now it closes (checked on both) |
+| Peek (Shift+click, links from pinned tabs) | checked 0.1.16 | checked | Shift+click, a pinned tab's link and Open as Tab checked on Windows; the dimmed page around it seen on macOS |
 | Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does |
 | Open in <Space>, arrow to other Spaces, Ctrl/Cmd+O, Ctrl/Cmd+Alt+O | partly | checked 0.1.16 | Windows: button and Ctrl+O checked; the arrow's menu not checked |
 
@@ -65,12 +65,12 @@ the features below that came after it ([Platforms](design.md#platforms)).
 
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
-| Sync account: 24 words and a password | built | no | The macOS 156 tree has the older Sync page |
+| Sync account: 24 words and a password | partly | no | Windows: the page and its form render; no account made. The macOS 156 tree has the older Sync page |
 | Sync with the official or own server | built | built | |
-| Import from Arc, Chrome and others | built | built | Unit tests run locally only |
+| Import from Arc, Chrome and others | partly | built | Windows finds Arc's Spaces, pinned tabs and extensions; import itself not run |
 | Update notice | built | built | Reads pre-releases on macOS; unit tests run locally only |
 | Beta Updates in the Developer menu | built | no | macOS is always on pre-releases |
-| Welcome page at first start | built | built | 0.1.14 |
+| Welcome page at first start | checked 0.1.16 | built | All eight steps |
 | Own install identity and profile folder | checked | checked | |
 
 ## Not built yet
