@@ -208,6 +208,7 @@ Web Store's addresses in `extensions/web-store.patch` are written split
 
 - [Contributing](CONTRIBUTING.md): bugs, patches, where help matters most.
 - [How Alerse works](docs/design.md): Spaces, the sidebar, sync, platforms.
+- [Features and their status](docs/features.md): what is built, checked and missing on each platform.
 - [Writing and refreshing patches](docs/patching.md).
 - [Versions and releases](docs/versioning.md); [making a release](docs/releasing.md).
 - [Why each Space is a profile](docs/adr/0001-space-profiles.md) (ADR-0001).
