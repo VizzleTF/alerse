@@ -47,6 +47,7 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.15 | macOS (pre-release) | 156.0.8078.7915 (macOS) | The Little window gets Arc's Open in <Space> button, a caret listing the other Spaces, and Ctrl+O / Ctrl+Alt+O (Command-O / Command-Option-O on macOS); Windows has it in 0.1.14 |
 | 0.1.16 | Windows, macOS (pre-release) | 157.0.8103.5016 (Windows, on 157.0.8103.50), 156.0.8078.7916 (macOS) | A link from another app opens in the Little window without bringing the Space's window over it |
 | 0.1.17 | Windows, macOS (pre-release) | 157.0.8103.5017 (Windows, on 157.0.8103.50), 156.0.8078.7917 (macOS) | Allow in Incognito in an extension's menu; a browser started with several addresses opens them all as tabs; Arc import goes to Home from any Space and joins Spaces of the same name; the Boost panel closes with its tab and its font buttons fit; the find bar sits in the page's corner on Windows too; sync server label spacing |
+| 0.1.18 | Windows, macOS (pre-release) | 157.0.8103.5018 (Windows, on 157.0.8103.50), 156.0.8078.7918 (macOS) | Arc's history and saved passwords import, also on the welcome page; keyboard shortcuts of your own (chrome://alerse-shortcuts on Windows and Linux, App Shortcuts on macOS); a calmer welcome page whose steps stay at one height and whose last button closes it |
 
 Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
