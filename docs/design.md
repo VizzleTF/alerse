@@ -218,7 +218,8 @@ Known gaps:
   keyboard: `ShowSpace` activates the window's visible modal dialog after the
   window);
 - moving a tab to another Space reopens it there, losing its history and form state;
-- favorites are a set for each Space;
+- favorites are a set for each Space, kept the same in every Space by default
+  (2026-11-15, the user's choice; see Favorites);
 - a Space's folder, made with its first pinned item or theme color, was named "home"
   whatever the Space (fixed 2026-11-12: it takes the Space's name);
 - Linux is not built with the profiles yet: the series targets Chromium 157, and
@@ -238,8 +239,15 @@ Windows' measurements still set (see `AlerseSidebarView`):
 
 ### Favorites
 
-- Favorites: Arc's tiles above the Space's name. Each Space has its own, as each Space
-  is a profile (ADR-0001). They are the bookmarks of a folder beside the Space's folder
+- Favorites: Arc's tiles above the Space's name, the same in every Space as in Arc:
+  each Space is a profile (ADR-0001) with a favorites folder of its own, and while
+  Same Favorites in Every Space is checked (a favorite's menu; on by default) a change
+  to one Space's favorites goes to every other (`alerse_shared_favorites.h`). The
+  shared set lives in local state, so a Space that opens later takes it; the first
+  time, and whenever the switch is turned on, every open Space's favorites are
+  joined, the current Space's first. Favorites match by address, so one whose tab is
+  open in another Space keeps its node and its tab. Unchecked, each Space keeps the
+  favorites it has. They are the bookmarks of a folder beside the Space's folder
   (meta info `arcomium.favorites = 1`, created by the first Add to Favorites), so they
   sync like pinned tabs. Tiles are 47
   high, 8 apart, up to four in a row filling the sidebar's width (two are 70 pt wide on

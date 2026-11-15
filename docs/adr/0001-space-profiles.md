@@ -273,7 +273,7 @@ Peek, Little Arc, Easels, Boosts, the AI features and Set Profile stay left out
 |---|---|
 | Pinned items, nested folders, folder popup, collapse and expand all | Same, on the profile's own bookmarks |
 | A tab bound to its pinned item, "/", click on the icon to return, Reset Tab | Same |
-| Favorites | A set for each Space, opened in that Space's storage |
+| Favorites | A set for each Space, opened in that Space's storage; since 2026-11-15 the sets are kept the same in every Space by default, as in Arc (the owner's choice, with a switch) |
 | Tabs list, close buttons, Clear Today, rename by double click | Same |
 | Drag and drop inside the sidebar, drag to split | Same. Dragging to another Space is Move to a Space |
 | Speaker and mute on a row | Same |

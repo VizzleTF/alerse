@@ -186,6 +186,7 @@ class AlerseSidebarView : public views::View,
       ui::mojom::MenuSourceType source_type) override;
 
   // ui::SimpleMenuModel::Delegate:
+  bool IsCommandIdChecked(int command_id) const override;
   void ExecuteCommand(int command_id, int event_flags) override;
 
   // views::DragController:

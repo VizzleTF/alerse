@@ -21,6 +21,7 @@
 #include "base/files/file_path.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/ui/tabs/alerse_boost.h"
+#include "chrome/browser/ui/tabs/alerse_shared_favorites.h"
 #include "chrome/browser/ui/tabs/alerse_shortcuts.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_data.h"
 #include "base/values.h"
@@ -92,6 +93,7 @@ inline void RegisterLinkRoutesLocalState(PrefRegistrySimple* registry) {
   registry->RegisterBooleanPref(kPeekPref, true);
   registry->RegisterBooleanPref(kLittleWindowPref, true);
   RegisterShortcutsLocalState(registry);
+  RegisterSharedFavoritesLocalState(registry);
 }
 
 inline void RegisterLinkRoutesPrefs(user_prefs::PrefRegistrySyncable* registry) {

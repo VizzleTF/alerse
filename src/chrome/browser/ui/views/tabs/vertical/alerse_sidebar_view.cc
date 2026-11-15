@@ -48,6 +48,7 @@
 #include "components/favicon/content/content_favicon_driver.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
+#include "chrome/browser/ui/tabs/alerse_shared_favorites.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/alerse_window_stack.h"
@@ -322,6 +323,7 @@ enum Command {
   kEditPinnedItem,
   kAddFavorite,
   kRemoveFavorite,
+  kShareFavorites,
   kCopyAllLinks,
   kTurnIntoSpace,
   kChangeIcon,
@@ -2512,6 +2514,7 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
 
   if (model_) {
     model_->AddObserver(this);
+    alerse::FavoritesMirror::Get().Watch(model_);
   }
   browser_->GetTabStripModel()->AddObserver(this);
   // Eased in ApplyFolderAnimation(); its duration is set where it starts.
@@ -2634,6 +2637,8 @@ void AlerseSidebarView::BookmarkNodeChanged(
 }
 
 void AlerseSidebarView::BookmarkModelChanged() {
+  // Once loaded, this Space's favorites join the shared set.
+  alerse::FavoritesMirror::Get().Watch(model_);
   ScheduleRebuild();
 }
 
@@ -5112,6 +5117,10 @@ void AlerseSidebarView::ShowContextMenuForViewImpl(
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemoveFavorite,
                          l10n_util::GetStringUTF16(IDS_ALERSE_REMOVE_FAVORITE));
+    menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
+    menu_model_->AddCheckItem(
+        kShareFavorites,
+        l10n_util::GetStringUTF16(IDS_ALERSE_SHARE_FAVORITES));
   } else if (node) {
     menu_model_->AddItem(kCopyLink, l10n_util::GetStringUTF16(IDS_ALERSE_COPY_LINK));
     add_share();
@@ -5374,6 +5383,10 @@ void AlerseSidebarView::SetNodeIcon(int64_t id,
   ScheduleRebuild();
 }
 
+bool AlerseSidebarView::IsCommandIdChecked(int command_id) const {
+  return command_id == kShareFavorites && alerse::FavoritesMirror::IsOn();
+}
+
 void AlerseSidebarView::ExecuteCommand(int command_id, int event_flags) {
   // A folder's popup kept behind its menu goes once an item is picked.
   CloseFolderPopup();
@@ -5517,6 +5530,10 @@ void AlerseSidebarView::ExecuteCommand(int command_id, int event_flags) {
       if (node && IsFavorite(node)) {
         RemoveFavorite(node);
       }
+      break;
+    case kShareFavorites:
+      alerse::FavoritesMirror::Get().SetOn(
+          !alerse::FavoritesMirror::IsOn(), model_);
       break;
     case kCopyAllLinks:
       if (node && node->is_folder()) {

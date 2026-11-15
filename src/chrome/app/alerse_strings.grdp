@@ -48,6 +48,9 @@
     <message name="IDS_ALERSE_MENU_UPDATE_TO" desc="Top item of the sidebar logo's menu and the app menu when a newer Alerse release is out: open that release's page to download it. $1 is its version.">
       Update to Alerse <ph name="VERSION">$1<ex>0.1.5</ex></ph>
     </message>
+    <message name="IDS_ALERSE_SHARE_FAVORITES" desc="Check item in a favorite's context menu: whether every Space shows the same favorites, as in Arc.">
+      Same Favorites in Every Space
+    </message>
     <message name="IDS_ALERSE_MENU_KEYBOARD_SHORTCUTS" desc="Menu of the sidebar logo and command bar action: open the page where the user sets their own keyboard shortcuts.">
       Keyboard Shortcuts
     </message>
