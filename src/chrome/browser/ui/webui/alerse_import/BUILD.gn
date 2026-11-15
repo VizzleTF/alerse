@@ -14,6 +14,28 @@ source_set("data") {
   deps = [ "//third_party/boringssl" ]
 }
 
+source_set("arc_data") {
+  sources = [
+    "alerse_import_arc_data.cc",
+    "alerse_import_arc_data.h",
+  ]
+  public_deps = [
+    "//base",
+    "//url",
+  ]
+  deps = [
+    "//crypto",
+    "//sql",
+    "//third_party/boringssl",
+  ]
+  if (is_win) {
+    libs = [ "crypt32.lib" ]
+  }
+  if (is_mac) {
+    frameworks = [ "Security.framework" ]
+  }
+}
+
 source_set("bookmarks") {
   sources = [
     "alerse_import_bookmarks.cc",
@@ -40,10 +62,17 @@ source_set("alerse_import") {
   ]
   public_deps = [ "//content/public/browser" ]
   deps = [
+    ":arc_data",
     ":bookmarks",
     ":data",
     "//base",
     "//base:i18n",
+    "//chrome/browser/history",
+    "//chrome/browser/password_manager/factories",
+    "//components/history/core/browser",
+    "//components/keyed_service/core",
+    "//components/password_manager/core/browser",
+    "//components/password_manager/core/browser/password_store:password_store_interface",
     "//chrome/app:generated_resources",
     "//chrome/browser/bookmarks",
     "//chrome/browser/profiles:profile",

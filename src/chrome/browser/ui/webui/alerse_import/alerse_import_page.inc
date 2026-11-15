@@ -147,8 +147,41 @@ function renderSource(source) {
       button.disabled = false;
     }
   });
+  if (source.kind === 'arc') offerArcData(source, item);
   offerExtensions(source, item, EXTENSION_TEXT);
   return item;
+}
+
+// Arc's history and saved passwords, imported into Home on their own
+// button: on a Mac they make macOS ask for Arc's Keychain entry.
+function offerArcData(source, parent) {
+  const row = document.createElement('div');
+  row.className = 'extensions';
+  const note = document.createElement('p');
+  note.className = 'note';
+  note.textContent = t('arcDataSummary');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = t('arcDataButton');
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    button.textContent = t('working');
+    try {
+      const r = await sendWithPromise('importArcData', source.id);
+      note.className = 'note result';
+      note.textContent = t('arcDataDone', r.pages, r.passwords) +
+          (r.locked ? ' ' + t('arcDataLocked', r.locked) : '');
+      button.textContent = t('importAgainButton');
+    } catch (code) {
+      note.className = 'note error';
+      note.textContent = t(ERRORS[code] || 'errorUnknown');
+      button.textContent = t('arcDataButton');
+    } finally {
+      button.disabled = false;
+    }
+  });
+  row.append(note, button);
+  parent.append(row);
 }
 
 const EXTENSION_TEXT = {

@@ -12,6 +12,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
+#include "chrome/browser/ui/webui/alerse_import/alerse_import_arc_data.h"
 #include "chrome/browser/ui/webui/alerse_import/alerse_import_data.h"
 #include "content/public/browser/web_ui_message_handler.h"
 
@@ -27,6 +28,7 @@ class BookmarkModel;
 //   importSource(id)      -> {links, folders, spaces, createdSpaces, folder}
 //   getExtensions(id)     -> [{id, name, installed}]
 //   importExtensions(id)  -> {added, failed}
+//   importArcData(id)     -> {pages, passwords, locked}
 //
 // Each takes only an id that the last getSources() returned. importSource()
 // rejects with "busy", "notReady" (bookmarks still loading) or "readFailed".
@@ -63,6 +65,12 @@ class AlerseImportHandler : public content::WebUIMessageHandler {
                       std::vector<alerse_import::Source> sources);
   void OnArcRead(const std::string& callback_id,
                  std::optional<std::vector<alerse_import::ArcSpace>> spaces);
+  void HandleImportArcData(const base::ListValue& args);
+  void OnArcDataRead(const std::string& callback_id,
+                     alerse_import::ArcData data);
+  void OnHomeProfileForArcData(const std::string& callback_id,
+                               alerse_import::ArcData data,
+                               Profile* home);
   void OnHomeBookmarks(const std::string& callback_id,
                        std::vector<alerse_import::ArcSpace> spaces,
                        Profile* home,

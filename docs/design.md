@@ -1816,7 +1816,20 @@ of the same name (any case) that no Arc Space has yet, keeping that Space's icon
 color, else becomes a Space of its own (`MakeSpaceOfFolder` in
 `alerse_import_handler.cc`): the import writes its folder into Home's profile, moves
 what the folder holds into the Space folder of that Space or a new profile, and
-removes the folder. No window opens: the new
+removes the folder.
+
+**History and passwords from Arc** come on a button of their own on Arc's card,
+Import History and Passwords (`alerse_import_arc_data.cc`), and go to Home, as Arc's
+first Space does. Alerse reads copies of `History` and `Login Data` in Arc's
+`User Data/Default`: the 100,000 most recent pages, added as imported visits, and
+every saved password and "never save" site, added to Home's password store.
+Arc encrypts passwords as Chromium does: on Windows with an AES-256-GCM key
+that DPAPI unwraps for this Windows user from Arc's `Local State`, on macOS with
+an AES-128 key derived from the Keychain entry "Arc Safe Storage", which macOS
+asks the user to allow; it asks only when there is a password to decrypt. A
+password that cannot be decrypted is counted on the page and skipped. Importing
+again replaces the passwords with the same site and user name, and adds one more
+visit to each page. Arc's open (unpinned) tabs are not imported. No window opens: the new
 Space shows in the Space bar. The new Space's profile entry in `Local State` records
 Arc's id of the Space (`alerse_arc_space`), so an import again finds that Space
 whatever Arc's order and replaces in it only what the earlier import brought; the

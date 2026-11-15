@@ -97,6 +97,18 @@
     <message name="IDS_ALERSE_IMPORT_ARC_DONE" desc="Import page: result of importing Arc. $1 is a number of Spaces, $2 of pinned tabs, $3 of folders.">
       Imported. Spaces: <ph name="SPACE_COUNT">$1<ex>3</ex></ph>, pinned tabs: <ph name="TAB_COUNT">$2<ex>40</ex></ph>, folders: <ph name="FOLDER_COUNT">$3<ex>5</ex></ph>.
     </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_DATA_SUMMARY" desc="Import page, Arc's card: what the history and passwords import does, under its button.">
+      Arc's history and saved passwords go to Home. On a Mac, macOS first asks to let Alerse read Arc's key in the Keychain.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_DATA_BUTTON" desc="Import page, Arc's card: button that imports Arc's browsing history and saved passwords.">
+      Import History and Passwords
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_DATA_DONE" desc="Import page: result of importing Arc's history and passwords. $1 is a number of pages, $2 of passwords.">
+      Imported. Pages: <ph name="PAGE_COUNT">$1<ex>5000</ex></ph>, passwords: <ph name="PASSWORD_COUNT">$2<ex>40</ex></ph>.
+    </message>
+    <message name="IDS_ALERSE_IMPORT_ARC_DATA_LOCKED" desc="Import page: how many of Arc's saved passwords could not be decrypted. $1 is the number.">
+      Passwords Alerse could not read: <ph name="PASSWORD_COUNT">$1<ex>2</ex></ph>.
+    </message>
     <message name="IDS_ALERSE_IMPORT_SPACES_CREATED" desc="Import page: how many Spaces importing Arc added to the Space bar. $1 is the number.">
       New Spaces in the Space bar: <ph name="SPACE_COUNT">$1<ex>2</ex></ph>.
     </message>

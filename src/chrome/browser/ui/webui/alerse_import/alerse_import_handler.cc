@@ -19,6 +19,8 @@
 #include "base/task/thread_pool.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -30,6 +32,12 @@
 #include "components/bookmarks/browser/bookmark_node.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
+#include "components/history/core/browser/history_service.h"
+#include "components/history/core/browser/history_types.h"
+#include "components/keyed_service/core/service_access_type.h"
+#include "components/password_manager/core/browser/password_form.h"
+#include "components/password_manager/core/browser/password_store/password_form_converters.h"
+#include "components/password_manager/core/browser/password_store/password_store_interface.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/strings/grit/components_strings.h"
@@ -318,6 +326,10 @@ void AlerseImportHandler::RegisterMessages() {
       base::BindRepeating(&AlerseImportHandler::HandleGetExtensions,
                           base::Unretained(this)));
   web_ui()->RegisterMessageCallback(
+      "importArcData",
+      base::BindRepeating(&AlerseImportHandler::HandleImportArcData,
+                          base::Unretained(this)));
+  web_ui()->RegisterMessageCallback(
       "importExtensions",
       base::BindRepeating(&AlerseImportHandler::HandleImportExtensions,
                           base::Unretained(this)));
@@ -428,6 +440,111 @@ void AlerseImportHandler::OnArcRead(
       base::BindOnce(&AlerseImportHandler::OnHomeBookmarks,
                      weak_factory_.GetWeakPtr(), callback_id,
                      std::move(*spaces)));
+}
+
+void AlerseImportHandler::HandleImportArcData(const base::ListValue& args) {
+  if (args.size() != 2 || !args[0].is_string()) {
+    return;
+  }
+  AllowJavascript();
+  const std::string& callback_id = args[0].GetString();
+  const Source* source = FindSource(args);
+  if (!source || source->kind != alerse_import::SourceKind::kArc) {
+    Reject(callback_id, "unknown");
+    return;
+  }
+  if (importing_) {
+    Reject(callback_id, "busy");
+    return;
+  }
+  importing_ = true;
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(&alerse_import::ReadArcData, source->path),
+      base::BindOnce(&AlerseImportHandler::OnArcDataRead,
+                     weak_factory_.GetWeakPtr(), callback_id));
+}
+
+void AlerseImportHandler::OnArcDataRead(const std::string& callback_id,
+                                        alerse_import::ArcData data) {
+  // Arc's history and passwords are Home's, as Arc's first Space is.
+  g_browser_process->profile_manager()->CreateProfileAsync(
+      g_browser_process->profile_manager()->user_data_dir().AppendASCII(
+          chrome::kInitialProfile),
+      base::BindOnce(&AlerseImportHandler::OnHomeProfileForArcData,
+                     weak_factory_.GetWeakPtr(), callback_id,
+                     std::move(data)));
+}
+
+void AlerseImportHandler::OnHomeProfileForArcData(
+    const std::string& callback_id,
+    alerse_import::ArcData data,
+    Profile* home) {
+  importing_ = false;
+  if (!home) {
+    Reject(callback_id, "notReady");
+    return;
+  }
+  int pages = 0;
+  if (history::HistoryService* history =
+          HistoryServiceFactory::GetForProfile(
+              home, ServiceAccessType::EXPLICIT_ACCESS);
+      history && !data.pages.empty()) {
+    history::URLRows rows;
+    rows.reserve(data.pages.size());
+    for (const alerse_import::ArcPage& page : data.pages) {
+      history::URLRow row(page.url);
+      row.set_title(page.title);
+      row.set_visit_count(std::max(page.visit_count, 1));
+      row.set_typed_count(page.typed_count);
+      row.set_last_visit(page.last_visit);
+      rows.push_back(std::move(row));
+    }
+    pages = static_cast<int>(rows.size());
+    // The import sources history knows are other browsers'; any marks the
+    // pages as imported rather than browsed here.
+    history->AddPagesWithDetails(rows, history::SOURCE_IE_IMPORTED);
+  }
+  int passwords = 0;
+  if (scoped_refptr<password_manager::PasswordStoreInterface> store =
+          ProfilePasswordStoreFactory::GetForProfile(
+              home, ServiceAccessType::EXPLICIT_ACCESS);
+      store && !data.logins.empty()) {
+    std::vector<password_manager::PasswordForm> forms;
+    for (alerse_import::ArcLogin& login : data.logins) {
+      password_manager::PasswordForm form;
+      form.url = login.url;
+      form.action = login.action;
+      form.signon_realm = login.signon_realm;
+      form.username_element = std::move(login.username_element);
+      form.username_value = std::move(login.username);
+      form.password_element = std::move(login.password_element);
+      form.password_value =
+          password_manager::PasswordString(std::move(login.password));
+      form.date_created = login.created;
+      form.date_password_modified = login.created;
+      form.blocked_by_user = login.blocked;
+      form.scheme = login.scheme >= 0 &&
+                            login.scheme <= static_cast<int>(
+                                password_manager::PasswordForm::Scheme::
+                                    kMaxValue)
+                        ? static_cast<password_manager::PasswordForm::Scheme>(
+                              login.scheme)
+                        : password_manager::PasswordForm::Scheme::kHtml;
+      form.type = password_manager::PasswordForm::Type::kImported;
+      form.in_store = password_manager::PasswordForm::Store::kProfileStore;
+      passwords += !login.blocked;
+      forms.push_back(std::move(form));
+    }
+    store->AddLogins(password_manager::FromPasswordForms(std::move(forms)));
+  }
+  ResolveJavascriptCallback(base::Value(callback_id),
+                            base::DictValue()
+                                .Set("pages", pages)
+                                .Set("passwords", passwords)
+                                .Set("locked", data.locked));
 }
 
 void AlerseImportHandler::OnHomeBookmarks(
