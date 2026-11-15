@@ -1709,7 +1709,8 @@ Arc's Boosts: a site's look of the user's own, seen by no one else
 - **Opening**: Boost in the site controls' top row, or Boost This Site in the command
   bar. The panel is chrome://alerse-boost/?tab=<tab> in a bubble over the page's top
   right corner, 340 px wide; the page stays live under it, and each change shows at
-  once. The same command closes it; so do Esc and its close button.
+  once. The same command closes it; so do Esc, its close button and switching to
+  another tab.
 - **What a boost holds**, per site (the registrable domain: www. and m.youtube.com
   share youtube.com's), in the profile pref `alerse.boosts`: on or off; a color (the
   page's hues turned round the wheel, `hue-rotate`); Dark (lightness inverted, hues

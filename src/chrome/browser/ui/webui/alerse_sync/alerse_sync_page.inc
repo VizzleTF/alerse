@@ -139,7 +139,7 @@ inline constexpr char kAlerseSyncHtml[] = R"HTML(<!doctype html>
              placeholder="https://sync.example.com" spellcheck="false" hidden
              aria-label="Your server's address">
       <label class="check"><input type="radio" name="server" value="alerse"
-        checked> The Alerse server (<span id="default-server"></span>)</label>
+        checked> <span>The Alerse server (<span id="default-server"></span>)</span></label>
       <p class="note">The Alerse server is run by Alerse's maintainer as a
         favour, free and without any guarantee: it may stop, and its operator
         takes no responsibility for the data on it. Everything is encrypted on

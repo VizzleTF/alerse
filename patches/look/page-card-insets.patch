@@ -3,8 +3,8 @@ index a5695e4..0360e80 100644
 --- a/chrome/browser/ui/views/frame/browser_view.cc
 +++ b/chrome/browser/ui/views/frame/browser_view.cc
 @@ -1259,6 +1259,9 @@ gfx::Rect BrowserView::GetFindBarBoundingBox() const {
-     }
-   }
+   // Alerse: the find bar sits in the page's top right corner on every
+   // platform, as Arc's pill does, never under the location bar.
  
 +  // Alerse: inside the page card: the find bar started above the card's top
 +  // edge, over the frame around it.

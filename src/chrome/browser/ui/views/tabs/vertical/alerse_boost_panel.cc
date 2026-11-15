@@ -10,6 +10,8 @@
 #include <memory>
 #include <string>
 
+#include "base/callback_list.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
@@ -38,6 +40,8 @@ constexpr int kInset = 12;
 struct Shown {
   base::WeakPtr<views::Widget> widget;
   int tab = 0;
+  // Another tab taking the window closes the panel: it edits one tab's site.
+  base::CallbackListSubscription tab_deactivates;
 };
 
 Shown& CurrentPanel() {
@@ -103,6 +107,14 @@ void ShowBoostPanel(BrowserWindowInterface* browser) {
       std::move(delegate), views::Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET);
   shown.widget = widget->GetWeakPtr();
   shown.tab = tab_id;
+  shown.tab_deactivates = tab->RegisterWillDeactivate(
+      base::BindRepeating([](tabs::TabInterface*) {
+        Shown& current = CurrentPanel();
+        if (current.widget) {
+          current.widget->Close();
+        }
+        current.tab = 0;
+      }));
   motion::FadeInWidget(widget, /*activate=*/true);
 }
 
