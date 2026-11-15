@@ -16,8 +16,11 @@
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/alerse_link_routes.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "content/public/browser/web_contents.h"
@@ -94,12 +97,30 @@ void AlerseWelcomeHandler::RegisterMessages() {
   add("setDefaultBrowser", &AlerseWelcomeHandler::HandleSetDefaultBrowser);
   add("setLinkOption", &AlerseWelcomeHandler::HandleSetLinkOption);
   add("finish", &AlerseWelcomeHandler::HandleFinish);
+  add("returnHere", &AlerseWelcomeHandler::HandleReturnHere);
 }
 
 // Start browsing: the welcome tab goes, and the Space shows its own page or
 // its other tabs.
 void AlerseWelcomeHandler::HandleFinish(const base::ListValue& args) {
   web_ui()->GetWebContents()->ClosePage();
+}
+
+// Extensions added from another browser open pages of their own as they
+// install; the welcome tab takes the window back after them.
+void AlerseWelcomeHandler::HandleReturnHere(const base::ListValue& args) {
+  content::WebContents* contents = web_ui()->GetWebContents();
+  tabs::TabInterface* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  BrowserWindowInterface* browser =
+      tab ? tab->GetBrowserWindowInterface() : nullptr;
+  if (!browser) {
+    return;
+  }
+  TabStripModel* model = browser->GetTabStripModel();
+  const int index = model->GetIndexOfWebContents(contents);
+  if (index != TabStripModel::kNoTab && index != model->active_index()) {
+    model->ActivateTabAt(index);
+  }
 }
 
 void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {

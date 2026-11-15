@@ -51,6 +51,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
 | Link routing to a Space | partly | checked | macOS: a routed link from another app opens as a tab of its Space |
 | Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (0.1.17) and in chrome://extensions; takes effect at once |
+| Keyboard shortcuts of your own | checked | partly | Windows: chrome://alerse-shortcuts, a changed key works at once in every window; macOS lists the menu keys and opens System Settings' App Shortcuts |
 
 ## Boosts, Peek and the Little window
 
@@ -68,10 +69,10 @@ the features below that came after it ([Platforms](design.md#platforms)).
 |---|---|---|---|
 | Sync account: 24 words and a password | checked | no | Windows: an account made on a local server, a second device signed in with the words and the password. The macOS 156 tree has the older Sync page |
 | Sync with the official or own server | partly | built | Own server checked on Windows: a bookmark reached the other device in about a minute; the official server not tried |
-| Import from Arc, Chrome and others | partly | checked | Arc's Spaces went to the open Space instead of Home, and a same-named Space got a twin, until 0.1.17; import again doubles nothing |
+| Import from Arc, Chrome and others | checked | checked | Spaces, pinned tabs, folders, icons, extensions, history and passwords (Windows decrypted Arc's 2 passwords, 59,647 pages); in the welcome page too |
 | Update notice | built | checked | macOS 0.1.16 offered 0.1.17 five minutes after start, and the item opened its release page |
 | Beta Updates in the Developer menu | built | no | macOS is always on pre-releases |
-| Welcome page at first start | checked 0.1.16 | partly | All eight steps on Windows; macOS opens it |
+| Welcome page at first start | checked | checked | Every step, with the Arc import; Start browsing closes the tab |
 | Own install identity and profile folder | checked | checked | |
 
 ## Not built yet

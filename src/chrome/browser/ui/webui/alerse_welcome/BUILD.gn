@@ -18,7 +18,10 @@ source_set("alerse_welcome") {
     "//chrome/browser/profiles:profile",
     "//chrome/browser/search_engines",
     "//chrome/browser/themes",
+    "//chrome/browser/ui/browser_window",
+    "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/webui/alerse_import",
     "//components/search_engines",
+    "//components/tabs:public",
   ]
 }

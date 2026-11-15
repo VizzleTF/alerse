@@ -21,7 +21,7 @@ inline constexpr char kAlerseShortcutsHtml[] = R"HTML(<!doctype html>
   <header>
     <h1>Keyboard shortcuts</h1>
     <p class="lede" id="lede-edit" hidden>Click a shortcut and press the keys
-      you want for it. A key you give one command leaves the command that had
+      you want for it; Esc stops. A key you give one command leaves the command that had
       it. Every window takes a change at once.</p>
     <p class="lede" id="lede-mac" hidden>On macOS, set shortcuts for any item
       of Alerse's menus in System Settings: Keyboard, Keyboard Shortcuts, App
@@ -47,12 +47,21 @@ inline constexpr char kAlerseShortcutsCss[] = R"CSS(
 .rows li:first-child { border-top: none; }
 .rows .name { flex: 1; }
 .rows .custom-mark { color: var(--accent); font-size: 12px; }
-.keys { display: flex; gap: 6px; }
+.keys { display: flex; gap: 6px; align-items: center; min-height: 30px;
+  padding: 3px 6px; border-radius: 8px; border: 1px solid transparent;
+  background: none; cursor: pointer; }
+button.keys:hover { border-color: var(--line); }
+.keys.recording { border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent); }
+.row-tools { display: flex; gap: 4px; min-width: 104px;
+  justify-content: flex-end; }
+.row-tools button { opacity: 0; transition: opacity 120ms;
+  padding: 4px 8px; font-size: 12px; }
+.rows li:hover .row-tools button, .row-tools button:focus-visible,
+.row-tools button.shown { opacity: 1; }
 kbd { font: 12px ui-monospace, Menlo, Consolas, monospace; padding: 3px 8px;
   border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
   white-space: nowrap; }
-button.key { min-width: 120px; }
-button.key.recording { outline: 2px solid var(--accent); }
 .none { color: var(--muted); font-size: 12px; }
 )CSS";
 
@@ -76,8 +85,13 @@ function keyRow(command, editable) {
     mark.textContent = ' · yours';
     name.append(mark);
   }
-  const keys = document.createElement('span');
+  const keys = document.createElement(editable ? 'button' : 'span');
   keys.className = 'keys';
+  if (editable) {
+    keys.type = 'button';
+    keys.title = 'Press to change';
+    keys.addEventListener('click', () => startRecording(command, keys));
+  }
   for (const text of command.keys) {
     const kbd = document.createElement('kbd');
     kbd.textContent = text;
@@ -92,34 +106,35 @@ function keyRow(command, editable) {
   li.append(name, keys);
   if (!editable) return li;
 
-  const change = document.createElement('button');
-  change.type = 'button';
-  change.className = 'key';
-  change.textContent = 'Change';
-  change.addEventListener('click', () => startRecording(command, change));
-  const clear = document.createElement('button');
-  clear.type = 'button';
-  clear.className = 'quiet';
-  clear.textContent = 'Remove';
-  clear.title = 'No key for this command';
-  clear.addEventListener('click', async () =>
-      render(await sendWithPromise('setShortcut', command.id, 0, 0)));
-  li.append(change, clear);
+  const tools = document.createElement('span');
+  tools.className = 'row-tools';
   if (command.custom) {
     const reset = document.createElement('button');
     reset.type = 'button';
-    reset.className = 'quiet';
+    reset.className = 'quiet small shown';
     reset.textContent = 'Reset';
+    reset.title = "Back to Alerse's key";
     reset.addEventListener('click', async () =>
         render(await sendWithPromise('resetShortcut', command.id)));
-    li.append(reset);
+    tools.append(reset);
   }
+  if (command.keys.length) {
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'quiet small';
+    clear.textContent = 'Remove';
+    clear.title = 'No key for this command';
+    clear.addEventListener('click', async () =>
+        render(await sendWithPromise('setShortcut', command.id, 0, 0)));
+    tools.append(clear);
+  }
+  li.append(tools);
   return li;
 }
 
 function startRecording(command, button) {
   stopRecording();
-  recording = {command, button};
+  recording = {command, button, before: [...button.childNodes]};
   button.classList.add('recording');
   button.textContent = 'Press keys…';
 }
@@ -127,7 +142,7 @@ function startRecording(command, button) {
 function stopRecording() {
   if (!recording) return;
   recording.button.classList.remove('recording');
-  recording.button.textContent = 'Change';
+  recording.button.replaceChildren(...recording.before);
   recording = null;
 }
 

@@ -97,7 +97,8 @@ std::optional<std::string> PasswordKey(const base::FilePath& arc_dir) {
                               &json)) {
     return std::nullopt;
   }
-  std::optional<base::Value> state = base::JSONReader::Read(json);
+  std::optional<base::Value> state =
+      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
   const std::string* encoded =
       state && state->is_dict()
           ? state->GetDict().FindStringByDottedPath("os_crypt.encrypted_key")

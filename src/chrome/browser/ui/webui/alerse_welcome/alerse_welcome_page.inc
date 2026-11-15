@@ -329,6 +329,10 @@ async function offerExtensions(source, parent, text) {
       note.className = r.failed ? 'note error' : 'note result';
       note.textContent = text.done(r.added, r.failed);
       button.remove();
+      // Their own pages open as they install; this tab comes back after.
+      for (const ms of [1500, 4000, 8000]) {
+        setTimeout(() => chrome.send('returnHere'), ms);
+      }
     } catch (code) {
       note.className = 'note error';
       note.textContent = text.failed;
