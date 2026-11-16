@@ -23,5 +23,6 @@ source_set("alerse_welcome") {
     "//chrome/browser/ui/webui/alerse_import",
     "//components/search_engines",
     "//components/tabs:public",
+    "//extensions/common",
   ]
 }

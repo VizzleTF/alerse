@@ -49,6 +49,7 @@
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_icon.h"
 #include "chrome/browser/ui/tabs/alerse_shared_favorites.h"
+#include "chrome/browser/ui/tabs/alerse_web_store.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "chrome/browser/ui/tabs/alerse_window_stack.h"
@@ -2517,6 +2518,8 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
     alerse::FavoritesMirror::Get().Watch(model_);
   }
   browser_->GetTabStripModel()->AddObserver(this);
+  // A Space made after the welcome page takes the search engine picked there.
+  alerse::ApplySearchChoice(browser_->GetProfile());
   // Eased in ApplyFolderAnimation(); its duration is set where it starts.
   folder_animation_.SetTweenType(gfx::Tween::LINEAR);
   alerse::SpaceShownHook() = &AlerseSidebarView::OnSpaceShown;

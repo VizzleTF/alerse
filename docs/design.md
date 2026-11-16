@@ -235,7 +235,9 @@ Windows' measurements still set (see `AlerseSidebarView`):
 
 ### Header row
 
-- Header row, 32 px: Alerse menu, sidebar toggle, downloads at x = 23, 58, 93.
+- Header row, 32 px: Alerse menu and sidebar toggle at x = 23, 58. Arc for Windows
+  also has Downloads there (x = 93); Alerse keeps it only at the sidebar's bottom, in
+  the Space bar, so it is not twice (`look/one-downloads-button.patch`).
 
 ### Favorites
 
@@ -1811,14 +1813,20 @@ onboarding; the code is Alerse's own.
 2. **Where are you coming from?**: the browsers found on this computer, each with
    Import: the import page's own handler and import, so Arc's Spaces arrive as Spaces.
 3. **Search engine**: DuckDuckGo, Brave Search, Startpage, Ecosia, Qwant, Google, Bing,
-   with DuckDuckGo picked, so Google is a choice and not the default; set in every Space.
-   Only those the profile's engine list has are offered: the list is the region's. No
-   Skip here.
-4. **Light or dark**: Match the system, Light or Dark, for every Space.
-5. **Sync**: opens the Sync page in a new tab, recommending a server of your own.
-6. **Make Alerse your browser**: the system's default-browser request (Windows opens its
+   with DuckDuckGo picked, so Google is a choice and not the default. The pick goes to
+   every Space, also to one made later (`alerse.search_engine` in local state; each Space
+   takes it once, so a later change in a Space's settings stays). The five private
+   engines are in every region's list; Google and Bing are offered where the region's
+   list has them. No Skip here.
+4. **Chrome Web Store**: Leave it off (picked) or Use the Chrome Web Store. When
+   extensions were added in step 2, the step says that they update only through the
+   store. Skip leaves it off.
+5. **Light or dark**: Match the system, Light or Dark, for every Space.
+6. **Looking at a link**: Peek and the Little window, each on or off.
+7. **Sync**: opens the Sync page in a new tab, recommending a server of your own.
+8. **Make Alerse your browser**: the system's default-browser request (Windows opens its
    settings), and whether Alerse already is.
-7. **You are set**: what was picked, and the three things to know: the sidebar, Ctrl+T for
+9. **You are set**: what was picked, and the three things to know: the sidebar, Ctrl+T for
    the command bar, Ctrl+D to pin, the Alerse menu.
 
 ## Import
@@ -2360,9 +2368,23 @@ these changes:
 
 - Vertical tabs on, so the sidebar shows (`defaults/vertical-tabs-by-default.patch`);
   startup continues the last session (see Spaces).
-- Google is the default search engine, without Chrome's preconnect to it or prefetch of
-  its likely results; Search Engine in the logo menu picks another.
-- The Chrome Web Store installs and updates extensions, so they sync between devices
+- No Google unless picked (`defaults/no-google-default.patch`, `alerse_web_store.h`).
+  Without a pick in the welcome page, the search engine is DuckDuckGo: Chromium's
+  fallback engine was Google, and DuckDuckGo, Brave Search, Startpage, Ecosia and Qwant
+  are now added to every region's list (`kCurrentDataVersion` 218 refreshes existing
+  profiles, whose engine changes to DuckDuckGo unless one was picked). Google, picked,
+  has no preconnect or prefetch of its likely results; Search Engine in the logo menu
+  picks another.
+- The Chrome Web Store is a switch, Use Chrome Web Store, in the Extensions menu (the
+  logo menu's submenu on Windows, the menu bar on macOS) and the welcome page
+  (`alerse.web_store` in local state). Off, Alerse sends no update check to the store,
+  so store extensions do not update and synced ones do not install; extensions with
+  their own update URL still update. A new install starts with it off; an install from
+  before 0.1.20 (no first-run flag) starts with it on, as its extensions update from
+  the store. Adding an extension from the store's page is choosing the store and turns
+  the switch on; turning it on checks for updates at once.
+- With the switch on, the Chrome Web Store installs and updates extensions, so they sync
+  between devices
   (`extensions/web-store.patch`): CRX3 publisher proofs are still checked, update URLs
   are forced to https, and on Windows extensions registered in the registry are not
   loaded. The store's address is split in C++ strings and written with an escaped "."

@@ -1,0 +1,288 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+index 6aa87ce..9df5ce5 100644
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -328,6 +328,8 @@
+ #define IDC_ALERSE_BOOST_SITE 40411
+ // Alerse: opens chrome://alerse-shortcuts (alerse_shortcuts.h).
+ #define IDC_ALERSE_KEYBOARD_SHORTCUTS 40412
++// Alerse: turns the Chrome Web Store on or off (alerse_web_store.h).
++#define IDC_ALERSE_WEB_STORE 40413
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index a0ef639..c643a5e 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -41,6 +41,8 @@
+ #include "chrome/browser/enterprise/chrome_browser_main_extra_parts_enterprise.h"
+ #include "chrome/browser/first_run/bookmark_importer.h"
+ #include "chrome/browser/first_run/first_run_features.h"
++#include "chrome/browser/extensions/updater/extension_updater.h"
++#include "chrome/browser/ui/tabs/alerse_web_store.h"
+ #include "chrome/browser/gpu/chrome_browser_main_extra_parts_gpu.h"
+ #include "chrome/browser/language/url_language_histogram_factory.h"
+ #include "chrome/browser/lifetime/browser_shutdown.h"
+@@ -1340,6 +1342,19 @@ int ChromeBrowserMainParts::PreCreateThreadsImpl() {
+       browser_creator_->AddFirstRunTabs(master_prefs_->new_tabs);
+     }
+   }
++  // Alerse: the Chrome Web Store switch, off on a new install; turned on, it
++  // checks for updates at once.
++  alerse::InitWebStore(
++      browser_process_->local_state(), first_run::IsChromeFirstRun(),
++      base::BindRepeating([] {
++        for (Profile* profile :
++             g_browser_process->profile_manager()->GetLoadedProfiles()) {
++          if (extensions::ExtensionUpdater* updater =
++                  extensions::ExtensionUpdater::Get(profile)) {
++            updater->CheckSoon();
++          }
++        }
++      }));
+ #endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE) &&                                   \
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+index eb99725..fe29585 100644
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -93,6 +93,7 @@
+ #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
+ #include "chrome/browser/ui/safety_hub/safety_hub_prefs.h"
+ #include "chrome/browser/ui/tabs/alerse_link_routes.h"
++#include "chrome/browser/ui/tabs/alerse_web_store.h"
+ #include "chrome/browser/ui/tabs/organizer/organizer_prefs.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_prefs.h"
+@@ -1684,6 +1685,8 @@ void RegisterLocalState(PrefRegistrySimple* registry) {
+   enterprise_util::RegisterLocalStatePrefs(registry);
+   // Alerse: link routes are the browser's, shared by every Space.
+   alerse::RegisterLinkRoutesLocalState(registry);
++  // Alerse: the Chrome Web Store switch and the welcome page's search engine.
++  alerse::RegisterWebStoreLocalState(registry);
+   component_updater::RegisterPrefs(registry);
+   domain_reliability::RegisterPrefs(registry);
+   embedder_support::OriginTrialPrefs::RegisterPrefs(registry);
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 902c068..f1797e6 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/ui/tabs/alerse_peek.h"
+ #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+ #include "chrome/browser/ui/tabs/alerse_split.h"
++#include "chrome/browser/ui/tabs/alerse_web_store.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/browsing_data/browsing_data_important_sites_util.h"
+@@ -1009,6 +1010,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_ALERSE_KEYBOARD_SHORTCUTS:
+       ShowSingletonTab(browser_, GURL("chrome://alerse-shortcuts/"));
+       break;
++    case IDC_ALERSE_WEB_STORE:
++      alerse::SetWebStoreOn(!alerse::IsWebStoreOn());
++      break;
+     // Alerse: the Space bar's commands, from the macOS menu bar.
+     case IDC_ALERSE_NEW_SPACE:
+     case IDC_ALERSE_NEXT_SPACE:
+@@ -2034,6 +2038,7 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_->UpdateCommandEnabled(IDC_SHOW_SYNC_SETTINGS, true);
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_LINK_ROUTING, true);
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_KEYBOARD_SHORTCUTS, true);
++  command_updater_->UpdateCommandEnabled(IDC_ALERSE_WEB_STORE, true);
+   command_updater_->UpdateCommandEnabled(
+       IDC_ALERSE_IMPORT, !guest_session && !profile()->IsOffTheRecord());
+   command_updater_->UpdateCommandEnabled(IDC_ALERSE_UPDATE, true);
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+index 38726a9..8fab774 100644
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -726,6 +726,10 @@ NSMenuItem* BuildExtensionsMenu(NSApplication* nsapp,
+                   .command_id(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE),
+               Item(IDS_ALERSE_MENU_MANAGE_EXTENSIONS)
+                   .command_id(IDC_MANAGE_EXTENSIONS),
++              // Alerse: off until chosen, as it is Google's.
++              Item().is_separator(),
++              Item(IDS_ALERSE_USE_WEB_STORE)
++                  .command_id(IDC_ALERSE_WEB_STORE),
+           })
+           .Build();
+   // clang-format on
+diff --git a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+index 4bef17d..8a381bf 100644
+--- a/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
++++ b/chrome/browser/ui/views/frame/browser_native_widget_mac.mm
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/alerse_update/alerse_update_checker.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
++#include "chrome/browser/ui/tabs/alerse_web_store.h"
+ #include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
+ #include "ui/base/clipboard/scoped_clipboard_writer.h"
+@@ -613,6 +614,10 @@ void BrowserNativeWidgetMac::ValidateUserInterfaceItem(
+     default:
+       result->set_toggle_state = false;
+       break;
++    case IDC_ALERSE_WEB_STORE:
++      // Alerse: the Extensions menu's Chrome Web Store switch.
++      result->new_toggle_state = alerse::IsWebStoreOn();
++      break;
+     case IDC_SHOW_BOOKMARK_BAR: {
+       PrefService* prefs = browser->GetProfile()->GetPrefs();
+       result->new_toggle_state =
+diff --git a/components/regional_capabilities/regional_capabilities_service.cc b/components/regional_capabilities/regional_capabilities_service.cc
+index b1d74e7..89229b1 100644
+--- a/components/regional_capabilities/regional_capabilities_service.cc
++++ b/components/regional_capabilities/regional_capabilities_service.cc
+@@ -422,6 +422,21 @@ RegionalCapabilitiesService::GetRegionalPrepopulatedEngines() {
+ 
+   ApplyPrepopulatedEnginesMigration(engines);
+ 
++  // Alerse: the private engines the first start offers are in every region's
++  // list, so that the default is not Google anywhere.
++  for (const PrepopulatedEngine* engine :
++       {&TemplateURLPrepopulateData::duckduckgo,
++        &TemplateURLPrepopulateData::brave,
++        &TemplateURLPrepopulateData::startpage,
++        &TemplateURLPrepopulateData::ecosia,
++        &TemplateURLPrepopulateData::qwant}) {
++    if (std::ranges::none_of(engines, [engine](const auto& listed) {
++          return listed->id == engine->id;
++        })) {
++      engines.push_back(engine);
++    }
++  }
++
+   return engines;
+ }
+ 
+diff --git a/components/search_engines/template_url_prepopulate_data.cc b/components/search_engines/template_url_prepopulate_data.cc
+index 85b0c96..de044a1 100644
+--- a/components/search_engines/template_url_prepopulate_data.cc
++++ b/components/search_engines/template_url_prepopulate_data.cc
+@@ -317,8 +317,10 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
+     PrefService& prefs,
+     const std::vector<raw_ptr<const PrepopulatedEngine>>&
+         regional_prepopulated_engines) {
++  // Alerse: DuckDuckGo, which every region's list has, until one picks
++  // another; Google is used only when chosen.
+   return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,
+-                                        google.id,
++                                        duckduckgo.id,
+                                         /*use_first_as_fallback=*/true);
+ }
+ 
+diff --git a/extensions/browser/updater/extension_downloader.cc b/extensions/browser/updater/extension_downloader.cc
+index 3eb8232..4640f9a 100644
+--- a/extensions/browser/updater/extension_downloader.cc
++++ b/extensions/browser/updater/extension_downloader.cc
+@@ -354,10 +354,16 @@ void ExtensionDownloader::DoStartAllPending() {
+   pending_tasks_.clear();
+ 
+   // Alerse: update checks run, so extensions synced from another device
+-  // install and installed ones update.
++  // install and installed ones update; the Chrome Web Store's only while its
++  // switch is on, so Alerse does not call Google unasked.
+   for (auto& fetch_list : fetches_preparing) {
+-    for (auto& fetch : fetch_list.second)
++    for (auto& fetch : fetch_list.second) {
++      if (!extension_urls::IsAlerseWebStoreOn() &&
++          extension_urls::IsWebstoreUpdateUrl(fetch->base_url())) {
++        continue;
++      }
+       StartUpdateCheck(std::move(fetch));
++    }
+   }
+ }
+ 
+diff --git a/extensions/browser/webstore_installer.cc b/extensions/browser/webstore_installer.cc
+index 7937194..0cc2616 100644
+--- a/extensions/browser/webstore_installer.cc
++++ b/extensions/browser/webstore_installer.cc
+@@ -688,6 +688,9 @@ void WebstoreInstaller::ReportFailure(const std::string& error,
+ 
+ void WebstoreInstaller::ReportSuccess() {
+   CHECK(success_callback_);
++  // Alerse: an extension added from the Chrome Web Store is the user's
++  // choice of the store, which then keeps it updated.
++  extension_urls::SetAlerseWebStoreOn(true);
+   std::move(success_callback_).Run(id_);
+   failure_callback_ = base::NullCallback();
+   extension_registry_observation_.Reset();
+diff --git a/extensions/common/extension_urls.cc b/extensions/common/extension_urls.cc
+index 57d1b97..2d5bf08 100644
+--- a/extensions/common/extension_urls.cc
++++ b/extensions/common/extension_urls.cc
+@@ -7,6 +7,7 @@
+ #include <string_view>
+ 
+ #include "base/auto_reset.h"
++#include "base/no_destructor.h"
+ #include "base/strings/escape.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/stringprintf.h"
+@@ -36,8 +37,34 @@ namespace {
+ 
+ const GURL* g_item_snippet_url_for_test_ = nullptr;
+ 
++// Alerse: the Chrome Web Store switch.
++bool g_alerse_web_store_on = false;
++
++base::RepeatingCallback<void(bool)>& AlerseWebStoreObserver() {
++  static base::NoDestructor<base::RepeatingCallback<void(bool)>> observer;
++  return *observer;
++}
++
+ }  // namespace
+ 
++bool IsAlerseWebStoreOn() {
++  return g_alerse_web_store_on;
++}
++
++void SetAlerseWebStoreOn(bool on) {
++  if (g_alerse_web_store_on == on) {
++    return;
++  }
++  g_alerse_web_store_on = on;
++  if (AlerseWebStoreObserver()) {
++    AlerseWebStoreObserver().Run(on);
++  }
++}
++
++void SetAlerseWebStoreObserver(base::RepeatingCallback<void(bool)> observer) {
++  AlerseWebStoreObserver() = std::move(observer);
++}
++
+ // Alerse installs and updates extensions from the Chrome Web Store, so its
+ // URLs stay real: the literals are split so that ungoogled-chromium's domain
+ // substitution leaves them alone.
+diff --git a/extensions/common/extension_urls.h b/extensions/common/extension_urls.h
+index 4f62f5e..055112d 100644
+--- a/extensions/common/extension_urls.h
++++ b/extensions/common/extension_urls.h
+@@ -9,6 +9,7 @@
+ #include <string_view>
+ 
+ #include "base/auto_reset.h"
++#include "base/functional/callback.h"
+ #include "build/branding_buildflags.h"
+ #include "extensions/common/extension_id.h"
+ #include "url/gurl.h"
+@@ -143,6 +144,14 @@ bool IsBlocklistUpdateUrl(const GURL& url);
+ // Returns true if the origin points to an URL used for safebrowsing.
+ bool IsSafeBrowsingUrl(const GURL& url);
+ 
++// Alerse: whether extensions update from the Chrome Web Store and synced
++// ones install from it. Off until the user turns it on; the browser keeps
++// the choice in local state (alerse_web_store.h).
++bool IsAlerseWebStoreOn();
++// Sets the switch and, when it changes, tells the observer, which saves it.
++void SetAlerseWebStoreOn(bool on);
++void SetAlerseWebStoreObserver(base::RepeatingCallback<void(bool)> observer);
++
+ }  // namespace extension_urls
+ 
+ #endif  // EXTENSIONS_COMMON_EXTENSION_URLS_H_

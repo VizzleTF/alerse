@@ -162,13 +162,14 @@ becomes a Space of its own with its pinned items.
 
 ## Privacy
 
-Alerse keeps ungoogled-chromium's privacy defaults, with these exceptions:
+Alerse keeps ungoogled-chromium's privacy defaults. Nothing reaches Google unless
+you pick it:
 
-| Exception | What reaches Google | Off by |
+| Choice | What reaches Google | Default |
 |---|---|---|
-| Google is the default search engine | Your searches, only when you search | Picking another engine in the Alerse menu, Search Engine |
-| Search suggestions can be turned on | What you type in the address bar | They are off unless you turn them on in settings |
-| The Chrome Web Store installs and updates extensions | Installed extensions' IDs and versions, in update checks | Not installing extensions from the Web Store |
+| Google as the search engine (welcome page, or Search Engine in the Alerse menu) | Your searches, only when you search | DuckDuckGo |
+| Search suggestions, with Google as the engine | What you type in the address bar | Off |
+| Chrome Web Store (welcome page, or Use Chrome Web Store in the Extensions menu) | Installed extensions' IDs and versions, in update checks | Off; on for installs from before 0.1.20, which have Web Store extensions to update |
 
 Alerse has no updater. A few minutes after it starts, and then once a day, it
 asks GitHub's API for the platform's latest release: a plain GET of

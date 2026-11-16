@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 // The files of chrome://alerse-welcome, served by AlerseWelcomeUI. One step
-// at a time; every step but the search engine can be skipped, and Back keeps
-// what was picked. The import step uses the import page's messages.
+// at a time; every step but the search engine can be skipped (the Chrome Web
+// Store then stays off), and Back keeps what was picked. The import step uses
+// the import page's messages.
 
 #ifndef CHROME_BROWSER_UI_WEBUI_ALERSE_WELCOME_ALERSE_WELCOME_PAGE_INC_
 #define CHROME_BROWSER_UI_WEBUI_ALERSE_WELCOME_ALERSE_WELCOME_PAGE_INC_
@@ -28,6 +29,7 @@ inline constexpr char kAlerseWelcomeHtml[] = R"HTML(<!doctype html>
       every one stays in Settings.</p>
     <ul class="plain">
       <li>No account and no AI: nothing here signs you in to anything.</li>
+      <li>No Google unless you pick it, for search or for extensions.</li>
       <li>Your Spaces, pinned tabs and folders can come with you from Arc.</li>
       <li>Sync is end-to-end encrypted, on your own server or Alerse's.</li>
     </ul>
@@ -49,6 +51,24 @@ inline constexpr char kAlerseWelcomeHtml[] = R"HTML(<!doctype html>
       Change it any time in Settings.</p>
     <div id="engines" class="choices" role="radiogroup"
          aria-label="Search engine"></div>
+  </section>
+
+  <section class="step" data-step="store" hidden>
+    <h1>Chrome Web Store</h1>
+    <p class="lede">Where most extensions come from. It is Google's, so Alerse
+      leaves it off until you turn it on. The Extensions menu keeps the
+      switch.</p>
+    <div class="choices" role="radiogroup" aria-label="Chrome Web Store">
+      <button class="choice" data-store="off" role="radio">
+        <span class="name">Leave it off</span>
+        <span class="note">Alerse does not contact Google. Extensions you add
+          do not update.</span></button>
+      <button class="choice" data-store="on" role="radio">
+        <span class="name">Use the Chrome Web Store</span>
+        <span class="note">Add extensions from it, keep them updated and
+          synced. Alerse asks Google's server for updates.</span></button>
+    </div>
+    <p id="store-note" class="note" hidden></p>
   </section>
 
   <section class="step" data-step="theme" hidden>
@@ -195,6 +215,7 @@ function show(i) {
   $('next').textContent = name === 'done' ? 'Start browsing' :
       name === 'intro' ? 'Begin' : 'Continue';
   if (name === 'source') findSources();
+  if (name === 'store') noteStore();
   if (name === 'default') checkDefault(false);
   if (name === 'done') summarize();
   steps[index].querySelector('h1').focus?.();
@@ -328,6 +349,7 @@ async function offerExtensions(source, parent, text) {
       const r = await sendWithPromise('importExtensions', source.id);
       note.className = r.failed ? 'note error' : 'note result';
       note.textContent = text.done(r.added, r.failed);
+      picked.extensions = (picked.extensions || 0) + r.added;
       button.remove();
       // Their own pages open as they install; this tab comes back after.
       for (const ms of [1500, 4000, 8000]) {
@@ -373,6 +395,9 @@ async function loadState() {
     radio($('engines'), first);
     picked.engine = state.engines[0];
   }
+  picked.store = state.webStore;
+  radio(document.querySelector('[data-store]').parentElement,
+        document.querySelector(`[data-store="${state.webStore ? 'on' : 'off'}"]`));
   const theme = document.querySelector(`[data-theme="${state.theme}"]`);
   if (theme) radio(theme.parentElement, theme);
   picked.theme = state.theme;
@@ -394,6 +419,24 @@ if (navigator.platform.startsWith('Mac')) {
 } else {
   $('little-note').textContent = 'Ctrl+Alt+N opens a small window for a ' +
       'quick look, and links from other apps open in one.';
+}
+
+// The Chrome Web Store: what is picked here applies on Continue.
+document.querySelectorAll('[data-store]').forEach((b) => {
+  b.addEventListener('click', () => {
+    radio(b.parentElement, b);
+    picked.store = b.dataset.store === 'on';
+  });
+});
+
+// Extensions added from another browser come from the store, so they say
+// what leaving it off means for them.
+function noteStore() {
+  const n = picked.extensions || 0;
+  $('store-note').hidden = n === 0;
+  $('store-note').textContent = n === 1 ?
+      'The extension you added from another browser updates only through it.' :
+      `The ${n} extensions you added from another browser update only through it.`;
 }
 
 document.querySelectorAll('[data-theme]').forEach((b) => {
@@ -423,6 +466,8 @@ function summarize() {
   const lines = [];
   if (picked.imported) lines.push('Imported from ' + picked.imported.join(', '));
   if (picked.engine) lines.push('Searching with ' + picked.engine.name);
+  lines.push(picked.store ? 'Extensions from the Chrome Web Store' :
+                            'Chrome Web Store off');
   if (picked.theme) lines.push({system: 'Theme follows the system', light: 'Light theme', dark: 'Dark theme'}[picked.theme]);
   if (picked.sync) lines.push('Sync set up in its own tab');
   if (picked.isDefault) lines.push('Alerse is your default browser');
@@ -439,6 +484,9 @@ $('next').addEventListener('click', async () => {
   const name = steps[index].dataset.step;
   if (name === 'search' && picked.engine) {
     await sendWithPromise('setSearchEngine', picked.engine.id);
+  }
+  if (name === 'store') {
+    picked.store = await sendWithPromise('setWebStore', picked.store);
   }
   if (name === 'done') {
     chrome.send('finish');

@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/alerse_link_routes.h"
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
+#include "chrome/browser/ui/tabs/alerse_web_store.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/search_engines/template_url.h"
@@ -63,20 +64,6 @@ std::vector<Profile*> SpaceProfiles(Profile* fallback) {
   return profiles;
 }
 
-// The profile's engine with `prepopulate_id`, if its list has one: the list
-// is the region's, so an offered engine may be missing.
-TemplateURL* FindEngine(TemplateURLService* urls, int prepopulate_id) {
-  if (!urls) {
-    return nullptr;
-  }
-  for (TemplateURL* url : urls->GetTemplateURLs()) {
-    if (url->prepopulate_id() == prepopulate_id) {
-      return url;
-    }
-  }
-  return nullptr;
-}
-
 }  // namespace
 
 AlerseWelcomeHandler::AlerseWelcomeHandler(Profile* profile)
@@ -94,6 +81,7 @@ void AlerseWelcomeHandler::RegisterMessages() {
   add("getWelcomeState", &AlerseWelcomeHandler::HandleGetState);
   add("setSearchEngine", &AlerseWelcomeHandler::HandleSetSearchEngine);
   add("setTheme", &AlerseWelcomeHandler::HandleSetTheme);
+  add("setWebStore", &AlerseWelcomeHandler::HandleSetWebStore);
   add("setDefaultBrowser", &AlerseWelcomeHandler::HandleSetDefaultBrowser);
   add("setLinkOption", &AlerseWelcomeHandler::HandleSetLinkOption);
   add("finish", &AlerseWelcomeHandler::HandleFinish);
@@ -131,7 +119,7 @@ void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {
       urls ? urls->GetDefaultSearchProvider() : nullptr;
   base::ListValue engines;
   for (const Engine& engine : kEngines) {
-    if (!FindEngine(urls, engine.prepopulate_id)) {
+    if (!alerse::FindPrepopulatedEngine(urls, engine.prepopulate_id)) {
       continue;
     }
     engines.Append(
@@ -159,6 +147,7 @@ void AlerseWelcomeHandler::HandleGetState(const base::ListValue& args) {
   base::DictValue state;
   state.Set("engines", std::move(engines));
   state.Set("theme", theme);
+  state.Set("webStore", alerse::IsWebStoreOn());
   state.Set("options", alerse::LinkOptions());
   // Whether Alerse is the default browser comes from the system, in a
   // moment; the page asks for it with setDefaultBrowser(false).
@@ -178,14 +167,19 @@ void AlerseWelcomeHandler::HandleSetSearchEngine(const base::ListValue& args) {
                              base::Value("unknown engine"));
     return;
   }
-  for (Profile* profile : SpaceProfiles(profile_)) {
-    TemplateURLService* urls =
-        TemplateURLServiceFactory::GetForProfile(profile);
-    if (TemplateURL* url = FindEngine(urls, id)) {
-      urls->SetUserSelectedDefaultSearchProvider(url);
-    }
-  }
+  // Every Space now, and every Space made later.
+  alerse::SetSearchChoice(id);
   ResolveJavascriptCallback(base::Value(callback_id), base::Value());
+}
+
+// [callback, on]: the Chrome Web Store switch.
+void AlerseWelcomeHandler::HandleSetWebStore(const base::ListValue& args) {
+  AllowJavascript();
+  if (args.size() != 2 || !args[1].is_bool()) {
+    return;
+  }
+  alerse::SetWebStoreOn(args[1].GetBool());
+  ResolveJavascriptCallback(args[0], base::Value(alerse::IsWebStoreOn()));
 }
 
 void AlerseWelcomeHandler::HandleSetTheme(const base::ListValue& args) {

@@ -31,6 +31,7 @@ class AlerseWelcomeHandler : public content::WebUIMessageHandler {
   void HandleGetState(const base::ListValue& args);
   void HandleSetSearchEngine(const base::ListValue& args);
   void HandleSetTheme(const base::ListValue& args);
+  void HandleSetWebStore(const base::ListValue& args);
   void HandleSetDefaultBrowser(const base::ListValue& args);
   void HandleSetLinkOption(const base::ListValue& args);
   void HandleFinish(const base::ListValue& args);

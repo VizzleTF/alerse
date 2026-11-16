@@ -1,0 +1,17 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+index 350eb89..2ba416c 100644
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -832,8 +832,11 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+         if (!rows[row][i]) {
+           continue;
+         }
++        // Alerse: on Windows Downloads is at the sidebar's bottom only, not
++        // also in the header row beside the logo and the sidebar toggle.
+         layout.child_layouts.emplace_back(
+-            rows[row][i], row < row_count,
++            rows[row][i],
++            row < row_count && rows[row][i] != arc_downloads_button_.get(),
+             gfx::Rect(row_x[row] + static_cast<int>(i) * kArcHeaderPitch,
+                       row_center[row] - kArcHeaderButtonSize / 2,
+                       kArcHeaderButtonSize, kArcHeaderButtonSize));

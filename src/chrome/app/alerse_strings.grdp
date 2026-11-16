@@ -54,6 +54,9 @@
     <message name="IDS_ALERSE_MENU_KEYBOARD_SHORTCUTS" desc="Menu of the sidebar logo and command bar action: open the page where the user sets their own keyboard shortcuts.">
       Keyboard Shortcuts
     </message>
+    <message name="IDS_ALERSE_USE_WEB_STORE" desc="Check item in the Extensions menu (sidebar logo menu, macOS menu bar): whether Alerse installs and updates extensions from Google's Chrome Web Store. Off until the user turns it on.">
+      Use Chrome Web Store
+    </message>
     <message name="IDS_ALERSE_MENU_IMPORT" desc="Menu of the sidebar logo and the app menu: open the page that imports bookmarks and Spaces from other browsers on this computer.">
       Import from Another Browser...
     </message>

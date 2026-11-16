@@ -1,7 +1,7 @@
 # Features and their status
 
 What Alerse has, what was checked on screen, and what is not built. True for
-**0.1.19** (Windows on Chromium 157, macOS on 156), as of 2026-11-15. How each feature
+**0.1.20** (Windows on Chromium 157, macOS on 156), as of 2026-11-16. How each feature
 works is in [design.md](design.md); this page only says where it stands.
 
 ## Status words
@@ -51,6 +51,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Split View | checked 0.1.13 | checked | |
 | Icon pickers for pinned items, folders, Spaces | built | checked | |
 | Link routing to a Space | partly | checked | macOS: a routed link from another app opens as a tab of its Space |
+| No Google by default: DuckDuckGo, Web Store switch | partly 0.1.20 | checked 0.1.20 | Search picked in the welcome page goes to every Space, also one made later; Use Chrome Web Store in the Extensions menu. Windows: the welcome page's search and store picks reach both Spaces; DuckDuckGo default and the menu switch checked on macOS only |
 | Extensions in Incognito, by choice | checked | checked | Allow in Incognito in an extension's menu in the site controls (0.1.17) and in chrome://extensions; takes effect at once |
 | Keyboard shortcuts of your own | checked | partly | Windows: chrome://alerse-shortcuts, a changed key works at once in every window; macOS lists the menu keys and opens System Settings' App Shortcuts |
 
@@ -87,7 +88,6 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Sync: email accounts, pairing by code, password change, key rotation | Later steps of ADR-0002 |
 | Share in sidebar menus on Windows | macOS has it through the system |
 | Translations of Alerse's own text | English only; sync error messages are hard-coded |
-| Google search and Web Store off by default | Planned as opt-in at first start |
 | Linux on Chromium 157 | Waits for ungoogled-chromium-portablelinux 157 |
 | macOS on Chromium 157 | Waits for ungoogled-chromium-macos 157 |
 

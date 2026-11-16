@@ -111,3 +111,5 @@ look/peek-and-little-window.patch
 look/sidebar-slide.patch
 look/boosts.patch
 look/keyboard-shortcuts.patch
+defaults/no-google-default.patch
+look/one-downloads-button.patch

@@ -23,6 +23,7 @@
 #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
 #include "chrome/browser/ui/tabs/alerse_peek.h"
 #include "chrome/browser/ui/tabs/alerse_space_command_hook.h"
+#include "chrome/browser/ui/tabs/alerse_web_store.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_popover.h"
@@ -193,6 +194,11 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
 
     extensions_.AddItem(IDC_MANAGE_EXTENSIONS,
                         l10n_util::GetStringUTF16(IDS_ALERSE_MANAGE_EXTENSIONS));
+    // Off until chosen, as the store is Google's (alerse_web_store.h).
+    extensions_.AddSeparator(ui::NORMAL_SEPARATOR);
+    extensions_.AddCheckItem(
+        IDC_ALERSE_WEB_STORE,
+        l10n_util::GetStringUTF16(IDS_ALERSE_USE_WEB_STORE));
     root_.AddSubMenu(0, l10n_util::GetStringUTF16(IDS_ALERSE_EXTENSIONS),
                      &extensions_);
 
@@ -251,6 +257,9 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   bool IsCommandIdChecked(int command_id) const override {
     if (command_id == kBetaUpdates) {
       return OnBetaChannel(g_browser_process->local_state());
+    }
+    if (command_id == IDC_ALERSE_WEB_STORE) {
+      return alerse::IsWebStoreOn();
     }
     return command_id == checked_space_;
   }
