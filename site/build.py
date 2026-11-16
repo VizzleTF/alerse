@@ -152,7 +152,7 @@ def landing():
   <h2>Download</h2>
   <div class="platforms">
     <div class="platform"><h3>Windows 10 and 11</h3><p class="small muted">x64 and arm64 · Installer or zip</p><p class="mono muted">Alerse 0.1.20 · Chromium 157</p><a class="button button-primary" href="https://github.com/VizzleTF/alerse-win/releases/latest">Download</a><a class="small" href="https://github.com/VizzleTF/alerse-win/releases">Release notes</a></div>
-    <div class="platform"><h3>macOS</h3><p class="small muted">Apple Silicon · Disk image, pre-release</p><p class="mono muted">Alerse 0.1.21 · Chromium 156</p><a class="button button-secondary" href="https://github.com/VizzleTF/alerse-mac/releases">Download</a><a class="small" href="https://github.com/VizzleTF/alerse-mac/releases">Release notes</a></div>
+    <div class="platform"><h3>macOS</h3><p class="small muted">Apple Silicon · Disk image, pre-release</p><p class="mono muted">Alerse 0.1.22 · Chromium 156</p><a class="button button-secondary" href="https://github.com/VizzleTF/alerse-mac/releases">Download</a><a class="small" href="https://github.com/VizzleTF/alerse-mac/releases">Release notes</a></div>
     <div class="platform"><h3>Linux</h3><p class="small muted">x86_64 and arm64 · AppImage, older version</p><p class="mono muted">Alerse 0.1.1 · Chromium 156</p><a class="button button-secondary" href="https://github.com/VizzleTF/alerse-linux/releases/latest">Download</a><a class="small" href="https://github.com/VizzleTF/alerse-linux/releases">Release notes</a></div>
   </div>
   <p class="muted">Source code, issues and release notes are on <a href="https://github.com/VizzleTF/alerse">GitHub</a>.</p>
@@ -165,7 +165,7 @@ def download():
     rows = [
         ('Windows 10 and 11', 'https://github.com/VizzleTF/alerse-win/releases/latest', True, 'x64, arm64', 'Installer, zip', '0.1.20 · Chromium 157',
          '<p class="small muted">SmartScreen warns about an unsigned app: More info, Run anyway.</p>'),
-        ('macOS', 'https://github.com/VizzleTF/alerse-mac/releases', False, 'Apple Silicon', 'Disk image (.dmg), pre-release', '0.1.21 · Chromium 156',
+        ('macOS', 'https://github.com/VizzleTF/alerse-mac/releases', False, 'Apple Silicon', 'Disk image (.dmg), pre-release', '0.1.22 · Chromium 156',
          '<p class="small muted">Drag Alerse to Applications, then run once:</p><div class="code"><code>xattr -dr com.apple.quarantine /Applications/Alerse.app</code><button class="copy" type="button">Copy</button></div>'),
         ('Linux', 'https://github.com/VizzleTF/alerse-linux/releases/latest', False, 'x86_64, arm64', 'AppImage, tarball', '0.1.1 · Chromium 156',
          '<p class="small muted">Make the AppImage executable: chmod +x. An older version, before Spaces as profiles.</p>'),
