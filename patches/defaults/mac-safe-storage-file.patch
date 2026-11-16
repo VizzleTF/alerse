@@ -13,10 +13,10 @@ index c4cf9c0..bf20aac 100644
  };
  
 diff --git a/components/os_crypt/common/keychain_password_mac.mm b/components/os_crypt/common/keychain_password_mac.mm
-index 212b930..63bdd30 100644
+index 212b930..333a056 100644
 --- a/components/os_crypt/common/keychain_password_mac.mm
 +++ b/components/os_crypt/common/keychain_password_mac.mm
-@@ -6,13 +6,17 @@
+@@ -6,14 +6,19 @@
  
  #import <Security/Security.h>
  
@@ -32,16 +32,20 @@ index 212b930..63bdd30 100644
  #include "base/rand_util.h"
 +#include "base/strings/string_util.h"
  #include "base/strings/string_view_util.h"
++#include "base/strings/sys_string_conversions.h"
  #include "build/branding_buildflags.h"
  #include "crypto/apple/keychain_v2.h"
-@@ -69,6 +73,37 @@ std::string AddRandomPasswordToKeychain(KeychainV2& keychain,
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+@@ -69,6 +74,60 @@ std::string AddRandomPasswordToKeychain(KeychainV2& keychain,
    return password;
  }
  
 +// Alerse: the password is kept in a file readable only by the user, as
 +// macOS asks for the login keychain password after every update of an app
 +// without an Apple Team ID: the keychain item's access goes by the build's
-+// code hash. The first run takes the keychain's password once.
++// code hash. A new install never touches the keychain; one from before
++// 0.1.22 takes the keychain's password once, as its data is encrypted with
++// it.
 +base::FilePath AlersePasswordFile() {
 +  return base::apple::GetUserLibraryPath()
 +      .Append("Application Support")
@@ -69,10 +73,31 @@ index 212b930..63bdd30 100644
 +  }
 +}
 +
++// Whether the keychain has the item, by its attributes only: reading them
++// does not ask for the keychain password, as reading its data does.
++bool AlerseKeychainHasItem(KeychainV2& keychain,
++                           const std::string& service_name,
++                           const std::string& account_name) {
++  base::apple::ScopedCFTypeRef<CFStringRef> service(
++      base::SysUTF8ToCFStringRef(service_name));
++  base::apple::ScopedCFTypeRef<CFStringRef> account(
++      base::SysUTF8ToCFStringRef(account_name));
++  const void* keys[] = {kSecClass, kSecAttrService, kSecAttrAccount,
++                        kSecReturnAttributes, kSecMatchLimit};
++  const void* values[] = {kSecClassGenericPassword, service.get(),
++                          account.get(), kCFBooleanTrue, kSecMatchLimitOne};
++  base::apple::ScopedCFTypeRef<CFDictionaryRef> query(CFDictionaryCreate(
++      nullptr, keys, values, std::size(keys), &kCFTypeDictionaryKeyCallBacks,
++      &kCFTypeDictionaryValueCallBacks));
++  base::apple::ScopedCFTypeRef<CFTypeRef> result;
++  return keychain.ItemCopyMatching(query.get(), result.InitializeInto()) !=
++         errSecItemNotFound;
++}
++
  }  // namespace
  
  // static
-@@ -89,6 +124,22 @@ KeychainPassword::KeychainPassword(KeychainV2& keychain)
+@@ -89,6 +148,32 @@ KeychainPassword::KeychainPassword(KeychainV2& keychain)
  KeychainPassword::~KeychainPassword() = default;
  
  std::string KeychainPassword::GetPassword() const {
@@ -81,6 +106,16 @@ index 212b930..63bdd30 100644
 +  if (alerse_file) {
 +    std::string password = ReadAlersePasswordFile();
 +    if (!password.empty()) {
++      return password;
++    }
++  }
++  if (alerse_file &&
++      !AlerseKeychainHasItem(*keychain_, GetServiceName(), GetAccountName())) {
++    // 128 bits of randomness, as AddRandomPasswordToKeychain() makes.
++    std::string password =
++        base::Base64Encode(base::RandBytesAsVector(128 / 8));
++    WriteAlersePasswordFile(password);
++    if (ReadAlersePasswordFile() == password) {
 +      return password;
 +    }
 +  }

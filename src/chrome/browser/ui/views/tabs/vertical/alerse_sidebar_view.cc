@@ -2602,8 +2602,38 @@ AlerseSidebarView::~AlerseSidebarView() {
 void AlerseSidebarView::BookmarkNodeFaviconChanged(
     const bookmarks::BookmarkNode* node) {
   // A pinned item's icon loads after its row is built, and arrives through
-  // sync later still.
-  ScheduleRebuild();
+  // sync later still: a Space's opening brings one per item, which would
+  // rebuild every row as many times.
+  if (!UpdateNodeIcon(node)) {
+    ScheduleRebuild();
+  }
+}
+
+bool AlerseSidebarView::UpdateNodeIcon(const bookmarks::BookmarkNode* node) {
+  // The rebuild on its way draws the new icon.
+  if (rebuild_pending_) {
+    return true;
+  }
+  std::vector<std::pair<Row*, tabs::TabInterface*>> rows;
+  for (const auto& [view, target] : row_targets_) {
+    if (target.node != node->id()) {
+      continue;
+    }
+    Row* row = views::AsViewClass<Row>(view);
+    if (!row) {
+      return false;
+    }
+    rows.emplace_back(row, target.tab.Get());
+  }
+  if (rows.empty()) {
+    return false;
+  }
+  for (auto& [row, tab] : rows) {
+    // As AddBookmarkRow(): the item's own icon, the tab's only without one.
+    row->UpdateTab(row->title(), tab && !HasOwnIcon(node) ? GetTabIcon(tab)
+                                                          : GetBookmarkIcon(node));
+  }
+  return true;
 }
 
 bool AlerseSidebarView::LeftItsPage(tabs::TabInterface* tab,

@@ -386,6 +386,9 @@ class AlerseSidebarView : public views::View,
   // Updates the title and icon of `tab`'s rows in place. False when its rows
   // show more of the tab than that, or it has none: then they are rebuilt.
   bool UpdateTabRows(tabs::TabInterface* tab);
+  // Gives `node`'s pinned rows its new icon in place. False when it has none
+  // drawn or one is a favorite's tile: then the sidebar is rebuilt.
+  bool UpdateNodeIcon(const bookmarks::BookmarkNode* node);
   // Moves the shown tab's plate from one plain tab's row to another's, in
   // place; false when the change needs a rebuild.
   bool SwapActiveRows(const TabStripSelectionChange& selection);

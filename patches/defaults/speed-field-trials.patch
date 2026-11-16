@@ -1,0 +1,75 @@
+diff --git a/cc/base/features.cc b/cc/base/features.cc
+index a492ce2..0e7c0d3 100644
+--- a/cc/base/features.cc
++++ b/cc/base/features.cc
+@@ -144,8 +144,10 @@ BASE_FEATURE(kPreventDuplicateImageDecodes, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE(kInitImageDecodeLastUseTime, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
++// Alerse: on, as Chrome turns it on for its users through a field trial,
++// which builds without field trials never get.
+ BASE_FEATURE(kThrottleRepeatedNoDamageFrames,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
++             base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ BASE_FEATURE_PARAM(int,
+                    kThrottleRepeatedNoDamageFramesThreshold1,
+diff --git a/components/download/public/common/download_features.cc b/components/download/public/common/download_features.cc
+index d81f4a0..3fad515 100644
+--- a/components/download/public/common/download_features.cc
++++ b/components/download/public/common/download_features.cc
+@@ -94,8 +94,10 @@ BASE_FEATURE(kRetrieveDisplayNamesForHistoryDownloads,
+              base::FEATURE_ENABLED_BY_DEFAULT);
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
++// Alerse: on, as Chrome turns it on for its users through a field trial,
++// which builds without field trials never get.
+ BASE_FEATURE(kDeferredDownloadHistoryLoading,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
++             base::FEATURE_ENABLED_BY_DEFAULT);
+ }  // namespace features
+ 
+ }  // namespace download
+diff --git a/components/viz/common/features.cc b/components/viz/common/features.cc
+index 611df52..14a0e10 100644
+--- a/components/viz/common/features.cc
++++ b/components/viz/common/features.cc
+@@ -346,8 +346,10 @@ BASE_FEATURE(kEvictionUnlocksResources, base::FEATURE_DISABLED_BY_DEFAULT);
+ // If enabled, FrameRateDecider will toggle to half framerate if there's only
+ // one video on screen whose framerate is lower than the display vsync and in
+ // perfect cadence.
++// Alerse: on, as Chrome turns it on for its users through a field trial,
++// which builds without field trials never get.
+ BASE_FEATURE(kSingleVideoFrameRateThrottling,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
++             base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // If enabled, FrameIntervalDecider will attempt to match mixed fixed-rate
+ // content intervals (e.g. video coexisting with stepped compositor animations)
+diff --git a/content/public/common/content_features.cc b/content/public/common/content_features.cc
+index 6c4a5fc..456b757 100644
+--- a/content/public/common/content_features.cc
++++ b/content/public/common/content_features.cc
+@@ -217,7 +217,9 @@ BASE_FEATURE(kBackForwardCacheCCNSIgnoreUnchangedCookies,
+ BASE_FEATURE(kBackToAdIntervention, base::FEATURE_DISABLED_BY_DEFAULT);
+ 
+ // If enabled, makes battery saver request heavy align wake ups.
+-BASE_FEATURE(kBatterySaverModeAlignWakeUps, base::FEATURE_DISABLED_BY_DEFAULT);
++// Alerse: on, as Chrome turns it on for its users through a field trial,
++// which builds without field trials never get.
++BASE_FEATURE(kBatterySaverModeAlignWakeUps, base::FEATURE_ENABLED_BY_DEFAULT);
+ 
+ // Broker file operations on disk cache in the Network Service.
+ // This is no-op if the network service is hosted in the browser process.
+@@ -757,8 +759,10 @@ BASE_FEATURE(kNavigationNetworkResponseQueue, base::FEATURE_ENABLED_BY_DEFAULT);
+ // When PrioritizeMainFrameNavigationNetworkResponse is enabled, the browser
+ // will schedule tasks related to primary main frame navigation network
+ // responses in a kHighest priority queue.
++// Alerse: on, as Chrome turns it on for its users through a field trial,
++// which builds without field trials never get.
+ BASE_FEATURE(kPrioritizeMainFrameNavigationNetworkResponse,
+-             base::FEATURE_DISABLED_BY_DEFAULT);
++             base::FEATURE_ENABLED_BY_DEFAULT);
+ const base::FeatureParam<bool>
+     kPrioritizeMainFrameNavigationNetworkResponseEnableOnLowEndDevices{
+         &kPrioritizeMainFrameNavigationNetworkResponse,

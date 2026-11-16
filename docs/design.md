@@ -2419,6 +2419,17 @@ these changes:
   Copy URL itself is an action there, which skipped Alerse's check, so the action
   also copies nothing on an empty Space's or a blank page (`chrome::
   GetAlerseCopyableContents`), as the command does.
+- `defaults/speed-field-trials.patch`: features Chrome turns on for its users through
+  field trials, which a build without them (`disable_fieldtrial_testing_config`) never
+  gets, on by default where they need no parameters other than their defaults:
+  `ThrottleRepeatedNoDamageFrames` (a page whose frames change nothing gets fewer
+  frames), `SingleVideoFrameRateThrottling` (a page that only plays a video draws at the
+  video's rate), `BatterySaverModeAlignWakeUps` (timers wake together in Energy Saver),
+  `PrioritizeMainFrameNavigationNetworkResponse` (a navigation's response goes first),
+  `DeferredDownloadHistoryLoading` (download history loads after start-up). Left out:
+  trials that change caches or GPU start-up, optimistic DNS (its trial sets
+  parameters), and dropping hidden windows' buffers on macOS, which would cost the
+  preloaded Space windows their drawn frame (see Spaces).
 - On macOS Alerse does not take apps' web sign-ins (ASWebAuthenticationSession, used by
   System Settings' Internet Accounts, Spark and other apps signing in to Google). macOS's
   SafariLaunchAgent hands such a sign-in only to a browser with an application
@@ -2431,9 +2442,11 @@ these changes:
   `~/Library/Application Support/Alerse/Safe Storage Key`, mode 0600, not only in the
   keychain item "Chromium Safe Storage" (`defaults/mac-safe-storage-file.patch`). The
   keychain gives an app without an Apple Team ID access by its build's code hash, so
-  macOS asked for the login keychain password after every update. The first run takes
-  the key from the keychain once (one last prompt) and writes the file; the keychain
-  item stays. The owner chose this over the prompt (2026-11-16), knowing that any
+  macOS asked for the login keychain password after every update. A new install never
+  touches the keychain: it sees there is no item by its attributes alone (which does not
+  ask) and makes the key in the file. An install from before 0.1.22, whose data the
+  keychain's key encrypts, takes it from the keychain once (one last prompt) and writes
+  the file; the keychain item stays. The owner chose this over the prompt (2026-11-16), knowing that any
   program running as the user can read the file, as with Firefox without a primary
   password. `--use-mock-keychain` and tests skip the file.
 - The dangling `raw_ptr` detector never stops the browser
