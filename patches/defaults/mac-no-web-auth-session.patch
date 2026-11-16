@@ -1,0 +1,37 @@
+diff --git a/chrome/app/app-Info.plist b/chrome/app/app-Info.plist
+index 45f82df..2874602 100644
+--- a/chrome/app/app-Info.plist
++++ b/chrome/app/app-Info.plist
+@@ -167,15 +167,6 @@
+ 	<true/>
+ 	<key>OSAScriptingDefinition</key>
+ 	<string>scripting.sdef</string>
+-	<key>ASWebAuthenticationSessionWebBrowserSupportCapabilities</key>
+-	<dict>
+-		<key>CallbackURLMatchingIsSupported</key>
+-		<true/>
+-		<key>EphemeralBrowserSessionIsSupported</key>
+-		<true/>
+-		<key>IsSupported</key>
+-		<true/>
+-	</dict>
+ 	<key>CFBundleURLTypes</key>
+ 	<array>
+ 		<dict>
+diff --git a/chrome/browser/app_controller_mac.mm b/chrome/browser/app_controller_mac.mm
+index ce8f4bb..33cd738 100644
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -1356,8 +1356,10 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer,
+ 
+   _handoffObserver = std::make_unique<HandoffObserver>(self);
+ 
+-  ASWebAuthenticationSessionWebBrowserSessionManager.sharedManager
+-      .sessionHandler = self;
++  // Alerse: macOS hands an app's web sign-in (ASWebAuthenticationSession)
++  // only to a browser whose signature has an Apple Team ID, which Alerse's
++  // does not; without this handler and the Info.plist key, macOS shows the
++  // sign-in in Safari instead of losing it.
+ 
+   [MenuControllerCocoa
+       initializeWithNewMenuIconScheme:features::IsMenuSimplificationEnabled()];

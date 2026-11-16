@@ -2419,6 +2419,14 @@ these changes:
   Copy URL itself is an action there, which skipped Alerse's check, so the action
   also copies nothing on an empty Space's or a blank page (`chrome::
   GetAlerseCopyableContents`), as the command does.
+- On macOS Alerse does not take apps' web sign-ins (ASWebAuthenticationSession, used by
+  System Settings' Internet Accounts, Spark and other apps signing in to Google). macOS's
+  SafariLaunchAgent hands such a sign-in only to a browser with an application
+  identifier, which comes from an Apple Team ID signature; with Alerse's own signature it
+  logged "Failed to get application identifier" and, with Alerse the default browser,
+  the sign-in never showed. Without Chromium's session handler and the Info.plist key
+  `ASWebAuthenticationSessionWebBrowserSupportCapabilities`, macOS shows the sign-in in
+  Safari even while Alerse is the default browser (`defaults/mac-no-web-auth-session.patch`).
 - The dangling `raw_ptr` detector never stops the browser
   (`defaults/no-dangling-ptr-crash.patch`), as in an official build; BackupRefPtr keeps
   those pointers safe. Official builds do not compile the detector at all, so the patch
