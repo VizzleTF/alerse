@@ -2427,6 +2427,15 @@ these changes:
   the sign-in never showed. Without Chromium's session handler and the Info.plist key
   `ASWebAuthenticationSessionWebBrowserSupportCapabilities`, macOS shows the sign-in in
   Safari even while Alerse is the default browser (`defaults/mac-no-web-auth-session.patch`).
+- On macOS the key that encrypts saved passwords, cookies and the sync secrets is in
+  `~/Library/Application Support/Alerse/Safe Storage Key`, mode 0600, not only in the
+  keychain item "Chromium Safe Storage" (`defaults/mac-safe-storage-file.patch`). The
+  keychain gives an app without an Apple Team ID access by its build's code hash, so
+  macOS asked for the login keychain password after every update. The first run takes
+  the key from the keychain once (one last prompt) and writes the file; the keychain
+  item stays. The owner chose this over the prompt (2026-11-16), knowing that any
+  program running as the user can read the file, as with Firefox without a primary
+  password. `--use-mock-keychain` and tests skip the file.
 - The dangling `raw_ptr` detector never stops the browser
   (`defaults/no-dangling-ptr-crash.patch`), as in an official build; BackupRefPtr keeps
   those pointers safe. Official builds do not compile the detector at all, so the patch

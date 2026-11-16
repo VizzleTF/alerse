@@ -1,0 +1,97 @@
+diff --git a/components/os_crypt/common/keychain_password_mac.h b/components/os_crypt/common/keychain_password_mac.h
+index c4cf9c0..bf20aac 100644
+--- a/components/os_crypt/common/keychain_password_mac.h
++++ b/components/os_crypt/common/keychain_password_mac.h
+@@ -41,6 +41,9 @@ class KeychainPassword {
+   static KeychainNameType& GetAccountName();
+ 
+  private:
++  // Alerse: the Keychain lookup; GetPassword() reads the key file first.
++  std::string GetKeychainPassword() const;
++
+   raw_ref<crypto::apple::KeychainV2> keychain_;
+ };
+ 
+diff --git a/components/os_crypt/common/keychain_password_mac.mm b/components/os_crypt/common/keychain_password_mac.mm
+index 212b930..63bdd30 100644
+--- a/components/os_crypt/common/keychain_password_mac.mm
++++ b/components/os_crypt/common/keychain_password_mac.mm
+@@ -6,13 +6,17 @@
+ 
+ #import <Security/Security.h>
+ 
++#include "base/apple/foundation_util.h"
+ #include "base/apple/osstatus_logging.h"
+ #include "base/apple/scoped_cftyperef.h"
+ #include "base/base64.h"
+ #include "base/containers/span.h"
++#include "base/files/file_path.h"
++#include "base/files/file_util.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/no_destructor.h"
+ #include "base/rand_util.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/string_view_util.h"
+ #include "build/branding_buildflags.h"
+ #include "crypto/apple/keychain_v2.h"
+@@ -69,6 +73,37 @@ std::string AddRandomPasswordToKeychain(KeychainV2& keychain,
+   return password;
+ }
+ 
++// Alerse: the password is kept in a file readable only by the user, as
++// macOS asks for the login keychain password after every update of an app
++// without an Apple Team ID: the keychain item's access goes by the build's
++// code hash. The first run takes the keychain's password once.
++base::FilePath AlersePasswordFile() {
++  return base::apple::GetUserLibraryPath()
++      .Append("Application Support")
++      .Append("Alerse")
++      .Append("Safe Storage Key");
++}
++
++std::string ReadAlersePasswordFile() {
++  std::string password;
++  if (!base::ReadFileToStringWithMaxSize(AlersePasswordFile(), &password,
++                                         1024)) {
++    return std::string();
++  }
++  return std::string(base::TrimWhitespaceASCII(password, base::TRIM_ALL));
++}
++
++void WriteAlersePasswordFile(const std::string& password) {
++  const base::FilePath file = AlersePasswordFile();
++  const base::FilePath temp = file.AddExtension("new");
++  if (!base::CreateDirectory(file.DirName()) || !base::WriteFile(temp, "") ||
++      !base::SetPosixFilePermissions(temp, 0600) ||
++      !base::WriteFile(temp, password) || !base::Move(temp, file)) {
++    base::DeleteFile(temp);
++    LOG(ERROR) << "Alerse: could not save the Safe Storage key file";
++  }
++}
++
+ }  // namespace
+ 
+ // static
+@@ -89,6 +124,22 @@ KeychainPassword::KeychainPassword(KeychainV2& keychain)
+ KeychainPassword::~KeychainPassword() = default;
+ 
+ std::string KeychainPassword::GetPassword() const {
++  const bool alerse_file =
++      &*keychain_ == &crypto::apple::KeychainV2::GetInstance();
++  if (alerse_file) {
++    std::string password = ReadAlersePasswordFile();
++    if (!password.empty()) {
++      return password;
++    }
++  }
++  std::string password = GetKeychainPassword();
++  if (alerse_file && !password.empty()) {
++    WriteAlersePasswordFile(password);
++  }
++  return password;
++}
++
++std::string KeychainPassword::GetKeychainPassword() const {
+   FindGenericPasswordResult uma_result;
+   absl::Cleanup log_uma_result = [&uma_result] {
+     base::UmaHistogramEnumeration("OSCrypt.Mac.FindGenericPasswordResult",

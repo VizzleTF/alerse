@@ -114,3 +114,4 @@ look/keyboard-shortcuts.patch
 defaults/no-google-default.patch
 look/one-downloads-button.patch
 defaults/mac-no-web-auth-session.patch
+defaults/mac-safe-storage-file.patch
