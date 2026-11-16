@@ -49,6 +49,7 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.17 | Windows, macOS (pre-release) | 157.0.8103.5017 (Windows, on 157.0.8103.50), 156.0.8078.7917 (macOS) | Allow in Incognito in an extension's menu; a browser started with several addresses opens them all as tabs; Arc import goes to Home from any Space and joins Spaces of the same name; the Boost panel closes with its tab and its font buttons fit; the find bar sits in the page's corner on Windows too; sync server label spacing |
 | 0.1.18 | macOS (pre-release); Windows from CI only | 157.0.8103.5018 (Windows, CI), 156.0.8078.7918 (macOS) | Arc's history and saved passwords import, also on the welcome page; keyboard shortcuts of your own (chrome://alerse-shortcuts on Windows and Linux, App Shortcuts on macOS); a calmer welcome page whose steps stay at one height and whose last button closes it |
 | 0.1.19 | Windows, macOS (pre-release) | 157.0.8103.5019 (Windows, on 157.0.8103.50), 156.0.8078.7919 (macOS) | The same favorites in every Space, as in Arc, with a switch in a favorite's menu |
+| 0.1.20 | Windows, macOS (pre-release) | 157.0.8103.5020 (Windows, on 157.0.8103.50), 156.0.8078.7920 (macOS) | No Google unless picked: DuckDuckGo is the default search engine, the welcome page's pick goes to every Space, and the Chrome Web Store is a switch, off on a new install; on Windows, Downloads only at the sidebar's bottom, not also in the header row |
 
 Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
