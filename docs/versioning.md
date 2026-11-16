@@ -51,6 +51,7 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.19 | Windows, macOS (pre-release) | 157.0.8103.5019 (Windows, on 157.0.8103.50), 156.0.8078.7919 (macOS) | The same favorites in every Space, as in Arc, with a switch in a favorite's menu |
 | 0.1.20 | Windows, macOS (pre-release) | 157.0.8103.5020 (Windows, on 157.0.8103.50), 156.0.8078.7920 (macOS) | No Google unless picked: DuckDuckGo is the default search engine, the welcome page's pick goes to every Space, and the Chrome Web Store is a switch, off on a new install; on Windows, Downloads only at the sidebar's bottom, not also in the header row |
 | 0.1.21 | macOS (pre-release) | 156.0.8078.7921 (macOS) | Apps' Google sign-ins (System Settings' Internet Accounts, Spark) open in Safari instead of getting lost while Alerse is the default browser |
+| 0.1.22 | macOS (pre-release) | 156.0.8078.7922 (macOS) | No login keychain password prompt after each update: the Safe Storage key is kept in a file in Alerse's folder |
 
 Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
