@@ -26,6 +26,7 @@
 #include "base/scoped_observation.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
+#include "chrome/browser/favicon/favicon_utils.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
@@ -203,6 +204,9 @@ class PeekPanel : public views::View,
     web_view_ = AddChildView(std::make_unique<views::WebView>(profile));
     contents_ = content::WebContents::Create(
         content::WebContents::CreateParams(profile));
+    // The tab that adopts the page gets Chromium's tab helpers only then, after
+    // the page has loaded, so the icon is fetched with the page instead.
+    favicon::CreateContentFaviconDriverForWebContents(contents_.get());
     contents_->SetDelegate(this);
     web_view_->SetWebContents(contents_.get());
   }
