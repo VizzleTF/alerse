@@ -1,0 +1,72 @@
+diff --git a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+index 46dd210..b9594f1 100644
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+@@ -690,7 +690,7 @@ void AutoPictureInPictureTabHelper::
+ }
+ 
+ bool AutoPictureInPictureTabHelper::IsTabActiveAndVisible() const {
+-  return tab_observer_helper_->IsTabActivated() &&
++  return tab_observer_helper_->IsTabActivated() && !space_hidden_ &&
+          (!window_occlusion_helper_ ||
+           window_occlusion_helper_->GetOcclusionState() ==
+               OcclusionState::kVisible);
+@@ -1075,7 +1075,8 @@ void AutoPictureInPictureTabHelper::OnPictureInPictureDismissed() {
+   // We only count dismissals if the tab is not active, to avoid counting cases
+   // where the PiP window is automatically closed when switching back to the
+   // tab.
+-  if (!tab_observer_helper_->IsTabActivated() && auto_blocker_) {
++  if ((!tab_observer_helper_->IsTabActivated() || space_hidden_) &&
++      auto_blocker_) {
+     // Set `dismissed_prompt_was_quiet` to false for now as the dismissal count
+     // threshold is only 1(vs 3) for quiet UI permission prompts, which might be
+     // too stringent for auto-pip.
+@@ -1116,6 +1117,22 @@ void AutoPictureInPictureTabHelper::OnUserClosedWindow() {
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ }
+ 
++void AutoPictureInPictureTabHelper::OnSpaceHiddenChanged(bool hidden) {
++  if (space_hidden_ == hidden) {
++    return;
++  }
++  space_hidden_ = hidden;
++  if (!tab_observer_helper_->IsTabActivated()) {
++    return;
++  }
++  if (!hidden) {
++    MaybeExitAutoPictureInPicture();
++  } else if (!is_in_picture_in_picture_) {
++    MaybeEnterAutoPictureInPicture();
++    MaybeScheduleAsyncTasks();
++  }
++}
++
+ void AutoPictureInPictureTabHelper::OnTabBecameActive() {
+ #if BUILDFLAG(IS_ANDROID)
+   if (hide_button_clicked_time_) {
+diff --git a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h
+index 4827598..4500667 100644
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h
+@@ -177,6 +177,11 @@ class AutoPictureInPictureTabHelper
+   // any auto-pip window we have open, though there might also not be one.
+   void OnTabBecameActive();
+ 
++  // Alerse: our tab's window was hidden or shown by a Space switch, which
++  // leaves the tab active in its window. A hidden window's playing video goes
++  // to picture-in-picture, as when its tab is left, and returns with it.
++  void OnSpaceHiddenChanged(bool hidden);
++
+   void set_clock_for_testing(const base::TickClock* testing_clock) {
+     clock_ = testing_clock;
+   }
+@@ -394,6 +399,9 @@ class AutoPictureInPictureTabHelper
+   // to autopip.
+   bool is_in_auto_picture_in_picture_ = false;
+ 
++  // Alerse: our tab's window is hidden because another Space is shown.
++  bool space_hidden_ = false;
++
+   // This is used to determine whether the website has used an
+   // EnterAutoPictureInPicture action handler to open a picture-in-picture
+   // window. When we send the message, we set this time to be the length of a

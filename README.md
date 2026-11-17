@@ -79,7 +79,7 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 - **Link routing**: links from other apps open in the Space you choose for their site,
   such as github.com in Work.
 - **Media**: a mini player at the bottom of the sidebar for media playing in another
-  tab, and picture-in-picture when you leave a playing video.
+  tab, and picture-in-picture when you leave a playing video's tab or Space.
 - **Import from Arc and other browsers**: Arc's Spaces, pinned tabs, nested folders and
   icons, and the bookmarks of Chrome, Edge, Brave, Vivaldi, Opera, Yandex Browser and
   Chromium, built in, with their Chrome Web Store extensions.

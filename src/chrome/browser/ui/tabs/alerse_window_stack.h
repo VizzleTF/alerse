@@ -28,6 +28,7 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -42,6 +43,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "content/public/browser/web_contents.h"
 #include "components/viz/common/frame_timing_details.h"
 #include "ui/base/base_window.h"
 #include "ui/base/page_transition_types.h"
@@ -186,6 +188,10 @@ class WindowStacks : public BrowserCollectionObserver {
       }
     }
     visible_[stack] = target;
+    // A video playing in the Space left goes to picture-in-picture, as when
+    // its tab is left; the arriving Space's own returns to its tab first.
+    SetSpaceHidden(target, false);
+    SetSpaceHidden(shown, true);
     HideOthersOnceDrawn(stack, target, std::move(locks));
   }
 
@@ -247,6 +253,18 @@ class WindowStacks : public BrowserCollectionObserver {
 
  private:
   friend class base::NoDestructor<WindowStacks>;
+
+  // Every tab of `member` learns it, so that a tab made active while its
+  // Space was hidden does not keep the state when it is left.
+  static void SetSpaceHidden(BrowserWindowInterface* member, bool hidden) {
+    TabStripModel* model = member->GetTabStripModel();
+    for (int i = 0; i < model->count(); ++i) {
+      if (auto* helper = AutoPictureInPictureTabHelper::FromWebContents(
+              model->GetWebContentsAt(i))) {
+        helper->OnSpaceHiddenChanged(hidden);
+      }
+    }
+  }
   WindowStacks() { observation_.Observe(GlobalBrowserCollection::GetInstance()); }
   ~WindowStacks() override = default;
 

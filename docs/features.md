@@ -35,6 +35,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Row marks: loading, attention dot, sound, camera, dimmed when discarded | built | checked | |
 | Keyboard focus ring and arrow keys in rows | built | built | Not seen: needs macOS keyboard navigation on |
 | Mini player across the Space's windows | built | checked | |
+| Picture-in-picture on leaving a playing video's tab or Space | built | partly | Windows: Space switch opens it and switching back closes it (2026-11-17); macOS built, not seen (screen locked) |
 | Motion: Space entrance, folder curtain, row in and out | built | checked | 60 fps recordings on macOS; Windows not recorded |
 | Tint cross-fade between Spaces | no | no | Removed on purpose; the tint applies at once |
 

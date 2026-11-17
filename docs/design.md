@@ -2346,7 +2346,12 @@ do not run in it.
   site: Chromium's browser-initiated automatic picture-in-picture
   (`BrowserInitiatedAutomaticPictureInPicture`), enabled by default. Its permission
   defaults to Allow, as in Arc, which also skips Chromium's media engagement check; a
-  site can be blocked in its settings.
+  site can be blocked in its settings. Chromium triggers it on a tab switch only: a
+  Space switch hides the window and leaves the tab active, and Chromium opens nothing
+  for a hidden window (it would on every minimize). So the window stack tells the tabs
+  of the Space it hides and of the Space it shows (`media/auto-pip-on-space-switch.patch`,
+  `WindowStacks::SetSpaceHidden`): the video of the Space left opens its window, and it
+  closes when that Space shows again.
 - **The picture-in-picture window, as Arc's** (`media/pip-window-arc.patch`): rounded
   corners (10 px on macOS, where the window is translucent and its layer is rounded; the
   system's rounding on Windows 11, where a resizable window cannot be translucent), and

@@ -9,6 +9,7 @@ sync/sync-setup-page.patch
 spaces/link-routing.patch
 media/mini-player-and-auto-pip.patch
 media/pip-window-arc.patch
+media/auto-pip-on-space-switch.patch
 spaces/collapsed-tab-strip.patch
 look/compact-toolbar.patch
 look/no-ntp-bookmark-bar.patch
