@@ -53,7 +53,7 @@ stamped Chromium version: `alerse_<tag>_...`.
 | 0.1.21 | macOS (pre-release) | 156.0.8078.7921 (macOS) | Apps' Google sign-ins (System Settings' Internet Accounts, Spark) open in Safari instead of getting lost while Alerse is the default browser |
 | 0.1.22 | macOS (pre-release) | 156.0.8078.7922 (macOS) | No login keychain password prompt after each update: the Safe Storage key is kept in a file in Alerse's folder |
 | 0.1.23 | Windows, macOS (pre-release) | 156.0.8078.7923 (macOS), 157.0.8103.5023 (Windows) | A new install never asks for the login keychain password on macOS; pinned items' icons update in place instead of rebuilding the sidebar; five of Chrome's field-trial speed features on by default |
-| 0.1.24 | Windows, macOS (pre-release) | 156.0.8078.7924 (macOS), 157.0.8103.5024 (Windows) | A playing video goes to picture-in-picture when you switch Spaces, as when you switch tabs, and comes back when its Space shows again |
+| 0.1.24 | Windows, macOS (pre-release) | 156.0.8078.7924 (macOS), 157.0.8103.5024 (Windows) | A playing video goes to picture-in-picture when you switch Spaces, as when you switch tabs, and comes back when its Space shows again; a page opened from the Little window keeps its site icon in the sidebar |
 
 Linux gets the changes from 0.1.2 on with its first release on Chromium 157.
 
