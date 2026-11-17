@@ -110,7 +110,7 @@ def landing():
     body = f'''<section class="hero">
   <div class="hero-text">
     <h1>A sidebar browser that keeps to itself.</h1>
-    <p class="lead">Alerse gives you a vertical sidebar, Spaces with separate logins in one window, a command bar and end-to-end encrypted sync you can host yourself. Built on ungoogled-chromium. No account, no AI, no tracking.</p>
+    <p class="lead">Alerse gives you a vertical sidebar, Spaces with separate logins in one window, a command bar and end-to-end encrypted sync you can host yourself. Built on ungoogled-chromium. No company account, no AI, no tracking.</p>
     <div class="cta">
       <a class="button button-primary" data-download href="/download">Download Alerse</a>
       <p class="small muted">{VERSION} · <a href="https://github.com/VizzleTF/alerse-win/releases">Release notes</a></p>
@@ -131,7 +131,7 @@ def landing():
 </div></section>
 <section class="split">
   <div><h2>Sync that the server cannot read.</h2>
-    <p>Bookmarks, open tabs, Spaces, passwords and settings sync between your devices. Everything is encrypted on the device before it leaves it. A new device signs in with 24 words and a password; neither alone opens the account. Best on a server of your own, in Docker or Kubernetes. If you would rather not run one, the Alerse server is offered voluntarily, without guarantee or responsibility for the data on it.</p>
+    <p>Bookmarks, open tabs, Spaces, passwords, history and settings sync between your devices. Everything is encrypted on the device before it leaves it. A new device signs in with 24 words and a password; neither alone opens the account. Best on a server of your own, in Docker or Kubernetes. If you would rather not run one, the Alerse server is offered voluntarily, without guarantee or responsibility for the data on it.</p>
     <p><a href="/sync">How sync works →</a></p></div>
   <dl class="kv">
     <div><dt>Speed</dt><dd>Tabs reach your other devices in about 15 seconds, other changes in about a minute.</dd></div>

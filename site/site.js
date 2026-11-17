@@ -13,11 +13,15 @@
     return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
+  // The Russian site (ru.alerse.app) shares this script.
+  var ru = root.lang === 'ru';
+  function t(en, rus) { return ru ? rus : en; }
+
   document.addEventListener('DOMContentLoaded', function () {
     var toggle = document.querySelector('.toggle');
     if (toggle) {
       var label = function () {
-        toggle.setAttribute('aria-label', current() === 'dark' ? 'Use the light theme' : 'Use the dark theme');
+        toggle.setAttribute('aria-label', current() === 'dark' ? t('Use the light theme', 'Светлая тема') : t('Use the dark theme', 'Тёмная тема'));
       };
       label();
       toggle.addEventListener('click', function () {
@@ -33,9 +37,9 @@
     var ua = navigator.userAgent;
     var platform = /Mac/.test(ua) && !/iPhone|iPad/.test(ua) ? 'mac' : /Linux/.test(ua) && !/Android/.test(ua) ? 'linux' : 'windows';
     var targets = {
-      windows: ['Download for Windows', 'https://github.com/VizzleTF/alerse-win/releases/latest'],
-      mac: ['Download for macOS', 'https://github.com/VizzleTF/alerse-mac/releases'],
-      linux: ['Download for Linux', 'https://github.com/VizzleTF/alerse-linux/releases/latest']
+      windows: [t('Download for Windows', 'Скачать для Windows'), 'https://github.com/VizzleTF/alerse-win/releases/latest'],
+      mac: [t('Download for macOS', 'Скачать для macOS'), 'https://github.com/VizzleTF/alerse-mac/releases'],
+      linux: [t('Download for Linux', 'Скачать для Linux'), 'https://github.com/VizzleTF/alerse-linux/releases/latest']
     };
     document.querySelectorAll('[data-download]').forEach(function (a) {
       a.textContent = targets[platform][0];
@@ -46,8 +50,8 @@
       button.addEventListener('click', function () {
         var text = button.parentElement.querySelector('code').textContent;
         navigator.clipboard.writeText(text).then(function () {
-          button.textContent = 'Copied';
-          setTimeout(function () { button.textContent = 'Copy'; }, 1500);
+          button.textContent = t('Copied', 'Скопировано');
+          setTimeout(function () { button.textContent = t('Copy', 'Копировать'); }, 1500);
         });
       });
     });
