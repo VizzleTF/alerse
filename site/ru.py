@@ -96,7 +96,7 @@ PAIRS = [
     ('x86_64 and arm64 · AppImage, older version', 'x86_64 и arm64 · AppImage, старая версия'),
     ('>Download</a>', '>Скачать</a>'),
     ('Source code, issues and release notes are on ', 'Исходники, задачи и описания релизов — на '),
-    ("'Alerse — a sidebar browser that keeps to itself'", "'Alerse — браузер с боковой панелью'"),
+    ("'Alerse — an open-source Arc alternative for Windows and macOS'", "'Alerse — замена Arc с открытым кодом для Windows и macOS'"),
     ('A free, open-source sidebar browser for people leaving Arc: Spaces, a command bar and end-to-end encrypted sync, on ungoogled-chromium.',
      'Свободный браузер с боковой панелью для тех, кто уходит с Arc: Spaces, командная панель и шифрованная синхронизация, на ungoogled-chromium.'),
     # Download page
@@ -121,7 +121,7 @@ PAIRS = [
     ("Every release lists SHA-256 sums. The sync server's images are signed with cosign.", 'У каждого релиза есть суммы SHA-256. Образы сервера синхронизации подписаны cosign.'),
     ('<h3>From Arc</h3>', '<h3>С Arc</h3>'),
     ('After the first start, open the Alerse menu and choose Import from Another Browser.', 'После первого запуска откройте меню Alerse и выберите Import from Another Browser.'),
-    ("'Download Alerse for Windows, macOS or Linux.'", "'Скачать Alerse для Windows, macOS или Linux.'"),
+    ("'Download Alerse, a free sidebar browser and Arc alternative, for Windows 10 and 11, macOS on Apple Silicon or Linux.'", "'Скачать Alerse, бесплатный браузер с боковой панелью на замену Arc, для Windows 10 и 11, macOS на Apple Silicon или Linux.'"),
     ("page('download', 'Download Alerse'", "page('download', 'Скачать Alerse'"),
     # Sync page
     ('<h1>How sync works</h1>', '<h1>Как устроена синхронизация</h1>'),
@@ -187,4 +187,10 @@ PAIRS = [
      'Alerse не связан с Google, The Browser Company и Atlassian. Chrome и Chromium — товарные знаки Google LLC, Arc — The Browser Company.'),
     ("'Terms — Alerse'", "'Условия — Alerse'"),
     ("'Licence and terms of Alerse and its sync server.'", "'Лицензия и условия Alerse и его сервера синхронизации.'"),
+    # 404
+    ('<h1>Page not found</h1>', '<h1>Страница не найдена</h1>'),
+    ('Nothing lives at this address. Try the <a href="/">home page</a> or the <a href="/download">downloads</a>.',
+     'По этому адресу ничего нет. Откройте <a href="/">главную</a> или <a href="/download">страницу загрузки</a>.'),
+    ("'Page not found — Alerse'", "'Страница не найдена — Alerse'"),
+    ("'This page of alerse.app does not exist.'", "'Такой страницы на ru.alerse.app нет.'"),
 ]
