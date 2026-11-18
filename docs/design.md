@@ -2463,9 +2463,6 @@ these changes:
 
 - The rename to Alerse left out, for now: the iOS app is renamed in its
   strings, name and icon but was not built since; the sync server's Go module path.
-- The macOS build on 156 has the older Sync page (no email and password sign-in,
-  no pairing, no recovery sheet): `alerse_sync_login*`, `alerse_sync_pairing*`
-  and the handler and page of that change are not in its tree yet.
 - Updates: no updater. The browser only tells about a newer release
   ([versioning](versioning.md)); the user downloads it.
 - Builds are not code-signed: Windows SmartScreen warns, and macOS builds are signed ad

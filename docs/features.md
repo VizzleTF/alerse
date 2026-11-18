@@ -70,7 +70,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
-| Sync account: 24 words and a password | checked | no | Windows: an account made on a local server, a second device signed in with the words and the password. The macOS 156 tree has the older Sync page |
+| Sync account: 24 words and a password | checked | built | Windows: an account made on a local server, a second device signed in with the words and the password. macOS has the same account code and Sync page; no Mac has signed in yet (2026-11-18) |
 | Sync with the official or own server | partly | built | Own server checked on Windows: a bookmark reached the other device in about a minute; the official server not tried |
 | Import from Arc, Chrome and others | checked | checked | Spaces, pinned tabs, folders, icons, extensions, history and passwords (Windows decrypted Arc's 2 passwords, 59,647 pages); in the welcome page too |
 | Update notice | built | checked | macOS 0.1.16 offered 0.1.17 five minutes after start, and the item opened its release page |
