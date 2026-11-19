@@ -1851,7 +1851,9 @@ of the same name (any case) that no Arc Space has yet, keeping that Space's icon
 color, else becomes a Space of its own (`MakeSpaceOfFolder` in
 `alerse_import_handler.cc`): the import writes its folder into Home's profile, moves
 what the folder holds into the Space folder of that Space or a new profile, and
-removes the folder.
+removes the folder. A new Space also gets its name, icon and color in the registry
+right away (`UpdateSpaceCopy`): the Space bar reads other Spaces from there, and
+the Space's own window, which fills it otherwise, has not opened yet.
 
 **History and passwords from Arc** come on a button of their own on Arc's card,
 Import History and Passwords (`alerse_import_arc_data.cc`), and go to Home, as Arc's

@@ -54,6 +54,8 @@ inline constexpr char kImportedMetaKey[] = "arcomium.imported";
 inline constexpr char kImportMetaKey[] = "arcomium.import";
 inline constexpr char kSpaceMetaKey[] = "arcomium.space";
 inline constexpr char kSpaceIconMetaKey[] = "arcomium.space_icon";
+// As alerse::kSpaceColorMetaKey, which lives with the views.
+inline constexpr char kSpaceColorMetaKey[] = "arcomium.space_color";
 // The icon Arc gave a Space folder's Space when it was last imported: the
 // Space's icon follows Arc's only while the user has not picked another.
 inline constexpr char kArcIconMetaKey[] = "arcomium.arc_icon";

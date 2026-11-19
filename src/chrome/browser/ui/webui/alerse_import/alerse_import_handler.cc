@@ -173,6 +173,16 @@ void MoveFolderToSpace(base::FilePath from_path,
   for (const auto& child : folder->children()) {
     alerse::CopyNodeTo(child.get(), to, space);
   }
+  if (take == Take::kFresh) {
+    // The Space bar reads other Spaces from the registry, which the Space's
+    // own window fills only once opened: until then the new Space was a dot.
+    std::string icon;
+    std::string color;
+    space->GetMetaInfo(alerse_import::kSpaceIconMetaKey, &icon);
+    space->GetMetaInfo(alerse_import::kSpaceColorMetaKey, &color);
+    alerse::UpdateSpaceCopy(space_profile->GetPath(), space->GetTitle(), icon,
+                            color);
+  }
   model->Remove(folder, bookmarks::metrics::BookmarkEditSource::kOther,
                 FROM_HERE);
 }
