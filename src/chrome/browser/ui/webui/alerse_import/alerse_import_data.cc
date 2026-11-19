@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/command_line.h"
 #include "base/containers/span.h"
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
@@ -672,7 +673,13 @@ int CountFolders(const std::vector<Node>& nodes) {
 
 std::vector<Source> FindSources(const base::FilePath& own_profile) {
   std::vector<Source> sources;
-  if (base::FilePath arc = FindArcDir(); !arc.empty()) {
+  // Demos and tests: Arc data from this directory, and no other source, so
+  // the page shows none of the user's own browsers.
+  const base::FilePath demo_arc =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValuePath(
+          "alerse-demo-arc-dir");
+  if (base::FilePath arc = demo_arc.empty() ? FindArcDir() : demo_arc;
+      !arc.empty()) {
     if (std::optional<std::vector<ArcSpace>> spaces =
             ReadArc(arc, /*with_icons=*/false);
         spaces && !spaces->empty()) {
@@ -687,6 +694,9 @@ std::vector<Source> FindSources(const base::FilePath& own_profile) {
       }
       sources.push_back(std::move(source));
     }
+  }
+  if (!demo_arc.empty()) {
+    return sources;
   }
   for (const Browser& browser : kBrowsers) {
     FindBrowserSources(browser, own_profile, sources);

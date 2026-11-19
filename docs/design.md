@@ -1840,7 +1840,8 @@ the bookmark model on the UI thread. Each node an import adds is marked
 uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy the user
 made (another uuid) and what another device imported (synced, another key) are not
 marked here, so importing again replaces only this profile's imported nodes and keeps
-the rest. The import runs in Home's profile whichever Space the page is open in, and
+the rest. `--alerse-demo-arc-dir=DIR` (for demos and tests) reads Arc from DIR and
+lists no other browser, so a recording shows none of the user's own data. The import runs in Home's profile whichever Space the page is open in, and
 Arc's first Space goes to Home's Space folder. Every other Arc Space goes to the Space
 of the same name (any case) that no Arc Space has yet, keeping that Space's icon and
 color, else becomes a Space of its own (`MakeSpaceOfFolder` in
