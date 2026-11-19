@@ -1,0 +1,371 @@
+{
+  "sidebar": {
+    "containers": [
+      {
+        "global": {}
+      },
+      {
+        "spaces": [
+          "93670003-08F2-4711-92F5-716C87474FF7",
+          {
+            "id": "93670003-08F2-4711-92F5-716C87474FF7",
+            "title": "Personal",
+            "containerIDs": [
+              "unpinned",
+              "DBBDA11A-9FCE-4ADF-B020-C3843A81A564",
+              "pinned",
+              "223F6D34-0803-4EF7-AB8E-3121655B2702"
+            ],
+            "customInfo": {
+              "iconType": {
+                "icon": "leaf"
+              }
+            }
+          },
+          "14D0BD2D-1BE0-4174-B088-4A288D048AA3",
+          {
+            "id": "14D0BD2D-1BE0-4174-B088-4A288D048AA3",
+            "title": "Work",
+            "containerIDs": [
+              "unpinned",
+              "8DB434EE-9BF1-4386-9787-5607EF80AF77",
+              "pinned",
+              "CFC818EB-6984-42F3-8CC9-7CEDB2FED6D2"
+            ],
+            "customInfo": {
+              "iconType": {
+                "icon": "code"
+              }
+            }
+          },
+          "537D4324-0D12-4F1C-BA9E-100B4E24BE3C",
+          {
+            "id": "537D4324-0D12-4F1C-BA9E-100B4E24BE3C",
+            "title": "Travel",
+            "containerIDs": [
+              "unpinned",
+              "2690AAAC-FD76-4E4A-A4FC-CFA3813158C3",
+              "pinned",
+              "92D9805D-5DCC-4C38-9E71-4536468ACDBB"
+            ],
+            "customInfo": {
+              "iconType": {
+                "icon": "airplane"
+              }
+            }
+          }
+        ],
+        "items": [
+          "9709A3F9-0C0A-4404-8A2D-4AFF5C399790",
+          {
+            "id": "9709A3F9-0C0A-4404-8A2D-4AFF5C399790",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://unsplash.com/t/nature",
+                "savedTitle": "Unsplash"
+              }
+            },
+            "childrenIds": []
+          },
+          "9604F8B0-29C2-4E36-BCE2-B626A07EAB7C",
+          {
+            "id": "9604F8B0-29C2-4E36-BCE2-B626A07EAB7C",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://en.wikipedia.org/wiki/Fitzroya",
+                "savedTitle": "Alerce"
+              }
+            },
+            "childrenIds": []
+          },
+          "4536C382-F3AF-424F-80F4-9B3B00E63060",
+          {
+            "id": "4536C382-F3AF-424F-80F4-9B3B00E63060",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://www.bbcgoodfood.com/",
+                "savedTitle": "BBC Good Food"
+              }
+            },
+            "childrenIds": []
+          },
+          "8F12932C-ABBA-4FAB-B602-1EB587964679",
+          {
+            "id": "8F12932C-ABBA-4FAB-B602-1EB587964679",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://www.seriouseats.com/",
+                "savedTitle": "Serious Eats"
+              }
+            },
+            "childrenIds": []
+          },
+          "4CA85366-1F9C-44E2-A154-43437FF5B9B9",
+          {
+            "id": "4CA85366-1F9C-44E2-A154-43437FF5B9B9",
+            "title": "Recipes",
+            "data": {
+              "list": {
+                "customInfo": {
+                  "iconType": {
+                    "icon": "restaurant"
+                  }
+                }
+              }
+            },
+            "childrenIds": [
+              "4536C382-F3AF-424F-80F4-9B3B00E63060",
+              "8F12932C-ABBA-4FAB-B602-1EB587964679"
+            ]
+          },
+          "AB7BD6C6-479C-4AC4-B010-4C829299D8EA",
+          {
+            "id": "AB7BD6C6-479C-4AC4-B010-4C829299D8EA",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://bandcamp.com/",
+                "savedTitle": "Bandcamp"
+              }
+            },
+            "childrenIds": []
+          },
+          "324B9A5C-A3DF-4CD1-BC8C-0A16464AC6BB",
+          {
+            "id": "324B9A5C-A3DF-4CD1-BC8C-0A16464AC6BB",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://radio.garden/",
+                "savedTitle": "Radio Garden"
+              }
+            },
+            "childrenIds": []
+          },
+          "AA1955EC-4584-4B3D-AAB6-B3444F34D3A4",
+          {
+            "id": "AA1955EC-4584-4B3D-AAB6-B3444F34D3A4",
+            "title": "Music",
+            "data": {
+              "list": {
+                "customInfo": {
+                  "iconType": {
+                    "icon": "musicalNote"
+                  }
+                }
+              }
+            },
+            "childrenIds": [
+              "AB7BD6C6-479C-4AC4-B010-4C829299D8EA",
+              "324B9A5C-A3DF-4CD1-BC8C-0A16464AC6BB"
+            ]
+          },
+          "223F6D34-0803-4EF7-AB8E-3121655B2702",
+          {
+            "id": "223F6D34-0803-4EF7-AB8E-3121655B2702",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": [
+              "9709A3F9-0C0A-4404-8A2D-4AFF5C399790",
+              "9604F8B0-29C2-4E36-BCE2-B626A07EAB7C",
+              "4CA85366-1F9C-44E2-A154-43437FF5B9B9",
+              "AA1955EC-4584-4B3D-AAB6-B3444F34D3A4"
+            ]
+          },
+          "DBBDA11A-9FCE-4ADF-B020-C3843A81A564",
+          {
+            "id": "DBBDA11A-9FCE-4ADF-B020-C3843A81A564",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": []
+          },
+          "4A5A26E5-34FD-40F4-BBC5-081182DEA01F",
+          {
+            "id": "4A5A26E5-34FD-40F4-BBC5-081182DEA01F",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://linear.app/",
+                "savedTitle": "Linear"
+              }
+            },
+            "childrenIds": []
+          },
+          "DD9E8328-4EB2-4676-90B5-96CA279E066D",
+          {
+            "id": "DD9E8328-4EB2-4676-90B5-96CA279E066D",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://www.figma.com/",
+                "savedTitle": "Figma"
+              }
+            },
+            "childrenIds": []
+          },
+          "A85303F9-3742-4BD9-9DB7-E92DD2962962",
+          {
+            "id": "A85303F9-3742-4BD9-9DB7-E92DD2962962",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://docs.stripe.com/",
+                "savedTitle": "Stripe Docs"
+              }
+            },
+            "childrenIds": []
+          },
+          "A2FEA352-80DA-43E3-8B85-6084E6085502",
+          {
+            "id": "A2FEA352-80DA-43E3-8B85-6084E6085502",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://react.dev/",
+                "savedTitle": "React"
+              }
+            },
+            "childrenIds": []
+          },
+          "24081B79-8671-4440-99CE-317BDA758CDD",
+          {
+            "id": "24081B79-8671-4440-99CE-317BDA758CDD",
+            "title": "Docs",
+            "data": {
+              "list": {
+                "customInfo": {
+                  "iconType": {
+                    "icon": "bookmark"
+                  }
+                }
+              }
+            },
+            "childrenIds": [
+              "A85303F9-3742-4BD9-9DB7-E92DD2962962",
+              "A2FEA352-80DA-43E3-8B85-6084E6085502"
+            ]
+          },
+          "CFC818EB-6984-42F3-8CC9-7CEDB2FED6D2",
+          {
+            "id": "CFC818EB-6984-42F3-8CC9-7CEDB2FED6D2",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": [
+              "4A5A26E5-34FD-40F4-BBC5-081182DEA01F",
+              "DD9E8328-4EB2-4676-90B5-96CA279E066D",
+              "24081B79-8671-4440-99CE-317BDA758CDD"
+            ]
+          },
+          "8DB434EE-9BF1-4386-9787-5607EF80AF77",
+          {
+            "id": "8DB434EE-9BF1-4386-9787-5607EF80AF77",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": []
+          },
+          "51BE3C62-B0E7-4B16-90A9-8D103CA762F9",
+          {
+            "id": "51BE3C62-B0E7-4B16-90A9-8D103CA762F9",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://en.wikivoyage.org/wiki/Patagonia",
+                "savedTitle": "Patagonia"
+              }
+            },
+            "childrenIds": []
+          },
+          "A65C8B4D-0200-407B-8DCF-4430807BC014",
+          {
+            "id": "A65C8B4D-0200-407B-8DCF-4430807BC014",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://www.airbnb.com/",
+                "savedTitle": "Airbnb"
+              }
+            },
+            "childrenIds": []
+          },
+          "1E2224E0-D7F9-4B0D-8CB6-8EAE59782146",
+          {
+            "id": "1E2224E0-D7F9-4B0D-8CB6-8EAE59782146",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://en.wikipedia.org/wiki/Alerce_Andino_National_Park",
+                "savedTitle": "Alerce Andino"
+              }
+            },
+            "childrenIds": []
+          },
+          "252E6E89-F26D-412F-A29B-18FF2C84B9DE",
+          {
+            "id": "252E6E89-F26D-412F-A29B-18FF2C84B9DE",
+            "title": null,
+            "data": {
+              "tab": {
+                "savedURL": "https://en.wikipedia.org/wiki/Los_Alerces_National_Park",
+                "savedTitle": "Los Alerces"
+              }
+            },
+            "childrenIds": []
+          },
+          "24375947-0CF7-4EF2-AA6B-E7AC28E1EAC2",
+          {
+            "id": "24375947-0CF7-4EF2-AA6B-E7AC28E1EAC2",
+            "title": "Alerce parks",
+            "data": {
+              "list": {
+                "customInfo": {
+                  "iconType": {
+                    "icon": "star"
+                  }
+                }
+              }
+            },
+            "childrenIds": [
+              "1E2224E0-D7F9-4B0D-8CB6-8EAE59782146",
+              "252E6E89-F26D-412F-A29B-18FF2C84B9DE"
+            ]
+          },
+          "92D9805D-5DCC-4C38-9E71-4536468ACDBB",
+          {
+            "id": "92D9805D-5DCC-4C38-9E71-4536468ACDBB",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": [
+              "51BE3C62-B0E7-4B16-90A9-8D103CA762F9",
+              "A65C8B4D-0200-407B-8DCF-4430807BC014",
+              "24375947-0CF7-4EF2-AA6B-E7AC28E1EAC2"
+            ]
+          },
+          "2690AAAC-FD76-4E4A-A4FC-CFA3813158C3",
+          {
+            "id": "2690AAAC-FD76-4E4A-A4FC-CFA3813158C3",
+            "title": null,
+            "data": {
+              "itemContainer": {}
+            },
+            "childrenIds": []
+          }
+        ]
+      }
+    ]
+  },
+  "version": 1
+}

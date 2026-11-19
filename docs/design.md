@@ -1841,7 +1841,11 @@ uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy t
 made (another uuid) and what another device imported (synced, another key) are not
 marked here, so importing again replaces only this profile's imported nodes and keeps
 the rest. `--alerse-demo-arc-dir=DIR` (for demos and tests) reads Arc from DIR and
-lists no other browser, so a recording shows none of the user's own data. The import runs in Home's profile whichever Space the page is open in, and
+lists no other browser, so a recording shows none of the user's own data. Sample data
+for the site's recordings is in `tools/demo-arc/StorableSidebar.json` (three Spaces; put
+site favicons in `SidebarItemsFaviconCache/`, each a PNG named the MD5 hex of the item
+id). On a Mac the kit's `--fake-home DIR` with that file in
+`DIR/Library/Application Support/Arc/` does the same without the switch. The import runs in Home's profile whichever Space the page is open in, and
 Arc's first Space goes to Home's Space folder. Every other Arc Space goes to the Space
 of the same name (any case) that no Arc Space has yet, keeping that Space's icon and
 color, else becomes a Space of its own (`MakeSpaceOfFolder` in
