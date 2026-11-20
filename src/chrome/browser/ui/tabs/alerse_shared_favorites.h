@@ -11,6 +11,11 @@
 // every other Space. The shared set is kept in local state, so a Space that
 // opens later takes it too. Favorites match by address, so a favorite whose
 // tab is open in another Space keeps its node and its tab.
+//
+// Sync carries each Space's favorites on that Space's own chain, so a change
+// that sync brings is not copied to the other Spaces: their chains bring it
+// too. Copying it made a second node of the same address in each Space, which
+// went back up and came down as another, without end.
 
 #include <algorithm>
 #include <map>
@@ -80,23 +85,32 @@ class FavoritesMirror {
   }
 
   // The switch. Turning it on joins every open Space's favorites, the one
-  // `first` belongs to leading.
+  // `first` belongs to leading: the set is every Space's read before any of
+  // them changes.
   void SetOn(bool on, bookmarks::BookmarkModel* first) {
     PrefService* local_state = g_browser_process->local_state();
     local_state->SetBoolean(kSharedFavoritesPref, on);
     if (!on) {
       return;
     }
-    local_state->ClearPref(kSharedFavoritesSetPref);
+    std::vector<Favorite> set;
     if (first) {
-      Join(first);
+      AddMissing(set, Read(first));
     }
     for (const auto& [model, watcher] : watchers_) {
       if (model != first) {
-        Join(model);
+        AddMissing(set, Read(model));
       }
     }
+    StoreSet(set);
+    for (const auto& [model, watcher] : watchers_) {
+      Apply(model, set);
+    }
   }
+
+  // A Space about to be deleted: its bookmarks are emptied first, which must
+  // not empty every other Space's favorites.
+  void Forget(bookmarks::BookmarkModel* model) { watchers_.erase(model); }
 
  private:
   friend class base::NoDestructor<FavoritesMirror>;
@@ -116,6 +130,9 @@ class FavoritesMirror {
       observation_.Observe(model);
     }
     void BookmarkModelChanged() override { mirror_->Changed(model_); }
+    void ExtensiveBookmarkChangesEnded() override {
+      mirror_->Synced(model_);
+    }
     void BookmarkModelBeingDeleted() override {
       observation_.Reset();
       mirror_->watchers_.erase(model_);  // Deletes this.
@@ -211,17 +228,22 @@ class FavoritesMirror {
                                               std::move(list));
   }
 
-  // Adds `model`'s favorites the shared set lacks, then gives every Space
-  // the set.
-  void Join(bookmarks::BookmarkModel* model) {
-    std::vector<Favorite> set = HasSet() ? LoadSet() : std::vector<Favorite>();
-    for (Favorite& favorite : Read(model)) {
+  static void AddMissing(std::vector<Favorite>& set,
+                         std::vector<Favorite> favorites) {
+    for (Favorite& favorite : favorites) {
       if (!std::ranges::any_of(set, [&](const Favorite& f) {
             return f.url == favorite.url;
           })) {
         set.push_back(std::move(favorite));
       }
     }
+  }
+
+  // Adds `model`'s favorites the shared set lacks, then gives every Space
+  // the set.
+  void Join(bookmarks::BookmarkModel* model) {
+    std::vector<Favorite> set = HasSet() ? LoadSet() : std::vector<Favorite>();
+    AddMissing(set, Read(model));
     StoreSet(set);
     for (const auto& [other, watcher] : watchers_) {
       Apply(other, set);
@@ -229,7 +251,9 @@ class FavoritesMirror {
   }
 
   void Changed(bookmarks::BookmarkModel* model) {
-    if (applying_ || !IsOn() || !model->loaded()) {
+    // Sync's changes come grouped, as do imports, which leave favorites be.
+    if (applying_ || !IsOn() || !model->loaded() ||
+        model->IsDoingExtensiveChanges()) {
       return;
     }
     std::vector<Favorite> favorites = Read(model);
@@ -242,6 +266,18 @@ class FavoritesMirror {
         Apply(other, favorites);
       }
     }
+  }
+
+  // Sync changed `model`: the set follows it, so a Space that opens later
+  // does not undo the change, but the other open Spaces wait for their own
+  // chains.
+  void Synced(bookmarks::BookmarkModel* model) {
+    if (applying_ || !IsOn() || !model->loaded()) {
+      return;
+    }
+    std::vector<Favorite> favorites;
+    AddMissing(favorites, Read(model));
+    StoreSet(favorites);
   }
 
   // Makes `model`'s favorites `set`: a favorite of the same address keeps

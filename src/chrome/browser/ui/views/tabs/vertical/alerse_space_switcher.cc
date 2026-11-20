@@ -35,6 +35,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/ui/tabs/alerse_shared_favorites.h"
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/ui/tabs/alerse_space_folder.h"
 #include "chrome/browser/ui/tabs/alerse_space_list.h"
@@ -1957,8 +1958,12 @@ void AlerseSpaceSwitcher::DeleteSpace(const std::string& space,
   // removes its data.
   base::OnceClosure remove = base::BindOnce(
       [](base::FilePath path) {
-        g_browser_process->profile_manager()
-            ->GetDeleteProfileHelper()
+        ProfileManager* manager = g_browser_process->profile_manager();
+        if (Profile* profile = manager->GetProfileByPath(path)) {
+          alerse::FavoritesMirror::Get().Forget(
+              BookmarkModelFactory::GetForBrowserContext(profile));
+        }
+        manager->GetDeleteProfileHelper()
             .MaybeScheduleProfileForDeletion(
                 path, base::DoNothing(),
                 ProfileMetrics::DELETE_PROFILE_SETTINGS);
