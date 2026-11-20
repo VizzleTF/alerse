@@ -439,15 +439,19 @@ class AlerseSidebarView : public views::View,
   void ToggleCollapsedPinned();
   bool IsPinnedCollapsed(const bookmarks::BookmarkNode* folder) const;
 
-  // Fills the popup with `folder`'s items, subfolders opened in place.
+  // Fills the popup with `folder`'s items. A subfolder's row opens its own
+  // popup to the right, as the sidebar's folders open theirs.
   void FillFolderPopup(views::View* contents,
                        const bookmarks::BookmarkNode* folder);
+  // `level` is the popup the rows are in: -1 the folder's own popup, 0 the
+  // first subfolder's, and so on.
   void AddFolderPopupRows(views::View* container,
                           const bookmarks::BookmarkNode* folder,
-                          int depth);
+                          int level,
+                          std::vector<int64_t>* items);
   void AddFolderPopupLink(views::View* container,
                           const bookmarks::BookmarkNode* node,
-                          int depth);
+                          std::vector<int64_t>* items);
   // Arc for macOS' popup: a search field over the rows, which it filters;
   // Up, Down and Return pick a row.
   void BuildFolderPopup(views::View* contents);
@@ -457,7 +461,13 @@ class AlerseSidebarView : public views::View,
   // The links under `folder`, at any depth, that match the query.
   void AddFilteredPopupRows(views::View* container,
                             const bookmarks::BookmarkNode* folder);
-  void ToggleFolderPopupFolder(int64_t id);
+  // Opens subfolder `id`'s popup as popup `level`, right of `anchor`, and
+  // closes the deeper ones.
+  void OpenFolderSubPopup(int level, int64_t id, views::View* anchor);
+  void CloseFolderSubPopups(int from_level);
+  // The pointer rested on row `row` of popup `level`: a subfolder's opens its
+  // popup, any other row closes the popups beyond its own.
+  void OnFolderSubHover(int level, int row);
   void RefreshFolderPopup();
   // Closes the popup once the pointer has left the folder row and the popup.
   void CheckFolderPopupHover();
@@ -609,8 +619,24 @@ class AlerseSidebarView : public views::View,
   std::unique_ptr<views::BubbleDialogDelegate> folder_popup_delegate_;
   std::unique_ptr<views::Widget> folder_popup_;
   int64_t folder_popup_id_ = 0;
-  // Subfolders opened inside the popup.
-  std::set<int64_t> folder_popup_open_;
+  // The subfolders' popups, outermost first.
+  struct FolderSubPopup {
+    FolderSubPopup();
+    FolderSubPopup(FolderSubPopup&&);
+    FolderSubPopup& operator=(FolderSubPopup&&);
+    ~FolderSubPopup();
+
+    int64_t id = 0;
+    std::unique_ptr<views::BubbleDialogDelegate> delegate;
+    std::unique_ptr<views::Widget> widget;
+    raw_ptr<views::View> rows = nullptr;
+    std::vector<int64_t> items;
+  };
+  std::vector<FolderSubPopup> folder_subpopups_;
+  base::OneShotTimer folder_sub_timer_;
+  // The popup level and row under the pointer, -2 when outside them all.
+  int folder_sub_level_ = -2;
+  int folder_sub_row_ = -1;
   // SpeakerState() of the popup's folder when it was filled.
   std::string folder_popup_speakers_;
   base::OneShotTimer hover_timer_;

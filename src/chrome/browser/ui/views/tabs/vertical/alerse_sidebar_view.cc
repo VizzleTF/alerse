@@ -274,6 +274,8 @@ constexpr ui::ColorId kActiveColor = kColorAlerseSidebarActive;
 // Folder popup: hover delay, size, color and pointer polling.
 // Arc for macOS shows a folder's links 0.3 to 0.6 s into the hover.
 constexpr base::TimeDelta kFolderPopupDelay = base::Milliseconds(400);
+// A subfolder's popup opens sooner, as a menu's submenu does.
+constexpr base::TimeDelta kFolderSubPopupDelay = base::Milliseconds(200);
 // Arc for macOS' popup: 240 pt wide, 4 pt right of the sidebar and centred on
 // its folder's row; a 48 pt search row over a line, then rows 45 pt apart
 // with the link's title and when it was last opened, the first selected.
@@ -1951,6 +1953,15 @@ class AlerseSidebarView::Row : public views::Button {
     }
   }
 
+  // A subfolder's row in a popup: a chevron at its end, as a submenu's.
+  void SetSubmenuArrow() {
+    auto arrow =
+        std::make_unique<views::ImageView>(ui::ImageModel::FromVectorIcon(
+            vector_icons::kKeyboardArrowRightFlippableIcon, kPopupGlyph, 16));
+    arrow->SetCanProcessEventsWithinSubtree(false);
+    submenu_arrow_ = AddChildView(std::move(arrow));
+  }
+
   void SetSelected(bool selected) {
     if (selected_ != selected) {
       selected_ = selected;
@@ -2300,7 +2311,13 @@ class AlerseSidebarView::Row : public views::Button {
                           kSpeakerSize);
       x += kSpeakerSize + kSpeakerGap;
     }
-    const int text_width = std::max(0, width() - kPopupTextEndInset - x);
+    int end = width() - kPopupTextEndInset;
+    if (submenu_arrow_) {
+      end -= 16;
+      submenu_arrow_->SetBounds(end, center_y - 8, 16, 16);
+      end -= 4;
+    }
+    const int text_width = std::max(0, end - x);
     if (!subtitle_) {
       label_->SetBounds(x, 0, text_width, height_);
       return;
@@ -2372,6 +2389,7 @@ class AlerseSidebarView::Row : public views::Button {
   raw_ptr<views::ImageButton> close_ = nullptr;
   raw_ptr<views::ImageButton> speaker_ = nullptr;
   raw_ptr<views::Label> subtitle_ = nullptr;
+  raw_ptr<views::ImageView> submenu_arrow_ = nullptr;
   raw_ptr<views::Throbber> throbber_ = nullptr;
   bool loading_ = false;
   bool attention_ = false;
@@ -4649,7 +4667,6 @@ void AlerseSidebarView::ShowFolderPopup(int64_t id, views::View* row) {
       (menu_runner_ && menu_runner_->IsRunning())) {
     return;
   }
-  folder_popup_open_.clear();
   auto contents = std::make_unique<views::View>();
   contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical));
@@ -4740,7 +4757,12 @@ bool AlerseSidebarView::OnFolderPopupKey(ui::KeyboardCode key) {
         const int64_t id = folder_popup_items_[folder_popup_selected_];
         const bookmarks::BookmarkNode* node = GetNode(id);
         if (node && node->is_folder()) {
-          ToggleFolderPopupFolder(id);
+          if (folder_popup_rows_ &&
+              folder_popup_selected_ <
+                  static_cast<int>(folder_popup_rows_->children().size())) {
+            OpenFolderSubPopup(
+                0, id, folder_popup_rows_->children()[folder_popup_selected_]);
+          }
         } else {
           base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
               FROM_HERE,
@@ -4793,7 +4815,7 @@ void AlerseSidebarView::AddFilteredPopupRows(
                        .find(folder_popup_query_) != std::u16string::npos ||
                base::i18n::ToLower(base::UTF8ToUTF16(node->url().spec()))
                        .find(folder_popup_query_) != std::u16string::npos) {
-      AddFolderPopupLink(container, node, 0);
+      AddFolderPopupLink(container, node, &folder_popup_items_);
     }
   }
 }
@@ -4804,10 +4826,12 @@ void AlerseSidebarView::FillFolderPopup(
   // Arc's popup: the search row stays, the rows below follow the query.
   folder_popup_field_->SetPlaceholderText(l10n_util::GetStringFUTF16(
       IDS_ALERSE_SEARCH_FOLDER, folder->GetTitle()));
+  // The subfolders' popups hang on rows rebuilt here.
+  CloseFolderSubPopups(0);
   folder_popup_items_.clear();
   folder_popup_rows_->RemoveAllChildViews();
   if (folder_popup_query_.empty()) {
-    AddFolderPopupRows(folder_popup_rows_, folder, 0);
+    AddFolderPopupRows(folder_popup_rows_, folder, -1, &folder_popup_items_);
   } else {
     AddFilteredPopupRows(folder_popup_rows_, folder);
   }
@@ -4830,16 +4854,6 @@ void AlerseSidebarView::FillFolderPopup(
           std::min(rows_height, kPopupMaxHeight - kPopupSearchHeight)));
 }
 
-void AlerseSidebarView::ToggleFolderPopupFolder(int64_t id) {
-  if (!folder_popup_open_.erase(id)) {
-    folder_popup_open_.insert(id);
-  }
-  // Later: the pressed row is among those rebuilt.
-  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&AlerseSidebarView::RefreshFolderPopup,
-                                drop_weak_factory_.GetWeakPtr()));
-}
-
 void AlerseSidebarView::RefreshFolderPopup() {
   const bookmarks::BookmarkNode* folder = GetNode(folder_popup_id_);
   if (!folder_popup_ || !folder) {
@@ -4853,32 +4867,34 @@ void AlerseSidebarView::RefreshFolderPopup() {
 void AlerseSidebarView::AddFolderPopupRows(
     views::View* container,
     const bookmarks::BookmarkNode* folder,
-    int depth) {
+    int level,
+    std::vector<int64_t>* items) {
   for (const auto& child : folder->children()) {
     const bookmarks::BookmarkNode* node = child.get();
-    if (node->is_folder()) {
-      [[maybe_unused]] Row* folder_row =
-          container->AddChildView(std::make_unique<Row>(
-              base::BindRepeating(&AlerseSidebarView::ToggleFolderPopupFolder,
-                                  base::Unretained(this), node->id()),
-              std::make_unique<FolderGlyph>(false, FolderIcon(node)),
-              node->GetTitle(), depth, ItemFont(true), kFolderColor,
-              /*slash=*/false, /*active=*/false));
-      folder_row->SetPopupStyle(std::u16string());
-      folder_popup_items_.push_back(node->id());
-      if (folder_popup_open_.contains(node->id())) {
-        AddFolderPopupRows(container, node, depth + 1);
-      }
+    if (!node->is_folder()) {
+      AddFolderPopupLink(container, node, items);
       continue;
     }
-    AddFolderPopupLink(container, node, depth);
+    Row* folder_row = container->AddChildView(std::make_unique<Row>(
+        views::Button::PressedCallback(),
+        std::make_unique<FolderGlyph>(false, FolderIcon(node)),
+        node->GetTitle(), /*depth=*/0, ItemFont(true), kFolderColor,
+        /*slash=*/false, /*active=*/false));
+    // A click opens its popup at once, without the hover's wait.
+    folder_row->SetCallback(base::BindRepeating(
+        &AlerseSidebarView::OpenFolderSubPopup, base::Unretained(this),
+        level + 1, node->id(),
+        base::Unretained(static_cast<views::View*>(folder_row))));
+    folder_row->SetPopupStyle(std::u16string());
+    folder_row->SetSubmenuArrow();
+    items->push_back(node->id());
   }
 }
 
 void AlerseSidebarView::AddFolderPopupLink(
     views::View* container,
     const bookmarks::BookmarkNode* node,
-    int depth) {
+    std::vector<int64_t>* items) {
   Row* row = container->AddChildView(std::make_unique<Row>(
       base::BindRepeating(
           [](AlerseSidebarView* sidebar, int64_t id) {
@@ -4886,10 +4902,10 @@ void AlerseSidebarView::AddFolderPopupLink(
             sidebar->CloseFolderPopup();
           },
           base::Unretained(this), node->id()),
-      MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), depth,
+      MakeImageIcon(GetBookmarkIcon(node)), node->GetTitle(), /*depth=*/0,
       ItemFont(false), kItemColor, /*slash=*/false, /*active=*/false));
   row->SetPopupStyle(LastUsedText(node));
-  folder_popup_items_.push_back(node->id());
+  items->push_back(node->id());
   if (tabs::TabInterface* tab = GetBoundTab(node->id())) {
     AddSpeaker(row, tab);
   }
@@ -4903,6 +4919,50 @@ void AlerseSidebarView::CheckFolderPopupHover() {
   const gfx::Point point = display::Screen::Get()->GetCursorScreenPoint();
   const gfx::Rect bubble = folder_popup_->GetWindowBoundsInScreen();
   bool inside = bubble.Contains(point);
+  // The innermost popup under the pointer, and its row there.
+  int level = inside ? -1 : -2;
+  for (size_t i = 0; i < folder_subpopups_.size(); ++i) {
+    if (folder_subpopups_[i].widget->GetWindowBoundsInScreen().Contains(
+            point)) {
+      level = static_cast<int>(i);
+    }
+  }
+  inside = inside || level >= 0;
+  views::View* level_rows =
+      level >= 0 ? folder_subpopups_[level].rows.get()
+                 : (level == -1 && folder_popup_query_.empty()
+                        ? folder_popup_rows_.get()
+                        : nullptr);
+  if (level_rows) {
+    int row = -1;
+    int i = 0;
+    for (views::View* child : level_rows->children()) {
+      if (child->GetBoundsInScreen().Contains(point)) {
+        row = i;
+        break;
+      }
+      ++i;
+    }
+    // A subfolder's popup marks the row under the pointer; the folder's own
+    // popup does so below.
+    if (level >= 0 && row >= 0) {
+      int j = 0;
+      for (views::View* child : level_rows->children()) {
+        if (Row* popup_row = views::AsViewClass<Row>(child)) {
+          popup_row->SetSelected(j == row);
+        }
+        ++j;
+      }
+    }
+    if (row >= 0 && (level != folder_sub_level_ || row != folder_sub_row_)) {
+      folder_sub_timer_.Start(
+          FROM_HERE, kFolderSubPopupDelay,
+          base::BindOnce(&AlerseSidebarView::OnFolderSubHover,
+                         drop_weak_factory_.GetWeakPtr(), level, row));
+    }
+    folder_sub_level_ = level;
+    folder_sub_row_ = row;
+  }
   if (views::View* anchor = folder_popup_delegate_->GetAnchorView()) {
     // The row, and the gap between it and the popup.
     const gfx::Rect row = anchor->GetBoundsInScreen();
@@ -4954,8 +5014,114 @@ void DeleteBubbleSoon(std::unique_ptr<views::Widget> widget,
 
 }  // namespace
 
+AlerseSidebarView::FolderSubPopup::FolderSubPopup() = default;
+AlerseSidebarView::FolderSubPopup::FolderSubPopup(FolderSubPopup&&) = default;
+AlerseSidebarView::FolderSubPopup&
+AlerseSidebarView::FolderSubPopup::operator=(FolderSubPopup&&) = default;
+AlerseSidebarView::FolderSubPopup::~FolderSubPopup() = default;
+
+void AlerseSidebarView::OnFolderSubHover(int level, int row) {
+  if (!folder_popup_ || level >= static_cast<int>(folder_subpopups_.size())) {
+    return;
+  }
+  views::View* rows = level < 0 ? folder_popup_rows_.get()
+                                : folder_subpopups_[level].rows.get();
+  const std::vector<int64_t>& items =
+      level < 0 ? folder_popup_items_ : folder_subpopups_[level].items;
+  if (!rows || row >= static_cast<int>(rows->children().size()) ||
+      row >= static_cast<int>(items.size())) {
+    return;
+  }
+  const bookmarks::BookmarkNode* node = GetNode(items[row]);
+  const size_t next = static_cast<size_t>(level + 1);
+  if (node && node->is_folder()) {
+    if (next >= folder_subpopups_.size() ||
+        folder_subpopups_[next].id != node->id()) {
+      OpenFolderSubPopup(level + 1, node->id(), rows->children()[row]);
+    }
+    return;
+  }
+  CloseFolderSubPopups(level + 1);
+}
+
+void AlerseSidebarView::OpenFolderSubPopup(int level,
+                                           int64_t id,
+                                           views::View* anchor) {
+  CloseFolderSubPopups(level);
+  const bookmarks::BookmarkNode* folder = GetNode(id);
+  if (!folder_popup_ || !folder || !folder->is_folder() ||
+      folder->children().empty() || !anchor->GetWidget() ||
+      level != static_cast<int>(folder_subpopups_.size())) {
+    return;
+  }
+  FolderSubPopup sub;
+  sub.id = id;
+  auto contents = std::make_unique<views::View>();
+  contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical));
+  auto* scroll = contents->AddChildView(
+      std::make_unique<RowsScrollView>(/*in_popup=*/true));
+  scroll->SetBackgroundColor(std::nullopt);
+  scroll->SetDrawOverflowIndicator(false);
+  scroll->SetHorizontalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kDisabled);
+  scroll->ClipHeightTo(0, kPopupMaxHeight);
+  auto rows = std::make_unique<views::View>();
+  rows->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(4, 0)));
+  sub.rows = scroll->SetContents(std::move(rows));
+  AddFolderPopupRows(sub.rows, folder, level, &sub.items);
+  sub.rows->SizeToPreferredSize();
+  contents->SetPreferredSize(gfx::Size(
+      kPopupWidth,
+      std::min(sub.rows->GetPreferredSize().height(), kPopupMaxHeight)));
+  contents->SetBorder(std::make_unique<PopupRimBorder>());
+
+  // As the folder's own popup, but the keyboard stays in that one's search.
+  // Top to top with its row, as a submenu.
+  sub.delegate = std::make_unique<FolderPopupBubble>(
+      anchor, views::BubbleBorder::LEFT_TOP);
+  sub.delegate->set_margins(gfx::Insets());
+  sub.delegate->set_corner_radius(kPopupRadius);
+  sub.delegate->SetBackgroundColor(alerse::SidebarInk(this, kPopupBackground));
+  sub.delegate->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
+  sub.delegate->SetShowCloseButton(false);
+  sub.delegate->set_close_on_deactivate(false);
+  // Right of the popup it hangs from: kept inside that popup's window, which
+  // is what views does by default, it would turn to the left.
+  sub.delegate->SetUseAnchorWindowBounds(false);
+  sub.delegate->SetContentsView(std::move(contents));
+  sub.widget = views::BubbleDialogDelegate::CreateBubble(sub.delegate.get());
+#if BUILDFLAG(IS_MAC)
+  alerse::RemoveWindowShadow(sub.widget.get());
+#endif
+  alerse::motion::FadeInWidget(sub.widget.get(), /*activate=*/false);
+  folder_subpopups_.push_back(std::move(sub));
+}
+
+void AlerseSidebarView::CloseFolderSubPopups(int from_level) {
+  const size_t from = static_cast<size_t>(std::max(from_level, 0));
+  while (folder_subpopups_.size() > from) {
+    FolderSubPopup sub = std::move(folder_subpopups_.back());
+    folder_subpopups_.pop_back();
+    // Deleted later: this may run from inside a popup row's press.
+    alerse::motion::FadeOutWidget(
+        std::move(sub.widget),
+        base::BindOnce(
+            [](std::unique_ptr<views::BubbleDialogDelegate> delegate,
+               std::unique_ptr<views::Widget> widget) {
+              DeleteBubbleSoon(std::move(widget), std::move(delegate));
+            },
+            std::move(sub.delegate)));
+  }
+}
+
 void AlerseSidebarView::CloseFolderPopup() {
   folder_popup_timer_.Stop();
+  folder_sub_timer_.Stop();
+  folder_sub_level_ = -2;
+  folder_sub_row_ = -1;
+  CloseFolderSubPopups(0);
   folder_popup_id_ = 0;
   if (!folder_popup_) {
     return;

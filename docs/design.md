@@ -326,8 +326,13 @@ one link a line, skipping blank pages and empty Spaces (`look/copy-selected-urls
 
 ### Folder popup
 
-- Hovering a collapsed folder pops up its links (subfolders open in place); picking
-  one opens it as a bound tab without expanding the folder. The popup is a non-modal
+- Hovering a collapsed folder pops up its links; picking one opens it as a bound tab
+  without expanding the folder. A subfolder's row ends in a chevron and opens its own
+  popup to the right, its top at the row's top, as a menu's submenu: after 200 ms of
+  hover or at once on a click or Return. Where the screen has no room on the right it
+  opens on the left, over the popup before it. Resting on another row of a popup closes the popups beyond it; the
+  search stays in the folder's own popup and finds links at any depth (owner's
+  choice 2026-11-20, replacing subfolders opened in place). The popup is a non-modal
   bubble, not a menu, so the mouse stays with the sidebar: it opens after 400 ms, fades in over 90 ms,
   follows the pointer to another folder and fades out when the pointer has been away
   for 300 ms. It opens inactive; on Windows it may activate on a click, which Windows
