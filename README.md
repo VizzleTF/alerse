@@ -92,8 +92,8 @@ sidebar; on macOS the Alerse menu of the menu bar); you install it yourself.
 
 ## Differences from Arc
 
-- **No account and no AI.** Nothing signs in to a company, and there is no assistant,
-  summaries or AI search.
+- **No account, no AI, no data collection.** Nothing signs in to a company, there is no
+  assistant, summaries or AI search, and no telemetry, analytics or crash reports.
 - **ungoogled-chromium underneath**, with its privacy defaults (see [Privacy](#privacy)).
 - **Sync of its own**, end-to-end encrypted on the Alerse server or one you run
   ([alerse-sync](https://github.com/VizzleTF/alerse-sync)): an account opens with the 24
@@ -161,6 +161,16 @@ becomes a Space of its own with its pinned items.
 | DRM video (Netflix and other paid streaming) | macOS: plays in a WebKit view with Apple's FairPlay; Windows: offers Microsoft Edge; Linux: does not play. Google licenses Widevine only to browsers it has signed ([legal notes](docs/legal.md#widevine)) |
 
 ## Privacy
+
+**Alerse collects nothing about you.** It has no telemetry, analytics, crash reports or
+account, and sends nothing about you or your browsing to its maintainer. The one place
+any data is kept is sync, and only to make sync work:
+
+| How you sync | What reaches the Alerse maintainer |
+|---|---|
+| No sync | Nothing |
+| Your own server | Nothing: the data and its logs stay on your server |
+| The Alerse server, sync.alerse.app | Only what sync needs to work, encrypted on your device so the server cannot read it ([privacy policy](https://github.com/VizzleTF/alerse-sync/blob/main/docs/privacy.md)) |
 
 Alerse keeps ungoogled-chromium's privacy defaults. Nothing reaches Google unless
 you pick it:
