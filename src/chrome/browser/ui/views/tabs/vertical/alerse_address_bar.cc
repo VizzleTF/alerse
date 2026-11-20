@@ -1270,7 +1270,8 @@ void AlerseAddressBar::UpdateExtensions() {
     pinned_notice_ = HasNotice(browser_->GetProfile(), ids[0], contents);
     // Its menu on a right click (Unpin, Options, Remove...), as Arc's.
     extension_menus_.push_back(
-        alerse_site_controls::CreateExtensionMenu(action, base::DoNothing()));
+        alerse_site_controls::CreateExtensionMenu(MenuActionGetter(ids[0]),
+                                                  base::DoNothing()));
     pinned_button_->set_context_menu_controller(extension_menus_.back().get());
     pinned_button_->GetViewAccessibility().SetName(action->GetActionName());
   } else if (ids.size() > 1) {
@@ -1284,7 +1285,8 @@ void AlerseAddressBar::UpdateExtensions() {
           action->GetIcon(contents,
                           gfx::Size(kExtensionImageSize, kExtensionImageSize)));
       extension_menus_.push_back(
-          alerse_site_controls::CreateExtensionMenu(action, base::DoNothing()));
+          alerse_site_controls::CreateExtensionMenu(MenuActionGetter(id),
+                                                    base::DoNothing()));
       tile->set_context_menu_controller(extension_menus_.back().get());
       extension_tiles_.push_back(AddChildView(std::move(tile)));
     }
@@ -1295,6 +1297,18 @@ void AlerseAddressBar::UpdateExtensions() {
   }
   InvalidateLayout();
   SchedulePaint();
+}
+
+alerse_site_controls::ExtensionMenu::ActionGetter
+AlerseAddressBar::MenuActionGetter(const ToolbarActionsModel::ActionId& id) {
+  return base::BindRepeating(
+      [](AlerseAddressBar* bar,
+         const ToolbarActionsModel::ActionId& id) -> ToolbarActionViewModel* {
+        return bar->extensions_model_
+                   ? bar->extensions_model_->GetActionModelForId(id)
+                   : nullptr;
+      },
+      base::Unretained(this), id);
 }
 
 void AlerseAddressBar::RunExtension(const ToolbarActionsModel::ActionId& id) {

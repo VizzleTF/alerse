@@ -37,11 +37,14 @@ void Hide();
 // as the panel's tiles and the sidebar's field and tiles are:
 // ExtensionContextMenuController runs it from a menu button only (it casts
 // the source's button controller, which crashed on a tile). `on_closed` runs
-// once the menu closes.
+// once the menu closes. The extension's model is looked up as the menu
+// opens: changing its access (Allow in Incognito) reloads the extension and
+// replaces its model, which a kept pointer outlived.
 class ExtensionMenu : public views::ContextMenuController {
  public:
-  ExtensionMenu(ToolbarActionViewModel* action,
-                base::RepeatingClosure on_closed);
+  using ActionGetter = base::RepeatingCallback<ToolbarActionViewModel*()>;
+
+  ExtensionMenu(ActionGetter get_action, base::RepeatingClosure on_closed);
   ExtensionMenu(const ExtensionMenu&) = delete;
   ExtensionMenu& operator=(const ExtensionMenu&) = delete;
   ~ExtensionMenu() override;
@@ -53,14 +56,14 @@ class ExtensionMenu : public views::ContextMenuController {
       const gfx::Point& point,
       ui::mojom::MenuSourceType source_type) override;
 
-  const raw_ptr<ToolbarActionViewModel> action_;
+  const ActionGetter get_action_;
   const base::RepeatingClosure on_closed_;
   std::unique_ptr<views::MenuModelAdapter> adapter_;
   std::unique_ptr<views::MenuRunner> runner_;
 };
 
 std::unique_ptr<ExtensionMenu> CreateExtensionMenu(
-    ToolbarActionViewModel* action,
+    ExtensionMenu::ActionGetter get_action,
     base::RepeatingClosure on_closed);
 
 }  // namespace alerse_site_controls

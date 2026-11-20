@@ -144,6 +144,10 @@ class AlerseAddressBar : public views::View,
   // Rebuilds the pinned extensions' button and tiles.
   void UpdateExtensions();
   void RunExtension(const ToolbarActionsModel::ActionId& id);
+  // Extension `id`'s model as an extension menu opens: it may have been
+  // replaced since the menu was made.
+  alerse_site_controls::ExtensionMenu::ActionGetter MenuActionGetter(
+      const ToolbarActionsModel::ActionId& id);
   // Asks where the pointer is: over the sidebar or not.
   void PollSidebarHover();
   // Shows or hides the hover buttons, and polls only while an exit may be

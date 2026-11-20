@@ -100,9 +100,9 @@
 
 namespace alerse_site_controls {
 
-ExtensionMenu::ExtensionMenu(ToolbarActionViewModel* action,
+ExtensionMenu::ExtensionMenu(ActionGetter get_action,
                              base::RepeatingClosure on_closed)
-    : action_(action), on_closed_(std::move(on_closed)) {}
+    : get_action_(std::move(get_action)), on_closed_(std::move(on_closed)) {}
 
 ExtensionMenu::~ExtensionMenu() = default;
 
@@ -110,8 +110,12 @@ void ExtensionMenu::ShowContextMenuForViewImpl(
     views::View* source,
     const gfx::Point& point,
     ui::mojom::MenuSourceType source_type) {
+  ToolbarActionViewModel* action = get_action_.Run();
+  if (!action) {
+    return;
+  }
   // The toolbar button's menu, which has Pin and Unpin.
-  ui::MenuModel* model = action_->GetContextMenu(
+  ui::MenuModel* model = action->GetContextMenu(
       extensions::ExtensionContextMenuModel::ContextMenuSource::kToolbarAction);
   if (!model || !source->GetWidget()) {
     return;
@@ -126,9 +130,10 @@ void ExtensionMenu::ShowContextMenuForViewImpl(
 }
 
 std::unique_ptr<ExtensionMenu> CreateExtensionMenu(
-    ToolbarActionViewModel* action,
+    ExtensionMenu::ActionGetter get_action,
     base::RepeatingClosure on_closed) {
-  return std::make_unique<ExtensionMenu>(action, std::move(on_closed));
+  return std::make_unique<ExtensionMenu>(std::move(get_action),
+                                         std::move(on_closed));
 }
 
 namespace {
@@ -1074,8 +1079,18 @@ class SiteControlsView : public views::View,
       tile->SetImageModel(views::Button::STATE_NORMAL,
                           action->GetIcon(contents, gfx::Size(20, 20)));
       auto menu = CreateExtensionMenu(
-          action, base::BindRepeating(&SiteControlsView::UpdatePins,
-                                      base::Unretained(this)));
+          base::BindRepeating(
+              [](SiteControlsView* view,
+                 const ToolbarActionsModel::ActionId& id)
+                  -> ToolbarActionViewModel* {
+                ExtensionsToolbarViewModel* model =
+                    view->extensions_ ? view->extensions_->GetToolbarViewModel()
+                                      : nullptr;
+                return model ? model->GetActionModelForId(id) : nullptr;
+              },
+              base::Unretained(this), id),
+          base::BindRepeating(&SiteControlsView::UpdatePins,
+                              base::Unretained(this)));
       tile->set_context_menu_controller(menu.get());
       context_menus_.push_back(std::move(menu));
       extension_tiles_.emplace_back(id, tile);
