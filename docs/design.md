@@ -150,7 +150,12 @@ feature does on it. In short:
   takes the tabs of all its session's normal windows (other stacks open no window of
   that Space at startup, so they would be lost), and is not activated by the restore,
   which would show it beside the Space shown (`spaces/preload-spaces-session.patch`,
-  `spaces/preload-spaces-session-other-windows.patch`). Startup
+  `spaces/preload-spaces-session-other-windows.patch`). Each window's session also
+  keeps its stack and the Space that stack shows (window extra data `alerse_stack`,
+  `alerse_stack_shown`), so after a restart every window comes back on the Space it
+  showed, and each Space's session window goes to its own stack; only a window of a
+  stack that did not come back joins the first one (`spaces/restore-stack-spaces.patch`).
+  Startup
   continues the last session by default (`defaults/continue-session.patch`).
 - An empty Space stays, as in Arc: closing its last tab leaves a hidden blank tab
   (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays
@@ -167,7 +172,11 @@ feature does on it. In short:
   logins are not carried over.
 - History, downloads, Delete browsing data and Reset settings act on the shown Space's
   profile only, so their titles name it: "History (Space: work)"
-  (`IDS_ALERSE_IN_SPACE`, `spaces/space-name-on-data-pages.patch`).
+  (`IDS_ALERSE_IN_SPACE`, `spaces/space-name-on-data-pages.patch`). Delete browsing data
+  also deletes in the other (loaded) Spaces with "Also delete it in the other Spaces",
+  checked by default; History's side bar and Download history's toolbar list the other
+  Spaces, and a click shows that Space with its page (`alerse_space_pages_handler.h`,
+  `spaces/data-pages-every-space.patch`).
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; shows recent downloads in a popover above
   it and closes it on a second click, as Arc does, without a tab; with nothing from
@@ -448,6 +457,13 @@ one link a line, skipping blank pages and empty Spaces (`look/copy-selected-urls
   (Shift+Cmd+T) brings them back one at a time. A tab closed with a row's "x" goes
   there too. An empty Space's hidden blank tab is never recorded there
   (`spaces/empty-space-not-in-history.patch`).
+- As in Arc, a new tab goes to the top of the tab list, right under New Tab: one that
+  asks no place of its own (New Tab, the command bar, a link from another app) is
+  added after the tab strip's pinned tabs instead of at its end
+  (`spaces/new-tabs-at-top.patch`). A tab a page opens still goes right after its
+  opener, Duplicate puts the copy right under the original, and closing a new tab
+  returns to the tab it was opened from. Ctrl+1 to 9 off macOS count the tab strip,
+  which now runs in the list's order; Cmd+1 to 9 count the rows as drawn.
 
 ### Scrolling to the active tab
 
@@ -1455,8 +1471,9 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   included, measured again at every layout (`RoundedOmniboxResultsFrame::Layout`):
   Chromium sets that once, for the location bar the window was made for, and the
   command bar's taller row lost its lower part, Arc's (i) with it, which then did
-  nothing on Windows. Open tabs are suggested without `@tabs`, and
-  picking one switches to it. Tabs and bookmarks also match fuzzily
+  nothing on Windows. Open tabs are suggested without `@tabs`, every Space's as in
+  Arc, and picking one switches to it, showing its Space first
+  (`spaces/command-bar-other-space-tabs.patch`). Tabs and bookmarks also match fuzzily
   (`look/command-bar.patch`): at least two letters, close together and starting a word
   unless they are contiguous, at most three bookmarks. The input is 18 pt in medium
   weight on every platform, Arc for macOS' (`look/windows-mac-command-bar.patch` lifts
@@ -1841,6 +1858,9 @@ in Arc.
 - In both, a link the page opens in a new tab or window opens as a tab of the Space;
   the page has no tab helpers until it is a tab, so autofill, password saving,
   JavaScript dialogs and extensions' content scripts wait for Open as Tab.
+  For the same reason a chrome:// address typed in either opens as a new tab of the
+  Space (settings reads the autofill helper and ended the browser in a Little window);
+  Peek, or a Little window with no page yet, then closes.
 
 ## First start
 

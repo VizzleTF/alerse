@@ -1,0 +1,55 @@
+--- a/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.ts
++++ b/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.ts
+@@ -182,12 +182,13 @@
+       expandedBrowsingDataTypeOptionsList_: {type: Array},
+       moreBrowsingDataTypeOptionsList_: {type: Array},
+       syncStatus_: {type: Object},
++      alerseOtherSpaces_: {type: Boolean},
+     };
+   }
+ 
+   protected accessor dataTypesExpanded_: boolean = false;
+   // Alerse: each Space is a profile; the checkbox deletes in all of them.
+-  protected alerseOtherSpaces_: boolean =
++  protected accessor alerseOtherSpaces_: boolean =
+       loadTimeData.getBoolean('alerseOtherSpaces');
+   protected accessor deletingDataAlertString_: string = '';
+   protected accessor isDeletionInProgress_: boolean = false;
+--- a/chrome/browser/resources/history/side_bar.ts
++++ b/chrome/browser/resources/history/side_bar.ts
+@@ -98,6 +98,7 @@
+       showGMAAndGAA_: {type: Boolean},
+ 
+       showHistoryClusters_: {type: Boolean},
++      alerseSpaces_: {type: Array},
+     };
+   }
+ 
+@@ -112,7 +113,7 @@
+   accessor selectedTab: number = -1;
+   protected accessor guestSession_ = loadTimeData.getBoolean('isGuestSession');
+   // Alerse: the other Spaces, each a profile with its own history.
+-  protected alerseSpaces_: Array<{label: string, path: string}> =
++  protected accessor alerseSpaces_: Array<{label: string, path: string}> =
+       JSON.parse(loadTimeData.getString('alerseSpaces'));
+   protected accessor showFooter_: boolean = false;
+   protected accessor showGoogleAccountFooter_: boolean = false;
+--- a/chrome/browser/resources/downloads/toolbar.ts
++++ b/chrome/browser/resources/downloads/toolbar.ts
+@@ -48,6 +48,7 @@
+       hasClearableDownloads: {type: Boolean},
+       items: {type: Array},
+       spinnerActive: {type: Boolean},
++      alerseSpaces_: {type: Array},
+     };
+   }
+ 
+@@ -56,7 +57,7 @@
+   accessor spinnerActive: boolean = false;
+   accessor items: MojomData[] = [];
+   // Alerse: the other Spaces, each a profile with its own downloads.
+-  protected alerseSpaces_: Array<{name: string, label: string, path: string}> =
++  protected accessor alerseSpaces_: Array<{name: string, label: string, path: string}> =
+       JSON.parse(loadTimeData.getString('alerseSpaces'));
+ 
+   protected onAlerseSpaceClick_(e: Event) {

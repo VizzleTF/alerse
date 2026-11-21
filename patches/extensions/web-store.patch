@@ -238,7 +238,7 @@ diff --git a/extensions/common/api/_api_features.json b/extensions/common/api/_a
 index bff2cbf3d54..8e5f2d528f8 100644
 --- a/extensions/common/api/_api_features.json
 +++ b/extensions/common/api/_api_features.json
-@@ -355,6 +355,8 @@
+@@ -355,7 +355,9 @@
    }, {
      "channel": "stable",
      "contexts": ["web_page"],
@@ -248,7 +248,8 @@ index bff2cbf3d54..8e5f2d528f8 100644
 +    "matches": ["https://chromewebstore.google\u002ecom/*"]
    }, {
      // Used for webstore testing. See comment in
-@@ -991,6 +993,8 @@
+     // chrome/common/extensions/webstore_override.cc
+@@ -991,7 +993,9 @@
    "webstorePrivate": [{
      "channel": "stable",
      "contexts": ["web_page"],
@@ -258,6 +259,7 @@ index bff2cbf3d54..8e5f2d528f8 100644
 +    "matches": ["https://chromewebstore.google\u002ecom/*"]
    }, {
      // Used for webstore testing. See comment in
+     // chrome/common/extensions/webstore_override.cc
 diff --git a/extensions/common/extension_urls.cc b/extensions/common/extension_urls.cc
 index d8335692327..b46828b1723 100644
 --- a/extensions/common/extension_urls.cc

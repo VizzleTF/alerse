@@ -1,0 +1,204 @@
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -14,6 +14,7 @@
+ #include <set>
+ #include <string>
+ #include <string_view>
++#include <tuple>
+ #include <utility>
+ 
+ #include "base/command_line.h"
+@@ -74,6 +75,7 @@
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
+ #include "chrome/browser/ui/startup/startup_tab.h"
+ #include "chrome/browser/ui/startup/startup_types.h"
++#include "chrome/browser/ui/tabs/alerse_window_stack.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -851,28 +853,38 @@
+     }
+ #endif  //  BUILDFLAG(IS_CHROMEOS)
+ 
+-    // Alerse: a Space's window opened hidden ahead of its first switch
+-    // (alerse::PreloadSpaces) stays hidden until the Space is shown.
++    // Alerse: a Space's window opened in a stack (alerse_window_stack.h),
++    // hidden ahead of its first switch (alerse::PreloadSpaces) or shown by
++    // one, takes the Space's session and stays as the stack has it.
+     // By its blank tab: Chromium takes another hidden window for one about to
+     // be deleted (ShouldRestoreToExistingBrowser()).
+     WebContents* const waiting_tab =
+         browser_ ? browser_->GetTabStripModel()->GetActiveWebContents()
+                  : nullptr;
+-    const bool restores_hidden_space =
+-        waiting_tab && !browser_->GetWindow()->IsVisible() &&
+-        waiting_tab->GetVisibleURL().IsAboutBlank() &&
++    const bool restores_space =
++        waiting_tab && waiting_tab->GetVisibleURL().IsAboutBlank() &&
+         waiting_tab->GetVisibleURL().ref() == "arcomium-space";
++    // Alerse: the restored windows whose stacks showed another Space, which
++    // shows once the session is in.
++    std::vector<std::tuple<BrowserWindowInterface*, base::FilePath, bool>>
++        other_spaces;
+     for (const std::unique_ptr<sessions::SessionWindow>& window : *windows) {
+       ++(*window_count);
+       // 1. Choose between restoring tabs in an existing browser or in a newly
+       //    created browser.
+       BrowserWindowInterface* browser = nullptr;
+       const bool is_first_window = window.get() == windows->begin()->get();
+-      // Alerse: it takes only the session's normal windows; the others
+-      // would show beside it, outside the Space's stack. The other stacks
+-      // open no window of this Space at startup, so their tabs join this
+-      // one, unless they only hold the empty Space's blank tab.
+-      if (restores_hidden_space &&
++      // Alerse: each normal window goes to this Space's window in the stack
++      // it was a member of. One of a stack that did not come back joins this
++      // one, unless it only holds the empty Space's blank tab; the other
++      // windows would show beside it, outside the Space's stack.
++      BrowserWindowInterface* const space_member =
++          restores_space &&
++                  window->type == sessions::SessionWindow::TYPE_NORMAL
++              ? alerse::WindowStacks::Get().RestoredMemberOf(
++                    profile_, window->extra_data)
++              : nullptr;
++      if (restores_space && !space_member &&
+           (window->type != sessions::SessionWindow::TYPE_NORMAL ||
+            (!is_first_window &&
+             std::ranges::all_of(
+@@ -897,9 +909,11 @@
+         counts->app_windows++;
+       }
+ 
+-      if (is_normal_window &&
+-          ((is_first_window && ShouldRestoreToExistingBrowser()) ||
+-           restores_hidden_space)) {
++      if (space_member) {
++        browser = space_member;
++      } else if (is_normal_window &&
++                 ((is_first_window && ShouldRestoreToExistingBrowser()) ||
++                  restores_space)) {
+         // The first set of tabs is added to the existing browser.
+         browser = browser_;
+       } else {
+@@ -919,6 +933,16 @@
+             window->workspace, window->visible_on_all_workspaces, show_state,
+             window->app_name, window->user_title, window->extra_data,
+             window->window_id.id());
++        // Alerse: back in its stack, hidden if that showed another Space.
++        if (window->type == sessions::SessionWindow::TYPE_NORMAL) {
++          if (base::FilePath space = alerse::WindowStacks::Get().RestoreMember(
++                  browser, window->extra_data);
++              !space.empty()) {
++            other_spaces.emplace_back(
++                browser, space,
++                window->show_state == ui::mojom::WindowShowState::kMaximized);
++          }
++        }
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+         aura::Window* browser_window = browser->GetWindow()->GetNativeWindow();
+@@ -939,7 +963,11 @@
+       // 2. Track TYPE_NORMAL browsers.
+       if (is_normal_window) {
+         has_normal_browser = true;
+-        last_normal_browser = browser;
++        // Alerse: not a window its stack keeps hidden, while one shows.
++        if (!last_normal_browser ||
++            !alerse::WindowStacks::Get().IsHidden(browser)) {
++          last_normal_browser = browser;
++        }
+         WindowMetadataController::From(browser)->SetWindowUserTitle(
+             window->user_title);
+       }
+@@ -954,15 +982,15 @@
+           browser->GetTabStripModel()->GetActiveWebContents();
+       int initial_tab_count = browser->GetTabStripModel()->count();
+       // Alerse: a Space's window opens on a blank tab while its session is
+-      // read (alerse_window_stack.h); the session replaces it. By its
+-      // address: the tab is still loading it.
++      // read (alerse_window_stack.h); the session replaces it, whichever of
++      // its windows goes there. By its address: the tab is still loading it.
+       const bool waits_for_session =
+           active_tab && active_tab->GetVisibleURL().IsAboutBlank() &&
+           active_tab->GetVisibleURL().ref() == "arcomium-space";
+-      bool close_active_tab = (clobber_existing_tab_ || waits_for_session) &&
+-                              is_first_window &&
+-                              is_normal_window && active_tab &&
+-                              browser == browser_ && !window->tabs.empty();
++      bool close_active_tab =
++          ((clobber_existing_tab_ && is_first_window && browser == browser_) ||
++           waits_for_session) &&
++          is_normal_window && active_tab && !window->tabs.empty();
+       if (close_active_tab) {
+         --initial_tab_count;
+       }
+@@ -1030,8 +1058,10 @@
+       CHECK(browser->GetTabStripModel()->GetActiveWebContents());
+     }
+ 
+-    if (browser_to_activate && browser_to_activate->GetType() ==
+-                                   BrowserWindowInterface::Type::TYPE_NORMAL) {
++    if (browser_to_activate &&
++        browser_to_activate->GetType() ==
++            BrowserWindowInterface::Type::TYPE_NORMAL &&
++        !alerse::WindowStacks::Get().IsHidden(browser_to_activate)) {
+       last_normal_browser = browser_to_activate;
+     }
+ 
+@@ -1043,11 +1073,15 @@
+     ash::BootTimesRecorder::Get()->AddLoginTimeMarker(
+         "SessionRestore-CreatingTabs-End", false);
+ #endif
+-    // Alerse: activating would show the hidden Space's window.
+-    if (browser_to_activate &&
+-        !(restores_hidden_space && browser_to_activate == browser_)) {
++    // Alerse: activating would show a hidden Space's window; a Space's
++    // switch activates its window itself.
++    if (browser_to_activate && !restores_space &&
++        !alerse::WindowStacks::Get().IsHidden(browser_to_activate)) {
+       browser_to_activate->GetWindow()->Activate();
+     }
++    for (const auto& [member, space, maximized] : other_spaces) {
++      alerse::ShowRestoredSpace(member, space, maximized);
++    }
+ 
+     // If last_normal_browser is NULL and startup_tabs_ is non-empty,
+     // FinishedTabCreation will create a new TabbedBrowser and add the urls to
+@@ -1452,7 +1486,10 @@
+       return;
+     }
+ 
+-    browser->GetWindow()->Show();
++    // Alerse: a window its stack keeps hidden shows with its Space.
++    if (!alerse::WindowStacks::Get().IsHidden(browser)) {
++      browser->GetWindow()->Show();
++    }
+     BrowserInitState::From(browser)->set_is_session_restore(false);
+   }
+ 
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -33,6 +33,7 @@
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/startup/startup_browser_creator.h"
+ #include "chrome/browser/ui/tabs/alerse_spaces.h"
++#include "chrome/browser/ui/tabs/alerse_window_stack.h"
+ #include "chrome/browser/ui/tabs/features.h"
+ #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+@@ -800,6 +801,15 @@
+             base::NumberToString(controller->GetUncollapsedWidth())));
+   }
+ 
++  // Alerse: the window's stack, so that a restart puts each window back on
++  // the Space it showed.
++  for (const auto& [key, value] :
++       alerse::WindowStacks::Get().SessionData(browser)) {
++    command_storage_manager()->AppendRebuildCommand(
++        sessions::CreateAddWindowExtraDataCommand(browser->GetSessionID(), key,
++                                                  value));
++  }
++
+   int index = 0;
+   for (const tabs::TabInterface* tab_interface : *tab_strip) {
+     WebContents* tab = tab_interface->GetContents();

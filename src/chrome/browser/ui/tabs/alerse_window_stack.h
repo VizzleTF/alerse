@@ -11,9 +11,11 @@
 // share one place on screen and exactly one is visible: switching Spaces
 // shows the next and hides the previous.
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -24,7 +26,9 @@
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/no_destructor.h"
+#include "base/rand_util.h"
 #include "base/scoped_observation.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -32,6 +36,8 @@
 #include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
@@ -78,9 +84,15 @@ inline SpaceDrawnFunction& SpaceDrawnHook() {
   return hook;
 }
 
+// The keys under which a window's session keeps its stack (SessionData()).
+inline constexpr char kStackSessionKey[] = "alerse_stack";
+inline constexpr char kStackShownSessionKey[] = "alerse_stack_shown";
+
 // Which stack each window is a member of, and which member each stack shows.
 // A window opened by Chromium (New Window, a restored session) starts a stack
-// of its own on first use.
+// of its own on first use. Each member's session keeps its stack and the
+// Space the stack shows, so a restart puts every window back on that Space
+// (RestoreMember(), RestoredMemberOf(), session_restore.cc).
 class WindowStacks : public BrowserCollectionObserver {
  public:
   static WindowStacks& Get() {
@@ -94,8 +106,91 @@ class WindowStacks : public BrowserCollectionObserver {
     if (it != stacks_.end()) {
       return it->second;
     }
-    visible_[next_stack_] = browser;
-    return stacks_[browser] = next_stack_++;
+    const int stack = next_stack_++;
+    visible_[stack] = browser;
+    stacks_[browser] = stack;
+    SaveStack(stack);
+    return stack;
+  }
+
+  // What the session of `browser` keeps of its stack: the stack, as this run
+  // names it, and the folder of the Space it shows.
+  std::vector<std::pair<const char*, std::string>> SessionData(
+      const BrowserWindowInterface* browser) const {
+    auto it = stacks_.find(const_cast<BrowserWindowInterface*>(browser));
+    if (it == stacks_.end()) {
+      return {};
+    }
+    std::vector<std::pair<const char*, std::string>> data = {
+        {kStackSessionKey, StackName(it->second)}};
+    if (const BrowserWindowInterface* shown = Shown(it->second)) {
+      data.emplace_back(
+          kStackShownSessionKey,
+          shown->GetProfile()->GetPath().BaseName().AsUTF8Unsafe());
+    }
+    return data;
+  }
+
+  // Puts `browser`, a window its profile's last session restored
+  // (`extra_data` is what SessionData() saved), back in its stack. Returns
+  // the Space that stack showed when it is another one: `browser` then stays
+  // hidden until ShowRestoredSpace() shows that Space.
+  base::FilePath RestoreMember(
+      BrowserWindowInterface* browser,
+      const std::map<std::string, std::string>& extra_data) {
+    auto name = extra_data.find(kStackSessionKey);
+    if (name == extra_data.end() || stacks_.contains(browser)) {
+      return {};
+    }
+    auto restored = restored_.find(name->second);
+    const int stack = restored != restored_.end() && HasMembers(restored->second)
+                          ? restored->second
+                          : (restored_[name->second] = next_stack_++);
+    stacks_[browser] = stack;
+    base::FilePath space;
+    if (auto shown = extra_data.find(kStackShownSessionKey);
+        shown != extra_data.end() && !Shown(stack)) {
+      space = browser->GetProfile()->GetPath().DirName().Append(
+          base::FilePath::FromUTF8Unsafe(shown->second));
+      if (space == browser->GetProfile()->GetPath() ||
+          std::ranges::none_of(ListSpaces(), [&space](const SpaceInfo& info) {
+            return info.path == space;
+          })) {
+        space.clear();
+      }
+    }
+    if (!Shown(stack) && space.empty()) {
+      visible_[stack] = browser;
+    }
+    SaveStack(stack);
+    return space;
+  }
+
+  // The window of `profile` in the stack the last session's window
+  // (`extra_data`) was a member of, opened hidden if it has none; null if
+  // that stack did not come back.
+  BrowserWindowInterface* RestoredMemberOf(
+      Profile* profile,
+      const std::map<std::string, std::string>& extra_data) {
+    auto name = extra_data.find(kStackSessionKey);
+    auto restored =
+        name == extra_data.end() ? restored_.end() : restored_.find(name->second);
+    return restored != restored_.end() && HasMembers(restored->second)
+               ? AddMember(restored->second, profile)
+               : nullptr;
+  }
+
+  // Shows `member`, a member of a stack that shows none.
+  void Reveal(BrowserWindowInterface* member) {
+    auto it = stacks_.find(member);
+    if (it == stacks_.end() || Shown(it->second)) {
+      return;
+    }
+    visible_[it->second] = member;
+    SetSpaceHidden(member, false);
+    member->GetWindow()->Show();
+    member->GetWindow()->Activate();
+    SaveStack(it->second);
   }
 
   // The member of `stack` that shows the Space of `profile`, if any.
@@ -196,6 +291,7 @@ class WindowStacks : public BrowserCollectionObserver {
     SetSpaceHidden(target, false);
     SetSpaceHidden(shown, true);
     HideOthersOnceDrawn(stack, target, std::move(locks));
+    SaveStack(stack);
   }
 
   // The member of `stack` for the Space of `profile`, opened hidden if it
@@ -233,6 +329,7 @@ class WindowStacks : public BrowserCollectionObserver {
                        /*foreground=*/true);
     }
     stacks_[member] = stack;
+    SaveStack(stack);
     return member;
   }
 
@@ -305,14 +402,37 @@ class WindowStacks : public BrowserCollectionObserver {
   // the question has a window and a page kept stays in sight.
   void OnMemberCloseCancelled(BrowserWindowInterface* member,
                               BrowserWindowInterface::ClosingStatus) {
-    auto it = stacks_.find(member);
-    if (it == stacks_.end() || Shown(it->second)) {
-      return;
+    Reveal(member);
+  }
+
+  // This run's name for `stack`: names from an earlier run, kept in a
+  // profile's session the run did not rewrite, match no stack of this one.
+  static std::string StackName(int stack) {
+    static const base::NoDestructor<std::string> run(
+        base::NumberToString(base::RandUint64()));
+    return *run + ":" + base::NumberToString(stack);
+  }
+
+  bool HasMembers(int stack) const {
+    return std::ranges::any_of(
+        stacks_, [stack](const auto& entry) { return entry.second == stack; });
+  }
+
+  // Tells the sessions of `stack`'s members what SessionData() now holds;
+  // a rebuilt session asks SessionData() itself (session_service_base.cc).
+  void SaveStack(int stack) {
+    for (const auto& [member, id] : stacks_) {
+      SessionService* service =
+          id == stack ? SessionServiceFactory::GetForProfileIfExisting(
+                            member->GetProfile())
+                      : nullptr;
+      if (!service) {
+        continue;
+      }
+      for (const auto& [key, value] : SessionData(member)) {
+        service->AddWindowExtraData(member->GetSessionID(), key, value);
+      }
     }
-    visible_[it->second] = member;
-    SetSpaceHidden(member, false);
-    member->GetWindow()->Show();
-    member->GetWindow()->Activate();
   }
 
   WindowStacks() { observation_.Observe(GlobalBrowserCollection::GetInstance()); }
@@ -392,6 +512,8 @@ class WindowStacks : public BrowserCollectionObserver {
   std::map<int, int> hide_generation_;
   // The stacks whose other Spaces' windows were opened ahead (PreloadSpaces).
   std::set<int> preloaded_;
+  // The stack this run gives each stack the last sessions name.
+  std::map<std::string, int> restored_;
   // Each stack's windows kept in an active window's colors over a switch.
   std::map<int, std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>>>
       paint_locks_;
@@ -433,6 +555,36 @@ inline void ShowSpaceInStack(BrowserWindowInterface* from,
                                     : nullptr);
           },
           stack, from->GetProfile()->GetPath(), std::move(done)));
+}
+
+// Shows the Space in `path` in the stack of `member`, a restored window that
+// RestoreMember() left hidden; `member` shows itself if that Space cannot
+// load. `maximized`: as the stack was, which `member`, never shown, cannot
+// pass on.
+inline void ShowRestoredSpace(BrowserWindowInterface* member,
+                              const base::FilePath& path,
+                              bool maximized) {
+  ShowSpaceInStack(
+      member, path,
+      base::BindOnce(
+          [](int stack, base::FilePath own, bool maximized,
+             BrowserWindowInterface* shown) {
+            if (shown) {
+              if (maximized) {
+                shown->GetWindow()->Maximize();
+              }
+              return;
+            }
+            WindowStacks& stacks = WindowStacks::Get();
+            Profile* profile =
+                g_browser_process->profile_manager()->GetProfileByPath(own);
+            if (BrowserWindowInterface* member =
+                    profile ? stacks.FindMember(stack, profile) : nullptr) {
+              stacks.Reveal(member);
+            }
+          },
+          WindowStacks::Get().StackOf(member), member->GetProfile()->GetPath(),
+          maximized));
 }
 
 // Opens the window of every other Space in the stack of `browser`, hidden,

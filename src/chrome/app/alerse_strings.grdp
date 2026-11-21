@@ -609,4 +609,7 @@
   <message name="IDS_ALERSE_IN_SPACE" desc="Title of a page or dialog that acts on one Space's data only (Delete browsing data, History, Download history, Reset settings), with the Space's name.">
     <ph name="TITLE">$1<ex>Delete browsing data</ex></ph> (Space: <ph name="SPACE">$2<ex>Work</ex></ph>)
   </message>
+  <message name="IDS_ALERSE_DELETE_IN_OTHER_SPACES" desc="Checkbox in Delete browsing data, checked by default: also delete the chosen data in every other Space (each Space keeps its own history, cookies and downloads).">
+    Also delete it in the other Spaces
+  </message>
 </grit-part>

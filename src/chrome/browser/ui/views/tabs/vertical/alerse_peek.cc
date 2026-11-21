@@ -52,6 +52,7 @@
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
+#include "content/public/common/url_utils.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "services/network/public/mojom/referrer_policy.mojom-shared.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
@@ -228,6 +229,12 @@ class PeekPanel : public views::View,
     if (!contents_) {
       return;
     }
+    // Chromium's own pages need a tab's helpers (settings dereferences the
+    // autofill client): they open as a tab of the Space instead.
+    if (content::HasWebUIScheme(url)) {
+      OpenTab(url);
+      return;
+    }
     content::NavigationController::LoadURLParams params(url);
     params.referrer = referrer;
     params.transition_type = ui::PAGE_TRANSITION_LINK;
@@ -391,6 +398,23 @@ class PeekPanel : public views::View,
  private:
   static std::u16string DisplayUrl(const GURL& url) {
     return url_formatter::FormatUrl(url);
+  }
+
+  // `url` in a new tab of the Space's window; Peek, or a Little window
+  // with no page of its own, closes.
+  void OpenTab(const GURL& url) {
+    if (BrowserWindowInterface* browser = NormalWindowOf(profile_)) {
+      NavigateParams nav(browser, url, ui::PAGE_TRANSITION_TYPED);
+      nav.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+      nav.window_action = NavigateParams::WindowAction::kShowWindow;
+      Navigate(&nav);
+    } else if (BrowserWindowInterface* any =
+                   GetLastActiveBrowserWindowInterfaceWithAnyProfile()) {
+      OpenUrlInSpace(any, profile_->GetOriginalProfile()->GetPath(), url);
+    }
+    if (peek_ || !HasPage()) {
+      close_.Run();
+    }
   }
 
   const raw_ptr<Profile> profile_;

@@ -78,7 +78,8 @@ Check every new patch for them.
 5. Check that the whole series still applies to a clean tree. In
    [alerse-linux](https://github.com/VizzleTF/alerse-linux), `./check-patches.sh`
    applies it to the Chromium release source in a few minutes, Alerse's patches with
-   no fuzz; CI runs it on every push. In the working tree:
+   no fuzz; CI runs it on every push. alerse-win has the same `./check-patches.sh`
+   for the Windows series, run on every push and pull request. In the working tree:
 
    ```cmd
    cd src

@@ -1,0 +1,305 @@
+--- a/chrome/browser/resources/downloads/toolbar.css
++++ b/chrome/browser/resources/downloads/toolbar.css
+@@ -20,6 +20,7 @@
+   min-width: 0;
+ }
+ 
+-#clearAll {
++#clearAll,
++.alerse-space {
+   white-space: nowrap;
+ }
+--- a/chrome/browser/resources/downloads/toolbar.html.ts
++++ b/chrome/browser/resources/downloads/toolbar.html.ts
+@@ -15,6 +15,13 @@
+   <cr-button id="clearAll" @click="${this.onClearAllClick_}">
+     $i18n{clearAll}
+   </cr-button>
++  ${this.alerseSpaces_.map(space => html`
++    <cr-button class="alerse-space" title="${space.label}"
++        aria-label="${space.label}" data-path="${space.path}"
++        @click="${this.onAlerseSpaceClick_}">
++      ${space.name}
++    </cr-button>
++  `)}
+ </cr-toolbar>
+ <!--_html_template_end_-->`;
+ }
+--- a/chrome/browser/resources/downloads/toolbar.ts
++++ b/chrome/browser/resources/downloads/toolbar.ts
+@@ -55,6 +55,14 @@
+   accessor hasClearableDownloads: boolean = false;
+   accessor spinnerActive: boolean = false;
+   accessor items: MojomData[] = [];
++  // Alerse: the other Spaces, each a profile with its own downloads.
++  protected alerseSpaces_: Array<{name: string, label: string, path: string}> =
++      JSON.parse(loadTimeData.getString('alerseSpaces'));
++
++  protected onAlerseSpaceClick_(e: Event) {
++    chrome.send('alerseShowSpacePage',
++                [(e.currentTarget as HTMLElement).dataset['path']!]);
++  }
+ 
+   override updated(changedProperties: PropertyValues<this>) {
+     super.updated(changedProperties);
+--- a/chrome/browser/resources/history/side_bar.html.ts
++++ b/chrome/browser/resources/history/side_bar.html.ts
+@@ -30,6 +30,14 @@
+     <div class="cr-icon icon-external"></div>
+     <cr-ripple></cr-ripple>
+   </a>
++  ${this.alerseSpaces_.map(space => html`
++    <a role="menuitem" class="cr-nav-menu-item" href="#"
++        data-path="${space.path}" @click="${this.onAlerseSpaceClick_}">
++      <cr-icon icon="cr:history"></cr-icon>
++      ${space.label}
++      <cr-ripple></cr-ripple>
++    </a>
++  `)}
+ </cr-menu-selector>
+ <div id="spacer"></div>
+ <div id="footer" ?hidden="${!this.showFooter_}">
+--- a/chrome/browser/resources/history/side_bar.ts
++++ b/chrome/browser/resources/history/side_bar.ts
+@@ -111,6 +111,9 @@
+   accessor selectedPage: string = '';
+   accessor selectedTab: number = -1;
+   protected accessor guestSession_ = loadTimeData.getBoolean('isGuestSession');
++  // Alerse: the other Spaces, each a profile with its own history.
++  protected alerseSpaces_: Array<{label: string, path: string}> =
++      JSON.parse(loadTimeData.getString('alerseSpaces'));
+   protected accessor showFooter_: boolean = false;
+   protected accessor showGoogleAccountFooter_: boolean = false;
+   protected accessor showGMAOnly_: boolean = false;
+@@ -211,6 +214,12 @@
+     e.preventDefault();
+   }
+ 
++  protected onAlerseSpaceClick_(e: Event) {
++    e.preventDefault();
++    chrome.send('alerseShowSpacePage',
++                [(e.currentTarget as HTMLElement).dataset['path']!]);
++  }
++
+   /**
+    * Prevent clicks on sidebar items from navigating. These are only links for
+    * accessibility purposes, taps are handled separately.
+--- a/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_browser_proxy.ts
++++ b/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_browser_proxy.ts
+@@ -72,8 +72,9 @@
+    *     indicates whether an additional dialog should be shown, informing the
+    *     user about other forms of browsing history.
+    */
+-  clearBrowsingData(dataTypes: string[], timePeriod: number):
+-      Promise<ClearBrowsingDataResult>;
++  clearBrowsingData(
++      dataTypes: string[], timePeriod: number,
++      allSpaces?: boolean): Promise<ClearBrowsingDataResult>;
+ 
+   /**
+    * Kick off counter updates and return initial state.
+@@ -98,9 +99,10 @@
+ 
+ export class ClearBrowsingDataBrowserProxyImpl implements
+     ClearBrowsingDataBrowserProxy {
+-  clearBrowsingData(dataTypes: string[], timePeriod: number) {
++  clearBrowsingData(
++      dataTypes: string[], timePeriod: number, allSpaces: boolean = false) {
+     return sendWithPromise<ClearBrowsingDataResult>(
+-        'clearBrowsingData', dataTypes, timePeriod);
++        'clearBrowsingData', dataTypes, timePeriod, allSpaces);
+   }
+ 
+   initialize() {
+--- a/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.css
++++ b/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.css
+@@ -108,3 +108,7 @@
+   margin-inline-end: auto;
+   overflow: hidden;
+ }
++
++#alerseAllSpaces {
++  margin-block: 12px;
++}
+--- a/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.html.ts
++++ b/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.html.ts
+@@ -48,6 +48,11 @@
+           role="presentation">
+       </cr-icon>
+     </cr-button>
++    <cr-checkbox id="alerseAllSpaces" checked
++        ?hidden="${!this.alerseOtherSpaces_}"
++        ?disabled="${this.isDeletionInProgress_}">
++      $i18n{alerseAllSpaces}
++    </cr-checkbox>
+     <cr-link-row id="manageOtherGoogleDataRow"
+         label="${this.computeOtherGoogleDataRowLabel_()}"
+         sub-label="${this.computeOtherGoogleDataRowSubLabel_()}"
+--- a/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.ts
++++ b/chrome/browser/resources/settings/clear_browsing_data_dialog/clear_browsing_data_dialog.ts
+@@ -7,6 +7,7 @@
+  * delete browsing data that has been cached by Chromium.
+  */
+ import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
+ import 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+ import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+ import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
+@@ -22,6 +23,7 @@
+ import {SyncBrowserProxyImpl} from '/shared/settings/people_page/sync_browser_proxy.js';
+ import {PrefService} from '/shared/settings/prefs2/pref_service.js';
+ import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import type {CrCheckboxElement} from 'chrome://resources/cr_elements/cr_checkbox/cr_checkbox.js';
+ import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+ import type {CrLinkRowElement} from 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
+ import {WebUiListenerMixinLit} from 'chrome://resources/cr_elements/web_ui_listener_mixin_lit.js';
+@@ -64,6 +66,7 @@
+ 
+ export interface SettingsClearBrowsingDataDialogElement {
+   $: {
++    alerseAllSpaces: CrCheckboxElement,
+     cancelButton: CrButtonElement,
+     deleteButton: CrButtonElement,
+     deleteBrowsingDataDialog: CrDialogElement,
+@@ -183,6 +186,9 @@
+   }
+ 
+   protected accessor dataTypesExpanded_: boolean = false;
++  // Alerse: each Space is a profile; the checkbox deletes in all of them.
++  protected alerseOtherSpaces_: boolean =
++      loadTimeData.getBoolean('alerseOtherSpaces');
+   protected accessor deletingDataAlertString_: string = '';
+   protected accessor isDeletionInProgress_: boolean = false;
+   private accessor isNoDatatypeSelected_: boolean = false;
+@@ -418,7 +424,8 @@
+ 
+     const {showHistoryNotice} =
+         await this.clearBrowsingDataBrowserProxy_.clearBrowsingData(
+-            dataTypes, timePeriod);
++            dataTypes, timePeriod,
++            this.alerseOtherSpaces_ && this.$.alerseAllSpaces.checked);
+     this.isDeletionInProgress_ = false;
+     this.showHistoryDeletionDialog_ = showHistoryNotice;
+     this.showDeletionConfirmationToast_(timePeriod);
+--- a/chrome/browser/ui/webui/downloads/downloads_ui.cc
++++ b/chrome/browser/ui/webui/downloads/downloads_ui.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
+ #include "chrome/browser/ui/tabs/alerse_space_registry.h"
++#include "chrome/browser/ui/webui/alerse_space_pages_handler.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/downloads/downloads.mojom.h"
+ #include "chrome/browser/ui/webui/downloads/downloads_dom_handler.h"
+@@ -204,6 +205,8 @@
+                    IDS_ALERSE_IN_SPACE,
+                    l10n_util::GetStringUTF16(IDS_DOWNLOAD_HISTORY_TITLE),
+                    alerse::GetSpaceOfProfile(profile).name));
++  alerse::SpacePagesHandler::AddSpaces(source, profile,
++                                       IDS_DOWNLOAD_HISTORY_TITLE);
+ 
+   source->AddLocalizedString(
+       "dangerUncommonDesc",
+@@ -279,6 +282,8 @@
+                         "Download.WebUi.LoadCompletedInMainFrame") {
+   Profile* profile = Profile::FromWebUI(web_ui);
+   web_ui->AddMessageHandler(std::make_unique<MetricsHandler>());
++  web_ui->AddMessageHandler(std::make_unique<alerse::SpacePagesHandler>(
++      GURL(chrome::kChromeUIDownloadsURL)));
+ 
+   // Set up the chrome://downloads/ source.
+   content::WebUIDataSource* source = CreateAndAddDownloadsUIHTMLSource(profile);
+--- a/chrome/browser/ui/webui/history/history_ui.cc
++++ b/chrome/browser/ui/webui/history/history_ui.cc
+@@ -23,6 +23,7 @@
+ #include "chrome/browser/profiles/profile_avatar_icon_util.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+ #include "chrome/browser/ui/tabs/alerse_space_registry.h"
++#include "chrome/browser/ui/webui/alerse_space_pages_handler.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/cr_components/history/history_util.h"
+ #include "chrome/browser/ui/webui/history/browsing_history_handler.h"
+@@ -77,6 +78,7 @@
+       l10n_util::GetStringFUTF16(IDS_ALERSE_IN_SPACE,
+                                  l10n_util::GetStringUTF16(IDS_HISTORY_TITLE),
+                                  alerse::GetSpaceOfProfile(profile).name));
++  alerse::SpacePagesHandler::AddSpaces(source, profile, IDS_HISTORY_TITLE);
+ 
+   static constexpr webui::LocalizedString kStrings[] = {
+       // Localized strings (alphabetical order).
+@@ -206,6 +208,8 @@
+ 
+   web_ui->AddMessageHandler(std::make_unique<webui::NavigationHandler>());
+   web_ui->AddMessageHandler(std::make_unique<MetricsHandler>());
++  web_ui->AddMessageHandler(std::make_unique<alerse::SpacePagesHandler>(
++      GURL(chrome::kChromeUIHistoryURL)));
+   web_ui->AddMessageHandler(
+       std::make_unique<HistoryLoginHandler>(base::BindRepeating(
+           &HistoryUI::UpdateDataSource, base::Unretained(this))));
+--- a/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
++++ b/chrome/browser/ui/webui/settings/settings_clear_browsing_data_handler.cc
+@@ -14,6 +14,7 @@
+ #include "base/check_op.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
++#include "base/functional/callback_helpers.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/notimplemented.h"
+@@ -32,6 +33,7 @@
+ #include "chrome/browser/ui/hats/trust_safety_sentiment_service.h"
+ #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
+ #include "chrome/browser/ui/interaction/browser_elements.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/toasts/api/toast_id.h"
+ #include "chrome/browser/ui/toasts/toast_controller.h"
+ #include "chrome/browser/ui/toasts/toast_features.h"
+@@ -181,8 +183,10 @@
+ 
+ void ClearBrowsingDataHandler::HandleClearBrowsingData(
+     const base::ListValue& args_list) {
+-  CHECK_EQ(3U, args_list.size());
++  // Alerse: a fourth argument, whether to delete in every Space.
++  CHECK(args_list.size() == 3U || args_list.size() == 4U);
+   const std::string& webui_callback_id = args_list[0].GetString();
++  const bool all_spaces = args_list.size() == 4U && args_list[3].GetBool();
+ 
+   PrefService* prefs = profile_->GetPrefs();
+   uint64_t remove_mask = 0;
+@@ -280,6 +284,23 @@
+   browsing_data::TimePeriod time_period =
+       static_cast<browsing_data::TimePeriod>(period_selected);
+ 
++  // Alerse: each Space is a profile (docs/adr/0001-space-profiles.md); the
++  // same data goes from the other Spaces' profiles, which their preloaded
++  // windows keep loaded.
++  if (all_spaces && !profile_->IsOffTheRecord()) {
++    for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
++      Profile* other =
++          g_browser_process->profile_manager()->GetProfileByPath(space.path);
++      if (other && other != profile_) {
++        browsing_data_important_sites_util::Remove(
++            remove_mask, origin_mask, time_period,
++            content::BrowsingDataFilterBuilder::Create(
++                content::BrowsingDataFilterBuilder::Mode::kPreserve),
++            other->GetBrowsingDataRemover(), base::DoNothing());
++      }
++    }
++  }
++
+   browsing_data_important_sites_util::Remove(
+       remove_mask, origin_mask, time_period,
+       content::BrowsingDataFilterBuilder::Create(
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -505,6 +505,10 @@
+       l10n_util::GetStringFUTF16(
+           IDS_ALERSE_IN_SPACE,
+           l10n_util::GetStringUTF16(IDS_SETTINGS_RESET_PROMPT_TITLE), space));
++  // Delete browsing data offers the other Spaces too, checked by default.
++  html_source->AddLocalizedString("alerseAllSpaces",
++                                  IDS_ALERSE_DELETE_IN_OTHER_SPACES);
++  html_source->AddBoolean("alerseOtherSpaces", alerse::ListSpaces().size() > 1);
+   AddSecurityData(html_source);
+ 
+   ManagedUIHandler::Initialize(web_ui, html_source);

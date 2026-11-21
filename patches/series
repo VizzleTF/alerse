@@ -154,3 +154,8 @@ defaults/no-reading-mode.patch
 spaces/open-link-as-space-in-stack.patch
 spaces/stack-close-downloads.patch
 spaces/preload-spaces-session-other-windows.patch
+spaces/command-bar-other-space-tabs.patch
+spaces/data-pages-every-space.patch
+spaces/new-tabs-at-top.patch
+spaces/restore-stack-spaces.patch
+spaces/data-pages-lit-properties.patch

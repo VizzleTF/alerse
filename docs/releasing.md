@@ -20,6 +20,8 @@ carry its packages and a `SHA256SUMS`: never publish an empty one.
 ## 2. Windows (alerse-win)
 
 1. Point the `alerse` submodule at the release commit, commit, push `main`.
+   Wait for `check-patches.yml` on that push: it applies the whole series to the
+   Chromium release source in minutes; tag only when it is green.
 2. Tag and push the tag: `release.yml` builds x64 and arm64 and adds each
    architecture's installer and zip to the release as soon as it is built.
 
@@ -114,3 +116,18 @@ in the Alerse menu's Developer submenu; the stable channel asks GitHub for
 - List the changes since the previous release, what the user sees first.
 - End with known gaps: an unsigned installer, a local first upload, a platform that
   is behind.
+
+## Known gaps in published releases
+
+Releases are not edited after the fact; these stay as they are:
+
+- alerse-win v0.1.17 has x64 packages only: its arm64 build failed downloading a
+  workflow artifact (run 43724386566), and the notes do not say so. 0.1.18 and later have
+  both architectures.
+- alerse-win v0.1.18 was created on 2026-11-15 but published on 2026-11-16, after 0.1.19,
+  0.1.20 and 0.1.23, so GitHub's release list shows it out of order. The update check and
+  the site's download links order releases by version or creation date and are not
+  affected.
+- alerse-mac releases from 0.1.7 on cannot be rebuilt from their tags alone: they come
+  from the hand-kept Chromium 156 tree (see the alerse-mac README, "Where each release
+  comes from").

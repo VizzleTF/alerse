@@ -1,0 +1,92 @@
+--- a/chrome/browser/autocomplete/tab_matcher_desktop.cc
++++ b/chrome/browser/autocomplete/tab_matcher_desktop.cc
+@@ -106,8 +106,12 @@
+ 
+   std::vector<content::WebContents*> all_tabs;
+   for (BrowserWindowInterface* bwi : GetAllBrowserWindowInterfaces()) {
+-    if (profile_ != bwi->GetProfile()) {
+-      // Only look at the same profile (and anonymity level).
++    // Alerse: the normal windows of the other Spaces (each a profile,
++    // docs/adr/0001-space-profiles.md) too, as Arc lists every Space's tabs;
++    // never across incognito.
++    if (profile_ != bwi->GetProfile() &&
++        (profile_->IsOffTheRecord() || bwi->GetProfile()->IsOffTheRecord() ||
++         bwi->GetType() != BrowserWindowInterface::TYPE_NORMAL)) {
+       continue;
+     }
+ 
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -43,6 +43,7 @@
+ #include "chrome/browser/ui/tab_helpers.h"
+ #include "chrome/browser/ui/tabs/alerse_link_router.h"
+ #include "chrome/browser/ui/tabs/alerse_peek.h"
++#include "chrome/browser/ui/tabs/alerse_window_stack.h"
+ #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -1076,6 +1077,14 @@
+     // If switching browsers, make sure it is shown.
+     if (params->disposition == WindowOpenDisposition::SWITCH_TO_TAB &&
+         params->browser != source_browser) {
++      // Alerse: a tab of another Space is in that Space's window of a stack,
++      // which shows in the place of the stack's shown member
++      // (alerse_window_stack.h).
++      if (source_browser &&
++          params->browser->GetProfile() != source_browser->GetProfile()) {
++        alerse::WindowStacks::Get().ShowSpace(params->browser,
++                                              params->browser->GetProfile());
++      }
+       params->window_action = NavigateParams::WindowAction::kShowWindow;
+     }
+ 
+--- a/chrome/browser/ui/navigator/browser_navigator_params_utils.cc
++++ b/chrome/browser/ui/navigator/browser_navigator_params_utils.cc
+@@ -201,18 +201,35 @@
+     const NavigateParams& params) {
+   BrowserWindowInterface* browser_of_existing_tab = nullptr;
+   int idx = -1;
+-  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+-      [&](BrowserWindowInterface* browser) {
+-        // When tab switching, only look at same profile and anonymity level.
+-        if (profile == browser->GetProfile() && !browser->IsDeleteScheduled()) {
+-          int index = GetIndexOfExistingTabMatchingURL(browser, params);
+-          if (index >= 0) {
+-            browser_of_existing_tab = browser;
+-            idx = index;
+-            return false;  // stop iterating
++  // Alerse: each Space is a profile (docs/adr/0001-space-profiles.md), so
++  // after the shown Space's own tabs come the other Spaces' normal windows,
++  // never an incognito one's.
++  for (bool other_spaces : {false, true}) {
++    if (other_spaces && profile->IsOffTheRecord()) {
++      break;
++    }
++    ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
++        [&](BrowserWindowInterface* browser) {
++          const bool candidate =
++              other_spaces
++                  ? browser->GetProfile() != profile &&
++                        !browser->GetProfile()->IsOffTheRecord() &&
++                        browser->GetType() ==
++                            BrowserWindowInterface::TYPE_NORMAL
++                  : browser->GetProfile() == profile;
++          if (candidate && !browser->IsDeleteScheduled()) {
++            int index = GetIndexOfExistingTabMatchingURL(browser, params);
++            if (index >= 0) {
++              browser_of_existing_tab = browser;
++              idx = index;
++              return false;  // stop iterating
++            }
+           }
+-        }
+-        return true;  // continue iterating
+-      });
++          return true;  // continue iterating
++        });
++    if (browser_of_existing_tab) {
++      break;
++    }
++  }
+   return {browser_of_existing_tab, idx};
+ }

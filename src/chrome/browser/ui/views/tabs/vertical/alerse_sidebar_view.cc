@@ -670,7 +670,8 @@ class Divider : public views::View {
         gfx::Canvas::TEXT_ALIGN_LEFT | gfx::Canvas::NO_SUBPIXEL_RENDERING);
     if (HasFocus()) {
       gfx::RectF ring(button);
-      ring.Outset(gfx::OutsetsF::VH(2, 6));
+      // within the row height: the view clips paint at its bounds
+      ring.Inset(gfx::InsetsF::VH(3, -6));
       PaintFocusRing(canvas, this, ring, 6);
     }
   }
