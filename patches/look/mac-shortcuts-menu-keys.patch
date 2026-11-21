@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/global_keyboard_shortcuts_mac.h b/chrome/browser/global_keyboard_shortcuts_mac.h
+--- a/chrome/browser/global_keyboard_shortcuts_mac.h
++++ b/chrome/browser/global_keyboard_shortcuts_mac.h
+@@ -80,6 +80,10 @@
+ bool GetDefaultMacAcceleratorForCommandId(int command_id,
+                                           ui::Accelerator* accelerator);
+ 
++// Alerse: the key the menu bar shows for |command_id|, if it shows one.
++bool GetMacMenuAcceleratorForCommandId(int command_id,
++                                       ui::Accelerator* accelerator);
++
+ // For testing purposes.
+ const std::vector<KeyboardShortcutData>& GetShortcutsNotPresentInMainMenu();
+ 
+diff --git a/chrome/browser/global_keyboard_shortcuts_mac.mm b/chrome/browser/global_keyboard_shortcuts_mac.mm
+--- a/chrome/browser/global_keyboard_shortcuts_mac.mm
++++ b/chrome/browser/global_keyboard_shortcuts_mac.mm
+@@ -286,3 +286,13 @@
+     *accelerator = *default_nsmenu_equivalent;
+   return default_nsmenu_equivalent != nullptr;
+ }
++
++bool GetMacMenuAcceleratorForCommandId(int command_id,
++                                       ui::Accelerator* accelerator) {
++  const ui::Accelerator* menu_accelerator =
++      AcceleratorsCocoa::GetInstance()->GetAcceleratorForCommand(command_id);
++  if (menu_accelerator) {
++    *accelerator = *menu_accelerator;
++  }
++  return menu_accelerator != nullptr;
++}

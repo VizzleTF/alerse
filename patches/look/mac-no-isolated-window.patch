@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -245,8 +245,11 @@
+               Item(IDS_ALERSE_NEW_LITTLE_WINDOW)
+                   .command_id(IDC_ALERSE_NEW_LITTLE_WINDOW)
+                   .remove_if(is_pwa),
++              // Alerse: hidden, as in Arc; the app controller shows it only
++              // when a policy's Isolated Mode replaces Incognito.
+               Item(IDS_NEW_ISOLATED_WINDOW_MAC)
+                   .command_id(IDC_NEW_ISOLATED_WINDOW)
++                  .set_hidden(true)
+                   .remove_if(is_pwa),
+               // Alerse: Arc's File menu: its names, Open File hidden (it
+               // keeps Command-O), the command bar and the window's items in

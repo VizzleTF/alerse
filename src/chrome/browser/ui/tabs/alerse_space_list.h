@@ -12,6 +12,7 @@
 // info, which syncs with home's bookmarks. A device that reads an id it has
 // no profile for makes one, which then joins that Space's chain.
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <set>
@@ -25,8 +26,10 @@
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/location.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -39,6 +42,7 @@
 #include "chrome/browser/ui/tabs/alerse_space_registry.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
+#include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/prefs/pref_service.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync/service/alerse_sync_account.h"
@@ -170,6 +174,49 @@ inline bool AdoptSpacesOfTheSameName(const base::DictValue& list) {
 
 inline void UpdateSpaceList(bookmarks::BookmarkModel* model, Profile* home);
 
+// Bookmark sync merges folders by title, so a device that joins with a home
+// named otherwise keeps its own Space folder beside the account's. Moves the
+// pinned items of every other Space folder of `model` into the first one that
+// is not `own`, the folder this device had before the merge, and removes the
+// emptied folders, so that one folder marks the Space.
+inline void MergeSpaceFolders(bookmarks::BookmarkModel* model,
+                              const base::Uuid& own) {
+  std::vector<const bookmarks::BookmarkNode*> folders;
+  for (const auto& node : model->other_node()->children()) {
+    std::string value;
+    if (node->is_folder() && node->GetMetaInfo(kSpaceFolderMetaKey, &value) &&
+        value == kSpaceFolderMetaValue) {
+      folders.push_back(node.get());
+    }
+  }
+  if (folders.size() < 2) {
+    return;
+  }
+  const bookmarks::BookmarkNode* kept = *std::ranges::find_if(
+      folders, [&](const bookmarks::BookmarkNode* folder) {
+        return folder->uuid() != own;
+      });
+  for (const bookmarks::BookmarkNode* folder : folders) {
+    if (folder == kept) {
+      continue;
+    }
+    while (!folder->children().empty()) {
+      const bookmarks::BookmarkNode* item = folder->children().front().get();
+      if (item->is_url() &&
+          std::ranges::any_of(kept->children(), [&](const auto& pinned) {
+            return pinned->is_url() && pinned->url() == item->url();
+          })) {
+        model->Remove(item, bookmarks::metrics::BookmarkEditSource::kOther,
+                      FROM_HERE);
+      } else {
+        model->Move(item, kept, kept->children().size());
+      }
+    }
+    model->Remove(folder, bookmarks::metrics::BookmarkEditSource::kOther,
+                  FROM_HERE);
+  }
+}
+
 // Waits, on a device that signed in, for home's first sync to bring the
 // account's list of Spaces (AlerseSyncAccount::IsJoining), then takes the
 // list's Spaces of the same names over, lists the others and restarts, so
@@ -187,6 +234,14 @@ class SpaceJoinWatcher : public syncer::SyncServiceObserver {
 
   SpaceJoinWatcher(Profile* home, syncer::SyncService* sync) : home_(home) {
     observation_.Observe(sync);
+    bookmarks::BookmarkModel* model =
+        BookmarkModelFactory::GetForBrowserContext(home);
+    if (model && model->loaded() &&
+        !sync->GetActiveDataTypes().Has(syncer::BOOKMARKS)) {
+      if (const bookmarks::BookmarkNode* folder = FindSpaceFolder(model)) {
+        own_folder_ = folder->uuid();
+      }
+    }
   }
 
   // syncer::SyncServiceObserver:
@@ -202,6 +257,7 @@ class SpaceJoinWatcher : public syncer::SyncServiceObserver {
       done_ = false;
       return;
     }
+    MergeSpaceFolders(model, own_folder_);
     AdoptSpacesOfTheSameName(ReadSpaceList(model));
     PrefService* local_state = g_browser_process->local_state();
     syncer::AlerseSyncAccount::SetJoining(local_state, false);
@@ -216,6 +272,8 @@ class SpaceJoinWatcher : public syncer::SyncServiceObserver {
 
  private:
   raw_ptr<Profile> home_;
+  // Home's Space folder as it was before the first merge, if known.
+  base::Uuid own_folder_;
   bool done_ = false;
   base::ScopedObservation<syncer::SyncService, syncer::SyncServiceObserver>
       observation_{this};

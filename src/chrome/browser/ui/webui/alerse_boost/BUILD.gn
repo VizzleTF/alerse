@@ -18,7 +18,9 @@ source_set("alerse_boost") {
     "//chrome/common",
     "//components/prefs",
     "//components/tabs:public",
+    "//mojo/public/cpp/bindings",
     "//net",
+    "//third_party/blink/public/common",
     "//ui/views",
     "//url",
   ]

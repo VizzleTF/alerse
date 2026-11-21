@@ -1,0 +1,73 @@
+--- a/chrome/browser/actor/execution_engine_unittest.cc
++++ b/chrome/browser/actor/execution_engine_unittest.cc
+@@ -169,6 +169,7 @@
+   void GetMediaFeedURL(GetMediaFeedURLCallback callback) override {}
+   void LoadBlockedPlugins(const std::string& identifier) override {}
+   void SetShouldDeferMediaLoad(bool should_defer) override {}
++  void SetAlerseBoostCss(const std::string& css) override {}
+ 
+   void InitializeTool(actor::mojom::ToolInvocationPtr request,
+                       InitializeToolCallback callback) override {
+--- a/chrome/browser/password_manager/actor_login/internal/actor_login_siwg_controller_unittest.cc
++++ b/chrome/browser/password_manager/actor_login/internal/actor_login_siwg_controller_unittest.cc
+@@ -112,6 +112,7 @@
+   MOCK_METHOD(void, GetMediaFeedURL, (GetMediaFeedURLCallback), (override));
+   MOCK_METHOD(void, LoadBlockedPlugins, (const std::string&), (override));
+   MOCK_METHOD(void, SetShouldDeferMediaLoad, (bool), (override));
++  MOCK_METHOD(void, SetAlerseBoostCss, (const std::string&), (override));
+   MOCK_METHOD(void,
+               InitializeTool,
+               (actor::mojom::ToolInvocationPtr, InitializeToolCallback),
+--- a/chrome/browser/password_manager/password_change/password_change_page_stability_waiter_unittest.cc
++++ b/chrome/browser/password_manager/password_change/password_change_page_stability_waiter_unittest.cc
+@@ -101,6 +101,7 @@
+   MOCK_METHOD(void, GetMediaFeedURL, (GetMediaFeedURLCallback), (override));
+   MOCK_METHOD(void, LoadBlockedPlugins, (const std::string&), (override));
+   MOCK_METHOD(void, SetShouldDeferMediaLoad, (bool), (override));
++  MOCK_METHOD(void, SetAlerseBoostCss, (const std::string&), (override));
+   MOCK_METHOD(void,
+               InitializeTool,
+               (actor::mojom::ToolInvocationPtr, InitializeToolCallback),
+--- a/chrome/common/chrome_render_frame.mojom
++++ b/chrome/common/chrome_render_frame.mojom
+@@ -99,6 +99,10 @@
+   // background.
+   SetShouldDeferMediaLoad(bool should_defer);
+ 
++  // Alerse: replaces the Boost's style sheet of the frame's document, a user
++  // style sheet that the page's scripts cannot see; empty removes it.
++  SetAlerseBoostCss(string css);
++
+   // Creates and validates the tool based on the request.
+   // Returns an `InitializeToolResult` which indicates one of three states:
+   //  - Success with coordinates
+--- a/chrome/renderer/chrome_render_frame_observer.cc
++++ b/chrome/renderer/chrome_render_frame_observer.cc
+@@ -682,6 +682,17 @@
+   prerender::SetShouldDeferMediaLoad(render_frame(), should_defer);
+ }
+ 
++// Alerse: one key, so that each Boost sheet replaces the one before it.
++void ChromeRenderFrameObserver::SetAlerseBoostCss(const std::string& css) {
++  blink::WebDocument document = render_frame()->GetWebFrame()->GetDocument();
++  const blink::WebStyleSheetKey key = WebString::FromAscii("alerse-boost");
++  document.RemoveInsertedStyleSheet(key, blink::WebCssOrigin::kUser);
++  if (!css.empty()) {
++    document.InsertStyleSheet(WebString::FromUtf8(css), &key,
++                              blink::WebCssOrigin::kUser);
++  }
++}
++
+ void ChromeRenderFrameObserver::InitializeTool(
+     actor::mojom::ToolInvocationPtr request,
+     InitializeToolCallback callback) {
+--- a/chrome/renderer/chrome_render_frame_observer.h
++++ b/chrome/renderer/chrome_render_frame_observer.h
+@@ -133,6 +133,7 @@
+   void GetMediaFeedURL(GetMediaFeedURLCallback callback) override;
+   void LoadBlockedPlugins(const std::string& identifier) override;
+   void SetShouldDeferMediaLoad(bool should_defer) override;
++  void SetAlerseBoostCss(const std::string& css) override;
+ 
+   // TODO(crbug.com/471252374): Move actor mojom methods to its own interface.
+   void InitializeTool(actor::mojom::ToolInvocationPtr request,

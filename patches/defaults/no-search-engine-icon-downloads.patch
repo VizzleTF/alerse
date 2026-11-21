@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/resources/settings/search_page/search_engine_icon.ts b/chrome/browser/resources/settings/search_page/search_engine_icon.ts
+--- a/chrome/browser/resources/settings/search_page/search_engine_icon.ts
++++ b/chrome/browser/resources/settings/search_page/search_engine_icon.ts
+@@ -58,17 +58,9 @@
+   }
+ 
+   protected getIconUrl_(): string {
+-    const iconURL = this.engine?.iconURL;
+-    if (!iconURL) {
+-      return '';
+-    }
+-    try {
+-      const url = new URL(iconURL);
+-      return url.protocol === 'https:' || url.protocol === 'http:' ? iconURL :
+-                                                                     '';
+-    } catch (e) {
+-      return '';
+-    }
++    // Alerse: nothing is downloaded (it fetched every engine's favicon_url,
++    // google.com's among them); <site-favicon> shows the local favicon.
++    return '';
+   }
+ 
+   private onEngineChanged_(

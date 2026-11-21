@@ -57,7 +57,6 @@ class BoostTabHelper : public content::WebContentsObserver,
   // content::WebContentsObserver:
   void DidFinishNavigation(content::NavigationHandle* handle) override;
   void DOMContentLoaded(content::RenderFrameHost* frame) override;
-  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
 
  private:
   explicit BoostTabHelper(content::WebContents* contents);

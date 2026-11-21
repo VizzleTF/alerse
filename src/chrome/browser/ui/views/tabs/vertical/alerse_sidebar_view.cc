@@ -182,11 +182,26 @@
 #include "chrome/browser/ui/views/tabs/vertical/alerse_share_mac.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_window_mac.h"
 #endif
+#if BUILDFLAG(IS_WIN)
+#include <dwmapi.h>
+
+#include "ui/views/win/hwnd_util.h"
+#endif
 
 namespace {
 
 // The text of a dragged row's data, which only this view accepts.
 constexpr char16_t kRowDragData[] = u"alerse-sidebar-row";
+
+#if BUILDFLAG(IS_WIN)
+// The Space window kept off screen until its first frame (OnSpaceShown).
+HWND g_cloaked_space_window = nullptr;
+
+void SetCloaked(HWND hwnd, bool cloaked) {
+  BOOL value = cloaked;
+  ::DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, &value, sizeof(value));
+}
+#endif
 
 constexpr char kSpaceMetaKey[] = "arcomium.space";
 // A Space's icon on its home folder (alerse_space_switcher.cc reads it).
@@ -2582,8 +2597,11 @@ bool AlerseSidebarView::OpenPinnedItemOf(BrowserWindowInterface* browser,
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
   AlerseSidebarView* sidebar =
       browser_view ? FindSidebarIn(browser_view) : nullptr;
+  // An incognito window lists no pinned items (see BuildRows()), so a match
+  // on one opens as a plain tab there.
   if (!sidebar || !sidebar->IsDrawn() || !sidebar->model_ ||
-      !sidebar->model_->loaded() || !url.is_valid()) {
+      !sidebar->model_->loaded() || !url.is_valid() ||
+      browser->GetProfile()->IsOffTheRecord()) {
     return false;
   }
   const bookmarks::BookmarkNode* folder = sidebar->GetSpaceFolder(false);
@@ -3539,6 +3557,17 @@ void AlerseSidebarView::OnSpaceShown(BrowserWindowInterface* from,
         browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
     return view ? FindSidebarIn(view) : nullptr;
   };
+#if BUILDFLAG(IS_WIN)
+  // Windows shows a window that was hidden with the last frame it presented,
+  // its rows at rest, until it presents the next one: it stays cloaked until
+  // then (OnSpaceDrawn), as macOS's comes in transparent.
+  if (g_cloaked_space_window) {
+    SetCloaked(g_cloaked_space_window, false);
+  }
+  g_cloaked_space_window =
+      views::HWNDForNativeWindow(to->GetWindow()->GetNativeWindow());
+  SetCloaked(g_cloaked_space_window, true);
+#endif
   AlerseSidebarView* source = sidebar_of(from);
   AlerseSidebarView* target = sidebar_of(to);
   if (!target) {
@@ -3566,6 +3595,11 @@ void AlerseSidebarView::OnSpaceShown(BrowserWindowInterface* from,
 
 // static
 void AlerseSidebarView::OnSpaceDrawn(BrowserWindowInterface* to) {
+#if BUILDFLAG(IS_WIN)
+  if (g_cloaked_space_window) {
+    SetCloaked(std::exchange(g_cloaked_space_window, nullptr), false);
+  }
+#endif
   BrowserView* view =
       to ? BrowserView::GetBrowserViewForBrowser(to) : nullptr;
   if (AlerseSidebarView* sidebar = view ? FindSidebarIn(view) : nullptr) {

@@ -43,6 +43,8 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "components/viz/common/frame_timing_details.h"
 #include "ui/base/base_window.h"
@@ -204,6 +206,18 @@ class WindowStacks : public BrowserCollectionObserver {
     if (GetBrowserWindowCreationStatusForProfile(*profile) !=
         BrowserWindowInterface::CreationStatus::kOk) {
       return nullptr;
+    }
+    // A Space without a light or dark of its own (one made later) takes the
+    // shown Space's: the welcome page's pick, or a change made since.
+    PrefService* own_prefs = profile->GetPrefs();
+    if (BrowserWindowInterface* shown = Shown(stack);
+        shown && !own_prefs->HasPrefPath(prefs::kBrowserColorScheme) &&
+        shown->GetProfile()->GetPrefs()->HasPrefPath(
+            prefs::kBrowserColorScheme)) {
+      own_prefs->SetInteger(
+          prefs::kBrowserColorScheme,
+          shown->GetProfile()->GetPrefs()->GetInteger(
+              prefs::kBrowserColorScheme));
     }
     // Not chrome::OpenEmptyWindow(), which opens the command bar: a Space
     // shows what it had, and an empty one shows nothing, as in Arc.

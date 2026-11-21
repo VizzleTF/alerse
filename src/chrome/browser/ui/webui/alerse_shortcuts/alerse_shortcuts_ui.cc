@@ -58,6 +58,29 @@ constexpr bool kEditable = !BUILDFLAG(IS_MAC);
 constexpr int kModifiers = ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN |
                            ui::EF_ALT_DOWN | ui::EF_COMMAND_DOWN;
 
+#if BUILDFLAG(IS_MAC)
+// The menu bar's title where it differs from the page's name: App Shortcuts
+// in System Settings match a menu item by its exact title. 0 for a command
+// the menu bar does not have, which App Shortcuts cannot reach.
+int MenuBarNameId(const alerse::ShortcutCommand& command) {
+  switch (command.command_id) {
+    case IDC_RESTORE_TAB:
+      return IDS_ALERSE_MENU_RESTORE_TAB;
+    // The title while the sidebar shows; hidden, it reads Show Sidebar.
+    case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE:
+      return IDS_ALERSE_MENU_HIDE_SIDEBAR;
+    case IDC_OPTIONS:
+      return IDS_PREFERENCES;
+    case IDC_PRINT:
+      return IDS_ALERSE_MENU_BAR_PRINT;
+    case IDC_ALERSE_BOOST_SITE:
+      return 0;
+    default:
+      return command.name_id;
+  }
+}
+#endif
+
 base::DictValue ShortcutsState() {
 #if !BUILDFLAG(IS_MAC)
   const std::vector<AcceleratorMapping> list = GetAcceleratorList();
@@ -68,12 +91,27 @@ base::DictValue ShortcutsState() {
   for (const alerse::ShortcutCommand& command : alerse::kShortcutCommands) {
     base::ListValue keys;
 #if BUILDFLAG(IS_MAC)
-    // The menu bar's keys; App Shortcuts in System Settings override them.
-    if (ui::Accelerator accelerator; GetDefaultMacAcceleratorForCommandId(
-            command.command_id, &accelerator)) {
+    const int name_id = MenuBarNameId(command);
+    if (!name_id) {
+      continue;
+    }
+    // The menu bar's key first; App Shortcuts in System Settings override
+    // it. Then a key outside the menu, which
+    // GetDefaultMacAcceleratorForCommandId() prefers.
+    ui::Accelerator menu_key;
+    const bool has_menu_key =
+        GetMacMenuAcceleratorForCommandId(command.command_id, &menu_key);
+    if (has_menu_key) {
+      keys.Append(menu_key.GetShortcutText());
+    }
+    if (ui::Accelerator accelerator;
+        GetDefaultMacAcceleratorForCommandId(command.command_id,
+                                             &accelerator) &&
+        (!has_menu_key || accelerator != menu_key)) {
       keys.Append(accelerator.GetShortcutText());
     }
 #else
+    const int name_id = command.name_id;
     for (const AcceleratorMapping& mapping : list) {
       if (mapping.command_id == command.command_id) {
         keys.Append(ui::Accelerator(mapping.keycode, mapping.modifiers)
@@ -84,7 +122,7 @@ base::DictValue ShortcutsState() {
     commands.Append(
         base::DictValue()
             .Set("id", command.command_id)
-            .Set("name", l10n_util::GetStringUTF16(command.name_id))
+            .Set("name", l10n_util::GetStringUTF16(name_id))
             .Set("keys", std::move(keys))
             .Set("custom", custom.contains(
                                base::NumberToString(command.command_id))));

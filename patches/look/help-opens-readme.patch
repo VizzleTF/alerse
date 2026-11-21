@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/chrome_pages.cc b/chrome/browser/ui/chrome_pages.cc
+--- a/chrome/browser/ui/chrome_pages.cc
++++ b/chrome/browser/ui/chrome_pages.cc
+@@ -169,10 +169,9 @@
+   GURL url;
+   switch (source) {
+     case HelpSource::kKeyboard:
+-      url = GURL(kChromeHelpViaKeyboardURL);
+-      break;
+     case HelpSource::kMenu:
+-      url = GURL(kChromeHelpViaMenuURL);
++      // Alerse: its README; Chromium's help center is blocked.
++      url = GURL("https://github.com/VizzleTF/alerse#readme");
+       break;
+     case HelpSource::kWebHID:
+       url = GURL(kChooserHidOverviewUrl);

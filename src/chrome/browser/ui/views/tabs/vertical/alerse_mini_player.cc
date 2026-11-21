@@ -147,6 +147,10 @@ void AlerseMiniPlayer::MediaSessionMetadataChanged(
   subtitle_->SetText(subtitle);
   subtitle_->SetVisible(!subtitle.empty());
   GetViewAccessibility().SetName(std::u16string(title_->GetText()));
+  // A player that starts observing a session already playing (a Space's
+  // window opened later) learns its title only here, after the session and
+  // its state.
+  UpdateVisibility();
 }
 
 void AlerseMiniPlayer::MediaSessionActionsChanged(

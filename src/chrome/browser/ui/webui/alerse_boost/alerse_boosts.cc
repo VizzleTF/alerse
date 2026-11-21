@@ -9,20 +9,22 @@
 #include <utility>
 
 #include "base/functional/bind.h"
-#include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/tabs/alerse_boost.h"
 #include "chrome/common/chrome_isolated_world_ids.h"
+#include "chrome/common/chrome_render_frame.mojom.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "url/gurl.h"
 
 namespace alerse {
@@ -46,22 +48,6 @@ std::string_view FontStack(std::string_view font) {
   }
   return {};
 }
-
-// Puts the boost's sheet on the page, from an isolated world: a constructed
-// sheet, which pages' Content-Security-Policy does not refuse as it does a
-// <style> element. The sheet object is the world's, one per document.
-constexpr char kApplyScript[] = R"JS((css => {
-  const d = document;
-  let sheet = window.__alerseBoost;
-  if (!sheet) {
-    if (!css) return;
-    sheet = window.__alerseBoost = new CSSStyleSheet();
-  }
-  sheet.replaceSync(css);
-  if (!d.adoptedStyleSheets.includes(sheet)) {
-    d.adoptedStyleSheets = [...d.adoptedStyleSheets, sheet];
-  }
-}))JS";
 
 // Zap's picker: a red box follows the element under the pointer; a click
 // takes it, Esc gives up. The page gets neither. The result waits in the
@@ -209,7 +195,7 @@ std::string BoostCss(const base::DictValue& boost) {
   }
   const int size = boost.FindInt("size").value_or(100);
   if (size >= 50 && size <= 200 && size != 100) {
-    css += "html{zoom:" + base::NumberToString(size) + "%}";
+    css += "html{zoom:" + base::NumberToString(size) + "%!important}";
   }
   // Zapped elements: a rule each, so that one a page no longer matches
   // cannot take the others with it.
@@ -283,11 +269,6 @@ void BoostTabHelper::DOMContentLoaded(content::RenderFrameHost* frame) {
   }
 }
 
-void BoostTabHelper::DocumentOnLoadCompletedInPrimaryMainFrame() {
-  // Pages that set their own adopted sheets after their start drop it.
-  Apply();
-}
-
 void BoostTabHelper::Apply() {
   content::RenderFrameHost* frame = web_contents()->GetPrimaryMainFrame();
   if (!frame || !frame->IsRenderFrameLive()) {
@@ -302,12 +283,11 @@ void BoostTabHelper::Apply() {
   const std::string css = boost && prefs->GetBoolean(kBoostsEnabledPref)
                               ? BoostCss(*boost)
                               : std::string();
-  const std::string script =
-      std::string(kApplyScript) + "(" +
-      base::WriteJson(base::Value(css)).value_or("\"\"") + ")";
-  frame->ExecuteJavaScriptInIsolatedWorld(base::UTF8ToUTF16(script),
-                                          base::NullCallback(),
-                                          ISOLATED_WORLD_ID_CHROME_INTERNAL);
+  // A user style sheet: out of the page's reach (document.styleSheets and
+  // adoptedStyleSheets never list it) and not subject to its CSP.
+  mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> renderer;
+  frame->GetRemoteAssociatedInterfaces()->GetInterface(&renderer);
+  renderer->SetAlerseBoostCss(css);
 }
 
 void BoostTabHelper::StartZap(

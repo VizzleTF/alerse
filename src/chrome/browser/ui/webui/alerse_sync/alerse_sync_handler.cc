@@ -22,6 +22,8 @@
 #include "components/os_crypt/async/browser/os_crypt_async.h"
 #include "components/os_crypt/async/common/encryptor.h"
 #include "components/prefs/pref_service.h"
+#include "components/sync/engine/cycle/model_neutral_state.h"
+#include "components/sync/engine/cycle/sync_cycle_snapshot.h"
 #include "components/sync/service/alerse_sync_code.h"
 #include "components/sync/service/alerse_sync_sk.h"
 #include "components/sync/service/sync_service_impl.h"
@@ -112,6 +114,13 @@ std::string PasswordProblem(const std::string& password) {
 // The JavaScript time of `time`, or 0 for none.
 double ToJsTime(base::Time time) {
   return time.is_null() ? 0 : time.InMillisecondsFSinceUnixEpoch();
+}
+
+// Whether the last sync cycle failed to reach the server or was refused by
+// it: the transport state stays active and the last synced time moves on.
+bool LastCycleFailed(const syncer::SyncService& sync) {
+  return syncer::HasSyncerError(
+      sync.GetLastCycleSnapshotForDebugging().model_neutral_state());
 }
 
 }  // namespace
@@ -205,7 +214,7 @@ base::DictValue AlerseSyncHandler::BuildState() const {
         status = "starting";
         break;
       case TransportState::ACTIVE:
-        status = "active";
+        status = LastCycleFailed(*sync) ? "unreachable" : "active";
         break;
     }
     if (sync->GetUserSettings()->IsPassphraseRequired()) {
@@ -215,7 +224,9 @@ base::DictValue AlerseSyncHandler::BuildState() const {
     } else if (sync->HasUnrecoverableError()) {
       status = "error";
     }
-    state.Set("lastSynced", ToJsTime(sync->GetLastSyncedTimeForDebugging()));
+    if (status != "unreachable") {
+      state.Set("lastSynced", ToJsTime(sync->GetLastSyncedTimeForDebugging()));
+    }
   }
   state.Set("status", status);
   return state;
@@ -618,8 +629,10 @@ void AlerseSyncHandler::HandleGetSummary(const base::ListValue& args) {
     syncer::SyncService* sync =
         profile ? SyncServiceFactory::GetForProfile(profile) : nullptr;
     space.Set("syncing",
-              sync && sync->GetTransportState() ==
-                          syncer::SyncService::TransportState::ACTIVE);
+              sync &&
+                  sync->GetTransportState() ==
+                      syncer::SyncService::TransportState::ACTIVE &&
+                  !LastCycleFailed(*sync));
     sync_sessions::SessionSyncService* sessions =
         profile ? SessionSyncServiceFactory::GetForProfile(profile) : nullptr;
     sync_sessions::OpenTabsUIDelegate* tabs =

@@ -984,7 +984,8 @@ class SiteControlsView : public views::View,
 
   // Arc's top row: Share, Boost, Screenshot, Capture. Alerse has no
   // captures: Share (macOS' picker; Copy Link elsewhere), Boost, Screenshot
-  // and Reading Mode. Find in Page stays in the command bar and on Ctrl+F.
+  // and Find in Page. Not Reading Mode: ungoogled-chromium removes its
+  // renderer half (disable-ai.patch), so its panel never shows.
   void AddActions() {
     struct Action {
       int command;
@@ -1003,8 +1004,7 @@ class SiteControlsView : public views::View,
          IDS_ALERSE_BOOST},
         {IDC_SHARING_HUB_SCREENSHOT, nullptr, Glyph::kCamera,
          IDS_ALERSE_SCREENSHOT},
-        {IDC_SHOW_READING_MODE, &kMenuBookIcon, Glyph::kNone,
-         IDS_ALERSE_READING_MODE},
+        {IDC_FIND, &kFindInPageIcon, Glyph::kNone, IDS_ALERSE_FIND_IN_PAGE},
     };
     views::View* row = AddChildView(MakeRow());
     for (const Action& action : actions) {

@@ -150,7 +150,8 @@ feature does on it. In short:
   (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays
   open. `--close-window-with-last-tab=always` turns this off. The empty page takes no
   focus, opens no command bar until asked, shows the page card's blank color and
-  opens no context menu.
+  opens no context menu. Its clearness does not pass to the page opened in its tab,
+  which keeps its white (`spaces/empty-space-next-page-opaque.patch`).
 - Tabs of the Spaces not shown are background tabs of hidden windows and keep
   running, so music or a messenger in another Space goes on. Memory Saver, on by
   default, unloads idle tabs.
@@ -770,7 +771,9 @@ Windows' numbers for those:
     (Shift+Cmd+T); Open Command Bar (Cmd+L, Arc's name for Chromium's Open Location);
     Close Window; Chromium's Share submenu, Save Page As (Shift+Cmd+S) and Print
     (Cmd+P), without ellipses as Arc's. Open File is hidden, as Arc's menu has none,
-    keeping Cmd+O. Close Tab stays (Arc has none): Chromium's app controller swaps
+    keeping Cmd+O. Chromium's New Isolated Window is hidden, as Arc has none and it
+    opened a plain Incognito window (`look/mac-no-isolated-window.patch`); it shows only
+    when a policy's Isolated Mode replaces Incognito. Close Tab stays (Arc has none): Chromium's app controller swaps
     Close Window and Close Tab between Cmd+W and Shift+Cmd+W with the window, and
     shows them again.
   - **Edit**: Chromium's, with Arc's copy items right after Copy, as in Arc: Copy URL (Shift+Cmd+C), Copy URL as Markdown
@@ -841,7 +844,9 @@ Windows' numbers for those:
     turns AutoFill's `NSAutoFillOrSystemInsertMenuEnabled` and
     `NSAutoFillSystemInsertMenuEnabled` off (registration defaults only, for this
     app; nothing is written to the user's defaults).
-  - **Help**: Chromium's help page and Arc's Troubleshooting > Open Task Manager.
+  - **Help**: Alerse Help, which opens Alerse's README (`look/help-opens-readme.patch`,
+    F1 too: Chromium's help center is blocked), and Arc's Troubleshooting > Open Task
+    Manager.
   - The menu bar is macOS only (`main_menu_builder.mm` and
     `browser_native_widget_mac.mm` are macOS files): Windows and Linux keep the logo
     menu, as Arc for Windows has no menu bar, and Ctrl+1 to 9 stay Chromium's there.
@@ -926,7 +931,8 @@ Windows' numbers for those:
 - A sidebar item picked in the command bar (a row of the empty list or a bookmark
   match) shows its pinned tab, as a click on it does: its tab if it is open, else a new
   tab bound to it, never a second, unbound tab (`look/command-bar-pinned-items.patch`,
-  `AlerseSidebarView::OpenPinnedItemOf`). Only the shown Space's items count.
+  `AlerseSidebarView::OpenPinnedItemOf`). Only the shown Space's items count. In an
+  incognito window, which lists no pinned items, such a match opens as a plain tab.
 
 #### Command bar on a page's address
 
@@ -1174,7 +1180,10 @@ What animates:
   window's lighter colors; seen as a grey flash in a 60 fps recording), so the next
   window comes in transparent and turns opaque with that first frame, and both windows
   keep an active window's colors meanwhile (`LockPaintAsActive`). In full screen the
-  swap is as before: each member is a desktop of its own.
+  swap is as before: each member is a desktop of its own. Windows too shows a window
+  that was hidden with its last frame (the rows at rest, for one frame before the
+  slide), so there the next window is cloaked (`DWMWA_CLOAK`) from `OnSpaceShown` until
+  that first frame (`OnSpaceDrawn`).
 - **Folder curtain**: rows clipped and the rows below shifted on layers, driven on the
   compositor's vsync (`views::AnimationDelegateViews`), with layers only for rows the
   scroll view can show.
@@ -1565,8 +1574,9 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   tip sits 3 pt under the button, 13 pt corners, 10 pt margins, Arc's rim, and on
   macOS the icon pickers' vibrancy (half of #565656 over the window server's blur).
   Its top row is four 48x32 pt near black tiles: Share (macOS' picker for the page's
-  link; Copy Link elsewhere), Boost, Screenshot and Reading Mode (Arc's Capture has
-  no counterpart; Find in Page stays on Ctrl+F and in the command bar). Under "Extensions" every extension is a tile on a
+  link; Copy Link elsewhere), Boost, Screenshot and Find in Page (Arc's Capture has
+  no counterpart; Reading Mode is left out, as ungoogled-chromium's `disable-ai.patch`
+  removes its renderer half and its panel never shows). Under "Extensions" every extension is a tile on a
   faint veil, four a row (click runs it, right click opens its menu with Pin and
   Unpin, `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
   runs only from a menu button and crashed on a tile). The menu also has Allow in
@@ -1595,7 +1605,10 @@ key and modifiers), so every Space shares them; `GetAcceleratorList()` applies t
 so a key given to one command leaves the command that had it, and every window loads
 its keys again at once. On macOS a menu's keys are the system's to change: the page
 lists the menu bar's keys and opens System Settings, where App Shortcuts sets a key
-for any Alerse menu item by its name.
+for any Alerse menu item by its name. There each row has the menu item's exact title
+and the menu's key first, then a key outside the menu if there is one
+(`look/mac-shortcuts-menu-keys.patch`); a command with no menu item (Boost This Site)
+is left out, since App Shortcuts cannot reach it.
 
 ### Strings and colors
 
@@ -1757,11 +1770,13 @@ Arc's Boosts: a site's look of the user's own, seen by no one else
   its siblings, up to `body`.
 - **How it reaches the page**: `BoostTabHelper`, which each tab gets on its first
   navigation (`MaybeAttachBoosts` in the navigation throttles' registration, which
-  adds no throttle), puts a constructed style sheet on the document from Chrome's
-  internal isolated world when the page commits, when its DOM is ready and when it
-  has loaded, and again whenever the boosts change. A constructed sheet is not
-  refused by a page's Content-Security-Policy as a `<style>` element is, and the
-  page's scripts cannot see the world it comes from.
+  adds no throttle), sends the boost's CSS to the renderer when the page commits and
+  when its DOM is ready, and again whenever the boosts change
+  (`ChromeRenderFrame::SetAlerseBoostCss`, `look/boost-user-style-sheet.patch`), which
+  inserts it as a user style sheet. The page's scripts cannot read or remove it (it is
+  in neither `document.styleSheets` nor `adoptedStyleSheets`), its
+  Content-Security-Policy does not apply, and its `!important` rules beat the page's
+  own; a rule of the user's CSS without `!important` gives way to the page's.
 - **chrome://alerse-boost/** lists every boost (on or off, what it changes, Delete)
   and holds the switch for all of them (`alerse.boosts_enabled`, on by default; a
   site without a boost is untouched either way). The panel's All Boosts opens it.
@@ -1826,7 +1841,9 @@ onboarding; the code is Alerse's own.
 4. **Chrome Web Store**: Leave it off (picked) or Use the Chrome Web Store. When
    extensions were added in step 2, the step says that they update only through the
    store. Skip leaves it off.
-5. **Light or dark**: Match the system, Light or Dark, for every Space.
+5. **Light or dark**: Match the system, Light or Dark, for every Space. A Space made
+   later takes the light or dark of the Space it opens from (`browser.theme.color_scheme2`,
+   copied in `alerse::WindowStacks::AddMember` unless the new Space has its own).
 6. **Looking at a link**: Peek and the Little window, each on or off.
 7. **Sync**: opens the Sync page in a new tab, recommending a server of your own.
 8. **Make Alerse your browser**: the system's default-browser request (Windows opens its
@@ -2076,7 +2093,11 @@ device with its tab count in that Space. The heading sums it up ("Syncing 3 Spac
 12 tabs from this device"). The counts are what the Space's sessions data holds, as this
 device last got it (`OpenTabsUIDelegate`): web pages only, without the empty tab that
 keeps a hidden Space's window or browser pages, which do not sync. The page asks for
-them every 5 seconds while it is visible; that reads local data only.
+them every 5 seconds while it is visible; that reads local data only. When a Space's
+last sync cycle failed (server down, unreachable or answering with an error), its dot
+is not green, and for this Space the status reads "The server does not answer. Changes
+wait and are sent when it is back." with no last sync time: Chromium keeps such a
+service active and moves its last synced time on every cycle, failed or not.
 
 ### Tabs from other devices
 
@@ -2146,8 +2167,10 @@ without duplicates (checked with two devices that each had a home and a work Spa
 and pinned items the other lacked):
 
 - After the sign-in only home syncs (`AlerseSyncAccount::IsJoining`). Once home's
-  bookmarks have synced, a Space of this device with the name of one of the account's
-  takes that Space's id (`AdoptSpacesOfTheSameName`, `alerse_space_list.h`), the
+  bookmarks have synced, this device's home pinned items move into the account's home
+  folder and its own folder goes (`MergeSpaceFolders`): bookmark sync merges folders by
+  title, so a home named otherwise stayed a second Space folder. Then a Space of this
+  device with the name of one of the account's takes that Space's id (`AdoptSpacesOfTheSameName`, `alerse_space_list.h`), the
   other Spaces of this device join the account's list, and Alerse restarts by itself
   once so that every Space starts syncing. Without this the two devices' "work"
   Spaces stayed two Spaces of the same name, as their ids differ.
@@ -2157,7 +2180,10 @@ and pinned items the other lacked):
 
 Known gaps: email accounts, a recovery code and pairing a device with a short code
 (ADR-0002's later steps) are not built; changing the password or the keys is not built;
-iOS still pins the core of the scheme before accounts and is not updated.
+iOS still pins the core of the scheme before accounts and is not updated; the default
+search engine stays per device, as Chromium no longer syncs it
+(`kSyncedDefaultSearchProviderGUID` is deprecated, and built-in engines are not
+committed).
 
 The page shows one state at a time with the `hidden` attribute. The pages' shared style
 (`alerse_page_style.inc`, also the import and link-routing pages) makes every section a
@@ -2353,7 +2379,8 @@ do not run in it.
   It lists the media of every Space of the window (see Spaces), and a click shows that
   Space with the tab; an incognito tab's media never shows in a regular window, nor the
   other way round. It is push-based (Chromium's media
-  session controller), with no polling.
+  session controller), with no polling; a window opened while media already plays (a
+  Space shown for the first time) shows it as soon as the controller sends the title.
 - **Automatic picture-in-picture** when you leave a playing video's tab or Space, on any
   site: Chromium's browser-initiated automatic picture-in-picture
   (`BrowserInitiatedAutomaticPictureInPicture`), enabled by default. Its permission
@@ -2391,7 +2418,11 @@ these changes:
   are now added to every region's list (`kCurrentDataVersion` 218 refreshes existing
   profiles, whose engine changes to DuckDuckGo unless one was picked). Google, picked,
   has no preconnect or prefetch of its likely results; Search Engine in the logo menu
-  picks another.
+  picks another. The search engine settings download no engine icons (Chromium fetched
+  every engine's favicon from its site, google.com's too): an engine shows its icon
+  from the local favicon cache, or a globe (`defaults/no-search-engine-icon-downloads.patch`).
+- Offer to save passwords is on in a new profile, as in Arc and Chrome
+  (`defaults/offer-to-save-passwords.patch`); ungoogled-chromium turned it off.
 - The Chrome Web Store is a switch, Use Chrome Web Store, in the Extensions menu (the
   logo menu's submenu on Windows, the menu bar on macOS) and the welcome page
   (`alerse.web_store` in local state). Off, Alerse sends no update check to the store,

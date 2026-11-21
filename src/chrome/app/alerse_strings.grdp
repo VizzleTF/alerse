@@ -430,9 +430,6 @@
     <message name="IDS_ALERSE_SCREENSHOT" desc="Site controls button: capture a region of the page.">
       Screenshot
     </message>
-    <message name="IDS_ALERSE_READING_MODE" desc="Site controls button: show the page in reading mode.">
-      Reading Mode
-    </message>
     <message name="IDS_ALERSE_EXTENSIONS" desc="Site controls heading over the extensions.">
       Extensions
     </message>

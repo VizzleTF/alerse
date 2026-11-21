@@ -349,6 +349,8 @@ function formatSeen(value) {
 
 const kStatus = {
   active: ['Syncing', 'ok'],
+  unreachable: ['The server does not answer. Changes wait and are sent ' +
+                'when it is back.', 'bad'],
   starting: ['Starting…', 'warn'],
   stopped: ['Stopped', 'warn'],
   refused: ['The server refused this device. It may have been removed.', 'bad'],

@@ -117,3 +117,10 @@ look/one-downloads-button.patch
 defaults/mac-no-web-auth-session.patch
 defaults/mac-safe-storage-file.patch
 defaults/speed-field-trials.patch
+defaults/offer-to-save-passwords.patch
+defaults/no-search-engine-icon-downloads.patch
+look/help-opens-readme.patch
+look/mac-no-isolated-window.patch
+look/boost-user-style-sheet.patch
+look/mac-shortcuts-menu-keys.patch
+spaces/empty-space-next-page-opaque.patch
