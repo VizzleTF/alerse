@@ -1,15 +1,16 @@
 diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
 --- a/chrome/browser/ui/cocoa/main_menu_builder.mm
 +++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
-@@ -17,6 +17,7 @@
+@@ -17,6 +17,8 @@
  #include "chrome/browser/ui/cocoa/accelerators_cocoa.h"
  #include "chrome/browser/ui/cocoa/history_menu_bridge.h"
  #include "base/strings/sys_string_conversions.h"
 +#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
  #include "chrome/browser/ui/tabs/alerse_menu_bar_hook.h"
  #include "ui/gfx/image/image.h"
-@@ -52,6 +53,26 @@
+@@ -52,6 +54,26 @@
    return self;
  }
  
@@ -36,7 +37,7 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
  - (void)menuNeedsUpdate:(NSMenu*)menu {
    // The list is what points here, and the separator next to it.
    for (NSInteger i = menu.numberOfItems - 1; i >= 0; --i) {
-@@ -61,8 +82,7 @@
+@@ -61,8 +83,7 @@
        [menu removeItemAtIndex:i];
      }
    }
@@ -46,7 +47,7 @@ diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/co
    if (!browser) {
      return;
    }
-@@ -110,8 +130,7 @@
+@@ -110,8 +131,7 @@
  }
  
  - (void)runEntry:(NSMenuItem*)sender {
