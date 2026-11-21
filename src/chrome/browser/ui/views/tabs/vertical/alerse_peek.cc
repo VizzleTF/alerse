@@ -486,7 +486,7 @@ class PeekHost : public views::WidgetDelegate, public views::WidgetObserver {
 
   static void OpenLittleWindow(Profile* profile, const GURL& url) {
     PeekHost* host = new PeekHost(profile, nullptr);
-    host->InitLittleWindow();
+    host->InitLittleWindow(/*for_link=*/!url.is_empty());
     if (url.is_empty()) {
       host->panel_->FocusAddress();
     } else {
@@ -593,7 +593,7 @@ class PeekHost : public views::WidgetDelegate, public views::WidgetObserver {
     PlayShow(panel_->layer());
   }
 
-  void InitLittleWindow() {
+  void InitLittleWindow(bool for_link) {
     SetContentsView(MakePanel(PeekPanel::Kind::kLittleWindow));
     SetCanResize(true);
     SetCanMinimize(true);
@@ -632,11 +632,13 @@ class PeekHost : public views::WidgetDelegate, public views::WidgetObserver {
     }
 #if BUILDFLAG(IS_MAC)
     // The Space's window stays where it was, as on Windows.
-    ShowAndActivateAlone(widget_.get());
-#else
+    if (for_link) {
+      ShowAndActivateAlone(widget_.get());
+      return;
+    }
+#endif
     widget_->Show();
     widget_->Activate();
-#endif
   }
 
   bool OnLittleWindowKey(const ui::Accelerator& accelerator) {

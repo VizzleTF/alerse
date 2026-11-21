@@ -17,15 +17,19 @@
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
 #include "cc/paint/paint_flags.h"
+#include "chrome/grit/generated_resources.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "third_party/skia/include/core/SkPathBuilder.h"
 #include "third_party/skia/include/core/SkRRect.h"
+#include "ui/accessibility/ax_enums.mojom.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/color/color_provider_key.h"
 #include "ui/events/event.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/point_f.h"
@@ -33,6 +37,7 @@
 #include "ui/gfx/geometry/skia_conversions.h"
 #include "ui/gfx/geometry/vector2d_f.h"
 #include "ui/gfx/image/image_skia.h"
+#include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
 
@@ -97,9 +102,76 @@ class ColorPickerView : public views::View {
   ColorPickerView(const SpaceColor& initial, SpaceColorCallback callback)
       : color_(initial), callback_(std::move(callback)) {
     SetPreferredSize(gfx::Size(kWidth, kHeight));
+    // the popover's only control: Tab cycles through its parts
+    SetFocusBehavior(FocusBehavior::ALWAYS);
+    GetViewAccessibility().SetRole(ax::mojom::Role::kGroup);
+    GetViewAccessibility().SetName(
+        l10n_util::GetStringUTF16(IDS_ALERSE_EDIT_THEME_COLOR));
   }
 
   // views::View:
+  bool SkipDefaultKeyEventProcessing(const ui::KeyEvent& event) override {
+    return event.key_code() == ui::VKEY_TAB && !event.IsControlDown() &&
+           !event.IsAltDown();
+  }
+
+  bool OnKeyPressed(const ui::KeyEvent& event) override {
+    const ui::KeyboardCode key = event.key_code();
+    if (key == ui::VKEY_TAB) {
+      part_ = (part_ + (event.IsShiftDown() ? kPartCount - 1 : 1)) % kPartCount;
+      SchedulePaint();
+      return true;
+    }
+    const int dx = key == ui::VKEY_RIGHT ? 1 : key == ui::VKEY_LEFT ? -1 : 0;
+    const int dy = key == ui::VKEY_UP ? 1 : key == ui::VKEY_DOWN ? -1 : 0;
+    const bool press = key == ui::VKEY_RETURN || key == ui::VKEY_SPACE;
+    switch (part_) {
+      case kPad:
+        if (!dx && !dy) {
+          return false;
+        }
+        color_.hue = std::fmod(color_.hue + dx * 5 + 360, 360);
+        color_.saturation = std::clamp(color_.saturation + dy * 0.05, 0.0, 1.0);
+        break;
+      case kSwitch:
+        if (!dx && !press) {
+          return false;
+        }
+        // the knob sits left in light mode
+        color_.light = dx ? dx < 0 : !color_.light;
+        break;
+      case kIntensity:
+      case kBrightness: {
+        if (!dx && !dy) {
+          return false;
+        }
+        double& value =
+            part_ == kIntensity ? color_.intensity : color_.brightness;
+        value = std::clamp(value + (dx + dy) * 0.05, 0.0, 1.0);
+        break;
+      }
+      case kSwatches:
+        if (!dx && !press) {
+          return false;
+        }
+        preset_ = (preset_ + std::size(kPresets) + dx) % std::size(kPresets);
+        color_.hue = kPresets[preset_].hue;
+        color_.saturation = kPresets[preset_].saturation;
+        break;
+    }
+    Changed(/*commit=*/true);
+    return true;
+  }
+
+  void OnFocus() override {
+    views::View::OnFocus();
+    SchedulePaint();
+  }
+  void OnBlur() override {
+    views::View::OnBlur();
+    SchedulePaint();
+  }
+
   bool OnMousePressed(const ui::MouseEvent& event) override {
     const gfx::PointF point(event.location());
     drag_ = Drag::kNone;
@@ -164,10 +236,47 @@ class ColorPickerView : public views::View {
     PaintPad(canvas);
     PaintControls(canvas);
     PaintSwatches(canvas);
+    if (HasFocus()) {
+      PaintFocusRing(canvas);
+    }
   }
 
  private:
   enum class Drag { kNone, kPad, kSlider, kBrightness };
+  enum Part { kPad, kSwitch, kIntensity, kBrightness, kSwatches, kPartCount };
+
+  void PaintFocusRing(gfx::Canvas* canvas) {
+    gfx::RectF ring;
+    switch (part_) {
+      case kPad:
+        ring = PadBounds();
+        break;
+      case kSwitch:
+        ring = SwitchBounds();
+        break;
+      case kIntensity:
+        ring = SliderBounds();
+        break;
+      case kBrightness:
+        ring = BrightnessBounds();
+        break;
+      default: {
+        const gfx::PointF center = SwatchCenter(preset_);
+        ring = gfx::RectF(center.x() - kSwatchRadius - 3,
+                          center.y() - kSwatchRadius - 3,
+                          2 * kSwatchRadius + 6, 2 * kSwatchRadius + 6);
+        break;
+      }
+    }
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(2);
+    flags.setColor(kSliderColor);
+    ring.Inset(-1);
+    canvas->DrawRoundRect(ring, part_ == kSwatches ? ring.width() / 2 : 6,
+                          flags);
+  }
 
   static gfx::RectF PadBounds() {
     return gfx::RectF(kMargin, kMargin, kPadSize, kPadSize);
@@ -376,6 +485,8 @@ class ColorPickerView : public views::View {
   SpaceColor color_;
   SpaceColorCallback callback_;
   Drag drag_ = Drag::kNone;
+  int part_ = kPad;
+  size_t preset_ = 0;
   gfx::ImageSkia pad_image_;
   bool pad_image_light_ = false;
 };

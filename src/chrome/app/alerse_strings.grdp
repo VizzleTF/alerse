@@ -271,9 +271,6 @@
     <message name="IDS_ALERSE_MOVE_TO" desc="Sidebar menu: the submenu that moves a tab to another Space.">
       Move to
     </message>
-    <message name="IDS_ALERSE_PIN_CURRENT_TAB_HERE" desc="Sidebar folder menu item: pin the shown tab into this folder.">
-      Pin current tab here
-    </message>
     <message name="IDS_ALERSE_NEW_FOLDER_INSIDE" desc="Sidebar folder menu item: create a folder inside this one.">
       New Nested Folder…
     </message>
@@ -608,5 +605,8 @@
   </message>
   <message name="IDS_ALERSE_BOOST_SITE" desc="Command bar action that opens the Boost panel for the shown site.">
     Boost This Site
+  </message>
+  <message name="IDS_ALERSE_IN_SPACE" desc="Title of a page or dialog that acts on one Space's data only (Delete browsing data, History, Download history, Reset settings), with the Space's name.">
+    <ph name="TITLE">$1<ex>Delete browsing data</ex></ph> (Space: <ph name="SPACE">$2<ex>Work</ex></ph>)
   </message>
 </grit-part>

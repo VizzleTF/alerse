@@ -133,7 +133,11 @@ feature does on it. In short:
 
 - The windows of one Alerse window form a stack: one `Browser` for each Space opened
   in it, all in one place on screen, one visible. Switching Spaces shows the next and
-  hides the previous (`alerse_window_stack.h`).
+  hides the previous (`alerse_window_stack.h`). The page menu's Open link as
+  switches the stack to that Space too (`spaces/open-link-as-space-in-stack.patch`).
+  Closing the shown window closes its hidden members; one whose page asks to stay
+  (Leave site?) shows, and only the shown window asks about running downloads
+  (`spaces/stack-close-downloads.patch`).
 - The list of Spaces is Chromium's profile registry in `Local State`. Home is the
   first profile, `Default` (`alerse_space_registry.h`).
 - A Space's pinned items are the folder of its profile's Other Bookmarks marked with
@@ -143,8 +147,10 @@ feature does on it. In short:
   second later the other Spaces' windows open hidden in its stack and restore their
   sessions (`alerse::PreloadSpaces`), so the first switch to a Space shows a window
   that is already drawn instead of one that builds itself on screen. A hidden window
-  takes only its session's first window and is not activated by the restore, which
-  would show it beside the Space shown (`spaces/preload-spaces-session.patch`). Startup
+  takes the tabs of all its session's normal windows (other stacks open no window of
+  that Space at startup, so they would be lost), and is not activated by the restore,
+  which would show it beside the Space shown (`spaces/preload-spaces-session.patch`,
+  `spaces/preload-spaces-session-other-windows.patch`). Startup
   continues the last session by default (`defaults/continue-session.patch`).
 - An empty Space stays, as in Arc: closing its last tab leaves a hidden blank tab
   (`about:blank#arcomium-space`, `spaces/empty-space.patch`), and the window stays
@@ -159,6 +165,9 @@ feature does on it. In short:
   each in a storage partition. Such a profile opens as home, and each other Space's
   folder becomes a Space of its own with its pinned items (below); its tabs, cookies and
   logins are not carried over.
+- History, downloads, Delete browsing data and Reset settings act on the shown Space's
+  profile only, so their titles name it: "History (Space: work)"
+  (`IDS_ALERSE_IN_SPACE`, `spaces/space-name-on-data-pages.patch`).
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; shows recent downloads in a popover above
   it and closes it on a second click, as Arc does, without a tab; with nothing from
@@ -178,6 +187,8 @@ feature does on it. In short:
   Each Space returns to the tab that was active in it.
 - Color: Edit Theme Color (in the Space's menu, or a right click in the sidebar's empty
   space) picks hue and saturation, light or dark, intensity and brightness, or a preset.
+  It takes the keyboard too: Tab cycles pad, switch, both sliders and presets (a ring
+  marks the part), arrows move it, Return or Space flips the switch or picks a preset.
   The color tints the window frame and the sidebar and is stored in the Space's folder
   as `arcomium.space_color`, so it syncs; on a light frame the sidebar inverts its
   colors. Each Space's window has its own tint, so a switch changes it at once, with the
@@ -386,12 +397,13 @@ one link a line, skipping blank pages and empty Spaces (`look/copy-selected-urls
 - Context menus follow Arc's, in its order and words (Share only on macOS, see On
   macOS). Pinned
   items, favorites and folders get Change Icon... (Arc's picker, see
-  [Icon pickers](#icon-pickers)). Pinned items and tabs get Copy Link, Rename, Mute,
+  [Icon pickers](#icon-pickers)). Pinned items and tabs get Copy Link, Mute,
   Duplicate, Move to a Space (a pinned item or folder
   moves to that Space's pinned folder, a tab reopens in that Space; a Space
   whose last tab leaves keeps a New Tab) and Add to Favorites (on macOS only for tabs,
   as in Arc for macOS, whose pinned items go to the favorites by dragging). Mute stays in the menu,
-  dimmed while the tab is silent, as in Arc. Open in Split View, as in Arc, shows the
+  dimmed while the tab is silent, as in Arc. Pinned items also get Rename; a tab has
+  none. Open in Split View, as in Arc, shows the
   row's page beside the shown one (see Split View). Pinned items also get Edit Pinned Page (replace the saved address
   with the current one, or edit the name and address) and Remove Pin; once a pinned
   item's or favorite's tab has left its saved page (its row shows "/"), Reset Tab to
@@ -400,8 +412,8 @@ one link a line, skipping blank pages and empty Spaces (`look/copy-selected-urls
   Nested Folder, Turn "folder" into Space (the folder becomes a new Space's folder,
   its items the Space's pinned ones, and the window switches to it), Copy All Links
   (one address per line), Rename, then after a line as in Arc Duplicate (titles,
-  addresses and icons, not the tabs bound to them), Move to, Pin current tab here (not
-  on macOS, whose Arc has no such item) and Delete. A favorite gets Copy Link, Rename, Mute, Duplicate and
+  addresses and icons, not the tabs bound to them), Move to and Delete, on every
+  platform. A favorite gets Copy Link, Rename, Mute, Duplicate and
   Remove Favorite.
 
 ### Space menu
@@ -1126,7 +1138,8 @@ What a tab is doing shows on its row (and in a favorite's tile, see Favorites):
   just inside its plate, and Up and Down move the focus to the row above or below (a
   split's halves one after the other). Rows keep the platform's focus rule: on Windows
   and Linux Tab reaches them; on macOS only with the system's keyboard navigation on,
-  as for every button.
+  as for every button. The pinned line's Clear follows the same rule and runs on Return
+  or Space.
 
 ### Known gaps
 
@@ -1336,7 +1349,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 - **Windows**: a 32 px top bar in the frame color, as in Arc for Windows 1.129: back,
   forward and reload, the site centered in a pill between Copy Link and the site
-  controls, Split View and the window buttons. A permission request or its "not allowed" chip follows the site controls (`look/top-bar-permission-chip.patch`). Chromium's pinned toolbar actions are not
+  controls, Split View and the window buttons. The pill's sliders open the site controls under themselves, and Chromium's extensions button stays hidden there (`extensions/site-controls-pill-anchor.patch`); Settings offers neither Tab position (horizontal tabs would drop the sidebar, `look/settings-no-tab-position.patch`) nor Customize your toolbar (`look/no-toolbar-customization.patch`). A permission request or its "not allowed" chip follows the site controls (`look/top-bar-permission-chip.patch`). Chromium's pinned toolbar actions are not
   there (`look/top-bar-no-pinned-actions.patch`): a download showed Chromium's Downloads
   button in the top bar beside the Space bar's, which the download bubble hangs from.
   The page is an inset card with Arc's rim,
@@ -1576,7 +1589,8 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   Its top row is four 48x32 pt near black tiles: Share (macOS' picker for the page's
   link; Copy Link elsewhere), Boost, Screenshot and Find in Page (Arc's Capture has
   no counterpart; Reading Mode is left out, as ungoogled-chromium's `disable-ai.patch`
-  removes its renderer half and its panel never shows). Under "Extensions" every extension is a tile on a
+  removes its renderer half and its panel never shows; the page menu's Open in reading
+  mode and Alt+Shift+R are gone too, `defaults/no-reading-mode.patch`). Under "Extensions" every extension is a tile on a
   faint veil, four a row (click runs it, right click opens its menu with Pin and
   Unpin, `alerse_site_controls::ExtensionMenu`: Chromium's ExtensionContextMenuController
   runs only from a menu button and crashed on a tile). The menu also has Allow in
@@ -1603,7 +1617,8 @@ key may stand alone, and reads F1 to F24 everywhere, `look/function-key-names.pa
 own. The choices live in local state (`alerse.shortcuts`, the command's id with its
 key and modifiers), so every Space shares them; `GetAcceleratorList()` applies them,
 so a key given to one command leaves the command that had it, and every window loads
-its keys again at once. On macOS a menu's keys are the system's to change: the page
+its keys again at once; the logo menu's Spaces rows (New, Next, Previous Space) show
+the chosen key. On macOS a menu's keys are the system's to change: the page
 lists the menu bar's keys and opens System Settings, where App Shortcuts sets a key
 for any Alerse menu item by its name. There each row has the menu item's exact title
 and the menu's key first, then a key outside the menu if there is one
@@ -2436,7 +2451,8 @@ these changes:
   rewritten address is blocked (`defaults/no-web-store-tile.patch`), and Autofill's
   Related services keeps only the Password Manager
   (`look/settings-no-google-related-services.patch`). Alerse's own `chrome://alerse-*`
-  pages show its logo as their favicon (`look/alerse-pages-favicon.patch`), and the
+  pages show its logo as their favicon (`look/alerse-pages-favicon.patch`), which the
+  sidebar never recolors for a light frame as it does Chromium's one-color icons, and the
   session restore infobar a history icon, not Chromium's logo
   (`look/session-restore-infobar-icon.patch`).
 - The Chrome Web Store is a switch, Use Chrome Web Store, in the Extensions menu (the

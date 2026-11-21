@@ -1,0 +1,34 @@
+--- a/chrome/browser/ui/unload_controller.cc
++++ b/chrome/browser/ui/unload_controller.cc
+@@ -29,6 +29,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
+ #include "chrome/browser/ui/chrome_pages.h"
++#include "chrome/browser/ui/tabs/alerse_window_stack.h"
+ #include "chrome/browser/ui/tabs/tab_enums.h"
+ #include "chrome/browser/ui/tabs/tab_group_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+@@ -80,6 +81,11 @@
+             other_browser->capabilities()->IsAttemptingToCloseBrowser()) {
+           return true;
+         }
++        // Alerse: the hidden Spaces of its stack close with the window shown.
++        if (alerse::WindowStacks::Get().IsHidden(other_browser) &&
++            alerse::WindowStacks::Get().SameStack(browser, other_browser)) {
++          return true;
++        }
+ 
+         last_window = false;
+ 
+@@ -1001,6 +1007,11 @@
+     return DownloadCloseType::kOk;
+   }
+ 
++  // Alerse: the stack's shown window asked for it before closing it.
++  if (alerse::WindowStacks::Get().IsHidden(browser_)) {
++    return DownloadCloseType::kOk;
++  }
++
+   int total_download_count =
+       DownloadCoreService::BlockingShutdownCountAllProfiles();
+   if (total_download_count == 0) {

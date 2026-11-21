@@ -1,0 +1,41 @@
+--- a/chrome/browser/sessions/session_restore.cc
++++ b/chrome/browser/sessions/session_restore.cc
+@@ -868,11 +868,22 @@
+       //    created browser.
+       BrowserWindowInterface* browser = nullptr;
+       const bool is_first_window = window.get() == windows->begin()->get();
+-      // Alerse: it takes only the session's first window; the others would
+-      // show beside it, outside the Space's stack.
++      // Alerse: it takes only the session's normal windows; the others
++      // would show beside it, outside the Space's stack. The other stacks
++      // open no window of this Space at startup, so their tabs join this
++      // one, unless they only hold the empty Space's blank tab.
+       if (restores_hidden_space &&
+-          !(is_first_window &&
+-            window->type == sessions::SessionWindow::TYPE_NORMAL)) {
++          (window->type != sessions::SessionWindow::TYPE_NORMAL ||
++           (!is_first_window &&
++            std::ranges::all_of(
++                window->tabs,
++                [](const std::unique_ptr<sessions::SessionTab>& tab) {
++                  return std::ranges::all_of(
++                      tab->navigations,
++                      [](const sessions::SerializedNavigationEntry& entry) {
++                        return entry.virtual_url().ref() == "arcomium-space";
++                      });
++                })))) {
+         continue;
+       }
+       const bool is_normal_window =
+@@ -886,8 +897,9 @@
+         counts->app_windows++;
+       }
+ 
+-      if (is_first_window && is_normal_window &&
+-          (ShouldRestoreToExistingBrowser() || restores_hidden_space)) {
++      if (is_normal_window &&
++          ((is_first_window && ShouldRestoreToExistingBrowser()) ||
++           restores_hidden_space)) {
+         // The first set of tabs is added to the existing browser.
+         browser = browser_;
+       } else {

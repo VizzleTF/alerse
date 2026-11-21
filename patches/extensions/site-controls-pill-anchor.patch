@@ -1,0 +1,40 @@
+--- a/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
++++ b/chrome/browser/ui/views/extensions/extensions_toolbar_desktop.cc
+@@ -183,6 +183,11 @@
+ 
+   // Add extensions button.
+   AddMainItem(extensions_button_);
++#if !BUILDFLAG(IS_MAC)
++  // Alerse: Arc for Windows' top bar shows pinned extensions only; its
++  // sliders are the address pill's. The sidebar's header row shows it.
++  extensions_button_->SetVisible(false);
++#endif
+ 
+   // Create request access button.
+   if (base::FeatureList::IsEnabled(
+@@ -716,6 +721,9 @@
+   alerse_compact_ = compact;
+   UpdateAllIcons();
+   if (extensions_button_) {
++#if !BUILDFLAG(IS_MAC)
++    extensions_button_->SetVisible(compact);
++#endif
+     extensions_button_->UpdateIcon();
+     extensions_button_->InvalidateLayout();
+   }
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -1012,7 +1012,12 @@
+           ? browser_view->toolbar()->extensions_container()
+           : nullptr;
+   if (extensions && extensions->GetExtensionsButton()) {
+-    extensions->GetExtensionsButton()->ToggleAlerseSiteControls();
++    // Alerse: hung from the top bar's sliders, not the hidden extensions
++    // button.
++    extensions->GetExtensionsButton()->ToggleAlerseSiteControls(
++        alerse_site_button_ && alerse_site_button_->IsDrawn()
++            ? alerse_site_button_.get()
++            : nullptr);
+     return;
+   }
+   ShowPageInfoDialog();

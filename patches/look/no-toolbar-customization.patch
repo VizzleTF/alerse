@@ -1,0 +1,26 @@
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_ui.cc
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_chrome_ui.cc
+@@ -303,7 +303,9 @@
+   source->AddBoolean("ntpNextDisablementEnabled",
+                      ntp_features::kNtpNextDisablementParam.Get());
+   source->AddBoolean("wallpaperSearchEnabled", wallpaper_search_enabled);
+-  source->AddBoolean("toolbarCustomizationEnabled", !BUILDFLAG(IS_ANDROID));
++  // Alerse: its sidebar and top bar show no pinned toolbar buttons, so the
++  // switches would do nothing.
++  source->AddBoolean("toolbarCustomizationEnabled", false);
+   source->AddBoolean(
+       "wallpaperSearchInspirationCardEnabled",
+       wallpaper_search_enabled &&
+--- a/chrome/browser/resources/side_panel/customize_chrome/app.ts
++++ b/chrome/browser/resources/side_panel/customize_chrome/app.ts
+@@ -202,6 +202,10 @@
+     }
+ 
+     if (section === CustomizeChromeSection.kToolbar) {
++      // Alerse: the toolbar page is not built (no toolbar buttons show).
++      if (!this.toolbarCustomizationEnabled_) {
++        return;
++      }
+       this.openToolbarCustomizationPage();
+       chrome.metricsPrivate.recordUserAction(
+           'Actions.CustomizeToolbarSidePanel' +

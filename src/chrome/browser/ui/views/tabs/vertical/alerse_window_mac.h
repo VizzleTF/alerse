@@ -24,10 +24,14 @@ void RemoveWindowShadow(views::Widget* widget);
 // Arc's vibrant pickers show; the panel's half-translucent paint goes over it.
 void BlurBehindPopover(views::Widget* popover);
 
-// Shows and activates `window` alone: activating the app (Launch Services
-// does for a link from another app, Widget::Activate() does too) brings its
-// main window forward with it, so the app's other windows go back below the
-// other apps' windows they were behind.
+// Notes each time the app becomes active, for ShowAndActivateAlone(); call it
+// before a link from another app can come.
+void WatchAppActivation();
+
+// Shows and activates the Little window `window` alone: for a link from
+// another app, Launch Services activates the app and so brings every window
+// of it forward, before or after the window opens; the app's other windows go
+// back behind the window that was in front.
 void ShowAndActivateAlone(views::Widget* window);
 
 }  // namespace alerse

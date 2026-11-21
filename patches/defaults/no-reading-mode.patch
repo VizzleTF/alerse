@@ -1,0 +1,26 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -2893,7 +2893,10 @@
+ }
+ 
+ void RenderViewContextMenu::AppendReadAnythingItem() {
+-  if (menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE)
++  // Alerse: no Reading Mode; ungoogled-chromium removes its renderer half, so
++  // its panel opened empty.
++  if (/* DISABLES CODE */ (true) ||
++      menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE)
+           .has_value()) {
+     return;
+   }
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -262,8 +262,7 @@
+     {ui::VKEY_D, ui::EF_ALT_DOWN, IDC_FOCUS_LOCATION},
+     {ui::VKEY_E, ui::EF_CONTROL_DOWN, IDC_FOCUS_SEARCH},
+     {ui::VKEY_K, ui::EF_CONTROL_DOWN, IDC_FOCUS_SEARCH},
+-    {ui::VKEY_R, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN,
+-     IDC_SHOW_READING_MODE_KEYBOARD},
++    // Alerse: no Reading Mode; ungoogled-chromium removes its renderer half.
+     {ui::VKEY_T, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_FOCUS_TOOLBAR},
+     {ui::VKEY_RIGHT, ui::EF_ALT_DOWN, IDC_FORWARD},
+     {ui::VKEY_RIGHT, ui::EF_ALTGR_DOWN, IDC_FORWARD},

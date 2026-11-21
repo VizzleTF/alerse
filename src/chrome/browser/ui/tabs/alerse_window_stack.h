@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/callback_list.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -235,11 +236,29 @@ class WindowStacks : public BrowserCollectionObserver {
     return member;
   }
 
+  // Whether `browser` is a member its stack does not show. It closes with
+  // the shown member, which asks about downloads for the whole stack
+  // (spaces/stack-close-downloads.patch).
+  bool IsHidden(const BrowserWindowInterface* browser) const {
+    auto it = stacks_.find(const_cast<BrowserWindowInterface*>(browser));
+    return it != stacks_.end() && Shown(it->second) != browser;
+  }
+
+  // Whether `a` and `b` are members of one stack.
+  bool SameStack(const BrowserWindowInterface* a,
+                 const BrowserWindowInterface* b) const {
+    auto it_a = stacks_.find(const_cast<BrowserWindowInterface*>(a));
+    auto it_b = stacks_.find(const_cast<BrowserWindowInterface*>(b));
+    return it_a != stacks_.end() && it_b != stacks_.end() &&
+           it_a->second == it_b->second;
+  }
+
   // Marks `stack`'s other Spaces as preloaded; false if they already were.
   bool MarkPreloaded(int stack) { return preloaded_.insert(stack).second; }
 
   // BrowserCollectionObserver:
   void OnBrowserClosed(BrowserWindowInterface* browser) override {
+    close_cancelled_.erase(browser);
     auto it = stacks_.find(browser);
     if (it == stacks_.end()) {
       return;
@@ -261,6 +280,9 @@ class WindowStacks : public BrowserCollectionObserver {
       }
     }
     for (BrowserWindowInterface* member : members) {
+      close_cancelled_[member] = member->RegisterBrowserCloseCancelled(
+          base::BindRepeating(&WindowStacks::OnMemberCloseCancelled,
+                              base::Unretained(this)));
       member->GetWindow()->Close();
     }
   }
@@ -279,6 +301,20 @@ class WindowStacks : public BrowserCollectionObserver {
       }
     }
   }
+  // A hidden member whose close waits on its page (Leave site?) shows, so
+  // the question has a window and a page kept stays in sight.
+  void OnMemberCloseCancelled(BrowserWindowInterface* member,
+                              BrowserWindowInterface::ClosingStatus) {
+    auto it = stacks_.find(member);
+    if (it == stacks_.end() || Shown(it->second)) {
+      return;
+    }
+    visible_[it->second] = member;
+    SetSpaceHidden(member, false);
+    member->GetWindow()->Show();
+    member->GetWindow()->Activate();
+  }
+
   WindowStacks() { observation_.Observe(GlobalBrowserCollection::GetInstance()); }
   ~WindowStacks() override = default;
 
@@ -359,6 +395,9 @@ class WindowStacks : public BrowserCollectionObserver {
   // Each stack's windows kept in an active window's colors over a switch.
   std::map<int, std::vector<std::unique_ptr<views::Widget::PaintAsActiveLock>>>
       paint_locks_;
+  // The members closed with their stack's shown one, until they close.
+  std::map<BrowserWindowInterface*, base::CallbackListSubscription>
+      close_cancelled_;
   int next_stack_ = 1;
   base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
       observation_{this};

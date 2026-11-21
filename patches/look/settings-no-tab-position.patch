@@ -1,0 +1,22 @@
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -47,7 +47,8 @@
+       </div>
+ </if>
+     </div>
+-    <div id="toolbarRow" class="settings-row">
++    <!-- Alerse: its toolbar buttons never show, so the switches did nothing. -->
++    <div id="toolbarRow" class="settings-row" hidden>
+       <cr-link-row id="customizeToolbar" label="$i18n{customizeToolbar}"
+           @click="${this.onCustomizeToolbarClick_}" external>
+       </cr-link-row>
+@@ -159,7 +160,8 @@
+ </if>
+ 
+ 
+-    <div class="cr-row">
++    <!-- Alerse: horizontal tabs would drop the sidebar with its Spaces. -->
++    <div class="cr-row" hidden>
+       <div class="flex cr-padded-text" aria-hidden="true">
+         $i18n{tabStripPosition}
+       </div>

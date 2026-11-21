@@ -1,0 +1,83 @@
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -51,6 +51,7 @@
+ #include "chrome/browser/ui/hats/hats_service_factory.h"
+ #include "chrome/browser/ui/managed_ui.h"
+ #include "chrome/browser/ui/passwords/ui_utils.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/toasts/toast_features.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/batch_upload_promo/batch_upload_promo_handler.h"
+@@ -160,6 +161,7 @@
+ #include "third_party/blink/public/common/features.h"
+ #include "ui/accessibility/accessibility_features.h"
+ #include "ui/base/interaction/element_identifier.h"
++#include "ui/base/l10n/l10n_util.h"
+ #include "ui/webui/tracked_element/tracked_element_handler_document_singleton.h"
+ #include "ui/webui/webui_util.h"
+ 
+@@ -491,6 +493,18 @@
+ #endif
+ 
+   AddLocalizedStrings(html_source, profile, web_ui->GetWebContents());
++  // Alerse: a Space is a profile, so these act on the shown Space only.
++  const std::u16string space = alerse::GetSpaceOfProfile(profile).name;
++  html_source->AddString(
++      "clearBrowsingData",
++      l10n_util::GetStringFUTF16(
++          IDS_ALERSE_IN_SPACE,
++          l10n_util::GetStringUTF16(IDS_SETTINGS_CLEAR_BROWSING_DATA), space));
++  html_source->AddString(
++      "resetDialogTitle",
++      l10n_util::GetStringFUTF16(
++          IDS_ALERSE_IN_SPACE,
++          l10n_util::GetStringUTF16(IDS_SETTINGS_RESET_PROMPT_TITLE), space));
+   AddSecurityData(html_source);
+ 
+   ManagedUIHandler::Initialize(web_ui, html_source);
+--- a/chrome/browser/ui/webui/downloads/downloads_ui.cc
++++ b/chrome/browser/ui/webui/downloads/downloads_ui.cc
+@@ -21,6 +21,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager.h"
+ #include "chrome/browser/safe_browsing/advanced_protection_status_manager_factory.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/downloads/downloads.mojom.h"
+ #include "chrome/browser/ui/webui/downloads/downloads_dom_handler.h"
+@@ -197,6 +198,12 @@
+       {"initiatorLine", IDS_DOWNLOADS_PAGE_INITIATOR_LINE},
+   };
+   source->AddLocalizedStrings(kStrings);
++  // Alerse: a Space is a profile, so the list shows its downloads only.
++  source->AddString(
++      "title", l10n_util::GetStringFUTF16(
++                   IDS_ALERSE_IN_SPACE,
++                   l10n_util::GetStringUTF16(IDS_DOWNLOAD_HISTORY_TITLE),
++                   alerse::GetSpaceOfProfile(profile).name));
+ 
+   source->AddLocalizedString(
+       "dangerUncommonDesc",
+--- a/chrome/browser/ui/webui/history/history_ui.cc
++++ b/chrome/browser/ui/webui/history/history_ui.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/profiles/profile_avatar_icon_util.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webui/cr_components/history/history_util.h"
+ #include "chrome/browser/ui/webui/history/browsing_history_handler.h"
+@@ -70,6 +71,12 @@
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
+ 
+   HistoryUtil::PopulateCommonSourceForHistory(source, profile);
++  // Alerse: a Space is a profile, so the page shows its history only.
++  source->AddString(
++      "title",
++      l10n_util::GetStringFUTF16(IDS_ALERSE_IN_SPACE,
++                                 l10n_util::GetStringUTF16(IDS_HISTORY_TITLE),
++                                 alerse::GetSpaceOfProfile(profile).name));
+ 
+   static constexpr webui::LocalizedString kStrings[] = {
+       // Localized strings (alphabetical order).

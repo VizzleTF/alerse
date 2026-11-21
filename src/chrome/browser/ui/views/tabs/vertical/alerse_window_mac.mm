@@ -26,6 +26,13 @@ namespace {
 // Arc's picker blurs strongly: its sidebar's icons show as soft blots.
 constexpr int kPopoverBlurRadius = 20;
 
+// When the app last became active (WatchAppActivation()), in seconds of
+// uptime.
+NSTimeInterval g_became_active_at = -1;
+
+// Launch Services activates the app before the link's Little window opens.
+constexpr NSTimeInterval kLinkActivationSeconds = 2;
+
 struct ScreenWindow {
   NSInteger number;
   bool own;
@@ -48,22 +55,23 @@ std::vector<ScreenWindow> NormalWindowsOnScreen() {
   return windows;
 }
 
-// Puts each of the app's windows back right below the window it was below
-// in `before`; those in front of every other app's window stay in front.
-void RestoreOrder(const std::vector<ScreenWindow>& before) {
-  NSInteger above = 0;
-  for (const ScreenWindow& entry : before) {
-    if (!entry.own) {
-      above = entry.number;
-      continue;
+// Puts the app's windows in front of `front`, another app's window, right
+// below it in their order, all but `keep`.
+void SendBehind(NSWindow* keep, NSInteger front) {
+  std::vector<NSWindow*> raised;
+  for (const ScreenWindow& entry : NormalWindowsOnScreen()) {
+    if (entry.number == front) {
+      for (auto it = raised.rbegin(); it != raised.rend(); ++it) {
+        [*it orderWindow:NSWindowBelow relativeTo:front];
+      }
+      return;
     }
-    NSWindow* window = [NSApp windowWithWindowNumber:entry.number];
+    NSWindow* window =
+        entry.own ? [NSApp windowWithWindowNumber:entry.number] : nil;
     // A child window moves with its parent.
-    if (!window || window.parentWindow || !above) {
-      continue;
+    if (window && window != keep && !window.parentWindow) {
+      raised.push_back(window);
     }
-    [window orderWindow:NSWindowBelow relativeTo:above];
-    above = entry.number;
   }
 }
 
@@ -94,13 +102,54 @@ void BlurBehindPopover(views::Widget* popover) {
       kPopoverBlurRadius);
 }
 
+void WatchAppActivation() {
+  static bool watching = false;
+  if (watching) {
+    return;
+  }
+  watching = true;
+  [NSNotificationCenter.defaultCenter
+      addObserverForName:NSApplicationDidBecomeActiveNotification
+                  object:nil
+                   queue:nil
+              usingBlock:^(NSNotification*) {
+                g_became_active_at = NSProcessInfo.processInfo.systemUptime;
+              }];
+}
+
 void ShowAndActivateAlone(views::Widget* window) {
-  const std::vector<ScreenWindow> before = NormalWindowsOnScreen();
+  NSWindow* little = window->GetNativeWindow().GetNativeNSWindow();
+  const bool active = NSApp.active;
+  NSInteger front = 0;
+  if (!active || NSProcessInfo.processInfo.systemUptime - g_became_active_at <
+                     kLinkActivationSeconds) {
+    for (const ScreenWindow& entry : NormalWindowsOnScreen()) {
+      if (!entry.own) {
+        front = entry.number;
+        break;
+      }
+    }
+  }
   window->Show();
   window->Activate();
-  RestoreOrder(before);
-  // The window server may grant the activation later; it raises the main
-  // window again then.
+  if (!front) {
+    return;
+  }
+  SendBehind(little, front);
+  // The activation's raise may land after the notification, so again on the
+  // next turn.
+  void (^send_behind)(void) = ^{
+    SendBehind(little, front);
+    dispatch_async(dispatch_get_main_queue(), ^{
+      SendBehind(little, front);
+    });
+  };
+  if (active) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      SendBehind(little, front);
+    });
+    return;
+  }
   NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
   __block id observer = [center
       addObserverForName:NSApplicationDidBecomeActiveNotification
@@ -109,7 +158,7 @@ void ShowAndActivateAlone(views::Widget* window) {
               usingBlock:^(NSNotification*) {
                 [center removeObserver:observer];
                 observer = nil;
-                RestoreOrder(before);
+                send_behind();
               }];
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC),
                  dispatch_get_main_queue(), ^{

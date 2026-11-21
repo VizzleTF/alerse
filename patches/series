@@ -146,3 +146,11 @@ look/mac-spaces-menu-last-space-window.patch
 look/split-chooser-favicon.patch
 look/alerse-pages-favicon.patch
 look/settings-no-google-related-services.patch
+spaces/space-name-on-data-pages.patch
+extensions/site-controls-pill-anchor.patch
+look/settings-no-tab-position.patch
+look/no-toolbar-customization.patch
+defaults/no-reading-mode.patch
+spaces/open-link-as-space-in-stack.patch
+spaces/stack-close-downloads.patch
+spaces/preload-spaces-session-other-windows.patch

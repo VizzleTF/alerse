@@ -92,6 +92,8 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/url_constants.h"
+#include "ui/views/style/platform_style.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkPathBuilder.h"
 #include "base/strings/strcat.h"
@@ -127,6 +129,7 @@
 #include "ui/compositor/layer_tree_owner.h"
 #include "ui/events/event.h"
 #include "ui/display/screen.h"
+#include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/tween.h"
@@ -136,6 +139,7 @@
 #include "ui/gfx/codec/png_codec.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/gfx/geometry/outsets_f.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/image/image_skia.h"
@@ -630,6 +634,7 @@ class Divider : public views::View {
       return;
     }
     SetPreferredSize(gfx::Size(0, kHeight));
+    SetFocusBehavior(views::PlatformStyle::kDefaultFocusBehavior);
     GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
     GetViewAccessibility().SetName(text_);
   }
@@ -663,6 +668,35 @@ class Divider : public views::View {
         gfx::Rect(button.x() + kArrow + 4, 0, button.width() - kArrow - 4,
                   height()),
         gfx::Canvas::TEXT_ALIGN_LEFT | gfx::Canvas::NO_SUBPIXEL_RENDERING);
+    if (HasFocus()) {
+      gfx::RectF ring(button);
+      ring.Outset(gfx::OutsetsF::VH(2, 6));
+      PaintFocusRing(canvas, this, ring, 6);
+    }
+  }
+
+  bool OnKeyPressed(const ui::KeyEvent& event) override {
+    if (!clear_ || (event.key_code() != ui::VKEY_RETURN &&
+                    event.key_code() != ui::VKEY_SPACE)) {
+      return false;
+    }
+    RunClear();
+    return true;
+  }
+  bool HandleAccessibleAction(const ui::AXActionData& action_data) override {
+    if (!clear_ || action_data.action != ax::mojom::Action::kDoDefault) {
+      return views::View::HandleAccessibleAction(action_data);
+    }
+    RunClear();
+    return true;
+  }
+  void OnFocus() override {
+    views::View::OnFocus();
+    SchedulePaint();
+  }
+  void OnBlur() override {
+    views::View::OnBlur();
+    SchedulePaint();
   }
 
   void OnMouseMoved(const ui::MouseEvent& event) override {
@@ -675,9 +709,7 @@ class Divider : public views::View {
   }
   void OnMouseReleased(const ui::MouseEvent& event) override {
     if (clear_ && ButtonBounds().Contains(event.location())) {
-      // Copied: the rows, and this view with them, are rebuilt as tabs close.
-      base::RepeatingClosure clear = clear_;
-      clear.Run();
+      RunClear();
     }
   }
 
@@ -698,6 +730,12 @@ class Divider : public views::View {
       hovered_ = hovered;
       SchedulePaint();
     }
+  }
+
+  void RunClear() {
+    // Copied: the rows, and this view with them, are rebuilt as tabs close.
+    base::RepeatingClosure clear = clear_;
+    clear.Run();
   }
 
   base::RepeatingClosure clear_;
@@ -2489,6 +2527,11 @@ AlerseSidebarView::AlerseSidebarView(BrowserWindowInterface* browser)
       browser_(browser),
       model_(
           BookmarkModelFactory::GetForBrowserContext(browser->GetProfile())) {
+#if BUILDFLAG(IS_MAC)
+  // A link from another app opens a Little window only while a Space's window
+  // is open.
+  alerse::WatchAppActivation();
+#endif
   // The address bar stays at the top, the rows scroll, the mini player stays
   // at the bottom.
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -3167,8 +3210,11 @@ ui::ImageModel AlerseSidebarView::GetTabIcon(tabs::TabInterface* tab) const {
     // The one-color icons of the browser's own pages (Settings, History,
     // Extensions, Downloads) are drawn for a tab's background: recolored where
     // they would not read on the sidebar's frame, as the tab strip does on its
-    // own.
-    if (helper->ShouldThemifyFavicon() && GetColorProvider()) {
+    // own. Alerse's own pages carry its colored logo, which is left as is.
+    const GURL& page_url = contents->GetLastCommittedURL();
+    const bool alerse_page = page_url.SchemeIs(content::kChromeUIScheme) &&
+                             page_url.host().starts_with("alerse-");
+    if (!alerse_page && helper->ShouldThemifyFavicon() && GetColorProvider()) {
       const SkColor frame = alerse::FrameColor(this);
       icon = ui::ImageModel::FromImageSkia(favicon::ThemeFavicon(
           icon.Rasterize(GetColorProvider()),
@@ -5848,9 +5894,10 @@ void AlerseSidebarView::ShowColorPicker() {
   delegate->SetShowCloseButton(false);
   delegate->set_margins(gfx::Insets());
   delegate->SetBackgroundColor(alerse::kSpaceColorPickerBackground);
-  delegate->SetContentsView(alerse::CreateSpaceColorPicker(
-      initial, base::BindRepeating(&AlerseSidebarView::OnSpaceColorPicked,
-                                   drop_weak_factory_.GetWeakPtr())));
+  delegate->SetInitiallyFocusedView(
+      delegate->SetContentsView(alerse::CreateSpaceColorPicker(
+          initial, base::BindRepeating(&AlerseSidebarView::OnSpaceColorPicked,
+                                       drop_weak_factory_.GetWeakPtr()))));
   color_picker_ = views::BubbleDialogDelegate::CreateBubble(
       delegate.get(), base::BindOnce(&AlerseSidebarView::OnColorPickerClosed,
                                      drop_weak_factory_.GetWeakPtr()));
