@@ -1,0 +1,283 @@
+--- a/chrome/browser/download/bubble/download_bubble_ui_controller.cc
++++ b/chrome/browser/download/bubble/download_bubble_ui_controller.cc
+@@ -4,6 +4,9 @@
+ 
+ #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
+ 
++#include <algorithm>
++#include <iterator>
++
+ #include "base/files/file_path.h"
+ #include "base/functional/bind.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -31,11 +34,13 @@
+ #include "chrome/browser/feature_engagement/tracker_factory.h"
+ #include "chrome/browser/offline_items_collection/offline_content_aggregator_factory.h"
+ #include "chrome/browser/profiles/profile_key.h"
++#include "chrome/browser/profiles/profile_manager.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+ #include "chrome/browser/ui/browser_window/public/profile_browser_collection.h"
+ #include "chrome/browser/ui/hats/trust_safety_sentiment_service.h"
+ #include "chrome/browser/ui/hats/trust_safety_sentiment_service_factory.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+@@ -215,6 +220,38 @@
+   update_service_->GetAllModelsToDisplay(
+       all_items, GetWebAppIdForBrowser(browser_),
+       /*force_backfill_download_items=*/true);
++  // Alerse: each Space is a profile (docs/adr/0001-space-profiles.md); the
++  // full list also shows the other Spaces' downloads, from the profiles their
++  // preloaded windows keep loaded, and the rows name their Space.
++  if (is_main_view && !profile_->IsOffTheRecord() &&
++      !GetWebAppIdForBrowser(browser_)) {
++    for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
++      Profile* other =
++          g_browser_process->profile_manager()->GetProfileByPath(space.path);
++      if (!other || other == profile_.get()) {
++        continue;
++      }
++      DownloadBubbleUpdateService* service =
++          DownloadBubbleUpdateServiceFactory::GetForProfile(other);
++      if (!service) {
++        continue;
++      }
++      service->InitializeOfflineItemsIfNecessary();
++      std::vector<DownloadUIModelPtr> items;
++      service->GetAllModelsToDisplay(items, nullptr,
++                                     /*force_backfill_download_items=*/true);
++      std::ranges::move(items, std::back_inserter(all_items));
++    }
++    std::ranges::stable_sort(all_items, [](const DownloadUIModelPtr& a,
++                                           const DownloadUIModelPtr& b) {
++      const bool a_running = IsModelInProgress(a.get());
++      const bool b_running = IsModelInProgress(b.get());
++      if (a_running != b_running) {
++        return a_running;
++      }
++      return a->GetStartTime() > b->GetStartTime();
++    });
++  }
+   std::vector<DownloadUIModelPtr> items_to_return;
+   for (auto& model : all_items) {
+     if (!is_main_view && model->WasActionedOn()) {
+@@ -352,7 +389,9 @@
+     DownloadCommands::Command command) {
+   CHECK(command == DownloadCommands::RETRY, base::NotFatalUntil::M161);
+   display_controller_->HideBubble();
+-  content::DownloadManager* download_manager = profile_->GetDownloadManager();
++  // Alerse: in the download's own Space, which may not be the shown one.
++  content::DownloadManager* download_manager =
++      model->profile()->GetDownloadManager();
+   if (!download_manager) {
+     return;
+   }
+--- a/chrome/browser/resources/settings/reset_page/reset_browser_proxy.ts
++++ b/chrome/browser/resources/settings/reset_page/reset_browser_proxy.ts
+@@ -13,8 +13,9 @@
+    * @param requestOrigin The origin of the reset request.
+    * @return A promise firing once resetting has completed.
+    */
+-  performResetProfileSettings(sendSettings: boolean, requestOrigin: string):
+-      Promise<void>;
++  performResetProfileSettings(
++      sendSettings: boolean, requestOrigin: string,
++      allSpaces?: boolean): Promise<void>;
+ 
+   /**
+    * A method to be called when the reset profile dialog is hidden.
+@@ -50,9 +51,10 @@
+ }
+ 
+ export class ResetBrowserProxyImpl implements ResetBrowserProxy {
+-  performResetProfileSettings(sendSettings: boolean, requestOrigin: string) {
++  performResetProfileSettings(
++      sendSettings: boolean, requestOrigin: string, allSpaces: boolean = false) {
+     return sendWithPromise<void>(
+-        'performResetProfileSettings', sendSettings, requestOrigin);
++        'performResetProfileSettings', sendSettings, requestOrigin, allSpaces);
+   }
+ 
+   onHideResetProfileDialog() {
+--- a/chrome/browser/resources/settings/reset_page/reset_profile_dialog.css
++++ b/chrome/browser/resources/settings/reset_page/reset_profile_dialog.css
+@@ -18,3 +18,7 @@
+   /* Add space for the link focus ring. See https://crbug.com/41428696. */
+   padding-bottom: 2px;
+ }
++
++#alerseAllSpaces {
++  margin-block-start: 12px;
++}
+--- a/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html.ts
++++ b/chrome/browser/resources/settings/reset_page/reset_profile_dialog.html.ts
+@@ -20,6 +20,11 @@
+     <a href="$i18nRaw{resetPageLearnMoreUrl}"
+         aria-label="$i18n{resetLearnMoreAccessibilityText}"
+         target="_blank">$i18n{learnMore}</a>
++    <cr-checkbox id="alerseAllSpaces" checked
++        ?hidden="${!this.alerseOtherSpaces_}"
++        ?disabled="${this.clearingInProgress_}">
++      $i18n{alerseResetAllSpaces}
++    </cr-checkbox>
+   </div>
+   <div slot="button-container">
+     <div class="spinner" ?hidden="${!this.clearingInProgress_}"></div>
+--- a/chrome/browser/resources/settings/reset_page/reset_profile_dialog.ts
++++ b/chrome/browser/resources/settings/reset_page/reset_profile_dialog.ts
+@@ -32,6 +32,7 @@
+ 
+ export interface SettingsResetProfileDialogElement {
+   $: {
++    alerseAllSpaces: CrCheckboxElement,
+     cancel: CrButtonElement,
+     dialog: CrDialogElement,
+     reset: CrButtonElement,
+@@ -64,6 +65,7 @@
+       triggeredResetToolName_: {type: String},
+       resetRequestOrigin_: {type: String},
+       clearingInProgress_: {type: Boolean},
++      alerseOtherSpaces_: {type: Boolean},
+     };
+   }
+ 
+@@ -71,6 +73,9 @@
+   private accessor triggeredResetToolName_: string = '';
+   private accessor resetRequestOrigin_: string = '';
+   protected accessor clearingInProgress_: boolean = false;
++  // Alerse: each Space is a profile; the checkbox resets all of them.
++  protected accessor alerseOtherSpaces_: boolean =
++      loadTimeData.getBoolean('alerseOtherSpaces');
+   private browserProxy_: ResetBrowserProxy =
+       ResetBrowserProxyImpl.getInstance();
+ 
+@@ -140,7 +145,8 @@
+     this.clearingInProgress_ = true;
+     this.browserProxy_
+         .performResetProfileSettings(
+-            this.$.sendSettings.checked, this.resetRequestOrigin_)
++            this.$.sendSettings.checked, this.resetRequestOrigin_,
++            this.alerseOtherSpaces_ && this.$.alerseAllSpaces.checked)
+         .then(() => {
+           this.clearingInProgress_ = false;
+           if (this.$.dialog.open) {
+--- a/chrome/browser/ui/views/download/bubble/download_bubble_row_view.cc
++++ b/chrome/browser/ui/views/download/bubble/download_bubble_row_view.cc
+@@ -10,6 +10,7 @@
+ #include "base/files/file_path.h"
+ #include "base/functional/callback.h"
+ #include "base/metrics/histogram_functions.h"
++#include "base/strings/strcat.h"
+ #include "base/strings/string_util.h"
+ #include "base/time/time.h"
+ #include "chrome/app/chrome_command_ids.h"
+@@ -27,6 +28,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/chrome_pages.h"
+ #include "chrome/browser/ui/layout_constants.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+ #include "chrome/browser/ui/views/download/bubble/download_bubble_navigation_handler.h"
+ #include "chrome/browser/ui/views/download/bubble/download_bubble_row_list_view.h"
+@@ -936,8 +938,16 @@
+ }
+ 
+ void DownloadBubbleRowView::UpdateStatusText() {
+-  secondary_label_->SetText(info_->model()->GetStatusTextForLabel(
+-      secondary_label_->font_list(), secondary_label_->width()));
++  std::u16string status = info_->model()->GetStatusTextForLabel(
++      secondary_label_->font_list(), secondary_label_->width());
++  // Alerse: a download of another Space (a profile of its own) names it.
++  Profile* profile = info_->model()->profile();
++  if (browser_ && profile->GetOriginalProfile() !=
++                      browser_->GetProfile()->GetOriginalProfile()) {
++    status = base::StrCat(
++        {alerse::GetSpaceOfProfile(profile).name, u" \u00b7 ", status});
++  }
++  secondary_label_->SetText(status);
+ }
+ 
+ bool DownloadBubbleRowView::AcceleratorPressed(
+--- a/chrome/browser/ui/webui/settings/reset_settings_handler.cc
++++ b/chrome/browser/ui/webui/settings/reset_settings_handler.cc
+@@ -21,6 +21,8 @@
+ #include "chrome/browser/prefs/chrome_pref_service_factory.h"
+ #include "chrome/browser/profile_resetter/profile_resetter.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/profiles/profile_manager.h"
++#include "chrome/browser/ui/tabs/alerse_space_registry.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/url_constants.h"
+ #include "chrome/grit/generated_resources.h"
+@@ -150,13 +152,32 @@
+     const base::ListValue& args) {
+   AllowJavascript();
+ 
+-  CHECK_EQ(3U, args.size());
++  // Alerse: a fourth argument, whether to reset every Space.
++  CHECK(args.size() == 3U || args.size() == 4U);
+   const std::string& callback_id = args[0].GetString();
+   const bool& send_settings = args[1].GetBool();
+   const std::string& request_origin_string = args[2].GetString();
+   reset_report::ChromeResetReport::ResetRequestOrigin request_origin =
+       ResetRequestOriginFromString(request_origin_string);
+ 
++  // Alerse: each Space is a profile (docs/adr/0001-space-profiles.md); the
++  // other Spaces' profiles, which their preloaded windows keep loaded, are
++  // reset the same way.
++  if (args.size() == 4U && args[3].GetBool() && !profile_->IsOffTheRecord()) {
++    std::erase_if(alerse_resetters_, [](const auto& resetter) {
++      return !resetter->IsActive();
++    });
++    for (const alerse::SpaceInfo& space : alerse::ListSpaces()) {
++      Profile* other =
++          g_browser_process->profile_manager()->GetProfileByPath(space.path);
++      if (other && other != profile_) {
++        alerse_resetters_.push_back(std::make_unique<ProfileResetter>(other));
++        alerse_resetters_.back()->ResetSettings(
++            ProfileResetter::PROFILE_RESETS, nullptr, base::DoNothing());
++      }
++    }
++  }
++
+   ResetProfile(callback_id, send_settings, request_origin);
+ }
+ 
+--- a/chrome/browser/ui/webui/settings/reset_settings_handler.h
++++ b/chrome/browser/ui/webui/settings/reset_settings_handler.h
+@@ -7,6 +7,7 @@
+ 
+ #include <memory>
+ #include <string>
++#include <vector>
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+@@ -106,6 +107,9 @@
+ 
+   std::unique_ptr<ProfileResetter> resetter_;
+ 
++  // Alerse: the resets of the other Spaces' profiles.
++  std::vector<std::unique_ptr<ProfileResetter>> alerse_resetters_;
++
+   // Snapshot of settings before profile was reseted.
+   std::unique_ptr<ResettableSettingsSnapshot> setting_snapshot_;
+ 
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -505,9 +505,12 @@
+       l10n_util::GetStringFUTF16(
+           IDS_ALERSE_IN_SPACE,
+           l10n_util::GetStringUTF16(IDS_SETTINGS_RESET_PROMPT_TITLE), space));
+-  // Delete browsing data offers the other Spaces too, checked by default.
++  // Delete browsing data and Reset settings offer the other Spaces too,
++  // checked by default.
+   html_source->AddLocalizedString("alerseAllSpaces",
+                                   IDS_ALERSE_DELETE_IN_OTHER_SPACES);
++  html_source->AddLocalizedString("alerseResetAllSpaces",
++                                  IDS_ALERSE_RESET_IN_OTHER_SPACES);
+   html_source->AddBoolean("alerseOtherSpaces", alerse::ListSpaces().size() > 1);
+   AddSecurityData(html_source);
+ 

@@ -612,4 +612,7 @@
   <message name="IDS_ALERSE_DELETE_IN_OTHER_SPACES" desc="Checkbox in Delete browsing data, checked by default: also delete the chosen data in every other Space (each Space keeps its own history, cookies and downloads).">
     Also delete it in the other Spaces
   </message>
+  <message name="IDS_ALERSE_RESET_IN_OTHER_SPACES" desc="Checkbox in Reset settings, checked by default: also reset the settings of every other Space (each Space keeps its own settings).">
+    Also reset the other Spaces
+  </message>
 </grit-part>

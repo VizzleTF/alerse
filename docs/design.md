@@ -177,6 +177,7 @@ feature does on it. In short:
   checked by default; History's side bar and Download history's toolbar list the other
   Spaces, and a click shows that Space with its page (`alerse_space_pages_handler.h`,
   `spaces/data-pages-every-space.patch`).
+- Reset settings also resets the other (loaded) Spaces with "Also reset the other Spaces", checked by default, and the Space bar's Downloads popover lists every Space's downloads, another Space's named before its status (`spaces/reset-downloads-every-space.patch`).
 - UI: `AlerseSpaceSwitcher`, the Space bar at the bottom of the sidebar: Downloads
   at the left (where Arc has its archive; shows recent downloads in a popover above
   it and closes it on a second click, as Arc does, without a tab; with nothing from
