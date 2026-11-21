@@ -6,6 +6,8 @@
 
 <p align="center">A sidebar browser for people moving from Arc, built on ungoogled-chromium.</p>
 
+<p align="center"><a href="https://alerse.app">alerse.app</a> · <a href="https://alerse.app/download">Download</a> · <a href="https://ru.alerse.app">На русском</a></p>
+
 Alerse gives you a vertical sidebar, Spaces with separate logins in one window, a
 command bar and sync you can host yourself. Its name is a free spelling of alerce, the
 Chilean tree.

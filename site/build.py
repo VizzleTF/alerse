@@ -4,6 +4,7 @@ header and footer. Run: python site/build.py
 --lang ru builds the Russian site for ru.alerse.app into site/public-ru: the
 phrases of ru.py replace the English ones in this file's source before it runs."""
 import html
+import json
 import pathlib
 import shutil
 import sys
@@ -13,9 +14,11 @@ OUT = HERE / 'public'
 SYNC_DOCS = 'https://github.com/VizzleTF/alerse-sync/blob/main/docs'
 VERSION = 'Alerse 0.1.24 · Chromium 157'
 LANG = 'en'
-# The same page on the other language's site, for the switch in the header.
-OTHER = {'en': ('https://ru.alerse.app', 'Русский', 'ru'), 'ru': ('https://alerse.app', 'English', 'en')}
-PATHS = {'index': '/', 'download': '/download', 'sync': '/sync', 'privacy': '/privacy', 'terms': '/terms'}
+SITES = {'en': 'https://alerse.app', 'ru': 'https://ru.alerse.app'}
+# The other language's site, for the switch in the header.
+OTHER = {'en': ('Русский', 'ru'), 'ru': ('English', 'en')}
+# 404 links the other site's home page in the header.
+PATHS = {'index': '/', 'download': '/download', 'sync': '/sync', 'privacy': '/privacy', 'terms': '/terms', '404': '/'}
 
 MOON = ('<svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
         'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>')
@@ -27,22 +30,38 @@ LOCK = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width
         '<path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>')
 
 
-def page(name, title, description, body):
+def page(name, title, description, body, head=''):
     nav = ''.join(
         f'<a href="{href}"{" aria-current=\"page\"" if key == name else ""}>{label}</a>'
         for key, href, label in (('features', '/#features', 'Features'), ('sync', '/sync', 'Sync'),
                                  ('github', 'https://github.com/VizzleTF/alerse', 'GitHub')))
-    other_site, other_name, other_lang = OTHER[LANG]
-    other = other_site + PATHS.get(name, '/')
+    other_name, other_lang = OTHER[LANG]
+    url, other = SITES[LANG] + PATHS[name], SITES[other_lang] + PATHS[name]
+    title, description = html.escape(title), html.escape(description)
+    # The 404 page is served at every missing address, so it names no URL of its own.
+    links = '' if name == '404' else f'''<link rel="canonical" href="{url}">
+<link rel="alternate" hreflang="{LANG}" href="{url}">
+<link rel="alternate" hreflang="{other_lang}" href="{other}">
+<link rel="alternate" hreflang="x-default" href="{SITES['en'] + PATHS[name]}">
+'''
     return f'''<!doctype html>
 <html lang="{LANG}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{html.escape(title)}</title>
-<meta name="description" content="{html.escape(description)}">
+<title>{title}</title>
+<meta name="description" content="{description}">
 <meta name="color-scheme" content="light dark">
-<link rel="alternate" hreflang="{other_lang}" href="{other}">
+{links}<meta property="og:type" content="website">
+<meta property="og:site_name" content="Alerse">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{description}">
+<meta property="og:url" content="{url}">
+<meta property="og:image" content="{SITES[LANG]}/images/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="apple-touch-icon" href="/images/logo.png">{head}
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="/style.css">
 <script src="/site.js"></script>
@@ -80,24 +99,24 @@ def page(name, title, description, body):
 '''
 
 
-def shot(file, alt, w, h, cls=''):
+def shot(file, alt, w, h, cls='', load='loading="lazy" decoding="async"'):
     return (f'<div class="shot {cls}"><img src="/images/{file}" alt="{html.escape(alt)}" '
-            f'width="{w}" height="{h}" loading="lazy" decoding="async"></div>')
+            f'width="{w}" height="{h}" {load}></div>')
 
 
 FEATURES = [
     ('Spaces', 'Each Space is a separate profile: its own cookies, logins, history and extensions, so you can be signed in to different accounts side by side. Switching is instant, and the Spaces look like one window.',
      ['Drag a tab onto a Space icon to move it', 'Link routing sends sites to their Space', 'Spaces survive restarts'],
-     ('02-spaces-mac.png', 'The Work Space with its own pinned sites, opened from the Space bar.', 1600, 1000)),
+     ('02-spaces-mac.webp', 'The Work Space with its own pinned sites, opened from the Space bar.', 1600, 1000)),
     ('Command bar', 'Type an action instead of hunting for it: Copy URL, Copy URL as Markdown, Pin Tab, New Space, Edit Theme and more, each with its shortcut.',
      ['Search, history and open tabs in one field', 'Shortcuts shown next to every action'],
-     ('03-command-bar-mac.png', 'The command bar finding Copy URL and Copy URL as Markdown.', 1600, 1000)),
+     ('03-command-bar-mac.webp', 'The command bar finding Copy URL and Copy URL as Markdown.', 1600, 1000)),
     ('Split View', 'Two pages side by side in one tab, opened from a tab\'s menu or by dragging one tab onto another.',
-     ['Each side keeps its own history'], ('04-split-view-mac.png', 'Two pages side by side in Split View.', 1600, 1000)),
+     ['Each side keeps its own history'], ('04-split-view-mac.webp', 'Two pages side by side in Split View.', 1600, 1000)),
     ('Icons for Spaces and folders', 'Arc\'s glyphs and emoji for Spaces, pinned items and folders, from the same picker.',
-     ['Folders collapse or expand all at once'], ('05-icon-picker-mac.png', 'The icon picker of a Space.', 880, 760)),
+     ['Folders collapse or expand all at once'], ('05-icon-picker-mac.webp', 'The icon picker of a Space.', 880, 760)),
     ('Windows, too', 'On Windows, Alerse looks like Arc on macOS everywhere except the top bar.',
-     ['Windows 10 and 11, x64 and arm64'], ('06-windows.png', 'Alerse on Windows 11.', 1264, 792)),
+     ['Windows 10 and 11, x64 and arm64'], ('06-windows.webp', 'Alerse on Windows 11.', 1264, 792)),
 ]
 
 
@@ -117,7 +136,7 @@ def landing():
       <p class="small muted">Also for macOS (Apple Silicon) and Linux · <a href="/download">All platforms</a> · Free and open source</p>
     </div>
   </div>
-  {shot("01-sidebar-mac.png", "Alerse on macOS: the Personal Space with pinned sites, a Reading folder and favorites in the sidebar.", 1600, 1000)}
+  {shot("01-sidebar-mac.webp", "Alerse on macOS: the Personal Space with pinned sites, a Reading folder and favorites in the sidebar.", 1600, 1000, load='fetchpriority="high"')}
 </section>
 <div class="rule"></div>
 <section class="facts">
@@ -157,8 +176,16 @@ def landing():
   </div>
   <p class="muted">Source code, issues and release notes are on <a href="https://github.com/VizzleTF/alerse">GitHub</a>.</p>
 </div></section>'''
-    return page('index', 'Alerse — a sidebar browser that keeps to itself',
-                'A free, open-source sidebar browser for people leaving Arc: Spaces, a command bar and end-to-end encrypted sync, on ungoogled-chromium.', body)
+    description = 'A free, open-source sidebar browser for people leaving Arc: Spaces, a command bar and end-to-end encrypted sync, on ungoogled-chromium.'
+    # Structured data for search results; a data block, so the CSP's script-src does not apply.
+    app = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': 'Alerse',
+           'applicationCategory': 'BrowserApplication', 'operatingSystem': 'Windows, macOS, Linux',
+           'description': description, 'url': SITES[LANG] + '/', 'downloadUrl': SITES[LANG] + '/download',
+           'softwareVersion': VERSION.split()[1], 'image': SITES[LANG] + '/images/og.jpg', 'inLanguage': LANG,
+           'license': 'https://opensource.org/license/bsd-3-clause', 'isAccessibleForFree': True,
+           'offers': {'@type': 'Offer', 'price': '0', 'priceCurrency': 'USD'}}
+    head = f'\n<script type="application/ld+json">{json.dumps(app, ensure_ascii=False)}</script>'
+    return page('index', 'Alerse — an open-source Arc alternative for Windows and macOS', description, body, head)
 
 
 def download():
@@ -184,7 +211,7 @@ def download():
     <div><h3>From Arc</h3><p>After the first start, open the Alerse menu and choose Import from Another Browser.</p></div>
   </div>
 </div>'''
-    return page('download', 'Download Alerse', 'Download Alerse for Windows, macOS or Linux.', body)
+    return page('download', 'Download Alerse', 'Download Alerse, a free sidebar browser and Arc alternative, for Windows 10 and 11, macOS on Apple Silicon or Linux.', body)
 
 
 def sync():
@@ -238,6 +265,15 @@ def terms():
     return page('terms', 'Terms — Alerse', 'Licence and terms of Alerse and its sync server.', body)
 
 
+def not_found():
+    body = '''<article class="reading">
+  <h1>Page not found</h1>
+  <p class="muted">Nothing lives at this address. Try the <a href="/">home page</a> or the <a href="/download">downloads</a>.</p>
+</article>'''
+    return page('404', 'Page not found — Alerse', 'This page of alerse.app does not exist.', body,
+                '\n<meta name="robots" content="noindex">')
+
+
 def main(out=OUT):
     global OUT
     OUT = out
@@ -246,11 +282,16 @@ def main(out=OUT):
     (OUT / 'images').mkdir(parents=True)
     for f in (HERE / 'images').iterdir():
         shutil.copy(f, OUT / 'images' / f.name)
-    for f in ('style.css', 'site.js', 'favicon.ico', 'robots.txt'):
+    for f in ('style.css', 'site.js', 'favicon.ico'):
         shutil.copy(HERE / f, OUT / f)
     pages = {'index': landing, 'download': download, 'sync': sync, 'privacy': privacy, 'terms': terms}
     for name, make in pages.items():
         (OUT / f'{name}.html').write_text(make(), encoding='utf-8', newline='\n')
+    (OUT / '404.html').write_text(not_found(), encoding='utf-8', newline='\n')
+    urls = ''.join(f'<url><loc>{SITES[LANG]}{PATHS[name]}</loc></url>' for name in pages)
+    (OUT / 'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+                                     f'{urls}</urlset>\n', encoding='utf-8', newline='\n')
+    (OUT / 'robots.txt').write_text(f'User-agent: *\nAllow: /\nSitemap: {SITES[LANG]}/sitemap.xml\n', encoding='utf-8', newline='\n')
     print('built', ', '.join(pages), 'into', OUT)
 
 

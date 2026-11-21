@@ -1,6 +1,6 @@
 # The alerse.app site
 
-Five static pages (home, download, sync, privacy, terms) with one stylesheet and one
+Five static pages (home, download, sync, privacy, terms) and a 404 page, with one stylesheet and one
 small script; nothing is loaded from anyone else and no cookie is set. The design is the
 Pen file and its brief, outside this repository.
 
@@ -10,8 +10,10 @@ docker build -t alerse-site site          # nginx serving site/public on port 80
 docker run --rm -p 8080:8080 alerse-site  # http://localhost:8080
 ```
 
-- `build.py` holds the pages' text; edit it, not `public/`, which is rebuilt.
-- `nginx.conf` maps `/download` to `download.html` and sets the security headers
+- `build.py` holds the pages' text; edit it, not `public/`, which is rebuilt. It also writes
+  each site's `sitemap.xml` and `robots.txt`, and the canonical, hreflang and Open Graph tags.
+- Screenshots are WebP (`cwebp -q 82 -m 6`); `images/og.jpg` is the 1200×630 link preview.
+- `nginx.conf` maps `/download` to `download.html`, answers a missing path with `404.html` and sets the security headers
   (a CSP allowing only the site itself, HSTS, no referrer).
 - nginx keeps no request logs (`access_log off`), as the privacy page says; www.alerse.app
   redirects to alerse.app.
