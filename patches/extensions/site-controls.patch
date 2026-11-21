@@ -74,15 +74,11 @@ index bc17a2395ab..902f4441ccd 100644
  
    // Do not flip the Extensions icon in RTL.
    SetFlipCanvasOnPaintForRTLUI(false);
-@@ -157,6 +160,7 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
-     return;
+@@ -179,9 +182,31 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
+         extensions_toolbar_->GetToolbarViewModel(), extensions_toolbar_);
    }
- 
+   extensions_menu_widget_ = menu->GetWeakPtr();
 +  extension_menu_observation_.Reset();
-   pressed_lock_ = menu_button_controller_->TakeLock();
-   extensions_toolbar_->OnMenuOpening();
-   base::RecordAction(base::UserMetricsAction("Extensions.Toolbar.MenuOpened"));
-@@ -182,6 +186,27 @@ void ExtensionsToolbarButton::ToggleExtensionsMenu() {
    extension_menu_observation_.Observe(menu);
  }
  
