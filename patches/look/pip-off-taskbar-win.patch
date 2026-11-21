@@ -16,13 +16,15 @@ diff --git a/ui/views/widget/widget_hwnd_utils.cc b/ui/views/widget/widget_hwnd_
 diff --git a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
 --- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
 +++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
-@@ -361,6 +361,9 @@
+@@ -361,6 +361,11 @@
    params.visible_on_all_workspaces = true;
    params.remove_standard_frame = true;
    params.name = "PictureInPictureWindow";
 +  // Alerse: the video floats over the browser and is no window of its own
 +  // on the taskbar (ui/views/widget/widget_hwnd_utils.cc).
++#if BUILDFLAG(IS_WIN)
 +  params.dont_show_in_taskbar = true;
++#endif
    params.layer_type = ui::LAYER_NOT_DRAWN;
    params.delegate = new OverlayWindowWidgetDelegate();
  
