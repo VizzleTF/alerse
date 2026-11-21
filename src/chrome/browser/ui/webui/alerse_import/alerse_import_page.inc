@@ -125,7 +125,7 @@ function renderSource(source) {
       t('bookmarksSummary', source.links);
   item.querySelector('.hint').textContent =
       t(source.kind === 'arc' ? 'arcHint' : 'bookmarksHint');
-  button.textContent = t('importButton');
+  button.textContent = t(source.imported ? 'importAgainButton' : 'importButton');
   button.setAttribute('aria-label',
       `${t('importButton')}: ${source.browser} ${source.profile}`.trim());
 

@@ -1,0 +1,12 @@
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -117,6 +117,8 @@
+     "//chrome/browser/ui:tab_ui_helper",
+     "//chrome/browser/ui/bookmarks",
+     "//components/bookmarks/browser",
++    # Alerse: the Delete Space question (alerse_space_switcher.cc).
++    "//components/constrained_window",
+     "//components/vector_icons",
+     "//content/public/browser",
+     "//skia",

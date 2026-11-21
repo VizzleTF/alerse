@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/ui/views/renderer_context_menu/render_view_context_menu_views.cc b/chrome/browser/ui/views/renderer_context_menu/render_view_context_menu_views.cc
+--- a/chrome/browser/ui/views/renderer_context_menu/render_view_context_menu_views.cc
++++ b/chrome/browser/ui/views/renderer_context_menu/render_view_context_menu_views.cc
+@@ -218,7 +218,9 @@
+ 
+     case IDC_CONTENT_CONTEXT_SAVEPLUGINAS:
+     case IDC_SAVE_PAGE:
+-      *accel = ui::Accelerator(ui::VKEY_S, ui::EF_CONTROL_DOWN);
++      // Alerse: Ctrl+S toggles the sidebar; Save Page As is Ctrl+Shift+S.
++      *accel =
++          ui::Accelerator(ui::VKEY_S, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN);
+       return true;
+ 
+     case IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN: {

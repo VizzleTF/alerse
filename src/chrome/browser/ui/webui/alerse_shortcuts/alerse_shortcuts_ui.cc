@@ -69,8 +69,9 @@ int MenuBarNameId(const alerse::ShortcutCommand& command) {
     // The title while the sidebar shows; hidden, it reads Show Sidebar.
     case IDC_TOGGLE_VERTICAL_TABS_COLLAPSE:
       return IDS_ALERSE_MENU_HIDE_SIDEBAR;
+    // macOS titles Chromium's Preferences… item Settings….
     case IDC_OPTIONS:
-      return IDS_PREFERENCES;
+      return IDS_ALERSE_MENU_BAR_SETTINGS;
     case IDC_PRINT:
       return IDS_ALERSE_MENU_BAR_PRINT;
     case IDC_ALERSE_BOOST_SITE:
@@ -113,7 +114,9 @@ base::DictValue ShortcutsState() {
 #else
     const int name_id = command.name_id;
     for (const AcceleratorMapping& mapping : list) {
-      if (mapping.command_id == command.command_id) {
+      // the AltGr copies of Alt keys would read as the bare key
+      if (mapping.command_id == command.command_id &&
+          !(mapping.modifiers & ui::EF_ALTGR_DOWN)) {
         keys.Append(ui::Accelerator(mapping.keycode, mapping.modifiers)
                         .GetShortcutText());
       }

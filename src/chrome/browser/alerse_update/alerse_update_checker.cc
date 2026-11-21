@@ -211,7 +211,7 @@ UpdateChecker::~UpdateChecker() = default;
 
 void UpdateChecker::PostBrowserStart() {
 #if BUILDFLAG(IS_WIN)
-  // Alerse, which Alerse was, goes once Alerse took over its profile.
+  // Arcomium, which Alerse was, goes once Alerse took over its profile.
   if (!headless::IsHeadlessMode()) {
     RemoveLegacyInstallLater();
   }

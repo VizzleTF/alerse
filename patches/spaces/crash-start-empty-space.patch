@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/startup/startup_browser_creator_impl.cc b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+--- a/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ b/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -672,7 +672,11 @@
+       return {std::move(tabs), launch_result};
+     }
+ 
+-    return {StartupTabs({StartupTab(chrome::ChromeUINewTabURLAsGURL())}),
++    // Alerse: after a crash the window opens on an empty Space, which
++    // "Restore pages?" replaces, not on Chromium's New Tab page.
++    return {StartupTabs({StartupTab(
++                is_post_crash_launch ? GURL("about:blank#arcomium-space")
++                                     : chrome::ChromeUINewTabURLAsGURL())}),
+             launch_result};
+   }
+ 

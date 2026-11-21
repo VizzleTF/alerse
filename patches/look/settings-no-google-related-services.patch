@@ -1,0 +1,30 @@
+diff --git a/chrome/app/settings_strings.grdp b/chrome/app/settings_strings.grdp
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -526,7 +526,7 @@
+       Settings that affect how autofill works across different types of info
+     </message>
+     <message name="IDS_SETTINGS_RELATED_SERVICES_TITLE" desc="Title of the section allowing the user to access any related google services from the 'Your saved info' page.">
+-      Related Google services
++      Related services
+     </message>
+     <message name="IDS_PASSWORDS_PAGE_IMPORT_AUTHENTICATION_PROMPT_BIOMETRIC_SUFFIX" desc="Shown after 'Google Chrome is trying to ' (or in some languages, 'Google Chrome wants to ') in a dialog message. Text for the dialog box that prompts the user for the biometric authentication before replacing passwords during Import.">
+       replace existing passwords
+diff --git a/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts b/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.html.ts
+@@ -74,14 +74,6 @@
+         @click="${this.onPasswordManagerRelatedServiceClick_}"
+         start-icon="cr20:password-manager" external>
+     </cr-link-row>
+-    <cr-link-row id="googleWalletButton" label="$i18n{googleWalletTitle}"
+-        @click="${this.onGoogleWalletRelatedServiceClick_}"
+-        start-icon="settings20:wallet" external>
+-    </cr-link-row>
+-    <cr-link-row id="googleAccountButton" label="$i18n{googleAccount}"
+-        @click="${this.onGoogleAccountRelatedServiceClick_}"
+-        start-icon="settings20:google" external>
+-    </cr-link-row>
+   </div>
+ </settings-section>
+ <!--_html_template_end_-->`;

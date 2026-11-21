@@ -401,8 +401,9 @@ function render(next) {
   }
   if (setUp && removed) {
     $('status-text').textContent =
-        'This device was removed from the account. Stop syncing on it, then ' +
-        'sign in again if it should sync.';
+        'This device was removed from the account, or the account was ' +
+        'deleted. Stop syncing on it; if the account still exists, sign in ' +
+        'again to sync.';
     $('status-dot').className = 'dot bad';
   }
   const restart = state.restartNeeded && !(newAccount && !$('words-saved').checked);
@@ -549,6 +550,12 @@ async function loadDevices() {
       const name = document.createElement('span');
       name.className = 'name';
       name.textContent = device.name + (device.current ? ' (this device)' : '');
+      // two devices with one computer name differ by when they were added
+      if (device.created &&
+          devices.filter((d) => d.name === device.name).length > 1) {
+        name.textContent +=
+            ', added ' + new Date(device.created).toLocaleString();
+      }
       const seen = document.createElement('span');
       seen.className = 'seen';
       seen.textContent = 'Last seen ' + formatSeen(device.lastSeen);

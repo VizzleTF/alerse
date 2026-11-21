@@ -1,0 +1,37 @@
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -1186,8 +1186,18 @@
+   const std::u16string text = omnibox_view_->GetText().empty()
+                                   ? std::u16string(kPlaceholder)
+                                   : omnibox_view_->GetText();
+-  const int max_text_width =
+-      std::max(0, width() - 2 * (kIconSize + kGap + kPillPadding));
++  // A permission chip (a request, or "Camera not allowed") follows the site
++  // controls, by the address as in Arc, not at the bar's start.
++  views::View* const chip =
++      permission_dashboard_view_
++          ? static_cast<views::View*>(permission_dashboard_view_.get())
++          : chip_view_.get();
++  const bool show_chip = chip->GetVisible() && !ShouldShowKeywordBubble();
++  const gfx::Size chip_size =
++      show_chip ? chip->GetPreferredSize() : gfx::Size();
++  const int chip_room = show_chip ? chip_size.width() + kGap : 0;
++  const int max_text_width = std::max(
++      0, width() - 2 * (kIconSize + kGap + kPillPadding) - chip_room);
+   const int text_width = std::min(
+       gfx::GetStringWidth(text, omnibox_view_->GetFontList()) + 1,
+       max_text_width);
+@@ -1214,6 +1224,13 @@
+   alerse_site_button_->SetBounds(alerse_pill_bounds_.right() + kGap,
+                                    icon_y, kIconSize, kIconSize);
+   alerse_site_button_->SetVisible(true);
++  if (show_chip) {
++    const int chip_height = std::min(chip_size.height(), height());
++    chip->SetBounds(
++        std::min(alerse_site_button_->bounds().right() + kGap,
++                 std::max(0, width() - chip_size.width())),
++        (height() - chip_height) / 2, chip_size.width(), chip_height);
++  }
+ }
+ 
+ void LocationBarView::OnPaintBackground(gfx::Canvas* canvas) {

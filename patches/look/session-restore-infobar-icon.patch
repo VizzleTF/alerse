@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_delegate.cc b/chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_delegate.cc
+--- a/chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_delegate.cc
++++ b/chrome/browser/ui/views/session_restore_infobar/session_restore_infobar_delegate.cc
+@@ -98,10 +98,8 @@
+ }
+ 
+ const gfx::VectorIcon& SessionRestoreInfoBarDelegate::GetVectorIcon() const {
+-  return dark_mode() ? features::IsRoundedIconsEnabled()
+-                           ? omnibox::kChromeProductIcon
+-                           : omnibox::kProductChromeRefreshOldIcon
+-                     : vector_icons::kProductRefreshIcon;
++  // Alerse: not Chromium's logo.
++  return vector_icons::kHistoryIcon;
+ }
+ 
+ bool SessionRestoreInfoBarDelegate::ShouldExpire(

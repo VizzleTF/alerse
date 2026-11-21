@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "base/base64.h"
+#include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/json/json_reader.h"
@@ -152,6 +153,11 @@ std::optional<std::string> Decrypt(const std::string& key,
 #elif BUILDFLAG(IS_MAC)
 // The AES-128 key derived from the Keychain entry Arc keeps its secret in.
 std::optional<std::string> PasswordKey(const base::FilePath&) {
+  // demo data never asks for the user's real Arc key
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          "alerse-demo-arc-dir")) {
+    return std::nullopt;
+  }
   base::apple::ScopedCFTypeRef<CFMutableDictionaryRef> query(
       CFDictionaryCreateMutable(nullptr, 0, &kCFTypeDictionaryKeyCallBacks,
                                 &kCFTypeDictionaryValueCallBacks));

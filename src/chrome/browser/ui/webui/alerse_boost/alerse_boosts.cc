@@ -58,10 +58,17 @@ constexpr char kZapScript[] = R"JS((() => {
   window.__alerseZapResult = null;
   const esc = CSS.escape;
   const box = document.createElement('div');
+  // top layer keeps the Boost's html filter off the box; its own zoom
+  // cancels the html zoom, as getBoundingClientRect is already zoomed
+  const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1;
+  box.popover = 'manual';
   box.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;' +
       'background:rgba(255,72,72,.22);outline:2px solid #ff4848;' +
-      'border-radius:4px;display:none;transition:all 70ms ease-out';
+      'border-radius:4px;display:none;transition:all 70ms ease-out;' +
+      'inset:auto;margin:0;padding:0;border:0;overflow:visible;zoom:' +
+      (1 / zoom);
   document.documentElement.appendChild(box);
+  box.showPopover();
   const prev = document.documentElement.style.cursor;
   document.documentElement.style.cursor = 'crosshair';
   let current = null;

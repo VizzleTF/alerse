@@ -37,7 +37,7 @@ inline constexpr char kAlerseWelcomeHtml[] = R"HTML(<!doctype html>
 
   <section class="step" data-step="source" hidden>
     <h1>Where are you coming from?</h1>
-    <p class="lede">Alerse found these browsers on this computer. Import
+    <p id="found" class="lede">Alerse found these browsers on this computer. Import
       reads their files only, so they can stay open.</p>
     <p id="searching" class="note">Looking for browsers…</p>
     <p id="none" class="note" hidden>No other browser was found here. You can
@@ -173,14 +173,15 @@ h1 { font-size: 30px; letter-spacing: -0.01em; }
 .choice[aria-checked="true"] { border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent); }
 .sources { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
-.source { display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+.source { display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
+  padding: 12px 14px;
   border: 1px solid var(--line); border-radius: var(--radius-lg);
   background: var(--panel); }
 .source .what { flex: 1; display: grid; gap: 2px; }
 .source .note.result { color: var(--ok); }
 .source .note.error { color: var(--bad); }
-.source .extensions { display: flex; align-items: center; gap: 8px;
-  margin-top: 4px; }
+.source .extensions { flex-basis: 100%; display: flex; align-items: center;
+  gap: 12px; }
 .source .extensions .note { flex: 1; }
 .actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .nav { display: flex; align-items: center; gap: 10px; }
@@ -237,6 +238,7 @@ async function findSources() {
   } catch (e) {}
   $('searching').hidden = true;
   $('none').hidden = sources.length > 0;
+  $('found').hidden = sources.length === 0;
   for (const source of sources) {
     const li = document.createElement('li');
     li.className = 'source';
@@ -251,7 +253,7 @@ async function findSources() {
         `${source.links} bookmarks`;
     what.append(name, note);
     const button = document.createElement('button');
-    button.textContent = 'Import';
+    button.textContent = source.imported ? 'Import again' : 'Import';
     button.addEventListener('click', async () => {
       button.disabled = true;
       button.textContent = 'Importing…';
@@ -273,8 +275,8 @@ async function findSources() {
     });
     li.append(what, button);
     $('sources').append(li);
-    if (source.kind === 'arc') offerArcData(source, what);
-    offerExtensions(source, what, EXTENSION_TEXT);
+    if (source.kind === 'arc') offerArcData(source, li);
+    offerExtensions(source, li, EXTENSION_TEXT);
   }
 }
 
@@ -298,14 +300,14 @@ function offerArcData(source, parent) {
   note.textContent = 'History and saved passwords';
   const button = document.createElement('button');
   button.type = 'button';
-  button.textContent = 'Add';
+  button.textContent = 'Import History and Passwords';
   button.addEventListener('click', async () => {
     button.disabled = true;
-    button.textContent = 'Adding…';
+    button.textContent = 'Importing…';
     try {
       const r = await sendWithPromise('importArcData', source.id);
       note.className = 'note result';
-      note.textContent = `Added ${r.pages} pages and ${r.passwords} ` +
+      note.textContent = `Imported ${r.pages} pages and ${r.passwords} ` +
           `password${r.passwords === 1 ? '' : 's'}` +
           (r.locked ? `; ${r.locked} could not be read` : '');
       button.remove();
@@ -314,7 +316,7 @@ function offerArcData(source, parent) {
       note.textContent =
           "Arc's history could not be read. Close Arc and try again.";
       button.disabled = false;
-      button.textContent = 'Add';
+      button.textContent = 'Import History and Passwords';
     }
   });
   row.append(note, button);
@@ -404,12 +406,14 @@ async function loadState() {
   $('opt-peek').setAttribute('aria-checked', String(state.options.peek));
   $('opt-little').setAttribute('aria-checked',
                                String(state.options.littleWindow));
+  picked.options = state.options;
 }
 
 for (const [id, name] of [['opt-peek', 'peek'], ['opt-little', 'littleWindow']]) {
   $(id).addEventListener('click', async () => {
     const on = $(id).getAttribute('aria-checked') !== 'true';
     $(id).setAttribute('aria-checked', String(on));
+    picked.options[name] = on;
     await sendWithPromise('setLinkOption', name, on);
   });
 }
@@ -449,7 +453,7 @@ document.querySelectorAll('[data-theme]').forEach((b) => {
 
 $('sync-open').addEventListener('click', () => {
   window.open('chrome://alerse-sync/', '_blank');
-  picked.sync = true;
+  picked.syncOpened = true;
 });
 
 async function checkDefault(set) {
@@ -469,7 +473,12 @@ function summarize() {
   lines.push(picked.store ? 'Extensions from the Chrome Web Store' :
                             'Chrome Web Store off');
   if (picked.theme) lines.push({system: 'Theme follows the system', light: 'Light theme', dark: 'Dark theme'}[picked.theme]);
-  if (picked.sync) lines.push('Sync set up in its own tab');
+  if (picked.options) {
+    const onOff = (on) => on ? 'on' : 'off';
+    lines.push(`Peek ${onOff(picked.options.peek)}, Little window ` +
+               onOff(picked.options.littleWindow));
+  }
+  if (picked.syncOpened) lines.push('Sync: finish it on the Sync page');
   if (picked.isDefault) lines.push('Alerse is your default browser');
   $('summary').replaceChildren(...lines.map((t) => {
     const li = document.createElement('li');

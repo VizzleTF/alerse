@@ -138,7 +138,7 @@ feature does on it. In short:
   first profile, `Default` (`alerse_space_registry.h`).
 - A Space's pinned items are the folder of its profile's Other Bookmarks marked with
   the meta info `arcomium.space = default`. The folder's title is the Space's name
-  (`alerse_space_folder.h`).
+  (`alerse_space_folder.h`). The command bar shows a bookmark's URL, never this folder path (`look/command-bar-no-bookmark-path.patch`), and the empty bookmarks manager says to pin a tab (`look/bookmarks-empty-pin-hint.patch`).
 - At startup the Space shown last opens (`spaces/start-in-last-space.patch`). A
   second later the other Spaces' windows open hidden in its stack and restore their
   sessions (`alerse::PreloadSpaces`), so the first switch to a Space shows a window
@@ -167,7 +167,7 @@ feature does on it. In short:
   Shift+Cmd+J), an icon per Space (the active one bright), "+" at the
   right. A Space's icon is picked from its menu and stored in its bookmark folder as
   `arcomium.space_icon`, so it syncs; Home is a sun until another is picked. The same
-  menu has Edit Theme Color and Delete Space (after a question; it deletes the
+  menu has Edit Theme Color and Delete Space (after a question whose default button is Cancel; it deletes the
   Space's profile with its tabs, pinned items, logins and history; dimmed for Home,
   which cannot go, as Arc's menu always has it). A Space's own window edits its name,
   icon and color; in another Space's window those items are dimmed. Alt+1 to Alt+9 show the Spaces in the bar's order, Home first;
@@ -635,7 +635,7 @@ Windows' numbers for those:
   show only while the field has text; there is no divider. Every function is
   Chromium's (Enter, Shift+Enter, Esc, the counter, the find pasteboard on macOS,
   which may prefill the field). It fades in from 4 pt above its place and out
-  where it is, on its layer, over the quick token; Chromium's slide by layout is off. A split's two panes share the same rectangle. The insets are set on every
+  where it is, on its layer, over the quick token; Chromium's slide by layout is off. In a split it sits in the searched pane's card (`look/find-bar-split-pane.patch`). A split's two panes share the same rectangle. The insets are set on every
   layout (`look/page-card-insets.patch`): Chromium set its own 8 px ones for a split and
   never took them back, so after the first split a single page sat 8 pt off the sidebar
   with no top margin until restart. Full screen without the sidebar (a page's own full
@@ -807,7 +807,7 @@ Windows' numbers for those:
     glyph drawn as a template image, so the menu tints it, or for a Space with a
     theme in the theme's light shade, as Arc's light blue Work book; an emoji in
     its colors), the shown one checked, and
-    Control+1 to 9 on the first nine. The list is filled each time the menu opens
+    Control+1 to 9 on the first nine. The list is filled each time the menu opens, from the last active Space window (not an Incognito or Little window)
     (`AlerseMenuListDelegate` in `main_menu_builder.mm`, answered by
     `AlerseSpaceSwitcher::GetMenuBarList` through `alerse_menu_bar_hook.h`).
   - **Tabs**: Arc's items only: New Tab..., Pin Tab (Cmd+D, which unpins a pinned tab
@@ -978,13 +978,13 @@ Windows' numbers for those:
   after a crash, "Restore pages?") points at the window when no toolbar or sidebar
   button is there, or when it opens at startup before the window is registered
   (`app_menu_button.cc`; Chromium CHECKs there and quit the browser on every launch
-  after a crash). "Restore pages?" then shows in the middle of the window
+  after a crash). "Restore pages?" then shows in the middle of the window, over an empty Space rather than Chromium's New Tab page (`spaces/crash-start-empty-space.patch`)
   (`look/crash-bubble-in-window.patch`): with its top-right arrow it went under the
   window's bottom edge, outside it. Windows and Linux float the same panel since 0.1.8, Chromium's
   collapsed tab list no longer shows; their window controls and the address stay in
   the top bar while it is hidden, and Ctrl+S toggles it, as in Arc and as Cmd+S on
   macOS (Ctrl+Shift+L, Chromium's own shortcut, still does; Save Page As moves to
-  Ctrl+Shift+S). Off macOS the menu bar's other Arc shortcuts are keys too:
+  Ctrl+Shift+S, which the page's context menu shows, `look/context-menu-save-as-key.patch`). Off macOS the menu bar's other Arc shortcuts are keys too:
   Ctrl+Alt+Right and Ctrl+Alt+Left go to the next and previous Space, Ctrl+Shift+K
   clears Today (`look/arc-shortcuts-off-mac.patch`).
 
@@ -1145,7 +1145,7 @@ opacity), never through layout, a rebuild or a timer used as a frame clock.
 | Token | Duration | Curve (`gfx::Tween`) | Used for |
 |---|---|---|---|
 | instant | 0 ms | none | Hover and selection highlights, pressed states, closing anything that holds the keyboard, the drop indicator's place during a drag |
-| `kQuick` | 90 ms in, 63 ms out | in `LINEAR_OUT_SLOW_IN`, out `FAST_OUT_LINEAR_IN` | Things that appear in place, by opacity alone: the address field's hover buttons, popovers and pickers, Arc tooltips, site controls, the folder popup, the command bar, the copy check mark, the drop indicator, the rows' scroll bar (in; out over 140 ms) |
+| `kQuick` | 90 ms in, 63 ms out | in `LINEAR_OUT_SLOW_IN`, out `FAST_OUT_LINEAR_IN` | Things that appear in place, by opacity alone: the address field's hover buttons, popovers and pickers, Arc tooltips, site controls, the folder popup, the command bar with its rows (one fade), the copy check mark, the drop indicator, the rows' scroll bar (in; out over 140 ms) |
 | `kStandard` | 160 ms, or by distance | `LINEAR_OUT_SLOW_IN` | Movement inside the sidebar: the folder curtain, the mini player rising in, a swipe settling |
 | `kEmphasized` | 240 ms in, 200 ms out (floating sidebar 200 / 160) | `LINEAR_OUT_SLOW_IN` for the rows, `ACCEL_20_DECEL_100` for the sidebar | A Space's rows entering, sidebar show and hide, the floating sidebar |
 
@@ -1336,7 +1336,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
 
 - **Windows**: a 32 px top bar in the frame color, as in Arc for Windows 1.129: back,
   forward and reload, the site centered in a pill between Copy Link and the site
-  controls, Split View and the window buttons. Chromium's pinned toolbar actions are not
+  controls, Split View and the window buttons. A permission request or its "not allowed" chip follows the site controls (`look/top-bar-permission-chip.patch`). Chromium's pinned toolbar actions are not
   there (`look/top-bar-no-pinned-actions.patch`): a download showed Chromium's Downloads
   button in the top bar beside the Space bar's, which the download bubble hangs from.
   The page is an inset card with Arc's rim,
@@ -1468,7 +1468,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   New Window, New Incognito Window, Pin Tab or Unpin Tab (by whether the shown tab is
   pinned), Add Split View (see Split View), New Space, Rename Space…, Edit Theme…, New Folder, Collapse or Expand
   Pinned Tabs (macOS, where the pinned tabs collapse; a Space with pinned items),
-  Settings and View History, and Switch to <Space> for each other Space of the window
+  Find in Page, Settings and View History, and Switch to <Space> for each other Space of the window
   (found by the Space's name, "switch" or "space"). Arc's archive actions (Archive Tab, View Archive, Clear
   Today, which archives) are not there: Alerse has no tab archive (see Left out on
   purpose). A name matches as a whole (3), by its start (2) or when every typed
@@ -1489,7 +1489,7 @@ Arc's Change Icon... and Change Space Icon... open its picker, built after Arc f
   the arrow keys and the location bar's icon treat them as Chromium's own; each has
   its own `chrome://alerse-command/<id>` address only so they are not merged as
   duplicates, never opened; the popup knows them by that address
-  (`searchbox_match.ts`), so Chromium's own pedals stay ordinary rows. Picking one
+  (`searchbox_match.ts`), so Chromium's own pedals stay ordinary rows, with a neutral arrow icon instead of the browser logo, and those that repeat an action (Open Incognito window, Manage settings, View history) are dropped (`look/command-bar-pedals.patch`). Picking one
   first gives the page the keyboard, which closes the command bar (the sidebar does
   so in a task of its own), then, in a later task, runs the command, so a dialog it
   opens (Rename Space…, New Folder) does not take the focus first and leave the
@@ -1599,7 +1599,7 @@ Keyboard Shortcuts in the logo menu and the command bar opens
 `chrome://alerse-shortcuts` (`alerse_shortcuts.h`, `look/keyboard-shortcuts.patch`):
 Alerse's and Arc's everyday commands with their keys. On Windows and Linux,
 Change records the next key with Ctrl, Alt, Shift or the Windows key (a function
-key may stand alone), Remove leaves the command without a key, Reset gives back its
+key may stand alone, and reads F1 to F24 everywhere, `look/function-key-names.patch`; AltGr copies of Alt keys are not listed), Remove leaves the command without a key, Reset gives back its
 own. The choices live in local state (`alerse.shortcuts`, the command's id with its
 key and modifiers), so every Space shares them; `GetAcceleratorList()` applies them,
 so a key given to one command leaves the command that had it, and every window loads
@@ -1625,6 +1625,8 @@ themselves.
 Arc's Split View on Chromium's split tabs (`look/split-view.patch`,
 `alerse_split.h`): two pages side by side in one window, each a tab of the Space.
 The user asked for it back on 2026-11-08 after it had been taken out.
+Chromium's corner chip on each pane (origin and ×) is hidden, as Arc has none
+(`look/split-view-no-mini-toolbar.patch`).
 
 - **Add Split View** is Chromium's `IDC_NEW_SPLIT_TAB` (`chrome::NewSplitTab`): the
   shown tab and a new pane on Chromium's "Choose a tab" page
@@ -1650,7 +1652,8 @@ The user asked for it back on 2026-11-08 after it had been taken out.
   Split View, Close this Split Pane, Separate Page from Split View, Expand Current
   Split, after Force Reload as in Arc); the logo menu's Tabs submenu on Windows and
   Linux (Arc for Windows has no menu bar); New Split in macOS' "+" popover; Add
-  Split View in the command bar ("split", "new split"); Open in Split View in the
+  Split View in the command bar ("split", "new split"), and there the three pane
+  actions while the shown tab is split; Open in Split View in the
   sidebar's tab, pinned item and favorite menus (a pinned item not open opens and
   splits with the shown tab; the shown tab itself adds a split as above). Disabled on
   an empty Space's blank tab and on a page already split.
@@ -1802,7 +1805,7 @@ in Arc.
   front (`target="_blank"`, whatever its site), and a click on a link to another site
   (`PeekThrottle`: a renderer-initiated link navigation with a user gesture, not a form
   post, to another registrable domain on start or after a redirect, as Google's
-  google.com/url, cancelled and shown in Peek). Ctrl+click still opens a tab behind. Esc, Close or a click on the dimmed part closes it; another link replaces its
+  google.com/url, cancelled and shown in Peek). Ctrl+click still opens a tab behind. Esc, Close or a click on the dimmed part closes it at once (the system's window transitions are off); another link replaces its
   page. Open as Tab gives the page to the window's tab strip with its history and
   state. Peek follows the window when it moves or resizes and closes with it.
 - **The Little window** is a small window of its own (560 x 720, centered at the top
@@ -1811,10 +1814,12 @@ in Arc.
   Space (the page's first).
   New Little Window opens one on an empty page with the address focused: Ctrl+Alt+N on
   Windows and Linux (the logo menu has it while the switch is on), Option-Command-N
-  and File > New Little Window on macOS. A link from another app opens in one when no
+  and File > New Little Window (which shows that key) on macOS. A link from another app opens in one when no
   link route matches it and the window it would go to has tabs (a browser starting
-  for links opens every one of them as a tab); the Space's window then stays behind it, as
-  in Arc. Open in <Space> (Ctrl+O, Command-O on a Mac) gives the
+  for links opens every one of them as a tab; DevTools and automation opens stay tabs); the Space's window then stays behind it,
+  where it was among other apps' windows. On macOS activating the app brings its main
+  window forward, so the app's other windows go back below the windows they were behind
+  (`ShowAndActivateAlone` in `alerse_window_mac.mm`); Arc raises its window. Open in <Space> (Ctrl+O, Command-O on a Mac) gives the
   page to the Space's last active window, or opens it in the Space when it has none.
   Another Space from the caret (Ctrl+Alt+O, Command-Option-O) loads the page's address
   there anew, since that Space has its own logins.
@@ -1848,7 +1853,8 @@ onboarding; the code is Alerse's own.
 7. **Sync**: opens the Sync page in a new tab, recommending a server of your own.
 8. **Make Alerse your browser**: the system's default-browser request (Windows opens its
    settings), and whether Alerse already is.
-9. **You are set**: what was picked, and the three things to know: the sidebar, Ctrl+T for
+9. **You are set**: what was picked (Peek and the Little window included; sync only as
+   opened, not as set up), and the three things to know: the sidebar, Ctrl+T for
    the command bar, Ctrl+D to pin, the Alerse menu.
 
 ## Import
@@ -1862,11 +1868,11 @@ the bookmark model on the UI thread. Each node an import adds is marked
 uuid under the profile's own key (`arcomium.import_key`, a local pref): a copy the user
 made (another uuid) and what another device imported (synced, another key) are not
 marked here, so importing again replaces only this profile's imported nodes and keeps
-the rest. `--alerse-demo-arc-dir=DIR` (for demos and tests) reads Arc from DIR and
-lists no other browser, so a recording shows none of the user's own data. Sample data
+the rest. `--alerse-demo-arc-dir=DIR` (for demos and tests) reads Arc from DIR,
+lists no other browser and never asks the Mac Keychain for Arc's key, so a recording shows none of the user's own data. Sample data
 for the site's recordings is in `tools/demo-arc/StorableSidebar.json` (three Spaces; put
-site favicons in `SidebarItemsFaviconCache/`, each a PNG named the MD5 hex of the item
-id). On a Mac the kit's `--fake-home DIR` with that file in
+site favicons in `SidebarItemsFaviconCache/`, PNG data in a file named the MD5 hex of
+the item id with no extension; a `.png` name is not read). On a Mac the kit's `--fake-home DIR` with that file in
 `DIR/Library/Application Support/Arc/` does the same without the switch. The import runs in Home's profile whichever Space the page is open in, and
 Arc's first Space goes to Home's Space folder. Every other Arc Space goes to the Space
 of the same name (any case) that no Arc Space has yet, keeping that Space's icon and
@@ -1919,7 +1925,8 @@ here) from this profile's own import, so such nodes in those folders are replace
 The page:
 
 - lists every source it finds with its bookmark count and an Import button, which
-  becomes Import again after an import; when it finds nothing it says so. Firefox,
+  becomes Import again after an import (Arc's also when a Space already took an Arc
+  Space, as after the welcome page's import); when it finds nothing it says so. Firefox,
   Safari and HTML files go to Chromium's importer (`chrome://settings/importData`)
   through a link on the page;
 - is a regular profile's only: incognito and guest profiles do not get it, as the
@@ -2073,11 +2080,11 @@ sign-in. Alerse signs in to an account of the alerse-sync server instead (scheme
   account's and the next sign-in reuses it. The other devices keep their data, and so
   does the server. **Delete account** (with the
   password) deletes the account and all its chains on the server; every device stops
-  syncing, and each keeps its own data.
+  syncing, and each keeps its own data; their Sync page says the device was removed or the account deleted (the server answers both the same), and Stop syncing clears it.
 
 ### Devices
 
-The page lists the account's devices with their names (the computer's name) and when
+The page lists the account's devices with their names (the computer's name; two with one name also show when each was added) and when
 each was last seen, and removes one with the password. A removed device keeps its own
 copy of the data but gets nothing new; its key cannot join the account again, so it
 signs in anew with the words and the password if it comes back. The account's only
@@ -2105,7 +2112,7 @@ Chromium's history page shows other devices' tabs only to a signed-in Google acc
 Alerse syncs through Chromium's local sync mode, so the page counts that as signed in,
 and tab and history sync as on when they are selected
 (`sync/history-other-devices.patch`): History, "Tabs from other devices" lists each
-device with its tabs, per Space, since each Space syncs on its own.
+device with its tabs, per Space, since each Space syncs on its own; about:blank tabs (a hidden Space's keeper) neither sync nor show (`sync/synced-tabs-no-about-blank.patch`).
 
 ### How often devices sync
 
@@ -2385,7 +2392,7 @@ do not run in it.
   site: Chromium's browser-initiated automatic picture-in-picture
   (`BrowserInitiatedAutomaticPictureInPicture`), enabled by default. Its permission
   defaults to Allow, as in Arc, which also skips Chromium's media engagement check; a
-  site can be blocked in its settings. Chromium triggers it on a tab switch only: a
+  site can be blocked in its settings, and the settings page offers Allow and Block (`media/auto-pip-settings-allow.patch`). Chromium triggers it on a tab switch only: a
   Space switch hides the window and leaves the tab active, and Chromium opens nothing
   for a hidden window (it would on every minimize). So the window stack tells the tabs
   of the Space it hides and of the Space it shows (`media/auto-pip-on-space-switch.patch`,
@@ -2412,6 +2419,7 @@ these changes:
 
 - Vertical tabs on, so the sidebar shows (`defaults/vertical-tabs-by-default.patch`);
   startup continues the last session (see Spaces).
+- Settings names its first sections "You and your profile" and "Services", not "You and Google" and "Google services" (`look/settings-no-google-sections.patch`).
 - No Google unless picked (`defaults/no-google-default.patch`, `alerse_web_store.h`).
   Without a pick in the welcome page, the search engine is DuckDuckGo: Chromium's
   fallback engine was Google, and DuckDuckGo, Brave Search, Startpage, Ecosia and Qwant
@@ -2423,12 +2431,21 @@ these changes:
   from the local favicon cache, or a globe (`defaults/no-search-engine-icon-downloads.patch`).
 - Offer to save passwords is on in a new profile, as in Arc and Chrome
   (`defaults/offer-to-save-passwords.patch`); ungoogled-chromium turned it off.
+- No AI and no dead Google links: the Gemini in Chrome component extension is not loaded
+  (`defaults/no-gemini-extension.patch`), the new tab page has no Web Store tile, whose
+  rewritten address is blocked (`defaults/no-web-store-tile.patch`), and Autofill's
+  Related services keeps only the Password Manager
+  (`look/settings-no-google-related-services.patch`). Alerse's own `chrome://alerse-*`
+  pages show its logo as their favicon (`look/alerse-pages-favicon.patch`), and the
+  session restore infobar a history icon, not Chromium's logo
+  (`look/session-restore-infobar-icon.patch`).
 - The Chrome Web Store is a switch, Use Chrome Web Store, in the Extensions menu (the
   logo menu's submenu on Windows, the menu bar on macOS) and the welcome page
   (`alerse.web_store` in local state). Off, Alerse sends no update check to the store,
   so store extensions do not update and synced ones do not install; extensions with
-  their own update URL still update. A new install starts with it off; an install from
-  before 0.1.20 (no first-run flag) starts with it on, as its extensions update from
+  their own update URL still update. A new install starts with it off, also a new user
+  data dir started with `--no-first-run`; an install from before 0.1.20 (no first-run
+  flag and Spaces in `profile.info_cache`) starts with it on, as its extensions update from
   the store. Adding an extension from the store's page is choosing the store and turns
   the switch on; turning it on checks for updates at once.
 - With the switch on, the Chrome Web Store installs and updates extensions, so they sync

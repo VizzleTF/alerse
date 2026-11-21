@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -425,6 +425,12 @@
+         .LoadDataResourceBytesForScale(IDR_SETTINGS_FAVICON, scale_factor);
+   }
+ 
++  // Alerse: its own pages show its logo.
++  if (page_url.host().starts_with("alerse-")) {
++    return ui::ResourceBundle::GetSharedInstance()
++        .LoadDataResourceBytesForScale(IDR_PRODUCT_LOGO_16, scale_factor);
++  }
++
+   if (page_url.host() == chrome::kChromeUIDownloadsHost) {
+     // Android doesn't have download_ui.cc, so load the resource directly.
+     return ui::ResourceBundle::GetSharedInstance()

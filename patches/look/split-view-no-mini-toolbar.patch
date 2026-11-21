@@ -1,0 +1,24 @@
+--- a/chrome/browser/ui/views/frame/contents_container_outline.cc
++++ b/chrome/browser/ui/views/frame/contents_container_outline.cc
+@@ -140,7 +140,9 @@
+ 
+   // Get the mini toolbar size if it's visible.
+   gfx::SizeF mini_toolbar_size;
+-  const bool hide_mini_toolbar = is_active_ && is_highlighted_;
++  // Alerse: hidden in every split (contents_container_view.cc), no notch.
++  const bool hide_mini_toolbar =
++      (is_active_ && is_highlighted_) || !mini_toolbar_->GetVisible();
+   if (!hide_mini_toolbar) {
+     CHECK(mini_toolbar_.get());
+     mini_toolbar_size = gfx::SizeF(mini_toolbar_->size());
+--- a/chrome/browser/ui/views/frame/contents_container_view.cc
++++ b/chrome/browser/ui/views/frame/contents_container_view.cc
+@@ -236,6 +236,8 @@
+     // Mini toolbar should only be visible for the inactive contents
+     // container view or both depending on configuration.
+     mini_toolbar_->UpdateState(is_active, is_highlighted);
++    // Alerse: Arc's split panes have no origin and close chip in the corner.
++    mini_toolbar_->SetVisible(false);
+     if (capture_contents_border_view_) {
+       capture_contents_border_view_->SetIsInSplit(true);
+     }

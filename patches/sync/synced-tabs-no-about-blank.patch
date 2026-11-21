@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/sync/session_sync_service_factory.cc b/chrome/browser/sync/session_sync_service_factory.cc
+--- a/chrome/browser/sync/session_sync_service_factory.cc
++++ b/chrome/browser/sync/session_sync_service_factory.cc
+@@ -38,7 +38,10 @@
+ namespace {
+ 
+ bool ShouldSyncURLImpl(const GURL& url) {
+-  return url.is_valid() && !content::HasWebUIScheme(url) &&
++  // Alerse: about:blank, such as the tab keeping a hidden Space's window,
++  // means nothing on another device.
++  return url.is_valid() && !url.IsAboutBlank() &&
++         !content::HasWebUIScheme(url) &&
+          !url.SchemeIs(chrome::kChromeNativeScheme) && !url.SchemeIsFile() &&
+          !url.SchemeIs(dom_distiller::kDomDistillerScheme);
+ }
+diff --git a/chrome/browser/ui/webui/history/foreign_session_handler.cc b/chrome/browser/ui/webui/history/foreign_session_handler.cc
+--- a/chrome/browser/ui/webui/history/foreign_session_handler.cc
++++ b/chrome/browser/ui/webui/history/foreign_session_handler.cc
+@@ -68,7 +68,10 @@
+   const ::sessions::SerializedNavigationEntry& current_navigation =
+       tab.navigations.at(selected_index);
+   GURL tab_url = current_navigation.virtual_url();
+-  if (!tab_url.is_valid() || tab_url == chrome::ChromeUINewTabURLAsGURL()) {
++  // Alerse: devices that still send about:blank tabs (a hidden Space's
++  // keeper) list nothing for them.
++  if (!tab_url.is_valid() || tab_url.IsAboutBlank() ||
++      tab_url == chrome::ChromeUINewTabURLAsGURL()) {
+     return nullptr;
+   }
+ 

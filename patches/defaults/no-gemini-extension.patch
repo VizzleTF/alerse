@@ -1,0 +1,15 @@
+diff --git a/chrome/browser/extensions/component_loader.cc b/chrome/browser/extensions/component_loader.cc
+--- a/chrome/browser/extensions/component_loader.cc
++++ b/chrome/browser/extensions/component_loader.cc
+@@ -560,10 +560,7 @@
+ }
+ 
+ void ComponentLoader::AddGlicExtension() {
+-  if (IsApiGlicPrivateEnabled()) {
+-    Add(IDR_GLIC_EXTENSION_MANIFEST,
+-        base::FilePath(FILE_PATH_LITERAL("glic_extension")));
+-  }
++  // Alerse: no AI; Gemini in Chrome is not loaded.
+ }
+ 
+ void ComponentLoader::AddContextualTasksExtension() {

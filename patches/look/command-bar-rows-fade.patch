@@ -1,0 +1,35 @@
+--- a/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_popup_presenter_base.cc
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_presenter_delegate.h"
+ #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_content.h"
+ #include "chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.h"
++#include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
+ #include "chrome/browser/ui/views/theme_copying_widget.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
+ #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_web_contents_helper.h"
+@@ -205,12 +206,24 @@
+ void OmniboxPopupPresenterBase::ShowWidget(base::TimeTicks show_request_time) {
+   is_open_ = true;
+   OnWidgetPresentedChanged(false);
++  // Alerse: the rows fade in with the command bar's input, as one panel.
++  ui::Layer* fade_layer = widget_->GetLayer();
++  if (fade_layer) {
++    fade_layer->SetOpacity(0.0f);
++  }
+   if (ShouldPreserveRequestedFocus() &&
+       (widget_->IsActive() || focus_requested_)) {
+     widget_->Show();
+   } else {
+     widget_->ShowInactive();
+   }
++  if (fade_layer) {
++    views::AnimationBuilder()
++        .SetPreemptionStrategy(alerse::motion::kRetarget)
++        .Once()
++        .SetDuration(alerse::motion::Fade(alerse::motion::kQuick))
++        .SetOpacity(fade_layer, 1.0f, alerse::motion::kEnter);
++  }
+   // If the derived class requests hiding for the initial layout pass, make the
+   // widget transparent until we receive a valid content height.
+   if (ShouldHideForInitialLayout() && content_height_ == 1) {

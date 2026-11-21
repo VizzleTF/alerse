@@ -294,6 +294,11 @@ class AppMenu : public ui::SimpleMenuModel::Delegate {
   bool GetAcceleratorForCommandId(int command_id,
                                   ui::Accelerator* accelerator) const override {
     BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser_);
+    if (command_id == kNextSpace) {
+      command_id = IDC_ALERSE_NEXT_SPACE;
+    } else if (command_id == kPreviousSpace) {
+      command_id = IDC_ALERSE_PREVIOUS_SPACE;
+    }
     return view && view->GetAccelerator(command_id, accelerator);
   }
 

@@ -1,0 +1,16 @@
+--- a/components/omnibox/browser/titled_url_match_utils.cc
++++ b/components/omnibox/browser/titled_url_match_utils.cc
+@@ -79,10 +79,9 @@
+   const std::u16string formatted_url = url_formatter::FormatUrl(
+       url, format_types, base::UnescapeRule::SPACES, nullptr, nullptr, nullptr);
+ 
+-  // Display the URL only if the input matches the URL but not the path.
+-  // Otherwise, display the path, even if the input matches both or neither.
+-  bool show_path = titled_url_match.has_ancestor_match ||
+-                   titled_url_match.url_match_positions.empty();
++  // Alerse: bookmark folders are where Spaces keep their pinned items, an
++  // internal path, so a match always shows its URL.
++  bool show_path = false;
+   match.contents = show_path ? path : formatted_url;
+   // The path can become stale (when the bookmark is moved). So persist the URL
+   // instead when creating shortcuts.

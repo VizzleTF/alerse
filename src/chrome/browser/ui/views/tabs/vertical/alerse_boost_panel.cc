@@ -34,6 +34,7 @@ namespace alerse {
 namespace {
 
 constexpr int kWidth = 340;
+constexpr int kMinHeight = 240;
 constexpr int kMaxHeight = 640;
 constexpr int kInset = 12;
 
@@ -53,7 +54,9 @@ class BoostBubble : public views::BubbleDialogDelegate {
  public:
   explicit BoostBubble(views::View* contents_area)
       : views::BubbleDialogDelegate(contents_area,
-                                    views::BubbleBorder::TOP_RIGHT) {}
+                                    views::BubbleBorder::TOP_RIGHT,
+                                    views::BubbleBorder::DIALOG_SHADOW,
+                                    /*autosize=*/true) {}
 
   // views::BubbleDialogDelegate: the panel's top right corner sits inside
   // the page's, as Arc's editor does.
@@ -87,10 +90,13 @@ void ShowBoostPanel(BrowserWindowInterface* browser) {
   }
 
   views::View* area = browser_view->contents_container();
-  const int height =
-      std::clamp(area->height() - 2 * kInset, 240, kMaxHeight);
+  const int max_height =
+      std::clamp(area->height() - 2 * kInset, kMinHeight, kMaxHeight);
   auto web_view = std::make_unique<views::WebView>(browser->GetProfile());
-  web_view->SetPreferredSize(gfx::Size(kWidth, height));
+  // the panel is as tall as its content, up to the page's height
+  web_view->SetPreferredSize(gfx::Size(kWidth, kMinHeight));
+  web_view->EnableSizingFromWebContents(gfx::Size(kWidth, kMinHeight),
+                                        gfx::Size(kWidth, max_height));
   web_view->LoadInitialURL(GURL("chrome://alerse-boost/?tab=" +
                                 base::NumberToString(tab_id)));
 

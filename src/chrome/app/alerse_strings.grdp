@@ -10,7 +10,7 @@
       Clear
     </message>
     <message name="IDS_ALERSE_CLOSE_TAB" desc="Tooltip and menu item: close the tab of a sidebar row.">
-      Close tab
+      Close Tab
     </message>
     <message name="IDS_ALERSE_CLOSE_TAB_BUTTON" desc="Tooltip of the button on a hovered sidebar row that closes its tab (a cross on a tab, a minus on a pinned tab, whose pinned item stays).">
       Close Tab
@@ -195,6 +195,9 @@
     </message>
     <message name="IDS_ALERSE_MENU_BAR_PRINT" desc="macOS menu bar, File menu: print the page, as Arc names it.">
       Print
+    </message>
+    <message name="IDS_ALERSE_MENU_BAR_SETTINGS" desc="macOS menu bar, app menu: open the settings, as macOS titles the item.">
+      Settings…
     </message>
     <message name="IDS_ALERSE_MENU_GO_BACK" desc="macOS menu bar, Archive menu: go back in the tab's history, as Arc names it.">
       Go Back

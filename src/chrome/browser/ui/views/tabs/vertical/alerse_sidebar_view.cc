@@ -5366,6 +5366,10 @@ void AlerseSidebarView::ShowContextMenuForViewImpl(
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     add_split(tab);
     menu_model_->AddItem(kDuplicate, l10n_util::GetStringUTF16(IDS_ALERSE_DUPLICATE));
+#if !BUILDFLAG(IS_MAC)
+    menu_model_->AddItem(kAddFavorite,
+                         l10n_util::GetStringUTF16(IDS_ALERSE_ADD_TO_FAVORITES));
+#endif
     add_move_to();
     menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_model_->AddItem(kRemove, l10n_util::GetStringUTF16(IDS_ALERSE_UNPIN));

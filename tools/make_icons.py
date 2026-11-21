@@ -123,6 +123,10 @@ def main():
     for scale, factor in (('default_100_percent', 1), ('default_200_percent', 2)):
         for size in (16, 32):
             save(f'{THEME}/{scale}/chromium/product_logo_{size}.png', tile(size * factor))
+    # chrome://version shows this logo, for light and dark pages alike
+    for scale, factor in (('default_100_percent', 1), ('default_200_percent', 2)):
+        for name in ('product_logo.png', 'product_logo_white.png'):
+            save(f'components/resources/{scale}/chromium/{name}', tile(32 * factor))
     save(f'{THEME}/chromium/win/tiles/Logo.png', tile(600))
     save(f'{THEME}/chromium/win/tiles/SmallLogo.png', tile(176))
     for name in ('chromium.ico', 'app_list.ico'):

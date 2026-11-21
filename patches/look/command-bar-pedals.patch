@@ -1,0 +1,31 @@
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -222,8 +222,9 @@
+     "//resources/cr_components/searchbox/icons/notes_spark.svg";
+ constexpr char kPageIconResourceName[] =
+     "//resources/cr_components/searchbox/icons/page_cr23.svg";
++// Alerse: a neutral action icon, not the browser's logo.
+ constexpr char kPedalsIconResourceName[] =
+-    "//resources/cr_components/searchbox/icons/chrome_product_cr23.svg";
++    "//resources/cr_components/searchbox/icons/arrow_forward.svg";
+ constexpr char kSearchIconResourceName[] =
+     "//resources/cr_components/searchbox/icons/search_cr23.svg";
+ constexpr char kSearchOldIconResourceName[] =
+diff --git a/components/omnibox/browser/autocomplete_result.cc b/components/omnibox/browser/autocomplete_result.cc
+--- a/components/omnibox/browser/autocomplete_result.cc
++++ b/components/omnibox/browser/autocomplete_result.cc
+@@ -1036,6 +1036,13 @@
+ 
+     OmniboxPedal* const pedal =
+         provider->FindReadyPedalMatch(input, match.contents);
++    // Alerse: the command bar has its own New Incognito Window, Settings and
++    // View History rows.
++    if (pedal && (pedal->PedalId() == OmniboxPedalId::LAUNCH_INCOGNITO ||
++                  pedal->PedalId() == OmniboxPedalId::MANAGE_CHROME_SETTINGS ||
++                  pedal->PedalId() == OmniboxPedalId::VIEW_CHROME_HISTORY)) {
++      continue;
++    }
+     if (pedal) {
+       const auto result = pedals_found.insert(pedal);
+       if (result.second) {

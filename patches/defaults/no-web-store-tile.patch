@@ -1,0 +1,20 @@
+diff --git a/chrome/browser/history/top_sites_factory.cc b/chrome/browser/history/top_sites_factory.cc
+--- a/chrome/browser/history/top_sites_factory.cc
++++ b/chrome/browser/history/top_sites_factory.cc
+@@ -65,14 +65,12 @@
+     history::PrepopulatedPageList* prepopulated_pages) {
+ #if !BUILDFLAG(IS_ANDROID)
+   CHECK(prepopulated_pages, base::NotFatalUntil::M161);
+-  PrefService* pref_service = profile->GetPrefs();
+-  bool hide_web_store_icon =
+-      pref_service->GetBoolean(policy::policy_prefs::kHideWebStoreIcon);
+ 
+   prepopulated_pages->reserve(std::size(kRawPrepopulatedPages));
+   for (size_t i = 0; i < std::size(kRawPrepopulatedPages); ++i) {
+     const RawPrepopulatedPage& page = kRawPrepopulatedPages[i];
+-    if (hide_web_store_icon && page.url_id == IDS_WEBSTORE_URL)
++    // Alerse: no Web Store tile; its rewritten address is blocked.
++    if (page.url_id == IDS_WEBSTORE_URL)
+       continue;
+ 
+     prepopulated_pages->push_back(history::PrepopulatedPage(

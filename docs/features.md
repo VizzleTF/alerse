@@ -21,7 +21,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Feature | Windows | macOS | Notes |
 |---|---|---|---|
 | Spaces, each its own profile (ADR-0001) | checked 0.1.12 | checked | Spaces carried over from 0.1.11 on the PC |
-| Switch Spaces: Ctrl+1..9, Space bar, swipe | checked | checked | Swipe on Windows not checked; one unreproduced report of a swipe landing back (backlog) |
+| Switch Spaces: Alt+1..9 on Windows (Ctrl+1..9 stay select-tab), Ctrl+1..9 on macOS, Space bar, swipe | checked | checked | Swipe on Windows not checked; one unreproduced report of a swipe landing back (backlog) |
 | Space color, icon and theme picker | built | checked | |
 | Favorites, pinned tree, folders, folder popup | partly | checked | Windows: pinned items checked in 0.1.13, the rest not recorded |
 | Same favorites in every Space, with a switch | partly 0.1.19 | checked 0.1.19 | Both: a Space opened later takes them, a removal reaches the other Space. Windows: an add, rename, move and removal reach the other Space either way and survive a restart; the switch checked on macOS only (the menu needs the real cursor on Windows) |
@@ -63,7 +63,7 @@ the features below that came after it ([Platforms](design.md#platforms)).
 | Boosts: color, dark, font, size, zap, own CSS | checked 0.1.16 | checked 0.1.16 | Font buttons fixed in 0.1.17; Dark leaves the body's box visible on a black canvas |
 | Boosts on/off switch, chrome://alerse-boost list | checked 0.1.16 | partly | The panel stayed over another tab until 0.1.17; now it closes (checked on both) |
 | Peek (Shift+click, links from pinned tabs) | checked 0.1.16 | checked | Shift+click, a pinned tab's link and Open as Tab checked on Windows; the dimmed page around it seen on macOS |
-| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raises it, as Arc does. A browser started with several addresses put all but the first in Little windows until 0.1.17 |
+| Little window for links from other apps | checked 0.1.16 | checked 0.1.16 | Windows: the Space's window stays behind (0.1.16); macOS raised it, as Arc does, until the Space's windows were sent back where they were (not checked yet). A browser started with several addresses put all but the first in Little windows until 0.1.17 |
 | Open in <Space>, arrow to other Spaces, Ctrl/Cmd+O, Ctrl/Cmd+Alt+O | partly | checked 0.1.16 | Windows: button and Ctrl+O checked; the arrow's menu not checked |
 
 ## Sync, import, updates

@@ -805,6 +805,14 @@ void AlerseAddressBar::OpenCommandBar(bool new_tab) {
     return;
   }
   location_bar->SetAlerseNewTab(new_tab);
+  // Opened before the focus moves, not in the task focus posts: rows asked
+  // for on focus would show for a frame where the field was.
+  if (!editing_) {
+    StartEditing(location_bar);
+    if (editing_) {
+      return;
+    }
+  }
   // Focus opens the command bar (UpdateEditing).
   location_bar->FocusLocation(/*is_user_initiated=*/true,
                               /*clear_focus_if_failed=*/false);

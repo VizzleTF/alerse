@@ -1,0 +1,13 @@
+diff --git a/chrome/browser/ui/cocoa/main_menu_builder.mm b/chrome/browser/ui/cocoa/main_menu_builder.mm
+--- a/chrome/browser/ui/cocoa/main_menu_builder.mm
++++ b/chrome/browser/ui/cocoa/main_menu_builder.mm
+@@ -244,6 +244,9 @@
+               // Alerse: Arc's New Little Arc Window.
+               Item(IDS_ALERSE_NEW_LITTLE_WINDOW)
+                   .command_id(IDC_ALERSE_NEW_LITTLE_WINDOW)
++                  // Alerse: Arc's key, also in the global key table.
++                  .key_equivalent(@"n", NSEventModifierFlagCommand |
++                                            NSEventModifierFlagOption)
+                   .remove_if(is_pwa),
+               // Alerse: hidden, as in Arc; the app controller shows it only
+               // when a policy's Isolated Mode replaces Incognito.

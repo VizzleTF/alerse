@@ -1,0 +1,22 @@
+diff --git a/ui/base/accelerators/accelerator.cc b/ui/base/accelerators/accelerator.cc
+--- a/ui/base/accelerators/accelerator.cc
++++ b/ui/base/accelerators/accelerator.cc
+@@ -13,6 +13,7 @@
+ #include "base/check_op.h"
+ #include "base/i18n/rtl.h"
+ #include "base/notreached.h"
++#include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+@@ -387,6 +388,10 @@
+       string_id = IDS_APP_MEDIA_STOP_KEY;
+       break;
+     default:
++      // Alerse: name every function key; Windows has no character for most.
++      if (key_code_ >= VKEY_F1 && key_code_ <= VKEY_F24) {
++        return u"F" + base::NumberToString16(key_code_ - VKEY_F1 + 1);
++      }
+       break;
+   }
+   return string_id ? l10n_util::GetStringUTF16(string_id) : std::u16string();

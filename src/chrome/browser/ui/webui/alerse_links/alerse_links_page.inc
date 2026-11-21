@@ -38,10 +38,10 @@ inline constexpr char kAlerseLinksHtml[] = R"HTML(<!doctype html>
     <label class="switch">
       <input id="little-window" type="checkbox">
       <span><strong>Little window</strong>
-        <span class="note">New Little Window (Ctrl+Alt+N, or Option-Command-N
-          on a Mac) opens a small window for a quick look, and links from
-          other apps that no route below takes open in one. Open in your
-          Space (Ctrl+O) moves its page to a tab; the arrow next to it picks
+        <span class="note" id="little-note">New Little Window (Ctrl+Alt+N)
+          opens a small window for a quick look, and links from other apps
+          that no route below takes open in one. Open in your Space (Ctrl+O)
+          moves its page to a tab; the arrow next to it picks
           another Space.</span></span>
     </label>
   </section>
@@ -103,6 +103,12 @@ inline constexpr char kAlerseLinksJs[] = R"JS(
 import {sendWithPromise} from 'chrome://resources/js/cr.js';
 
 const $ = (id) => document.getElementById(id);
+
+// The shortcuts in the platform's own keys.
+if (navigator.userAgent.includes('Mac OS')) {
+  $('little-note').textContent = $('little-note').textContent
+      .replace('Ctrl+Alt+N', '⌥⌘N').replaceAll('Ctrl+', '⌘');
+}
 
 function render(state) {
   $('peek').checked = state.options.peek;

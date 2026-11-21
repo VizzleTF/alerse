@@ -28,6 +28,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/common/pref_names.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -65,7 +66,11 @@ inline void InitWebStore(PrefService* local_state,
                          bool first_run,
                          base::RepeatingClosure turned_on) {
   if (!local_state->HasPrefPath(kWebStorePref)) {
-    local_state->SetBoolean(kWebStorePref, !first_run);
+    // an install from before 0.1.20 already has Spaces; --no-first-run
+    // alone does not make a new user data dir an old install
+    local_state->SetBoolean(
+        kWebStorePref,
+        !first_run && local_state->HasPrefPath(prefs::kProfileAttributes));
   }
   extension_urls::SetAlerseWebStoreOn(local_state->GetBoolean(kWebStorePref));
   extension_urls::SetAlerseWebStoreObserver(base::BindRepeating(

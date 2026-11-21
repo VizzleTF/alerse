@@ -1,0 +1,16 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -462,10 +462,8 @@
+     return ManagementUI::GetFaviconResourceBytes(scale_factor);
+   }
+ 
+-  // Tab Search hosts the split tab NTP and so leveraging the NTP favicon.
+-  if (page_url.host() == chrome::kChromeUITabSearchHost) {
+-    return NewTabPageUI::GetFaviconResourceBytes(scale_factor);
+-  }
++  // Alerse: the split tab chooser ("Choose a tab") keeps the default favicon,
++  // not the New Tab page's browser logo.
+ 
+ #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+     BUILDFLAG(IS_CHROMEOS)

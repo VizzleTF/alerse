@@ -107,6 +107,20 @@ base::FilePath FindSpaceOfArcSpace(const std::string& arc_space) {
   return base::FilePath();
 }
 
+// Whether a Space took an Arc Space in an earlier import.
+bool ArcImportedBefore() {
+  for (const ProfileAttributesEntry* entry :
+       g_browser_process->profile_manager()
+           ->GetProfileAttributesStorage()
+           .GetAllProfilesAttributes()) {
+    if (!entry->IsOmitted() &&
+        !entry->GetAlerseValue(alerse::kSpaceEntryArcKey).empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // How a Space takes an imported Arc Space's folder.
 enum class Take {
   // A Space made for it: the folder's icon and color too.
@@ -368,18 +382,18 @@ void AlerseImportHandler::HandleGetSources(const base::ListValue& args) {
 void AlerseImportHandler::OnSourcesFound(const std::string& callback_id,
                                            std::vector<Source> sources) {
   sources_ = std::move(sources);
+  const bool arc_imported = ArcImportedBefore();
   base::ListValue list;
   for (const Source& source : sources_) {
-    list.Append(
-        base::DictValue()
-            .Set("id", source.id)
-            .Set("kind", source.kind == alerse_import::SourceKind::kArc
-                             ? "arc"
-                             : "chromium")
-            .Set("browser", source.browser)
-            .Set("profile", source.profile)
-            .Set("links", source.links)
-            .Set("spaces", source.spaces));
+    const bool arc = source.kind == alerse_import::SourceKind::kArc;
+    list.Append(base::DictValue()
+                    .Set("id", source.id)
+                    .Set("kind", arc ? "arc" : "chromium")
+                    .Set("browser", source.browser)
+                    .Set("profile", source.profile)
+                    .Set("links", source.links)
+                    .Set("spaces", source.spaces)
+                    .Set("imported", arc && arc_imported));
   }
   ResolveJavascriptCallback(base::Value(callback_id), list);
 }

@@ -80,6 +80,13 @@ const Command kCommands[] = {
      IDS_ALERSE_UNPIN_TAB, &kKeepIcon, &kKeepOffIcon, u"pin"},
     {IDC_NEW_SPLIT_TAB, Kind::kBrowser, IDS_ALERSE_ADD_SPLIT_VIEW, 0,
      &kSplitSceneIcon, nullptr, u"new split"},
+    // Enabled only while the shown tab is in a split.
+    {IDC_ALERSE_CLOSE_SPLIT_PANE, Kind::kBrowser, IDS_ALERSE_CLOSE_SPLIT_PANE,
+     0, &vector_icons::kCloseIcon, nullptr, u"split"},
+    {IDC_ALERSE_SEPARATE_SPLIT, Kind::kBrowser, IDS_ALERSE_SEPARATE_SPLIT, 0,
+     &kSplitSceneIcon, nullptr, u"split"},
+    {IDC_ALERSE_EXPAND_SPLIT, Kind::kBrowser, IDS_ALERSE_EXPAND_SPLIT, 0,
+     &kSplitSceneIcon, nullptr, u"split"},
     {IDC_ALERSE_NEW_SPACE, Kind::kSidebar, IDS_ALERSE_NEW_SPACE, 0,
      &vector_icons::kAdd2Icon, nullptr, u""},
     {IDC_ALERSE_RENAME_SPACE, Kind::kSidebar, IDS_ALERSE_RENAME_SPACE, 0,
@@ -96,6 +103,8 @@ const Command kCommands[] = {
     // Listed only while it can run: a shown tab with a row, text selected.
     {IDC_ALERSE_REVEAL_TAB, Kind::kSidebar, IDS_ALERSE_MENU_REVEAL_TAB, 0,
      &vector_icons::kSearchIcon, nullptr, u"show find"},
+    {IDC_FIND, Kind::kBrowser, IDS_ALERSE_FIND_IN_PAGE, 0, &kFindInPageIcon,
+     nullptr, u"search text"},
     {IDC_ALERSE_COPY_URL_QUOTE, Kind::kSidebar, IDS_ALERSE_COPY_URL_QUOTE,
      0, &vector_icons::kContentCopyIcon, nullptr, u"link selection"},
     {IDC_ALERSE_BOOST_SITE, Kind::kBrowser, IDS_ALERSE_BOOST_SITE, 0,

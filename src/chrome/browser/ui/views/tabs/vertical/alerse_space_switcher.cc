@@ -78,6 +78,8 @@
 #include "chrome/browser/ui/views/tabs/vertical/alerse_sidebar_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/bookmarks/browser/bookmark_utils.h"
+#include "components/constrained_window/constrained_window_views.h"
+#include "ui/base/models/dialog_model.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
@@ -1936,14 +1938,26 @@ void AlerseSpaceSwitcher::ConfirmDeleteMenuSpace() {
       name = space.name;
     }
   }
-  chrome::ShowQuestionMessageBoxAsync(
-      GetWidget()->GetNativeWindow(),
-      l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE_TITLE),
-      name.empty()
-          ? l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY)
-          : l10n_util::GetStringFUTF16(IDS_ALERSE_DELETE_SPACE_BODY, name),
-      base::BindOnce(&AlerseSpaceSwitcher::DeleteSpace,
-                     weak_factory_.GetWeakPtr(), menu_space_));
+  // cancel is the default button: enter must not delete a whole profile
+  constrained_window::ShowBrowserModal(
+      ui::DialogModel::Builder()
+          .SetTitle(l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE_TITLE))
+          .AddParagraph(ui::DialogModelLabel(
+              name.empty()
+                  ? l10n_util::GetStringUTF16(
+                        IDS_ALERSE_DELETE_UNNAMED_SPACE_BODY)
+                  : l10n_util::GetStringFUTF16(IDS_ALERSE_DELETE_SPACE_BODY,
+                                               name)))
+          .AddOkButton(
+              base::BindOnce(&AlerseSpaceSwitcher::DeleteSpace,
+                             weak_factory_.GetWeakPtr(), menu_space_,
+                             chrome::MESSAGE_BOX_RESULT_YES),
+              ui::DialogModel::Button::Params().SetLabel(
+                  l10n_util::GetStringUTF16(IDS_ALERSE_DELETE_SPACE)))
+          .AddCancelButton(base::DoNothing())
+          .OverrideDefaultButton(ui::mojom::DialogButton::kCancel)
+          .Build(),
+      GetWidget()->GetNativeWindow());
 }
 
 void AlerseSpaceSwitcher::DeleteSpace(const std::string& space,

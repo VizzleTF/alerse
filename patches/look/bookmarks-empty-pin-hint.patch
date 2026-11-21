@@ -1,0 +1,11 @@
+--- a/chrome/app/bookmarks_strings.grdp
++++ b/chrome/app/bookmarks_strings.grdp
+@@ -416,7 +416,7 @@
+     Clear search
+   </message>
+   <message name="IDS_BOOKMARK_MANAGER_EMPTY_LIST" desc="The message shown when the user has no bookmarks added. 'Star' refers to the icon in the omnibox for adding to bookmarks.">
+-    To bookmark pages, click the star in the address bar
++    To bookmark a page, pin its tab
+   </message>
+    <message name="IDS_BOOKMARK_MANAGER_EMPTY_UNMODIFIABLE_LIST" desc="The message shown when an unmodifiable bookmark folder is empty.">
+     This folder is empty

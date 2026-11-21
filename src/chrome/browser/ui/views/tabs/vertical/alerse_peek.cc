@@ -35,6 +35,10 @@
 #include "chrome/browser/ui/tabs/alerse_window_stack.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/tabs/vertical/alerse_motion.h"
+#include "build/build_config.h"
+#if BUILDFLAG(IS_MAC)
+#include "chrome/browser/ui/views/tabs/vertical/alerse_window_mac.h"
+#endif
 #include "chrome/grit/generated_resources.h"
 #include "components/input/native_web_keyboard_event.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
@@ -566,6 +570,9 @@ class PeekHost : public views::WidgetDelegate, public views::WidgetObserver {
     params.bounds = browser_view->contents_container()->GetBoundsInScreen();
     params.name = "AlersePeek";
     widget_->Init(std::move(params));
+    // Closing is instant and opening is PlayShow alone: no system fade and
+    // shrink of the window on top (Windows' DWM transition).
+    widget_->SetVisibilityChangedAnimationsEnabled(false);
     own_observation_.Observe(widget_.get());
     parent_observation_.Observe(browser_view->GetWidget());
 
@@ -623,8 +630,13 @@ class PeekHost : public views::WidgetDelegate, public views::WidgetObserver {
           ui::Accelerator(ui::VKEY_O, flags),
           ui::AcceleratorManager::kNormalPriority, accelerator_target_.get());
     }
+#if BUILDFLAG(IS_MAC)
+    // The Space's window stays where it was, as on Windows.
+    ShowAndActivateAlone(widget_.get());
+#else
     widget_->Show();
     widget_->Activate();
+#endif
   }
 
   bool OnLittleWindowKey(const ui::Accelerator& accelerator) {

@@ -1,0 +1,19 @@
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -1249,8 +1249,14 @@
+   // platform, as Arc's pill does, never under the location bar.
+ 
+   // Alerse: inside the page card: the find bar started above the card's top
+-  // edge, over the frame around it.
+-  contents_bounds.Inset(multi_contents_view_->alerse_page_insets());
++  // edge, over the frame around it. In a split, the searched pane's card.
++  if (multi_contents_view_->IsInSplitView()) {
++    const views::View* pane =
++        multi_contents_view_->GetActiveContentsContainerView();
++    contents_bounds = pane->ConvertRectToWidget(pane->GetLocalBounds());
++  } else {
++    contents_bounds.Inset(multi_contents_view_->alerse_page_insets());
++  }
+   // Alerse: Arc's find pill keeps 10 pt from the card's top and right edges;
+   // the scrollbar is an overlay and needs no room.
+   contents_bounds.Inset(gfx::Insets::TLBR(10, 0, 0, 10));

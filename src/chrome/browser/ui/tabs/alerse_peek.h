@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/tabs/alerse_link_routes.h"
 #include "chrome/browser/ui/tabs/alerse_spaces.h"
+#include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
@@ -122,10 +123,13 @@ inline bool OpenLinkInPeek(const NavigateParams& params) {
 // Navigate()'s hook after RouteLinkToSpace(): true if a Little window took a
 // link from another app. A link a route names stays a tab of its Space, and
 // a window with no tab yet (the browser starting for the link) takes it.
+// Only the startup tab path (always ADD_FORCE_INDEX) brings links from other
+// apps; DevTools' Target.createTarget must keep getting a real tab.
 inline bool OpenExternalLinkInLittleWindow(const NavigateParams& params) {
   if (!LittleWindowEnabled() || OpeningStartupTabs() || !params.browser ||
       params.source_contents ||
       params.opener ||
+      !(params.tabstrip_add_types & AddTabTypes::ADD_FORCE_INDEX) ||
       !ui::PageTransitionCoreTypeIs(params.transition,
                                     ui::PAGE_TRANSITION_AUTO_TOPLEVEL) ||
       (params.disposition != WindowOpenDisposition::NEW_FOREGROUND_TAB &&

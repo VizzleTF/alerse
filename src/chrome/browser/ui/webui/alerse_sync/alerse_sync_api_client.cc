@@ -468,7 +468,8 @@ void AlerseSyncApiClient::ListDevices(const GURL& server,
                std::move(done).Run(std::nullopt,
                                    response.status == net::HTTP_UNAUTHORIZED
                                        ? "This device was removed from the "
-                                         "account."
+                                         "account, or the account was "
+                                         "deleted."
                                        : ErrorMessage(response));
                return;
              }

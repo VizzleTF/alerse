@@ -24,6 +24,12 @@ void RemoveWindowShadow(views::Widget* widget);
 // Arc's vibrant pickers show; the panel's half-translucent paint goes over it.
 void BlurBehindPopover(views::Widget* popover);
 
+// Shows and activates `window` alone: activating the app (Launch Services
+// does for a link from another app, Widget::Activate() does too) brings its
+// main window forward with it, so the app's other windows go back below the
+// other apps' windows they were behind.
+void ShowAndActivateAlone(views::Widget* window);
+
 }  // namespace alerse
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ALERSE_WINDOW_MAC_H_
