@@ -48,13 +48,14 @@ takes hours, not minutes ([patching.md](patching.md#incremental-windows-builds))
 
 ## 3. macOS (alerse-mac)
 
-macOS is built on the build Mac from a Chromium 156 tree kept by hand
-(`ungoogled-chromium-macos/build/src` in an alerse-mac checkout) until
-ungoogled-chromium-macos releases 157; this section is for that tree. Releases are
-pre-releases (signed with the build Mac's own identity, see alerse-mac README).
+macOS is built on the build Mac with alerse-mac's `build.py` from this core and
+ungoogled-chromium-macos 157.0.8103.78-1.1 (checkout `~/dev/alerse-mac-157`; the tree
+is its `ungoogled-chromium-macos/build/src`). Until 2026-11-21 it came from a Chromium
+156 tree kept by hand. Releases are pre-releases (signed with the build Mac's own
+identity, see alerse-mac README).
 
 1. In the tree, set `PATCH` in `chrome/VERSION` to Chromium's patch × 100 + X.Y.Z's
-   patch (Chromium 156.0.8078.79 and Alerse 0.1.13 give 7913) and
+   patch (Chromium 157.0.8103.78 and Alerse 0.1.24 give 7824) and
    `ALERSE_VERSION=X.Y.Z`.
 2. Build in the tree, then package from the alerse-mac checkout's root, where
    `package.sh` is:
@@ -128,6 +129,6 @@ Releases are not edited after the fact; these stay as they are:
   0.1.20 and 0.1.23, so GitHub's release list shows it out of order. The update check and
   the site's download links order releases by version or creation date and are not
   affected.
-- alerse-mac releases from 0.1.7 on cannot be rebuilt from their tags alone: they come
+- alerse-mac releases 0.1.7 to 0.1.24 cannot be rebuilt from their tags alone: they come
   from the hand-kept Chromium 156 tree (see the alerse-mac README, "Where each release
   comes from").

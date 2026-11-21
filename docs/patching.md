@@ -126,7 +126,8 @@ Alerse follows ungoogled-chromium, so a new Chromium is possible only once
 ungoogled-chromium and the platform's port have released it. A port that is behind
 builds from an older core: alerse-ios pins core 1c092e0 (0.1.1, 156) and
 alerse-linux at a core from before Space profiles, since the 157 series does not apply
-to 156. macOS pre-releases are built from a 156 tree kept by hand on the build Mac.
+to 156. macOS builds from this core on Chromium 157 since 2026-11-21; earlier
+pre-releases came from a 156 tree kept by hand on the build Mac.
 
 ## iOS patches
 
