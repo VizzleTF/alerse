@@ -82,13 +82,21 @@ inline void RecordSpaceId(Profile* profile) {
 // Tells the list that the Space in `path` is being deleted, so that its
 // other devices' copies of the list do not bring it back here.
 inline void RecordSpaceDeleted(const base::FilePath& path) {
+  ProfileAttributesStorage& storage =
+      g_browser_process->profile_manager()->GetProfileAttributesStorage();
   const ProfileAttributesEntry* entry =
-      g_browser_process->profile_manager()
-          ->GetProfileAttributesStorage()
-          .GetProfileAttributesWithPath(path);
+      storage.GetProfileAttributesWithPath(path);
   const std::string id =
       entry ? entry->GetAlerseValue(kSpaceEntryIdKey) : std::string();
-  if (!id.empty()) {
+  // A second profile of the same Space (made before its first one recorded
+  // its id) goes alone: the Space stays on the other devices.
+  const bool shared = std::ranges::any_of(
+      storage.GetAllProfilesAttributes(),
+      [&](const ProfileAttributesEntry* other) {
+        return other != entry && !other->IsOmitted() &&
+               other->GetAlerseValue(kSpaceEntryIdKey) == id;
+      });
+  if (!id.empty() && !shared) {
     syncer::AlerseSyncAccount::AddDeletedSpace(g_browser_process->local_state(),
                                                id);
   }
@@ -299,13 +307,20 @@ inline void UpdateSpaceList(bookmarks::BookmarkModel* model, Profile* home) {
   }
 
   std::set<std::string> here;
+  // A Space whose id its registry entry does not have yet (it is recorded
+  // once its profile loads) may be one of the list's: making the list's
+  // Spaces now could make a second profile for it.
+  bool ids_known = true;
   for (const ProfileAttributesEntry* entry :
        g_browser_process->profile_manager()
            ->GetProfileAttributesStorage()
            .GetAllProfilesAttributes()) {
     const std::string id = entry->GetAlerseValue(kSpaceEntryIdKey);
-    if (entry->IsOmitted() || IsHomeSpacePath(entry->GetPath()) ||
-        id.empty()) {
+    if (entry->IsOmitted() || IsHomeSpacePath(entry->GetPath())) {
+      continue;
+    }
+    if (id.empty()) {
+      ids_known = false;
       continue;
     }
     here.insert(id);
@@ -320,7 +335,7 @@ inline void UpdateSpaceList(bookmarks::BookmarkModel* model, Profile* home) {
   }
   for (const auto [id, value] : list) {
     const base::DictValue* space = value.GetIfDict();
-    if (!space || space->FindBool("deleted").value_or(false) ||
+    if (!ids_known || !space || space->FindBool("deleted").value_or(false) ||
         here.contains(id) || SpacesBeingMade().contains(id)) {
       continue;
     }

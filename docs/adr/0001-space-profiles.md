@@ -184,10 +184,14 @@ belong to one user. The user still signs in or enters the sync code once.
   color the Space had when it was listed. Home's window keeps the list and the
   device in line: it lists the Spaces the list lacks and makes a profile for each id
   the device lacks, and that profile joins the Space's chain. A Space's current
-  name, icon and color come through its own chain.
+  name, icon and color come through its own chain. It makes none while a Space's
+  registry entry has no id yet (the id is recorded when that Space's profile
+  loads): in 0.1.25 the first start after an update made a second profile of Work
+  that way.
 - Deleting a Space marks its id deleted in the list, so the list does not bring the
   Space back on that device. Other devices keep their copy of the Space until it is
-  deleted there.
+  deleted there. Deleting a second profile of a Space whose id another profile
+  also has marks nothing.
 - A Space is listed after its window was shown once on the device that made it,
   and the list is read and written only while home is loaded.
 
